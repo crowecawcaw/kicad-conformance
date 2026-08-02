@@ -29,6 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: kicad/kicad:10.0.5
+      # The kicad/kicad image's default user is uid 1000 (kicad); GitHub Actions
+      # container jobs must run as root so actions/checkout can write to /__w
+      # (otherwise checkout fails with EACCES). kicad-cli runs fine as root.
+      options: --user root
     steps:
       - uses: actions/checkout@v4
 
@@ -68,6 +72,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: kicad/kicad:nightly
+      options: --user root  # same reason as the gating job: checkout needs root
     continue-on-error: true  # DL-0010: reports drift, never blocks the gating job
     steps:
       - uses: actions/checkout@v4
