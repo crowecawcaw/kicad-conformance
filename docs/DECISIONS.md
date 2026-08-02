@@ -419,3 +419,68 @@ the generated index restores cross-suite visibility instead of relying on the tr
 **Consequences.** New suite `integration/{happy,failure}/`; TEST_CASE_FORMAT §1/§2, the
 README repo-map, and ROADMAP M4 updated. The coverage index is part of the M0 coverage
 proxy.
+
+---
+
+## DL-0018 — Known-oracle-divergence declaration is a strict-xfail layer, not a skip
+**Status:** accepted
+
+**Context.** `board-parse/failure/0001-unterminated-sexpr` makes `kicad-cli` 10.0.5
+print the correct `Expecting …` message and then segfault (`CRASH`, [DL-0013]) -- a
+confirmed KiCad bug, not a harness defect. A `CRASH` is never a pass, so as originally
+authored this one case made `python3 -m runner suites/` exit non-zero forever, on a bug
+that is not this repo's to fix. A brand-new public repo cannot ship with a
+permanently-red gating build: that destroys CI's regression signal (a real regression
+introduced later would be indistinguishable from the pre-existing red). Two options were
+weighed: (a) silently loosen the case (e.g. drop `expect="error"` to tolerate the crash,
+or add a `skip_reason`), or (b) declare the divergence as data and reinterpret the
+already-expected bad verdict without touching the OK/REJECT/CRASH classifier itself.
+Option (a) either hides a real bug behind a passing case or removes the case from the
+suite's coverage map entirely -- both violate goal #1 (documentation) and DL-0013's
+"a crash is never a pass." Option (b), modeled on OpenJD's and this project's own
+divergence-ledger precedent ([DL-0009]), keeps the assertion honest (the case still
+declares the *desired* graceful rejection) while keeping the build green.
+
+**Decision.** A case (or an individual `[[check]]`) may declare a `known_divergence`
+table: `reason` (required, one line), `kind` (required, e.g. `"crash"`), `tracking`
+(optional, an upstream issue URL/id or a `"TODO: file upstream"` placeholder). Semantics
+are **strict xfail**, applied as a layer on top of the existing OK/REJECT/CRASH verdict
+(DESIGN.md §3a) -- it never changes what the verdict *is*:
+
+- If the actual verdict matches the declared `kind` (e.g. `CRASH` for `kind = "crash"`),
+  the check is scored **`XFAIL`** ("known divergence") -- not a failure; the build stays
+  green.
+- If the same check instead comes back clean (`OK`/graceful `REJECT` -- the oracle got
+  fixed), that is an **`XPASS`** -- and XPASS **fails the build** with a message pointing
+  at `docs/DIVERGENCES.md`, because a strict xfail that can silently rot is not
+  evidence of anything. This is deliberately *stricter* than a conventional pytest-style
+  `xfail` (which usually tolerates an XPASS quietly) -- see the OpenJD prior art and
+  [DL-0009]'s "a test that can't fail is not evidence" thread.
+- A case with no `known_divergence` behaves exactly as before this decision; `XFAIL`/
+  `XPASS` are new, separately-counted verdicts alongside `PASS`/`FAIL`/`CRASH`/`SKIP`/
+  `NOT-EVIDENCE`/`NEEDS-REGEN` in the summary.
+- The positive control ([DL-0013]) is unaffected and still required/run: `known_divergence`
+  only reinterprets the *main* check's already-bad, already-declared verdict, never the
+  control's.
+
+The one existing case this applies to (`board-parse/failure/0001-unterminated-sexpr`)
+keeps its `expect="error"`, `error_contains = "Expecting"`, and positive control exactly
+as before -- only a `[known_divergence]` table (`kind = "crash"`) is added, and its
+inline `concept` is trimmed back to the one-sentence desired-behavior statement, with the
+bug narrative moved to the new checked-in ledger, `docs/DIVERGENCES.md`.
+
+**Rationale.** The runner's OK/REJECT/CRASH classifier ([DL-0013]) must stay a single
+source of truth for what actually happened -- inventing a fourth raw verdict, or
+special-casing the classifier per-case, would blur that. Scoring the divergence as a
+*presentation* layer on top keeps the classifier pure while still letting a case be
+simultaneously honest (it still says what KiCad *should* do) and non-blocking (it doesn't
+red the build over a bug filed upstream). Strictness (XPASS fails loudly) is what
+prevents this from degenerating into a permanent, unreviewed skip -- exactly the failure
+mode a `skip_reason` or a loosened assertion would have produced silently.
+
+**Consequences.** `runner/manifest.py` parses `known_divergence` (case-level default,
+check-level override, mirroring the existing `control` resolution pattern);
+`runner/engine.py` scores it after the positive control passes; `runner/cli.py` treats
+`XFAIL` as non-failing and `XPASS` as failing in the per-case rollup. `docs/DIVERGENCES.md`
+is the checked-in ledger DL-0009 anticipated but had not yet been created; entries there
+must be kept current with the `tracking` field (upstream issue) once filed.

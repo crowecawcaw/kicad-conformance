@@ -8,9 +8,17 @@ KiCad itself (via `kicad-cli`) is the reference oracle, and any other tool — a
 clean-room parser, a third-party exporter — can run the *same* suite through a thin
 adapter.
 
-> **Status: design phase.** This repository currently contains design documents and a
-> directory skeleton only. No runner code and no real test fixtures/goldens exist yet.
-> The worked examples in the docs are illustrations, not files on disk. See
+> **Status: M0 complete.** The runner (`runner/`, Python 3.11 stdlib), the reference
+> `kicad-cli` adapter, the normalization layer, the OK/REJECT/CRASH verdict + positive-
+> control machinery, the known-oracle-divergence strict-xfail layer, the cheap coverage
+> proxy, and one worked example per core suite (`schematic-parse`, `board-parse`,
+> `netlist`, `drc`, `integration`) are real, committed, and green against `kicad-cli`
+> 10.0.5 in Docker — see `python3 -m runner suites/` and `docs/ROADMAP.md` M0. One case
+> (`board-parse/failure/0001-unterminated-sexpr`) reports `XFAIL` (known divergence): it
+> documents a real KiCad 10.0.5 segfault (DL-0013) as a tracked, checked-in ledger entry
+> (`docs/DIVERGENCES.md`, DL-0018) rather than a harness bug or a permanently-red build.
+> Everything past M0 (deeper parse coverage, ERC, more DRC rule classes, drill/pos/bom,
+> library suites, a second adapter) is still ahead — see
 > [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ---
@@ -93,7 +101,7 @@ feeding both `drc` and `export-gerbers`). Full details in
 
 ---
 
-## Quickstart (intended UX — runner not built yet)
+## Quickstart
 
 The runner will be a small **Python 3.11+ program with no third-party runtime
 dependencies** (uses stdlib `tomllib`). See [DL-0002](docs/DECISIONS.md) for the
@@ -146,6 +154,7 @@ kicad-conformance/
 │   ├── DESIGN.md              # architecture: model, adapter contract, comparison, coverage
 │   ├── TEST_CASE_FORMAT.md    # the authoring spec (manifest schema, layout, worked examples)
 │   ├── DECISIONS.md           # numbered decision log (ADR-style, append-only)
+│   ├── DIVERGENCES.md         # checked-in known-divergence ledger (DL-0009/DL-0018)
 │   └── ROADMAP.md             # milestones
 ├── suites/                    # the curated, hand-authored corpus (committed)
 │   ├── schematic-parse/{happy,failure}/

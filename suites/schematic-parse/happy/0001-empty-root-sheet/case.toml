@@ -1,0 +1,9 @@
+concept = "An empty root schematic sheet (title block only, no symbols) parses and canonicalizes."
+doc     = "sexpr-schematic"
+input   = "sheet.kicad_sch"
+
+[[check]]
+op      = "parse-sch"
+expect  = "ok"
+compare = "golden-file"
+golden  = "canonical.kicad_sch"   # KiCad's `sch upgrade --force` output, normalized

@@ -130,6 +130,7 @@ the filename.
 | `tags` | no | array\<string\> | Free-form labels for filtering (`["zones", "regression"]`). |
 | `min_kicad` | no | string | Skip (counted) below this oracle version, for behavior that doesn't exist in older KiCad. |
 | `skip_reason` | no | string | If present, the case is skipped-and-counted with this reason (e.g. an irreducibly nondeterministic fixture). |
+| `known_divergence` | no | table | Declares a known, tracked non-conformance of the **reference oracle itself** (e.g. the KiCad 10.0.5 PCB-parse segfault) as a **strict xfail** ([DL-0018](DECISIONS.md), [`DESIGN.md`](DESIGN.md) §3a). Default for every check in the case; a `[[check]]` may override with its own `known_divergence`. See §4.3 below. |
 | `[[check]]` | **yes** | table array | One or more checks (below). Order is preserved in reports. |
 
 ### 4.2 `[[check]]` fields
@@ -146,6 +147,7 @@ the filename.
 | `format` | no | string | Verb-specific output format override (e.g. a non-default netlist format). |
 | `args` | no | array\<string\> | Extra verb-specific flags passed through to the adapter, for cases exercising a specific option. Use sparingly; document why in `concept`. |
 | `name` | no | string | Short label when a case has several checks, so reports name each. |
+| `known_divergence` | no | table | Per-check override of the case-level `known_divergence` (same schema, §4.3). |
 
 **Rules the runner enforces:**
 
@@ -171,6 +173,63 @@ the filename.
   **not-evidence**, never passed — "a test that can't fail is not evidence." This is how a
   schematic failure case (whose stderr is the undiscriminating `Failed to load schematic`)
   proves the *specific* defect is what triggered the rejection.
+- **A declared `known_divergence` never changes the OK/REJECT/CRASH verdict itself** —
+  see §4.3 — it only reinterprets an already-computed, already-bad verdict that matches
+  the declaration, and only after any positive control has already passed.
+
+### 4.3 `known_divergence` sub-schema (strict xfail, [DL-0018])
+
+A `known_divergence` table — at case level (`[known_divergence]`, default for every
+check) or check level (`known_divergence = { ... }`, overrides the case default for that
+one check) — declares that the **reference oracle itself** is known to diverge from the
+behavior the case otherwise asserts, and that this is tracked, not silently tolerated:
+
+| Field | Req | Type | Meaning |
+|---|---|---|---|
+| `reason` | **yes** | string | One line: why the oracle diverges (what actually happens instead of the desired behavior). Cite `docs/DIVERGENCES.md` for the full writeup. |
+| `kind` | **yes** | string | The category of divergence. Currently used: `"crash"` (the oracle segfaults/is signaled instead of a graceful rejection). Other kinds (e.g. `"reject-expected-accept"`) are reserved for future use as they come up. |
+| `tracking` | no | string | An upstream issue URL/id, or a placeholder like `"TODO: file upstream"` until one exists. |
+
+**Semantics (strict xfail) — a layer on top of the OK/REJECT/CRASH verdict, never a
+replacement for it:**
+
+- If the check's actual verdict matches the declared `kind` (e.g. the runner classifies
+  the invocation as `CRASH` and `kind = "crash"`), the check is scored **`XFAIL`**
+  ("known divergence") — not a failure; the build stays green.
+- If the same check instead reaches its normally-desired outcome (a clean `OK`/graceful
+  `REJECT` — the oracle got fixed), that is an **`XPASS`**, and XPASS **fails the build**
+  with a message pointing at `docs/DIVERGENCES.md`: a strict xfail must not be allowed to
+  rot, so this forces the ledger and the `known_divergence` marker to be updated by hand
+  rather than silently going stale.
+- A check whose verdict is bad but does **not** match the declared `kind` (some other,
+  undeclared failure) is reported as an ordinary `FAIL`/`CRASH` — the marker only covers
+  the specific divergence it names.
+
+Worked snippet (the shape used by `board-parse/failure/0001-unterminated-sexpr`, where
+`kicad-cli` 10.0.5 prints the correct `Expecting …` message and then segfaults instead of
+rejecting cleanly):
+
+```toml
+concept = "A board whose first token is malformed is rejected with a parse-position error."
+doc     = "sexpr-intro"
+input   = "board.kicad_pcb"
+control = "control.kicad_pcb"
+
+[known_divergence]
+kind     = "crash"
+reason   = "kicad-cli 10.0.5 segfaults after printing the correct 'Expecting' message instead of exiting gracefully -- see docs/DIVERGENCES.md."
+tracking = "TODO: file upstream"
+
+[[check]]
+op             = "parse-pcb"
+expect         = "error"          # the DESIRED behavior -- unchanged by the marker above
+error_contains = "Expecting"
+```
+
+The case still asserts the behavior we actually want (a graceful `Expecting …` rejection);
+`known_divergence` only records that *today's* oracle can't deliver it, so the suite stays
+honest (the assertion is unchanged) and the build stays green (the known-bad verdict is
+scored `XFAIL`, not `FAIL`/`CRASH`).
 
 ---
 

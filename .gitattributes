@@ -1,0 +1,14 @@
+# Goldens and curated fixtures are Docker-Linux-authored and LF-canonical (DL-0016).
+# Windows checkouts must not re-mangle them to CRLF, and Windows-side git must not
+# re-mangle them back on commit either -- force LF for everything under suites/.
+suites/**       text eol=lf
+
+# Never re-encode binary-ish artifacts KiCad might one day emit under a golden
+# (e.g. a future STEP/3D opt-in suite, DL-0012) even though none exist yet in M0.
+suites/**/*.step -text
+suites/**/*.stp  -text
+suites/**/*.png  -text
+suites/**/*.pdf  -text
+
+# Runner source: normal git-native line-ending handling (no forced LF), since
+# contributors edit it directly with their own editor's line endings.

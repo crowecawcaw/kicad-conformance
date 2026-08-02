@@ -1,0 +1,30 @@
+concept = "A small routed two-layer board: it parses/canonicalizes, DRC is clean, and gerber output is stable -- one input, three checks across three verbs (DL-0017)."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+tags    = ["integration", "fab"]
+
+# 1) The board must load and re-save canonically.
+[[check]]
+name    = "parse"
+op      = "parse-pcb"
+expect  = "ok"
+compare = "golden-file"
+golden  = "canonical.kicad_pcb"
+
+# 2) DRC must report the exact same violation set as KiCad (here: none).
+[[check]]
+name    = "drc"
+op      = "drc"
+expect  = "ok"
+compare = "structured"                 # semantic reduction of the DRC JSON
+golden  = "drc.reduced.json"           # the stored CANONICAL REDUCTION, not raw KiCad JSON
+
+# 3) Gerber export must match the normalized golden file set (per-layer + job file).
+#    The layer set is PINNED so the golden-dir membership is deterministic (DESIGN §2b).
+[[check]]
+name    = "gerbers"
+op      = "export-gerbers"
+expect  = "ok"
+compare = "golden-dir"
+golden  = "gerbers/"                    # RS-274X files, G04 headers + .gbrjob date normalized
+args    = ["--layers", "F.Cu,B.Cu,Edge.Cuts", "--no-protel-ext"]

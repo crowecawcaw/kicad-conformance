@@ -1,0 +1,9 @@
+concept = "A minimal two-layer board (no footprints, standard layer table) parses and canonicalizes cleanly."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+
+[[check]]
+op      = "parse-pcb"
+expect  = "ok"
+compare = "golden-file"
+golden  = "canonical.kicad_pcb"

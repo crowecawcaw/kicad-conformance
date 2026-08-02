@@ -2,7 +2,8 @@
 
 This document defines the architecture. Companion docs:
 [`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md) (how to author a case),
-[`DECISIONS.md`](DECISIONS.md) (numbered rationale), [`ROADMAP.md`](ROADMAP.md).
+[`DECISIONS.md`](DECISIONS.md) (numbered rationale), [`ROADMAP.md`](ROADMAP.md),
+[`DIVERGENCES.md`](DIVERGENCES.md) (the checked-in known-divergence ledger, [DL-0009]/[DL-0018]).
 
 ---
 
@@ -136,6 +137,18 @@ find the artifact. Observed default (no-`-o`) behavior:
 forwards it to the corresponding `kicad-cli -o/--output`. The runner then reads back the
 exact path it dictated. Per-verb the runner tells the adapter to write:
 
+**The adapter also copies the input itself to an isolated scratch dir for *every* verb,
+not only the in-place `upgrade` ones.** The obvious reason is `pcb`/`sch upgrade`
+rewriting in place (§2 above); the less obvious, empirically-found reason is that
+`kicad-cli` writes a side-effect file next to a board it merely **reads** — `pcb drc` and
+`pcb export gerbers` both leave a `.kicad_prl` (project-local-settings cache) alongside
+the input, even though neither operation is conceptually a write. Left uncontrolled, that
+side effect would land inside `suites/` next to the committed fixture. So every verb's
+input is copied into a fresh scratch directory before invoking `kicad-cli`, and
+`kicad-cli` only ever sees the scratch copy — the committed fixture path is never passed
+to it directly, whether the verb is a read-only report (`drc`, `erc`, exports) or an
+in-place rewrite (`upgrade`).
+
 | Verb | Adapter passes to `kicad-cli` | Artifact the runner reads |
 |---|---|---|
 | `drc` | `-o <out>/drc.json` | `<out>/drc.json` |
@@ -222,9 +235,19 @@ A `CRASH` is reported as its own verdict and, for `happy` cases, is distinct fro
 normal failure so it is never mistaken for a clean mismatch. Because the exit *code*
 differs across platforms (Windows-native vs Docker-Linux), detection is by
 signal / `>128` semantics, never the literal 139. Known oracle crashes (the 10.0.5 PCB
-parse-failure segfault) are filed upstream and recorded in the divergence/known-issues
-ledger; the paired PCB failure case asserts the real `Expecting` substring so a future
-KiCad that rejects *cleanly* (no crash) still conforms.
+parse-failure segfault) are filed upstream and recorded in the divergence
+ledger ([`DIVERGENCES.md`](DIVERGENCES.md)); the paired PCB failure case asserts the real
+`Expecting` substring so a future KiCad that rejects *cleanly* (no crash) still conforms.
+
+**Adapter requirement: relay a child's crash, don't launder it.** The runner's direct
+subprocess child is the *adapter*, never `kicad-cli` itself (§1, [DL-0007]) — so this
+classifier only ever sees the adapter's own `returncode`. For a signaled `kicad-cli` to
+be visible as a `CRASH` through that indirection, **any** adapter satisfying this
+contract must re-signal itself the same way the reference adapter does: when its
+`kicad-cli` child is killed by a signal, the adapter re-raises the identical signal
+against itself (`os.kill(os.getpid(), sig)` in `runner/adapters/kicad.py`'s
+`run_and_relay`) rather than exiting with some ordinary nonzero code. Skipping this would
+silently launder a genuine crash into what looks like an adapter-level `REJECT`.
 
 **Positive control — every `failure` case must be falsifiable ([DL-0013]).** Because
 stderr on the schematic side cannot discriminate *which* defect fired (all defects →
@@ -234,6 +257,31 @@ runner supports this by re-running the check against a defect-free variant (a si
 "control" fixture, or an inline patch declared in the manifest) and requiring the control
 to reach `OK`. A `failure` case whose control does not flip to `OK` is reported as
 **not-evidence**, never as passed — "a test that can't fail is not evidence."
+
+**Known-oracle-divergence — strict xfail ([DL-0018]).** The OK/REJECT/CRASH verdict
+above is never edited per-case — but a case may declare that the reference oracle itself
+is known, and tracked, to diverge from the behavior it otherwise asserts, via a
+`known_divergence` table (`reason`, `kind`, optional `tracking` — schema in
+[`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md) §4.3). This is a *presentation layer* on top
+of the verdict, applied only after any positive control has already passed:
+
+- If the actual verdict matches the declared `kind` (e.g. `CRASH` for `kind = "crash"`),
+  the check is scored **`XFAIL`** ("known divergence") instead of `FAIL`/`CRASH` — the
+  build stays green.
+- If the same check instead reaches its normally-desired outcome (the oracle got fixed —
+  a clean `OK`/graceful `REJECT`), that is an **`XPASS`**, which **fails the build** with
+  a message pointing at [`DIVERGENCES.md`](DIVERGENCES.md): unlike a conventional
+  test-framework xfail, an XPASS here is never silently tolerated, so the ledger and the
+  `known_divergence` marker cannot quietly rot once the underlying bug is fixed.
+- `XFAIL`/`XPASS` are new, separately-counted verdicts in the summary alongside
+  `PASS`/`FAIL`/`CRASH`/`SKIP`/`NOT-EVIDENCE`/`NEEDS-REGEN`. A case with no
+  `known_divergence` is entirely unaffected.
+
+This is how `board-parse/failure/0001-unterminated-sexpr` (the 10.0.5 PCB-parse segfault,
+§3a above) reports green without either loosening its `expect="error"`/`error_contains`
+assertion or leaving the gating build permanently red over a bug filed upstream, not in
+this repo. See [DL-0018] and [`DIVERGENCES.md`](DIVERGENCES.md) for the full rationale
+and the ledger entry.
 
 ### 3b. `structured` — semantic reduction (DRC, ERC, netlist)
 
@@ -325,7 +373,7 @@ normalization findings and this project's own CLI research:
 |---|---|
 | s-expr (upgrade) | `(generator_version "…")`, sometimes `(generator …)`. **Keep** `(version YYYYMMDD)` — it is the compatibility key; a bump means *re-baseline the golden*, not strip. Canonicalize fresh UUIDs only if the operation minted them. |
 | Gerber (RS-274X) | `G04` header lines: `TF.CreationDate,<ISO>`, `TF.GenerationSoftware,KiCad,Pcbnew,<ver>`, and the "Created by KiCad … date" comment. |
-| Gerber job file (`.gbrjob`) | JSON `CreationDate` under `GeneralSpecs/CreationDate` (and the KiCad version string in `GeneralSpecs`). The job file is JSON, so it diffs run-to-run on its own creation date — this is a *separate* normalizer from the `G04` gerber stripping above. |
+| Gerber job file (`.gbrjob`) | JSON `CreationDate` under `Header/CreationDate` (and the KiCad version string alongside it, `Header/GenerationSoftware/Version`). The job file is JSON, so it diffs run-to-run on its own creation date — this is a *separate* normalizer from the `G04` gerber stripping above. |
 | Excellon drill | header creation date + KiCad version. |
 | Drill report | "Created on" wall-clock stamp. |
 | DRC/ERC JSON | drop top-level `date`, `kicad_version`, absolute input path; sort `violations`, `unconnected_items`, `schematic_parity` and each violation's `items[]` by content-derived order (not by UUID). |

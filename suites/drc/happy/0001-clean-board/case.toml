@@ -1,0 +1,9 @@
+concept = "A minimal two-layer board with a valid Edge.Cuts outline reports zero DRC violations."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+
+[[check]]
+op      = "drc"
+expect  = "ok"
+compare = "structured"
+golden  = "drc.reduced.json"   # canonical reduction; empty violations/unconnected/parity is fine for M0
