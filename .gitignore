@@ -1,0 +1,17 @@
+# Downloaded corpus projects are test INPUT only: never redistributed, always
+# regenerable from corpus/manifest.toml. Only the manifest is committed.
+corpus/projects/*
+!corpus/projects/.gitkeep
+
+# Golden regeneration + coverage scratch
+/.work/
+*.gcda
+*.gcno
+cov*.info
+cov-html/
+
+# Local runner scratch / caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/

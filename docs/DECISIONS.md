@@ -1,0 +1,282 @@
+# Decision log
+
+ADR-style, lightweight, numbered `DL-NNNN`, **append-only** (supersede, don't rewrite).
+Each entry: status · context · decision · rationale · consequences. Statuses:
+`accepted`, `proposed` (awaiting owner ratification), `superseded`.
+
+Cross-referenced from [`DESIGN.md`](DESIGN.md), [`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md),
+[`ROADMAP.md`](ROADMAP.md).
+
+---
+
+## DL-0001 — Primary target KiCad 10.0.5; version-parametric layout
+**Status:** accepted (owner decision)
+
+**Context.** KiCad 11 is not released (research 2026-08-02); the `master` dev line
+reports `10.99` via nightlies, and 11.0 stable is expected ~Q1 2027. The suite needs a
+concrete, stable oracle now.
+
+**Decision.** Target **KiCad 10.0.5** (newest stable patch) as the primary and only
+gating oracle. Make the layout version-parametric: goldens live under
+`golden/<version>/`, CI pins `kicad/kicad:10.0.5`, and a non-gating `kicad/kicad:nightly`
+(10.99) job tracks the moving 11 target. Nothing is gated on 11.
+
+**Rationale.** 10.0.5 is a stable, reproducible, Docker-pinnable release; the nightly 11
+is a moving target unsuitable for gating. Version-parametric goldens mean 11 slots in as
+`golden/11.0.0/` when its tags publish, with no fixture changes.
+
+**Consequences.** Goldens churn on each pinned-`kicad-cli` bump (managed by the
+regenerate flow + version subdirs). A second gating version can be added later without
+restructuring.
+
+---
+
+## DL-0002 — Runner language: Python 3.11+, standard library only
+**Status:** accepted
+
+**Context.** The runner must shell out to `kicad-cli`/Docker, run in CI, and stay easy
+for EDA contributors and AI agents to read/extend. Options weighed: Python+pytest vs a
+Rust/Go single-binary CLI ([`DESIGN.md`](DESIGN.md) §8).
+
+**Decision.** A small **Python 3.11+ runner using only the stdlib** (`tomllib`,
+`subprocess`, `json`, `pathlib`). Canonical entrypoint `python -m runner`; `pytest` is an
+optional local-dev wrapper, not the contract. No third-party runtime dependency.
+
+**Rationale.** Lowest contributor/agent friction; Python already ships in the
+`kicad/kicad` Docker image and on every CI runner; `tomllib` removes the PyYAML
+dependency; the runner is I/O-bound on `kicad-cli` so Rust/Go's speed edge is
+irrelevant. openjd's reference harness set the Python precedent.
+
+**Consequences.** No single static binary to distribute (acceptable — Python is
+omnipresent in this context). The adapter boundary being a subprocess contract
+([DL-0007]) means this choice does **not** impose Python on any implementation-under-test.
+
+---
+
+## DL-0003 — Test-case format: per-case directory + tiny TOML manifest (hybrid)
+**Status:** accepted
+
+**Context.** openjd encodes expectations purely in filenames because every case is the
+same operation. KiCad has diverse verbs, multi-file outputs, per-version goldens, and a
+requirement that one input drive multiple checks — none expressible in a filename.
+
+**Decision.** A case is a **directory** with a small **`case.toml`** manifest, the
+fixture(s), and an optional `golden/<version>/` tree. Suite, polarity, and concept are
+still encoded in the **directory path + slug** to keep openjd's docs-as-tests property.
+TOML, not YAML.
+
+**Rationale.** The manifest is the minimum needed to name a verb, an expectation, and a
+golden; the common single-check case is ~4 lines. TOML gives comments, is
+whitespace-insensitive, and matches the surrounding ecosystem (Cargo/pcb use TOML).
+Directory-encoded suite/polarity keeps a listing readable as a coverage map.
+
+**Consequences.** Slightly more ceremony than openjd's bare files, but it scales to
+multi-verb/multi-golden cases. The manifest schema is the authoring contract
+([`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md) §4), documented independently of the runner
+so alternate runners don't drift.
+
+---
+
+## DL-0004 — Goldens are per-KiCad-version, oracle-authored, regenerable
+**Status:** accepted
+
+**Context.** Rich outputs (gerbers, drill, upgraded s-expr, DRC JSON) need a reference to
+compare against. That reference must represent KiCad's actual behavior at a version.
+
+**Decision.** Goldens live at `golden/<kicad-version>/` inside each case, are **generated
+by the reference `kicad-cli`** (never hand-written) via `python -m runner --regenerate`,
+and are keyed by **oracle version, not adapter**. A second adapter compares its output
+against the same KiCad golden.
+
+**Rationale.** A hand-written golden encodes a human's belief; a generated one encodes
+KiCad's behavior — only the latter is a conformance reference. Per-version subdirs let
+multiple KiCad versions coexist. Oracle-authored goldens are the core of KiCad-as-oracle
+(pcb TENETS #1/#3).
+
+**Consequences.** Goldens must be regenerated and diff-reviewed on each pinned-version
+bump or fixture `(version YYYYMMDD)` bump. Repo carries generated artifacts under version
+control (acceptable — they're the reference).
+
+---
+
+## DL-0005 — Normalization: pin the environment + strip enumerated nondeterminism
+**Status:** accepted
+
+**Context.** `kicad-cli` output carries build/time/identity noise (timestamps,
+`generator_version`, fresh UUIDs, gerber/Excellon headers, locale-formatted numbers).
+Comparisons must ignore noise without hiding real differences.
+
+**Decision.** (a) Run every adapter call with `LC_ALL=C.UTF-8`, `TZ=UTC`, from a fixed
+cwd — removing locale/timezone/path drift at the source. (b) Apply per-output-kind
+normalizers stripping the enumerated sources ([`DESIGN.md`](DESIGN.md) §4). (c) **Keep**
+the format `(version YYYYMMDD)` token (re-baseline on bump, don't strip). (d) Add **no**
+normalizer where output is provably byte-stable; name-and-exclude irreducibly
+nondeterministic fixtures. (e) Prove each normalizer load-bearing via a run-twice
+determinism test.
+
+**Rationale.** Directly adopts the pcb `normalize.rs`/`determinism.rs` findings and the
+CLI-research determinism list. The "no identity normalizer" and "prove it goes red" rules
+keep the layer honest.
+
+**Consequences.** A maintained normalizer table that must be revisited on KiCad bumps
+(new output kinds, changed headers). Some fixtures are permanently excluded and counted.
+
+---
+
+## DL-0006 — Line coverage is scheduled from-source infra, not a per-PR check
+**Status:** accepted
+
+**Context.** The development loop wants KiCad *source* line coverage to find suite gaps.
+KiCad has no turnkey coverage mode; it needs a from-source Debug `-O0 --coverage` build
+dominated by OpenCASCADE — ~30-90 min on a strong machine, plausibly 2-4+ h on a hosted
+2-vCPU runner.
+
+**Decision.** Build instrumented KiCad **once per pinned revision on a self-hosted/beefy
+runner**, run the whole suite once, merge with `lcov`/`gcovr`, and publish a gap report.
+Cadence: **weekly / per-KiCad-bump**, never on the PR hot path. Uncovered modules become
+new-case backlog.
+
+**Rationale.** Honest about cost — instrumented KiCad is heavy and fragile
+(OCC/wx/gcov-version matching). Per-PR is infeasible; scheduled is genuinely useful for
+gap-finding.
+
+**Consequences.** Needs self-hosted CI (available per the owner's infra). Coverage is
+advisory infra, decoupled from the gating suite. Lands in M6.
+
+---
+
+## DL-0007 — Adapter contract is a language-agnostic subprocess protocol
+**Status:** accepted
+
+**Context.** Implementations-under-test are heterogeneous: KiCad (C++ CLI), a Rust engine
+(pcb), possibly a web viewer. Goal #2 requires the same corpus drive all of them.
+
+**Decision.** The adapter is an **executable** invoked as
+`<adapter> <verb> --in <path…> --out <dir> [flags]`; the runner inspects exit code,
+captured stdout/stderr, and files written under `--out`. Capability verbs are declared in
+data; unsupported verbs skip-and-count. The reference adapter wraps `kicad-cli`.
+
+**Rationale.** A subprocess boundary is the lowest common denominator every tool
+satisfies, and it decouples the runner language (Python, [DL-0002]) from the
+implementation language. Directly generalizes openjd's two-verb CLI adapter.
+
+**Consequences.** Adapters do a little glue (scratch-copy for in-place `upgrade`,
+`-o` handling for `fp`/`sym`). The verb protocol is a documented contract that must stay
+stable as suites grow.
+
+---
+
+## DL-0008 — Comparison model: exit / structured / golden-file, plus printed-quantum tolerance
+**Status:** accepted
+
+**Context.** Different outputs need different comparison strength: exit polarity for
+parse/failure, semantic membership for DRC/ERC/netlist, normalized text diff for
+gerbers/drill/s-expr, and (if geometry is in scope) numeric tolerance.
+
+**Decision.** Three primary modes — `exit` (polarity + optional stderr substring),
+`structured` (canonical semantic reduction: netlist net→node membership; DRC/ERC sorted
+violation set), `golden-file`/`golden-dir` (byte-exact after normalization) — plus a
+**printed-quantum** tolerance for any numeric export (tolerance = the precision the
+export prints; **no pre-authorized tolerance bands**).
+
+**Rationale.** Matches the pcb harness's three comparison forms and DL-0010 tolerance
+philosophy ("a pre-approved tolerance band silently absorbs a real bug"). Substring/
+structural matching pins the observable contract without over-fitting to KiCad's exact
+formatting, so a second adapter can conform.
+
+**Consequences.** Each verb specifies its reduction/normalization, documented so a second
+adapter emits a comparable shape. `structured` failures are bucketed (names-only vs
+membership vs count), not just "differs."
+
+---
+
+## DL-0009 — Two corpora: curated `suites/` (committed) + real-world `corpus/` (gitignored); plus a divergence ledger
+**Status:** accepted
+
+**Context.** Two different needs: (a) small, hand-authored, single-concept cases for
+documentation/agents; (b) thousands of real projects to drive the coverage sweep and
+broad regression. And a place to record where a second adapter diverges from KiCad.
+
+**Decision.** Keep them separate. **`suites/`** is committed, curated, hand-authored.
+**`corpus/`** holds a committed `manifest.toml` (pinned SHA + SPDX + `permissive` flag
+per project) and a **gitignored `projects/`** — downloaded, never redistributed,
+regenerable, disk-guardrailed — reusing the pcb corpus policy (accept any project with a
+LICENSE; reject only license-less repos). A checked-in **divergence ledger** triages each
+known second-adapter failure with a per-entry verdict ("KiCad/golden right, fix the tool"
+vs "suite wrong"), after openjd's `OPENJD_TEST_RESULTS.md`.
+
+**Rationale.** Curated cases must stay small and readable; coverage needs breadth. Mixing
+them would bloat the docs corpus and muddy the coverage map. The ledger lets the suite be
+stricter than any single tool without hiding regressions.
+
+**Consequences.** Two ingestion paths (author-a-case vs `corpus sync` from manifest).
+Ledger needs periodic reconciliation so it doesn't rot into a dumping ground.
+
+---
+
+## DL-0010 — CI: gate on `kicad/kicad:10.0.5` Docker; non-gating nightly job
+**Status:** accepted
+
+**Context.** CI must run against real KiCad, reproducibly, and also watch the moving 11
+target.
+
+**Decision.** Gating job runs in the `kicad/kicad:10.0.5` container (pin by digest for
+strongest reproducibility), `LC_ALL=C.UTF-8`/`TZ=UTC` set, path-filtered to `suites/` +
+`runner/`. A separate **non-gating** `kicad/kicad:nightly` (10.99) job reports drift.
+Record `kicad-cli version --format about` in every run.
+
+**Rationale.** Docker pins an exact patch with no apt state; nightly tracking surfaces
+KiCad-11 breakage early without blocking PRs. Mirrors openjd's per-implementation,
+path-filtered CI.
+
+**Consequences.** Nightly job will go red as 11 evolves; kept non-gating and triaged into
+the divergence ledger. Coverage runs on a separate schedule ([DL-0006]).
+
+---
+
+## DL-0011 — Fixture provenance for curated cases: hand-author small, generate large
+**Status:** proposed (owner to ratify)
+
+**Context.** Curated `suites/` fixtures can be (a) hand-authored minimal s-expr, or (b)
+generated by `kicad-cli` from seeds. Malformed `failure/` fixtures essentially must be
+hand-authored (to place the exact defect); realistic `happy/` boards are tedious to
+hand-write.
+
+**Proposed decision.** Hand-author minimal fixtures for `parse-*` and all `failure/`
+cases (full control over the exact tokens under test, tiny, self-documenting), and derive
+larger `happy/` board/schematic fixtures by upgrading minimal seeds through
+`kicad-cli … upgrade --force` so they are guaranteed-valid KiCad artifacts, committing the
+upgraded form as the fixture.
+
+**Rationale.** Failure cases need surgical control a generator can't give; large valid
+fixtures are more reliably produced by KiCad itself. But hand-authoring a plausible-yet-
+malformed s-expr is real labor, and "seed then upgrade" adds a provenance step — the
+owner should confirm this split before M1 fixtures are written.
+
+**Consequences if accepted.** A documented per-suite provenance convention; a small
+`tools/` helper to seed-and-upgrade. **Open question for the owner:** is any GUI-produced
+fixture acceptable, or must every committed fixture be reproducible from a text seed +
+CLI (no manual editor step)?
+
+---
+
+## DL-0012 — STEP / 3D export conformance: defer, pending ratification
+**Status:** proposed (owner to ratify)
+
+**Context.** The owner's suite list centers on parsing, DRC, ERC, gerber, drill, netlist,
+libs. STEP/3D (`export step`, `render`) are attractive but are the **least deterministic**
+outputs (OCC ISO-10303 timestamp + author + non-stable tessellation/entity ordering),
+need OpenCASCADE, and sometimes a display (`xvfb-run`).
+
+**Proposed decision.** **Defer** STEP/3D conformance out of the initial milestones. If
+pursued later, compare **geometrically** (bounding box / mesh) at a printed-quantum
+tolerance, never byte-exact, and gate it behind an opt-in suite. The verb `export-step`
+is reserved in the adapter contract but unused until ratified.
+
+**Rationale.** 3D adds the most nondeterminism and the heaviest dependency for the least
+diffable output; the high-value conformance surfaces (parse, DRC/ERC, gerber, drill,
+netlist) don't need it. Better to ship those solidly first.
+
+**Consequences if accepted.** `step`/`render` stay out of M0-M7; a later milestone can
+add an opt-in `step/` suite with geometric comparison. **Owner to rule** on whether 3D
+conformance is a goal at all.
