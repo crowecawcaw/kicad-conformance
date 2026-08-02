@@ -74,11 +74,18 @@ The **runner** walks `suites/`, and for each check invokes the **adapter** (for 
 a subprocess wrapping `kicad-cli`), applies the **normalization layer** to strip
 nondeterminism (timestamps, generator strings, fresh UUIDs, …), then decides pass/fail:
 
-- `expect = "ok"` / `"error"` pins the exit-code polarity (openjd-style),
-- for failure cases, an optional `error_contains` substring is asserted on stderr,
+- `expect = "ok"` / `"error"` pins the exit-code polarity (openjd-style), where `"error"`
+  means a **graceful** non-zero rejection — a **crash** (termination by signal / exit
+  `>128`) is a distinct verdict and **never** a pass, for either polarity
+  ([`docs/DESIGN.md`](docs/DESIGN.md) §3a),
+- for failure cases, an optional `error_contains` substring is asserted on stderr, plus a
+  required **positive control** (removing the injected defect must make the check exit 0 —
+  "a test that can't fail is not evidence"),
 - for rich output, the normalized result is compared to the golden — **byte-exact after
-  normalization** for text (gerbers, drill, upgraded s-expr) or a **structural reduction**
-  for semantic outputs (DRC/ERC violation sets, netlist net→node membership).
+  normalization** for text (gerbers, drill, upgraded s-expr; a KiCad-regression signal) or
+  a **structural reduction** for semantic outputs (DRC/ERC violation sets, netlist net→node
+  membership; the cross-adapter conformance signal). Text goldens are stored **LF** and
+  regenerated inside the Linux Docker image so they are platform-canonical.
 
 That's the whole model. One input fixture can drive several checks (e.g. one board
 feeding both `drc` and `export-gerbers`). Full details in
@@ -149,7 +156,8 @@ kicad-conformance/
 │   ├── drill/{happy,failure}/
 │   ├── netlist/{happy,failure}/
 │   ├── symbol-lib/{happy,failure}/
-│   └── footprint-lib/{happy,failure}/
+│   ├── footprint-lib/{happy,failure}/
+│   └── integration/{happy,failure}/   # multi-verb cases only (per-verb suites stay pure)
 ├── corpus/                    # large real-world projects for coverage sweeps (gitignored)
 │   ├── manifest.toml         #   pinned SHA + SPDX per project (committed)
 │   └── projects/             #   downloaded, never redistributed (gitignored)
@@ -168,14 +176,19 @@ scheduled line-coverage sweep and broad regression. See [DL-0009](docs/DECISIONS
 
 ## Contributing a case
 
-1. Pick the suite (operation family) and polarity (`happy`/`failure`).
+1. Pick the suite (operation family) and polarity (`happy`/`failure`). Single-verb cases
+   go in their verb suite; **multi-verb cases go in `integration/`** so each verb suite's
+   listing stays a true coverage map.
 2. Create `suites/<suite>/<happy|failure>/<NNNN-slug>/` with a `case.toml` and the
    smallest possible fixture that demonstrates exactly one concept.
 3. Cite the format-doc section in `doc = ` and write a one-line `concept = `.
-4. For rich-output checks, generate the golden with `python -m runner --regenerate`,
-   inspect the diff, and commit `golden/10.0.5/…`.
-5. Run `python -m runner <your case>` and confirm it passes; for a failure case,
-   confirm it fails for the *right* reason (assert the `error_contains` substring).
+4. For rich-output checks, generate the golden with `python -m runner --regenerate`
+   **inside the `kicad/kicad:10.0.5` Docker image** (so goldens are LF / Linux-canonical),
+   inspect the diff, and commit `golden/10.0.5/…`. For `structured` checks the committed
+   golden is the canonical reduction, not the raw KiCad report.
+5. Run `python -m runner <your case>` and confirm it passes; for a failure case, add a
+   positive control and confirm it fails for the *right* reason (assert `error_contains`,
+   and prove that removing the defect makes the check exit 0). A crash is never a pass.
 
 The full contributor checklist is in [`docs/TEST_CASE_FORMAT.md`](docs/TEST_CASE_FORMAT.md).
 

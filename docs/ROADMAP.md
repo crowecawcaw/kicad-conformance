@@ -20,17 +20,30 @@ The skeleton the rest hangs on. Small, but exercises the whole pipeline end to e
   (`KICAD_CLI`→PATH→install dirs, newest-numeric-first), verb mapping ([`DESIGN.md`](DESIGN.md) §2),
   scratch-copy for in-place `upgrade`, records `version --format about`.
 - **Normalization layer** ([`DESIGN.md`](DESIGN.md) §4) + a **run-twice determinism test**
-  that proves each normalizer load-bearing.
+  that proves each normalizer load-bearing. Includes CRLF→LF and the `.gbrjob` JSON-date
+  normalizer; goldens are regenerated in the Docker Linux image and stored LF, with a
+  `.gitattributes` marking `golden/**` as LF ([DL-0016]).
+- **Verdict classifier + positive-control machinery** ([`DESIGN.md`](DESIGN.md) §3a,
+  [DL-0013]): the runner distinguishes `OK` / `REJECT` / `CRASH` (signal / exit `>128`,
+  detected portably — never hard-coded 139), and runs each `failure` case's `control` and
+  requires it to reach `OK`. A crash is never a pass.
+- **Cheap coverage proxy** ([`DESIGN.md`](DESIGN.md) §7a): the runner emits a
+  `--coverage-proxy` report (CLI subcommand/flag surface + format-token / top-level
+  s-expr-section coverage) with **zero KiCad rebuild**. This — not line-coverage — is
+  M0's gap signal. Line-coverage is out of M0 entirely (see M6).
 - **One worked `happy` + one `failure` case** in each of: `schematic-parse`,
   `board-parse`, `drc`, `gerber`. (Enough to exercise `exit`, `structured`, `golden-file`,
-  and `golden-dir` comparison modes.)
+  and `golden-dir` comparison modes, plus the crash/positive-control path on the
+  `board-parse` failure case.)
 - **CI** (`.github/workflows/conformance.yml`): gating job in `kicad/kicad:10.0.5` with
   `LC_ALL=C.UTF-8`/`TZ=UTC`, path-filtered to `suites/` + `runner/` ([DL-0010]);
   non-gating `kicad/kicad:nightly` (10.99) tracking job.
 
 **Exit criteria:** `python -m runner suites/` green locally and in the 10.0.5 Docker CI;
 all four comparison modes demonstrated; determinism test proves ≥1 normalizer red-when-
-disabled.
+disabled; the crash verdict and positive control are exercised by the `board-parse`
+failure case; `--coverage-proxy` emits a CLI-surface + format-token report. **Line-coverage
+is explicitly not part of M0.**
 
 ---
 
@@ -40,8 +53,13 @@ Deepen the `parse-*` / `upgrade` surface — the highest-value format-documentat
 
 - `schematic-parse` and `board-parse`: happy (canonicalization goldens) + a broad set of
   `failure/` cases (unterminated s-expr, unknown token, bad layer count, missing required
-  field, malformed UUID), each citing its `doc` section.
-- Ratify fixture provenance ([DL-0011]) and add the seed-and-upgrade `tools/` helper.
+  field, malformed UUID), each citing its `doc` section and carrying a positive control
+  ([DL-0013]). Schematic failures assert `Failed to load schematic`; PCB failures may
+  assert the `Expecting` position, and any oracle crash (the known 10.0.5 PCB parse
+  segfault) is reported as `CRASH` + logged to the ledger, never as a green pass.
+- Fixture provenance is settled ([DL-0011], accepted): hand-author small/failure fixtures,
+  seed-and-`upgrade` larger happy ones, all GUI-free/CLI-reproducible; add the
+  seed-and-upgrade `tools/` helper.
 - Begin the format-doc-citation index: every case's `doc =` field, surfaced in reports.
 
 **Exit criteria:** parse suites cover the documented top-level tokens of `.kicad_sch` and
@@ -82,16 +100,21 @@ fixtures documented and counted.
 
 First heavy `golden-dir` suites, and the first multi-operation cases.
 
-- `gerber`: `pcb export gerbers` → normalized RS-274X golden set (strip `G04`
-  date/`TF.GenerationSoftware` headers). Cases exercising `--precision {5,6}`, `--no-x2`,
-  layer selection, DNP handling.
+- `gerber`: `pcb export gerbers` with an **explicitly pinned** `--layers` set +
+  `--no-protel-ext` → normalized RS-274X golden set (strip `G04` date/`TF.GenerationSoftware`
+  headers **and** the `.gbrjob` JSON date). Cases exercising `--precision {5,6}`, `--no-x2`,
+  layer selection, DNP handling. Layer set is a per-case parameter, not a default
+  ([`DESIGN.md`](DESIGN.md) §2b).
 - `drill`: `pcb export drill --generate-report --report-path <r>` → Excellon + report
   goldens (strip header date/version).
-- At least one **multi-operation** case: one board fixture feeding `parse-pcb` + `drc` +
-  `export-gerbers` ([`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md) §5.3).
+- At least one **multi-operation** case in the **`integration/`** suite ([DL-0017]): one
+  board fixture feeding `parse-pcb` + `drc` + `export-gerbers`
+  ([`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md) §5.3); confirm its `drc`/`gerber` checks
+  appear in the generated per-verb coverage index.
 
 **Exit criteria:** gerber + drill golden-dir comparison green with header normalization
-proven load-bearing; multi-op case demonstrates one input → multiple goldens.
+proven load-bearing; multi-op `integration/` case demonstrates one input → multiple
+goldens and surfaces in the per-verb coverage index.
 
 ---
 
