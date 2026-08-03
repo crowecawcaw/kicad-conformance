@@ -11,11 +11,13 @@ on:
     paths:
       - "suites/**"
       - "runner/**"
+      - "adapters/**"
       - ".github/workflows/ci.yml"
   pull_request:
     paths:
       - "suites/**"
       - "runner/**"
+      - "adapters/**"
       - ".github/workflows/ci.yml"
   workflow_dispatch: {}
 
@@ -41,31 +43,11 @@ jobs:
           kicad-cli version --format about
           kicad-cli version --format plain
 
-      - name: Lint every case.toml (schema-valid, per docs/TEST_CASE_FORMAT.md §4)
-        run: |
-          python3 -c "
-          import sys
-          from pathlib import Path
-          from runner.manifest import discover_cases, load_case, CaseError
-          bad = 0
-          for case_dir in discover_cases([Path('suites')]):
-              try:
-                  load_case(case_dir)
-              except CaseError as e:
-                  print(f'INVALID: {e}')
-                  bad += 1
-          sys.exit(1 if bad else 0)
-          "
-
       - name: Run the conformance suite
         run: python3 -m runner suites/
 
       - name: Determinism self-test (DESIGN §4a)
         run: python3 -m runner --determinism-check suites/
-
-      - name: Coverage proxy report (DESIGN §7a, informational)
-        run: python3 -m runner --coverage-proxy suites/
-        continue-on-error: true
 
   nightly-tracking:
     name: kicad nightly (10.99, non-gating)

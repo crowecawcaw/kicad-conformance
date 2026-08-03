@@ -1,35 +1,35 @@
-"""The composite `summary` verb (VALIDATION.md §4, DL-0022, renamed by DL-0028): one
+"""The composite `summary` verb (DESIGN.md §3b, DL-0022, renamed by DL-0028): one
 normalized JSON document per input, merging several `kicad-cli` exports for a board or a
 schematic.
 
 `build_board_summary` and `build_schematic_summary` are pure functions over already-read
-export output (the adapter -- `runner/adapters/kicad.py`'s `cmd_summary` -- is what
-actually shells out to `kicad-cli` and reads the files back; this module never touches a
+export output (the adapter -- `adapters/kicad.py`'s `cmd_summary` -- is what actually
+shells out to `kicad-cli` and reads the files back; this module never touches a
 subprocess). They reuse the raw parsers in `runner/reduce.py` (`reduce_stats`,
 `reduce_pos`, `reduce_ipcd356`, `reduce_netlist`, `reduce_netlist_kicadxml`) and rename/
-reshape their output into the exact schema VALIDATION.md §4.1/§4.2 documents.
+reshape their output into the exact schema DESIGN.md §3b.1/§4.2 documents.
 
 Every list here is content-sorted before being handed back (`nets`' member arrays,
 `components[ref].pins`), because the eventual JSON-equality compare (`runner/engine.py`)
 is sensitive to list order -- the "sorted keys, content-sorted lists" rule in
-VALIDATION.md §4.0 is enforced HERE, not just cosmetically at serialization time.
+DESIGN.md §3b is enforced HERE, not just cosmetically at serialization time.
 """
 from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 from typing import Optional
 
-from runner import reduce, sexpr
+from runner import reduce
 
 
-# --- board summary (VALIDATION.md §4.1) --------------------------------------------
+# --- board summary (DESIGN.md §3b.1) --------------------------------------------
 
 
 def build_board_summary(stats_json: dict, pos_csv_text: str, d356_text: str) -> dict:
     """Compose `pcb export stats` + `pcb export pos` + `pcb export ipcd356` into the
     board summary. `stats_json` is the parsed raw `stats.json` (this function applies
     `reduce.reduce_stats`, which is where the excluded float areas/densities/
-    min_track_clearance/width/height are dropped -- VALIDATION.md §4.1); `pos_csv_text`
+    min_track_clearance/width/height are dropped -- DESIGN.md §3b.1); `pos_csv_text`
     and `d356_text` are the raw text of `pos.csv` / `board.d356`.
     """
     stats = reduce.reduce_stats(stats_json)
@@ -69,7 +69,7 @@ def build_board_summary(stats_json: dict, pos_csv_text: str, d356_text: str) -> 
     }
 
 
-# --- schematic summary (VALIDATION.md §4.2) ---------------------------------------
+# --- schematic summary (DESIGN.md §3b.2) ---------------------------------------
 
 
 def _field_value(field_form: list) -> str:
@@ -82,44 +82,44 @@ def _field_value(field_form: list) -> str:
 
 
 def _sexpr_components(root: list) -> dict:
-    comps_form = sexpr.find_one(root, "components")
+    comps_form = reduce.find_one(root, "components")
     result: dict[str, dict] = {}
     if comps_form is None:
         return result
-    for comp in sexpr.find_all(comps_form, "comp"):
-        ref_form = sexpr.find_one(comp, "ref")
+    for comp in reduce.find_all(comps_form, "comp"):
+        ref_form = reduce.find_one(comp, "ref")
         ref = ref_form[1] if ref_form else ""
-        value_form = sexpr.find_one(comp, "value")
+        value_form = reduce.find_one(comp, "value")
         value = value_form[1] if value_form else ""
 
         part = ""
-        libsource = sexpr.find_one(comp, "libsource")
+        libsource = reduce.find_one(comp, "libsource")
         if libsource is not None:
-            part_form = sexpr.find_one(libsource, "part")
+            part_form = reduce.find_one(libsource, "part")
             part = part_form[1] if part_form else ""
 
         footprint = ""
-        fields_form = sexpr.find_one(comp, "fields")
+        fields_form = reduce.find_one(comp, "fields")
         if fields_form is not None:
-            for f in sexpr.find_all(fields_form, "field"):
-                name_form = sexpr.find_one(f, "name")
+            for f in reduce.find_all(fields_form, "field"):
+                name_form = reduce.find_one(f, "name")
                 if name_form and name_form[1] == "Footprint":
                     footprint = _field_value(f)
 
         sheet = ""
-        sheetpath = sexpr.find_one(comp, "sheetpath")
+        sheetpath = reduce.find_one(comp, "sheetpath")
         if sheetpath is not None:
-            names_form = sexpr.find_one(sheetpath, "names")
+            names_form = reduce.find_one(sheetpath, "names")
             sheet = names_form[1] if names_form else ""
 
         pins: list[str] = []
-        units_form = sexpr.find_one(comp, "units")
+        units_form = reduce.find_one(comp, "units")
         if units_form is not None:
-            for unit in sexpr.find_all(units_form, "unit"):
-                pins_form = sexpr.find_one(unit, "pins")
+            for unit in reduce.find_all(units_form, "unit"):
+                pins_form = reduce.find_one(unit, "pins")
                 if pins_form is not None:
-                    for pin in sexpr.find_all(pins_form, "pin"):
-                        num_form = sexpr.find_one(pin, "num")
+                    for pin in reduce.find_all(pins_form, "pin"):
+                        num_form = reduce.find_one(pin, "num")
                         if num_form:
                             pins.append(num_form[1])
 
@@ -179,7 +179,7 @@ def _xml_components(root: ET.Element) -> dict:
 
 def build_schematic_summary(netlist_text: str, fmt: Optional[str] = None) -> dict:
     """Compose `sch export netlist` (either interchange format) into the schematic
-    summary. `fmt` is `"kicadxml"` or `None`/`"kicadsexpr"` (the default) -- VALIDATION.md
+    summary. `fmt` is `"kicadxml"` or `None`/`"kicadsexpr"` (the default) -- DESIGN.md
     §4.2's cross-format-fairness proof: both must produce the IDENTICAL summary.
     """
     fmt = fmt or "kicadsexpr"
@@ -188,7 +188,7 @@ def build_schematic_summary(netlist_text: str, fmt: Optional[str] = None) -> dic
         components = _xml_components(root)
         nets = reduce.reduce_netlist_kicadxml(netlist_text)
     else:
-        forms = sexpr.parse_all(netlist_text)
+        forms = reduce.parse_all(netlist_text)
         root = forms[0]
         components = _sexpr_components(root)
         nets = reduce.reduce_netlist(netlist_text)

@@ -24,7 +24,7 @@ counts as `XFAIL` and keeps the build green, but the moment the oracle stops rep
 it -- returns a clean `OK`/`REJECT` instead -- the check `XPASS`es and **fails the
 build**, with a message pointing back here. That forces this ledger to be updated (and
 the `case.toml` marker removed) instead of silently rotting into a stale note nobody
-revisits. See [DL-0018] and `docs/TEST_CASE_FORMAT.md` §4 for the schema, and
+revisits. See [DL-0018] and `docs/TEST_CASE_FORMAT.md` §8 for the schema, and
 `runner/engine.py`'s `_score_known_divergence` for the implementation.
 
 ---
@@ -34,7 +34,7 @@ revisits. See [DL-0018] and `docs/TEST_CASE_FORMAT.md` §4 for the schema, and
 ### DIV-0001 -- `pcb upgrade` segfaults on a truncated board instead of exiting gracefully
 
 - **Status:** open (known oracle bug, tracked as a strict xfail)
-- **Case:** [`suites/board-parse/failure/0001-unterminated-sexpr`](../suites/board-parse/failure/0001-unterminated-sexpr/case.toml)
+- **Case:** [`suites/board-parse/rejects-unterminated-sexpr`](../suites/board-parse/rejects-unterminated-sexpr/case.toml)
 - **Input:** `board.kicad_pcb` -- a minimal board whose `(version 20240108` s-expression is
   missing its closing paren (the file ends mid-`(generator "pcbnew")` with no terminating
   `)` for the outer `kicad_pcb` form).
@@ -50,9 +50,9 @@ revisits. See [DL-0018] and `docs/TEST_CASE_FORMAT.md` §4 for the schema, and
   `Failed to load board: Expecting '(' in '…', line 2, offset 1.` (offset/line vary
   slightly by exact truncation point) -- and then **segfaults** (`SIGSEGV`; exit 139 on
   native Windows' fatal-exception-status equivalent, `-11`/`WIFSIGNALED` on Docker Linux).
-  Reproduced via the adapter directly (`runner/adapters/kicad.py parse-pcb …`), which
+  Reproduced via the adapter directly (`adapters/kicad.py parse-pcb …`), which
   observes and re-signals the identical `SIGSEGV`, and via the runner's own classifier
-  (`runner/verdict.py`), which reports `CRASH`.
+  (`runner/engine.py`'s `Verdict`/`classify`), which reports `CRASH`.
 - **KiCad version:** 10.0.5 (`kicad-cli version --format about`, pinned per [DL-0001]).
 - **Verdict per this reproduction:** confirmed KiCad bug, not a harness/suite defect --
   the message is right, only the process termination is wrong. Filed upstream: **TODO**
@@ -62,5 +62,5 @@ revisits. See [DL-0018] and `docs/TEST_CASE_FORMAT.md` §4 for the schema, and
   until a KiCad release rejects the same fixture cleanly. At that point the check
   `XPASS`es, the gating build goes red with a "known divergence no longer reproduces"
   message, and the fix is: remove the `[known_divergence]` table from
-  `suites/board-parse/failure/0001-unterminated-sexpr/case.toml`, flip this entry's
+  `suites/board-parse/rejects-unterminated-sexpr/case.toml`, flip this entry's
   **Status** to `resolved`, and note the fixed KiCad version here.

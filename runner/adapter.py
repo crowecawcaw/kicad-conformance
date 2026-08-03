@@ -21,7 +21,7 @@ class AdapterResult:
     stderr: str
 
 
-DEFAULT_ADAPTER = Path(__file__).resolve().parent / "adapters" / "kicad.py"
+DEFAULT_ADAPTER = Path(__file__).resolve().parent.parent / "adapters" / "kicad.py"
 
 
 def _argv(adapter_path: Path) -> list[str]:
@@ -90,7 +90,6 @@ class Adapter:
         out_dir: Path,
         root: str | None = None,
         fmt: str | None = None,
-        extra_args: list[str] | None = None,
     ) -> AdapterResult:
         args = [verb]
         for p in inputs:
@@ -100,6 +99,4 @@ class Adapter:
             args += ["--root", root]
         if fmt:
             args += ["--format", fmt]
-        if extra_args:
-            args += list(extra_args)
         return self._run(args)

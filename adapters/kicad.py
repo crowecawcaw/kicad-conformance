@@ -26,11 +26,11 @@ Invocation (matches DESIGN §2's `<adapter> <verb> --in <path...> --out <dir> [f
 Locale/timezone: this adapter does NOT set LC_ALL/TZ itself — the runner sets them in
 the environment it launches the adapter with (DESIGN §4), and they are inherited here.
 
-Crash relay (see runner/verdict.py for the rationale): if kicad-cli is killed by a
-signal, this adapter re-raises the identical signal against itself before exiting, so
-the runner — whose direct subprocess child is this adapter, not kicad-cli — still
-observes a genuinely signaled child (a negative `returncode`), not a laundered "normal"
-exit code.
+Crash relay (see `runner/engine.py`'s `Verdict`/`classify` for the rationale): if
+kicad-cli is killed by a signal, this adapter re-raises the identical signal against
+itself before exiting, so the runner — whose direct subprocess child is this adapter,
+not kicad-cli — still observes a genuinely signaled child (a negative `returncode`), not
+a laundered "normal" exit code.
 """
 from __future__ import annotations
 
@@ -44,13 +44,23 @@ from glob import glob
 from pathlib import Path
 
 # Make `import runner....` work when this file is invoked directly as a script (its own
-# directory, not the repo root, is on sys.path[0] by default).
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+# directory, not the repo root, is on sys.path[0] by default). This file lives at
+# <repo-root>/adapters/kicad.py -- one level up is the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from runner import summary as summarymod  # noqa: E402
-from runner.verbs import IMPLEMENTED_VERBS  # noqa: E402
+
+# The verbs this adapter implements, answered by the `capabilities` meta-verb (DESIGN.md
+# §2). `export-step` is reserved-but-unused (DL-0012) and deliberately excluded so it
+# skip-and-counts rather than pretending to run. This used to live in a shared
+# `runner/verbs.py` table with the coverage proxy; the proxy is gone (it printed one line
+# nobody read), so this is now a plain literal, owned entirely by this adapter.
+IMPLEMENTED_VERBS = (
+    "version", "parse-sch", "parse-pcb", "parse-sym", "parse-fp", "summary", "erc", "drc",
+    "netlist", "pos", "stats", "ipcd356", "render", "export-gerbers", "export-drill",
+)
 
 
 def discover_kicad_cli() -> str:
@@ -183,6 +193,36 @@ def _scratch_copy_tree(src: str, scratch_dir: Path) -> Path:
     return dest
 
 
+def _scratch_copy_all(ins: list[str], scratch_dir: Path, root: str | None) -> Path:
+    """Copy EVERY `--in` (root + subsheets) into ONE scratch dir, preserving filenames --
+    sufficient for same-directory multi-sheet projects (the common case) -- and return the
+    scratch copy of the declared `root` (or `ins[0]` if `root` is unset or names nothing
+    in `ins`).
+
+    This is what makes a multi-sheet schematic's `summary`/`netlist` cover the WHOLE
+    hierarchy instead of silently just the root sheet: `sch export netlist` resolves a
+    sub-sheet's `(sheet ... (property "Sheetfile" "sub.kicad_sch"))` reference relative to
+    the file it is run against, so every sub-sheet must actually be present on disk next
+    to the root's scratch copy, under its real filename, or kicad-cli cannot find it.
+    Copying only `ins[0]` (the bug this replaces) either makes kicad-cli fail to resolve
+    the missing sub-sheet, or -- depending on how the defect is triggered -- silently
+    export a netlist covering only the root sheet, which then compares "clean" against a
+    summary that never saw the sub-sheet's components or the net crossing the sheet
+    boundary. Either failure mode is a case that cannot fail is not evidence (DL-0013's
+    reasoning applied to `inputs`/`root`, not just to rejection-case controls)."""
+    scratch_dir.mkdir(parents=True, exist_ok=True)
+    root_name = root or Path(ins[0]).name
+    root_dest = None
+    for src in ins:
+        dest = scratch_dir / Path(src).name
+        shutil.copyfile(src, dest)
+        if Path(src).name == root_name:
+            root_dest = dest
+    if root_dest is None:
+        root_dest = scratch_dir / Path(ins[0]).name
+    return root_dest
+
+
 def cmd_parse(cli: str, kind: str, ins: list[str], out: str) -> None:
     """parse-sch / parse-pcb: `sch|pcb upgrade --force` rewrites IN PLACE, so copy the
     fixture to a scratch dir first and upgrade the copy (§2, §2a). Exit polarity only
@@ -227,26 +267,17 @@ def cmd_drc(cli: str, ins: list[str], out: str) -> None:
 
 
 def cmd_netlist(cli: str, ins: list[str], out: str, root: str | None, fmt: str | None) -> None:
-    """Copies every `--in` (root + subsheets) flat into a scratch dir by basename —
-    sufficient for same-directory multi-sheet projects (the common case) — then runs
-    `sch export netlist` against the root sheet's scratch copy.
+    """Copies every `--in` (root + subsheets) into one scratch dir (`_scratch_copy_all`),
+    preserving filenames, then runs `sch export netlist` against the root sheet's scratch
+    copy.
 
     `fmt` selects the interchange format (`kicadsexpr`, the default, or `kicadxml` --
-    VALIDATION.md §4.2's cross-format-fairness reader). `-o` always names the same
-    output file regardless of format: kicad-cli writes exactly the path it's given, not
-    a format-derived extension (verified empirically), so `netlist.net` may contain
-    either s-expr or XML text."""
+    DESIGN.md §3b's cross-format-fairness reader). `-o` always names the same output file
+    regardless of format: kicad-cli writes exactly the path it's given, not a
+    format-derived extension (verified empirically), so `netlist.net` may contain either
+    s-expr or XML text."""
     out_dir = Path(out)
-    scratch = _fresh_scratch_dir()
-    root_name = root or Path(ins[0]).name
-    root_dest = None
-    for src in ins:
-        dest = scratch / Path(src).name
-        shutil.copyfile(src, dest)
-        if Path(src).name == root_name:
-            root_dest = dest
-    if root_dest is None:
-        root_dest = scratch / Path(ins[0]).name
+    root_dest = _scratch_copy_all(ins, _fresh_scratch_dir(), root)
     run_and_relay(
         [cli, "sch", "export", "netlist", "--format", fmt or "kicadsexpr",
          "-o", str(out_dir / "netlist.net"), str(root_dest)]
@@ -254,7 +285,7 @@ def cmd_netlist(cli: str, ins: list[str], out: str, root: str | None, fmt: str |
 
 
 def cmd_export_gerbers(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
-    """`pcb export gerbers`, byte-compared answers on every board (VALIDATION.md §7.1,
+    """`pcb export gerbers`, byte-compared answers on every board (DESIGN.md §3d,
     DL-0026). **No `--layers`** (KiCad plots the board's own stored set, or its built-in
     default) and **no `--no-protel-ext`** -- the verified command is exactly this, and
     passing `--no-protel-ext` would switch every per-layer extension away from the
@@ -267,9 +298,9 @@ def cmd_export_gerbers(cli: str, ins: list[str], out: str, extra: list[str]) -> 
 
 
 def cmd_export_drill(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
-    """`pcb export drill`, byte-compared answer on every board (VALIDATION.md §7.1,
+    """`pcb export drill`, byte-compared answer on every board (DESIGN.md §3d,
     DL-0026). No `--generate-map`, no `--generate-report` (its "Created on" stamp has no
-    input to normalize -- VALIDATION §7.3's fourth non-normalizer), no
+    input to normalize -- DESIGN.md §4's fourth non-normalizer), no
     `--excellon-separate-th`: the verified default writes exactly one file, `<stem>.drl`.
     """
     out_dir = Path(out)
@@ -305,8 +336,8 @@ def cmd_ipcd356(cli: str, ins: list[str], out: str) -> None:
     )
 
 
-def cmd_render(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
-    """`render` dispatches on the input's suffix (VALIDATION.md §6, DL-0022): one board
+def cmd_render(cli: str, ins: list[str], out: str, extra: list[str], root: str | None = None) -> None:
+    """`render` dispatches on the input's suffix (DESIGN.md §2, DL-0022): one board
     layer, one schematic sheet, one symbol, one footprint library -- all the same verb,
     all the same normalized-SVG-byte-exact comparison."""
     out_dir = Path(out)
@@ -314,7 +345,7 @@ def cmd_render(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
     suffix = input_path.suffix
     if suffix == ".kicad_pcb":
         # `--layers F.Cu` is now a fixed harness decision, not a per-case parameter
-        # (VALIDATION.md §6.2, DL-0025 -- `args` is gone): F.Cu is the one layer every
+        # (DESIGN.md §6.2, DL-0025 -- `args` is gone): F.Cu is the one layer every
         # board has, and the gerbers already cover every other layer byte-exactly. The
         # rest is pinned for determinism: `--page-size-mode 2` (board-area only),
         # `--exclude-drawing-sheet`, `--black-and-white`.
@@ -326,10 +357,12 @@ def cmd_render(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
         )
     elif suffix == ".kicad_sch":
         # `sch export svg` writes `<out>/<stem>.svg` (a directory `-o`, not a file path).
-        # `--exclude-drawing-sheet --black-and-white` per VALIDATION.md §9.1's verified
-        # invocation (matches the board/library renders' determinism pinning).
+        # `--exclude-drawing-sheet --black-and-white` per DESIGN.md §2's verified
+        # invocation (matches the board/library renders' determinism pinning). Copies
+        # every `--in`, not just the root (`_scratch_copy_all`), so a hierarchical
+        # sheet's sub-sheet files are on disk if kicad-cli needs to resolve them.
         out_dir.mkdir(parents=True, exist_ok=True)
-        src = _scratch_copy(ins[0], _fresh_scratch_dir())
+        src = _scratch_copy_all(ins, _fresh_scratch_dir(), root)
         run_and_relay(
             [cli, "sch", "export", "svg", "--exclude-drawing-sheet", "--black-and-white",
              *extra, "-o", str(out_dir) + "/", str(src)]
@@ -351,28 +384,32 @@ def cmd_render(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
         )
 
 
-def cmd_summary(cli: str, ins: list[str], out: str, fmt: str | None) -> None:
-    """`summary` (VALIDATION.md §4, DL-0022, renamed by DL-0028) dispatches on the
-    input's suffix and composes the resulting export(s) into one merged
-    `<out>/summary.json`, written by THIS adapter (DESIGN §2's "composition happens in
-    the adapter") -- the runner only ever reads the merged document back, never the
-    intermediate `stats.json`/`pos.csv`/`board.d356`/`netlist.net` files.
+def cmd_summary(cli: str, ins: list[str], out: str, root: str | None, fmt: str | None) -> None:
+    """`summary` (DESIGN.md §3b, DL-0022, renamed by DL-0028) dispatches on the input's
+    suffix and composes the resulting export(s) into one merged `<out>/summary.json`,
+    written by THIS adapter (DESIGN §2's "composition happens in the adapter") -- the
+    runner only ever reads the merged document back, never the intermediate
+    `stats.json`/`pos.csv`/`board.d356`/`netlist.net` files.
 
     A board runs all three exports in sequence and relays the FIRST failure exactly as
     `run_and_relay` would (crash relay included). A schematic runs one export, in the
-    format `fmt` names (`kicadsexpr` default, or `kicadxml` -- VALIDATION §4.2's
+    format `fmt` names (`kicadsexpr` default, or `kicadxml` -- DESIGN §3b's
     cross-format-fairness proof: both formats must compose to the identical summary,
-    which is what `extra = ["summary-kicadxml"]` asserts). A `.kicad_sym`/`.pretty` input
-    has no structured kicad-cli export to build a summary from (VALIDATION §4.5) -- the
-    runner rejects it with a clear error instead of inventing a projection.
+    which is what `extra = ["summary-kicadxml"]` asserts) -- against a scratch dir
+    holding EVERY declared `--in`, not just the first, so a multi-sheet (`inputs` +
+    `root`) schematic's `sch export netlist` walks the whole hierarchy instead of
+    silently summarizing the root sheet alone (`_scratch_copy_all`). A `.kicad_sym`/
+    `.pretty` input has no structured kicad-cli export to build a summary from (DESIGN
+    §4.5) -- the runner rejects it with a clear error instead of inventing a projection.
     """
     out_dir = Path(out)
     out_dir.mkdir(parents=True, exist_ok=True)
     input_path = Path(ins[0])
     suffix = input_path.suffix
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
 
     if suffix == ".kicad_pcb":
+        # Boards are always a single file -- no `root`/subsheet concept applies.
+        src = _scratch_copy(ins[0], _fresh_scratch_dir())
         scratch = _fresh_scratch_dir()
         stats_path = scratch / "stats.json"
         pos_path = scratch / "pos.csv"
@@ -392,12 +429,17 @@ def cmd_summary(cli: str, ins: list[str], out: str, fmt: str | None) -> None:
         d356_text = d356_path.read_text(encoding="utf-8")
         summary = summarymod.build_board_summary(stats_json, pos_text, d356_text)
     elif suffix == ".kicad_sch":
+        # Every `--in` (root + subsheets) lands in ONE scratch dir under its own
+        # filename -- a sub-sheet is referenced by name from the root, so it must be on
+        # disk next to the root's scratch copy or kicad-cli cannot resolve it, and a
+        # missing subsheet is exactly the bug this replaces (module docstring).
+        root_dest = _scratch_copy_all(ins, _fresh_scratch_dir(), root)
         scratch = _fresh_scratch_dir()
         net_path = scratch / "netlist.net"
         export_fmt = fmt or "kicadsexpr"
         rc = _run_step(
             [cli, "sch", "export", "netlist", "--format", export_fmt,
-             "-o", str(net_path), str(src)]
+             "-o", str(net_path), str(root_dest)]
         )
         if rc != 0:
             _relay_and_exit(rc)
@@ -407,7 +449,7 @@ def cmd_summary(cli: str, ins: list[str], out: str, fmt: str | None) -> None:
         print(
             f"summary: does not apply to {suffix or '(directory)'!r} input -- "
             f"kicad-cli 10.0.5 offers no structured symbol/footprint export "
-            f"(VALIDATION.md §4.5); use `render` instead",
+            f"(DESIGN.md §4.5); use `render` instead",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -444,7 +486,7 @@ def main() -> int:
     elif verb == "parse-fp":
         cmd_parse_fp(cli, ins, out)
     elif verb == "summary":
-        cmd_summary(cli, ins, out, fmt)
+        cmd_summary(cli, ins, out, root, fmt)
     elif verb == "erc":
         cmd_erc(cli, ins, out)
     elif verb == "drc":
@@ -462,7 +504,7 @@ def main() -> int:
     elif verb == "ipcd356":
         cmd_ipcd356(cli, ins, out)
     elif verb == "render":
-        cmd_render(cli, ins, out, extra)
+        cmd_render(cli, ins, out, extra, root)
     else:
         print(f"unsupported verb: {verb!r}", file=sys.stderr)
         return 127

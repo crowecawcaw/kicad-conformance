@@ -10,7 +10,7 @@ but when raw output *does* differ while the normalized result does not, that is 
 concrete, printed proof that the normalizer is doing real work (rather than "a
 normalizer that never changes anything is either dead or masking something").
 
-`failure/` cases have no recorded answers (TEST_CASE_FORMAT.md §7) and are excluded --
+a rejection case has no recorded answers (TEST_CASE_FORMAT.md §7) and are excluded --
 there is nothing rich to compare twice.
 """
 from __future__ import annotations
@@ -37,15 +37,16 @@ def check_determinism(adapter: Adapter, case_dir: Path, tmp_root: Path) -> list[
     if case.skip_reason or case.polarity == "failure":
         return outcomes
 
-    input_path = case.path / case.inputs[0]
+    input_paths = case.input_paths
+    input_path = input_paths[0]
     for answer in _engine.answers_for_case(case):
         if not adapter.supports(answer.verb):
             continue
         label = answer.name
         out_a = tmp_root / f"{label}_run1"
         out_b = tmp_root / f"{label}_run2"
-        result_a = adapter.invoke(answer.verb, [input_path], out_a, root=case.root, fmt=answer.fmt)
-        result_b = adapter.invoke(answer.verb, [input_path], out_b, root=case.root, fmt=answer.fmt)
+        result_a = adapter.invoke(answer.verb, input_paths, out_a, root=case.root, fmt=answer.fmt)
+        result_b = adapter.invoke(answer.verb, input_paths, out_b, root=case.root, fmt=answer.fmt)
         if result_a.returncode != 0 or result_b.returncode != 0:
             outcomes.append(DeterminismOutcome(
                 label, ok=False, raw_identical=False,

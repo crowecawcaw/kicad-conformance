@@ -1,5 +1,5 @@
 """Canonical reductions for the JSON-comparison ops (`model`, `drc`, `erc`, `netlist`,
-`pos`, `ipcd356`, `stats` — VALIDATION.md §3/§4/§5).
+`pos`, `ipcd356`, `stats` — DESIGN.md §3b).
 
 For DRC/ERC and netlist, a byte compare is meaningless: formatting, ordering, and
 internal IDs (UUIDs, net codes) carry no semantic weight. Each function here reduces
@@ -10,9 +10,16 @@ expected file (never the raw report — DL-0014) — and at compare time the ada
 output is reduced the same way and checked for equality.
 
 `runner/summary.py`'s `build_board_summary`/`build_schematic_summary` compose these same
-functions into the single `summary` document (VALIDATION.md §4); the functions here also
+functions into the single `summary` document (DESIGN.md §3b); the functions here also
 back the standalone opt-in extras (`pos`, `ipcd356`, `stats`, `netlist` — §5), emitted
 un-merged.
+
+Also home to a minimal S-expression reader (`parse_all`/`find_one`/`find_all`) for
+KiCad's `.kicad_*` files and `kicadsexpr` netlists -- just enough to walk the `netlist`
+export's `(nets ...)` tree for `reduce_netlist`, below, and for `summary.py`'s component
+walk. Not a full KiCad format model. Quoted strings are unquoted; everything else
+(parens aside) is an opaque atom string. A parenthesized form parses to a Python
+``list`` whose first element is normally the form's tag. Stdlib only (DL-0002).
 """
 from __future__ import annotations
 
@@ -21,9 +28,94 @@ import io
 import json
 import re
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from typing import Any
 
-from runner import sexpr
+
+@dataclass
+class ParseError(Exception):
+    message: str
+
+    def __str__(self) -> str:
+        return self.message
+
+
+def _tokenize(text: str):
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c.isspace():
+            i += 1
+            continue
+        if c == "(" or c == ")":
+            yield c
+            i += 1
+            continue
+        if c == '"':
+            j = i + 1
+            buf = []
+            while j < n and text[j] != '"':
+                if text[j] == "\\" and j + 1 < n:
+                    buf.append(text[j + 1])
+                    j += 2
+                else:
+                    buf.append(text[j])
+                    j += 1
+            yield "".join(buf)
+            i = j + 1
+            continue
+        j = i
+        while j < n and not text[j].isspace() and text[j] not in "()":
+            j += 1
+        yield text[i:j]
+        i = j
+
+
+def parse_all(text: str) -> list:
+    """Parse every top-level form in `text`, returning a list of forms."""
+    toks = list(_tokenize(text))
+    pos = 0
+
+    def parse_form():
+        nonlocal pos
+        if pos >= len(toks):
+            raise ParseError("unexpected end of input")
+        tok = toks[pos]
+        pos += 1
+        if tok == "(":
+            items = []
+            while True:
+                if pos >= len(toks):
+                    raise ParseError("unterminated s-expression")
+                if toks[pos] == ")":
+                    pos += 1
+                    return items
+                items.append(parse_form())
+        if tok == ")":
+            raise ParseError("unexpected ')'")
+        return tok
+
+    forms = []
+    while pos < len(toks):
+        forms.append(parse_form())
+    return forms
+
+
+def find_all(form, tag: str) -> list:
+    """Direct children of `form` (a parsed list) whose head atom equals `tag`."""
+    return [
+        item
+        for item in form[1:]
+        if isinstance(item, list) and item and item[0] == tag
+    ]
+
+
+def find_one(form, tag: str):
+    """First direct child of `form` whose head atom equals `tag`, or None."""
+    for item in form[1:]:
+        if isinstance(item, list) and item and item[0] == tag:
+            return item
+    return None
 
 
 def _item_sort_key(item: dict) -> tuple:
@@ -81,7 +173,7 @@ reduce_erc = reduce_drc
 
 def reduce_netlist(text: str) -> dict[str, list[str]]:
     """`sch export netlist --format kicadsexpr` -> `{net-name: sorted ["REFDES.PIN", ...]}`
-    (VALIDATION.md §4.2) -- the identical member shape the board model's `nets` uses
+    (DESIGN.md §3b.2) -- the identical member shape the board model's `nets` uses
     (`"REFDES.PAD"`), so the two are directly comparable.
 
     Ignores net `code` (an arbitrary sequence number), `class`, `pinfunction`/`pintype`
@@ -89,19 +181,19 @@ def reduce_netlist(text: str) -> dict[str, list[str]]:
     `(design (source ...) (date ...) (tool ...))` header, which embeds an absolute path
     and a wall-clock date.
     """
-    forms = sexpr.parse_all(text)
+    forms = parse_all(text)
     root = forms[0]  # ['export', ['version', 'E'], ['design', ...], ...]
-    nets_form = sexpr.find_one(root, "nets")
+    nets_form = find_one(root, "nets")
     result: dict[str, list[str]] = {}
     if nets_form is None:
         return result
-    for net in sexpr.find_all(nets_form, "net"):
-        name_form = sexpr.find_one(net, "name")
+    for net in find_all(nets_form, "net"):
+        name_form = find_one(net, "name")
         name = name_form[1] if name_form else ""
         members = []
-        for node in sexpr.find_all(net, "node"):
-            ref_form = sexpr.find_one(node, "ref")
-            pin_form = sexpr.find_one(node, "pin")
+        for node in find_all(net, "node"):
+            ref_form = find_one(node, "ref")
+            pin_form = find_one(node, "pin")
             ref = ref_form[1] if ref_form else ""
             pin = pin_form[1] if pin_form else ""
             members.append(f"{ref}.{pin}")
@@ -112,7 +204,7 @@ def reduce_netlist(text: str) -> dict[str, list[str]]:
 def reduce_netlist_kicadxml(text: str) -> dict[str, list[str]]:
     """`sch export netlist --format kicadxml` -> the IDENTICAL `{net-name: sorted
     ["REFDES.PIN", ...]}` shape `reduce_netlist` produces from `kicadsexpr`
-    (VALIDATION.md §4.2). This is the cross-format-fairness proof: the net->node graph is
+    (DESIGN.md §3b.2). This is the cross-format-fairness proof: the net->node graph is
     a property of the schematic's *connectivity*, not of which interchange serialization
     carried it, so a second adapter may emit either format and be judged on the identical
     reduced graph.
@@ -137,11 +229,11 @@ def reduce_netlist_kicadxml(text: str) -> dict[str, list[str]]:
     return result
 
 
-# --- stats-json (VALIDATION.md §3.3) ----------------------------------------------
+# --- stats-json (DESIGN.md §3b.1) ----------------------------------------------
 
 
 def reduce_stats(raw: dict) -> dict:
-    """`pcb export stats --format json` -> canonical reduction (VALIDATION.md §4.1).
+    """`pcb export stats --format json` -> canonical reduction (DESIGN.md §3b.1).
 
     Drops the entire `metadata` object: `date` is wall-clock noise (confirmed the ONLY
     field that differs run-to-run), `generator` is the kicad-cli app-version string (not
@@ -152,7 +244,7 @@ def reduce_stats(raw: dict) -> dict:
     `min_track_width`, `min_drill_diameter`) and drops the **computed float geometry**
     (`area`, `front_copper_area`, `back_copper_area`, `front_footprint_area`,
     `back_footprint_area`, `front_component_density`, `back_component_density`,
-    `min_track_clearance`, `width`, `height`) -- VALIDATION.md §4.1's explicit rule: keep
+    `min_track_clearance`, `width`, `height`) -- DESIGN.md §3b.1's explicit rule: keep
     counts and echoed input values, drop computed geometry that two conformant
     implementations could legitimately round differently.
 
@@ -192,7 +284,7 @@ def reduce_stats(raw: dict) -> dict:
     }
 
 
-# --- pos / placement (VALIDATION.md §3.4) -----------------------------------------
+# --- pos / placement (DESIGN.md §3b.1) -----------------------------------------
 
 
 def reduce_pos(text: str) -> dict[str, dict[str, str]]:
@@ -202,7 +294,7 @@ def reduce_pos(text: str) -> dict[str, dict[str, str]]:
     Rows are keyed by refdes (unique per board), so CSV row order is irrelevant. `x`/
     `y`/`rot` are kept as the PRINTED STRINGS (6 decimal places in mm = exactly 1 nm,
     KiCad's native integer board unit) -- string-exact compare on them *is* the
-    printed-quantum tolerance the doc requires (VALIDATION §3.4), never a wider float
+    printed-quantum tolerance the doc requires (DESIGN.md §3b.1), never a wider float
     band. No byte normalizer is needed upstream of this (the CSV has no timestamp
     header, confirmed byte-identical run-to-run) -- the reduction is the only
     transform, per the honesty rule (DESIGN §4).
@@ -222,7 +314,7 @@ def reduce_pos(text: str) -> dict[str, dict[str, str]]:
     return result
 
 
-# --- ipcd356 -- board-side net graph (VALIDATION.md §3.5) -------------------------
+# --- ipcd356 -- board-side net graph (DESIGN.md §3b.1) -------------------------
 
 # One IPC-D-356 "netlist" record (type 317 = through-hole/via feature that carries a
 # drill spec, 327 = SMD feature, no drill). Verified against real kicad-cli 10.0.5
@@ -247,7 +339,7 @@ _IPCD356_PAD_RE = re.compile(r"^(?P<ref>\S+?)\s*-(?P<pad>\S+)$")
 
 
 def reduce_ipcd356(text: str) -> dict:
-    """`pcb export ipcd356` -> two membership structures (VALIDATION.md §3.5):
+    """`pcb export ipcd356` -> two membership structures (DESIGN.md §3b.1):
 
     1. `nets`: `{net-name: sorted [[refdes, pad], ...]}` -- the BOARD's own
        connectivity, mirroring `reduce_netlist`'s shape so the two are directly

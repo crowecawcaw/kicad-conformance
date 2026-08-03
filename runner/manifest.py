@@ -1,10 +1,16 @@
 """Loads and validates `case.toml` per docs/TEST_CASE_FORMAT.md §5.
 
 Since [DL-0025]/[DL-0027] a case names no verb and no output file: the input's file
-suffix chooses a fixed set of **standard answers** (VALIDATION.md §9.1), and `extra`
+suffix chooses a fixed set of **standard answers** (DESIGN.md §2), and `extra`
 (a flat list of names) is the only opt-in knob. There is no `[[check]]`, `op`,
 `expected`, `outcome`, `args` or `compare` any more -- a manifest that still has one of
-those is an authoring error, not something to silently honour (ROADMAP.md M0.5 item 3).
+those is an authoring error, not something to silently honour.
+
+**Polarity comes from the manifest, not the directory.** A case that sets `control` (and
+therefore `error_contains`/`error_contains_any`) is a rejection case; one that sets
+neither is a happy case. There is no `happy/`/`failure/` directory level to read this
+off any more -- rejection case *directories* are named with a `rejects-` prefix purely as
+a naming convention for readability, and the runner never parses the path for meaning.
 
 `known_divergence` (DL-0018) is unchanged: a case-level `[known_divergence]` table
 declares that the *reference oracle itself* is known to diverge, as a strict xfail. See
@@ -44,7 +50,7 @@ class KnownDivergence:
 
 # The extras a case may opt into (TEST_CASE_FORMAT.md §6). One name, one answer file --
 # except `summary-kicadxml`, which adds no file and instead re-asserts the SAME
-# `summary.json` from KiCad's XML netlist export (VALIDATION.md §4.2's cross-format-
+# `summary.json` from KiCad's XML netlist export (DESIGN.md §3b.2's cross-format-
 # fairness proof). `runner/engine.py`'s `answer_for_extra` is the other half of this
 # table (name -> invocation + comparison); kept here, not there, so `manifest.py` never
 # has to import the engine to validate a case.
@@ -54,7 +60,7 @@ EXTRA_NAMES = frozenset(
 
 # Every key `case.toml` is allowed to declare (TEST_CASE_FORMAT.md §5's field table). A
 # manifest with anything else -- `op`, `[[check]]` (-> raw key `check`), `expected`,
-# `outcome`, `args`, `compare`, `tags`, ... -- is loud, not silently accepted.
+# `outcome`, `args`, `compare`, `tags`, `min_kicad`, ... -- is loud, not silently accepted.
 _KNOWN_KEYS = {
     "concept",
     "doc",
@@ -65,7 +71,6 @@ _KNOWN_KEYS = {
     "control",
     "error_contains",
     "error_contains_any",
-    "min_kicad",
     "skip_reason",
     "known_divergence",
 }
@@ -82,13 +87,16 @@ class Case:
     control: Optional[str]
     error_contains: Optional[str]
     error_contains_any: Optional[list[str]]
-    min_kicad: Optional[str]
     skip_reason: Optional[str]
     known_divergence: Optional[KnownDivergence]
-    polarity: str  # "happy" or "failure", read off the directory path
+    polarity: str  # "happy" or "failure", derived from whether `control` is set
 
     @property
     def input_paths(self) -> list[Path]:
+        """Every `input`/`inputs` entry, resolved to a full path. A multi-sheet
+        schematic's sub-sheets are listed here too (`runner/engine.py` passes the whole
+        list to the adapter, preserving filenames, so relative sheet references
+        resolve -- DESIGN.md §2's `netlist`/`summary` note)."""
         return [self.path / p for p in self.inputs]
 
     def expected_dir(self, version: str) -> Path:
@@ -110,13 +118,14 @@ def _parse_known_divergence(raw: object, where: str) -> Optional[KnownDivergence
     return KnownDivergence(reason=reason, kind=kind, tracking=raw.get("tracking"))
 
 
-def _polarity_from_path(path: Path) -> Optional[str]:
-    parts = {p.lower() for p in path.parts}
-    if "happy" in parts:
-        return "happy"
-    if "failure" in parts:
-        return "failure"
-    return None
+def _polarity_from_manifest(control: Optional[str]) -> str:
+    """A case's polarity is a fact about what it declares, not about which directory it
+    sits in (owner ruling, superseding the old `happy/`/`failure/` split): a case that
+    names a positive `control` is a rejection case (DL-0013 -- "a test that can't fail is
+    not evidence" requires one); a case with no `control` is a happy case. There is
+    nothing else it could mean -- a case cannot assert both "the tool must accept this"
+    and "the tool must reject this" of the same input."""
+    return "failure" if control is not None else "happy"
 
 
 def load_case(case_dir: Path) -> Case:
@@ -132,7 +141,8 @@ def load_case(case_dir: Path) -> Case:
         raise CaseError(
             f"{toml_path}: unknown key(s) {sorted(unknown)} -- checks are inferred from "
             f"the input's file type, see docs/TEST_CASE_FORMAT.md §2/§5 (there is no "
-            f"[[check]], op, expected, outcome, args or compare any more, DL-0025/DL-0027)"
+            f"[[check]], op, expected, outcome, args, compare or min_kicad any more, "
+            f"DL-0025/DL-0027)"
         )
 
     has_input = "input" in raw
@@ -143,12 +153,6 @@ def load_case(case_dir: Path) -> Case:
             f"(got input={has_input}, inputs={has_inputs})"
         )
     inputs = [raw["input"]] if has_input else list(raw["inputs"])
-
-    polarity = _polarity_from_path(case_dir)
-    if polarity is None:
-        raise CaseError(
-            f"{toml_path}: case is not under a happy/ or failure/ directory"
-        )
 
     if not raw.get("concept"):
         raise CaseError(f"{toml_path}: `concept` is required (one sentence, the case's headline)")
@@ -166,21 +170,20 @@ def load_case(case_dir: Path) -> Case:
 
     error_contains = raw.get("error_contains")
     error_contains_any = raw.get("error_contains_any")
+    polarity = _polarity_from_manifest(control)
 
     if polarity == "happy":
-        if control is not None:
-            raise CaseError(f"{toml_path}: happy/ case must not set `control` (failure/ only)")
         if error_contains is not None or error_contains_any is not None:
-            raise CaseError(f"{toml_path}: happy/ case must not set error_contains* (failure/ only)")
-    else:  # failure
-        if control is None:
             raise CaseError(
-                f"{toml_path}: failure/ case requires `control` -- a defect-free sibling "
-                f"input that must be accepted (DL-0013: \"a test that can't fail is not evidence\")"
+                f"{toml_path}: error_contains*/set with no `control` -- that pair only "
+                f"means something on a rejection case, and a rejection case is exactly "
+                f"one that sets `control` (DL-0013)"
             )
+    else:  # failure (rejection) case
         if extra:
             raise CaseError(
-                f"{toml_path}: failure/ case records no answers at all, so `extra` is not valid here"
+                f"{toml_path}: a rejection case (one with `control`) records no answers "
+                f"at all, so `extra` is not valid here"
             )
 
     return Case(
@@ -193,7 +196,6 @@ def load_case(case_dir: Path) -> Case:
         control=control,
         error_contains=error_contains,
         error_contains_any=list(error_contains_any) if error_contains_any else None,
-        min_kicad=raw.get("min_kicad"),
         skip_reason=raw.get("skip_reason"),
         known_divergence=_parse_known_divergence(raw.get("known_divergence"), str(toml_path)),
         polarity=polarity,

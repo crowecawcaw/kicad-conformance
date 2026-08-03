@@ -1,0 +1,123 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "10.0.5")
+	(uuid "6f3a1c2e-0000-4000-8000-000000000101")
+	(paper "A4")
+	(lib_symbols
+		(symbol "T2"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(property "Reference" "U"
+				(at 0 -2.54 0)
+				(effects (font (size 1.27 1.27)))
+			)
+			(property "Value" "T2"
+				(at 0 5.08 0)
+				(effects (font (size 1.27 1.27)))
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(hide yes)
+				(effects (font (size 1.27 1.27)))
+			)
+			(symbol "T2_0_1"
+				(rectangle
+					(start -1.27 -0.635)
+					(end 1.27 3.175)
+					(stroke (width 0.254) (type default))
+					(fill (type none))
+				)
+			)
+			(symbol "T2_1_1"
+				(pin passive line
+					(at 0 0 0)
+					(length 0)
+					(name "1" (effects (font (size 1.27 1.27))))
+					(number "1" (effects (font (size 1.27 1.27))))
+				)
+				(pin passive line
+					(at 0 2.54 0)
+					(length 0)
+					(name "2" (effects (font (size 1.27 1.27))))
+					(number "2" (effects (font (size 1.27 1.27))))
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(symbol
+		(lib_id "T2")
+		(at 100 100 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "6f3a1c2e-0000-4000-8000-0000000000r1")
+		(property "Reference" "U1"
+			(at 100 97.46 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "T2"
+			(at 100 105.08 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" ""
+			(at 100 100 0)
+			(show_name no)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(pin "1" (uuid "6f3a1c2e-0000-4000-8000-0000000030a1"))
+		(pin "2" (uuid "6f3a1c2e-0000-4000-8000-0000000030a2"))
+		(instances
+			(project ""
+				(path "/"
+					(reference "U1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(global_label "SIG"
+		(shape input)
+		(at 100 100 0)
+		(effects (font (size 1.27 1.27)) (justify left bottom))
+		(uuid "6f3a1c2e-0000-4000-8000-00000000l001")
+	)
+	(sheet
+		(at 150 100)
+		(size 25.4 25.4)
+		(stroke (width 0.1524) (type solid))
+		(fill (color 0 0 0 0.0))
+		(uuid "6f3a1c2e-0000-4000-8000-0000000000s1")
+		(property "Sheetname" "sub"
+			(at 150 99 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Sheetfile" "sub.kicad_sch"
+			(at 150 126 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(instances
+			(project ""
+				(path "/6f3a1c2e-0000-4000-8000-0000000000s1"
+					(page "2")
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/" (page "1"))
+	)
+)

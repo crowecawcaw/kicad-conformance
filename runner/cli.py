@@ -1,6 +1,6 @@
 """`python -m runner` -- see docs/ROADMAP.md M0 and docs/DESIGN.md for what this
 implements. Flags are kept minimal (per the M0 task): PATHS, --regenerate, --adapter,
---coverage-proxy, --determinism-check.
+--determinism-check.
 """
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 
 from runner.adapter import Adapter
-from runner.coverage import build_coverage_report
 from runner.determinism import check_determinism
 from runner.engine import Engine, FAIL, PASS, REGENERATED, SKIP, XFAIL, make_tmp_root
 from runner.manifest import CaseError, discover_cases, load_case
@@ -36,11 +35,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="adapter executable to drive (default: the built-in kicad-cli adapter)",
     )
     p.add_argument(
-        "--coverage-proxy", action="store_true",
-        help="print the full CLI-surface + format-token coverage report (DESIGN §7a); "
-             "a one-line summary is always printed regardless of this flag",
-    )
-    p.add_argument(
         "--determinism-check", action="store_true",
         help="instead of a normal run, run every rich-output check twice per case and "
              "assert the normalized/reduced result is identical both times (§4a)",
@@ -52,7 +46,7 @@ def _print_case_header(case_dir: Path) -> None:
     print(f"\n{case_dir.as_posix()}")
 
 
-def run_normal(adapter: Adapter, case_dirs: list[Path], regenerate: bool, show_coverage: bool) -> int:
+def run_normal(adapter: Adapter, case_dirs: list[Path], regenerate: bool) -> int:
     engine = Engine(adapter, regenerate=regenerate)
     print(f"oracle: {adapter.identity().splitlines()[0] if adapter.identity() != 'unknown' else 'unknown'}")
     print(f"adapter version verb reports: {engine.version}")
@@ -61,7 +55,6 @@ def run_normal(adapter: Adapter, case_dirs: list[Path], regenerate: bool, show_c
     failing_cases = 0
     skipped_cases = 0
     total_cases = 0
-    loaded_cases = []
 
     with make_tmp_root() as tmp:
         tmp_path = Path(tmp)
@@ -81,7 +74,6 @@ def run_normal(adapter: Adapter, case_dirs: list[Path], regenerate: bool, show_c
             total_cases += 1
             case_tmp = tmp_path / f"case{idx}"
             result = engine.run_case(case_dir, case_tmp)
-            loaded_cases.append(result.case)
             _print_case_header(case_dir)
             if result.skipped:
                 print(f"  [SKIP] {result.skip_reason}")
@@ -108,18 +100,6 @@ def run_normal(adapter: Adapter, case_dirs: list[Path], regenerate: bool, show_c
           f"{failing_cases} with a failing check, {skipped_cases} skipped")
     for status in sorted(counts):
         print(f"  {status}: {counts[status]}")
-
-    # DESIGN §7a: a one-line coverage-proxy summary is always printed; --coverage-proxy
-    # expands it to the full CLI-surface + format-token report.
-    report = build_coverage_report(loaded_cases)
-    if show_coverage:
-        print("\n" + report.render())
-    else:
-        total_verbs = len(report.exercised_verbs) + len(report.unexercised_verbs())
-        print(
-            f"\ncoverage proxy: {len(report.exercised_verbs)}/{total_verbs} verbs exercised "
-            f"(pass --coverage-proxy for the full report)"
-        )
 
     return 1 if failing_cases > 0 else 0
 
@@ -168,4 +148,4 @@ def main(argv: list[str] | None = None) -> int:
     if args.determinism_check:
         return run_determinism_mode(adapter, case_dirs)
 
-    return run_normal(adapter, case_dirs, regenerate=args.regenerate, show_coverage=args.coverage_proxy)
+    return run_normal(adapter, case_dirs, regenerate=args.regenerate)

@@ -1,20 +1,22 @@
-"""The runner's core: for a `happy/` case, run the standard battery of answers the
-input's file type implies (plus any `extra`) and compare each to `expected/<version>/`;
-for a `failure/` case, run the type's loader and check the exit/stderr/control contract
-(DESIGN.md §3). This module has no argparse/printing concerns of its own -- see
-runner/cli.py for the CLI and report formatting.
+"""The runner's core: for a happy case (no `control` set), run the standard battery of
+answers the input's file type implies (plus any `extra`) and compare each to
+`expected/<version>/`; for a rejection case (sets `control`), run the type's loader and
+check the exit/stderr/control contract (DESIGN.md §3a). This module has no
+argparse/printing concerns of its own -- see runner/cli.py for the CLI and report
+formatting.
 
 DL-0025/DL-0027: a case names no verb and no output file. What gets recorded and how it
 is compared follows from the **input's file suffix** (`board`/`sch`/`sym`/`fp`, via
 `input_kind`) plus the case's `extra` list, never from a manifest field naming a check.
-`battery_for` is the fixed per-type answer set (VALIDATION.md §9.1); `answer_for_extra`
-is the one opt-in knob (VALIDATION.md §5, TEST_CASE_FORMAT.md §6). Comparison follows
-from each answer's own `kind` ("json" -> normalized-JSON equality, "svg" -> normalized-
-SVG byte-exact, "dir" -> a directory-tree compare with per-file normalizers,
-VALIDATION.md §9.2) -- never from a `compare` field (DL-0023).
+`battery_for` is the fixed per-type answer set (DESIGN.md §2); `answer_for_extra`
+is the one opt-in knob (TEST_CASE_FORMAT.md §6). Comparison follows from each answer's
+own `kind` ("json" -> normalized-JSON equality, "svg" -> normalized-SVG byte-exact,
+"dir" -> a directory-tree compare with per-file normalizers, DESIGN.md §3) -- never
+from a `compare` field (DL-0023).
 """
 from __future__ import annotations
 
+import enum
 import json
 import shutil
 import tempfile
@@ -25,7 +27,45 @@ from typing import Callable, Optional
 from runner import normalize, reduce
 from runner.adapter import Adapter
 from runner.manifest import EXTRA_NAMES, Case, load_case
-from runner.verdict import Verdict, classify
+
+
+class Verdict(enum.Enum):
+    """The three-way OK / REJECT / CRASH verdict (DESIGN.md §3a, DL-0013).
+
+    A malformed input can make the oracle *crash* rather than reject cleanly (observed:
+    KiCad 10.0.5 `pcb upgrade` on a truncated board prints a good `Expecting '('` message
+    and then segfaults). A naive "non-zero = rejected" rule would silently pass an
+    `outcome="error"` case on a crash. So termination is classified into three outcomes,
+    and a CRASH is never a pass -- not for `happy`, not for `failure`.
+
+    Adapter/child-process note: the runner's direct subprocess child is the *adapter*, not
+    kicad-cli (DL-0007 -- the adapter contract is itself a subprocess boundary). If
+    kicad-cli is signaled, the adapter process must re-raise that same signal against
+    itself (see `adapters/kicad.py`) so the signal is still visible as a negative
+    `returncode` on the adapter -- the runner's direct child -- rather than being silently
+    absorbed into a normal adapter exit code. That is what makes this classifier meaningful
+    through the adapter indirection layer.
+    """
+
+    OK = "OK"
+    REJECT = "REJECT"
+    CRASH = "CRASH"
+
+
+def classify(returncode: int) -> Verdict:
+    """Detection is portable: never hard-code the literal 139. On POSIX, Python's
+    `subprocess` reports a negative `returncode` when the child was killed by a signal
+    (`returncode == -signum`, i.e. `WIFSIGNALED`); we also treat any `returncode > 128`
+    as crash-equivalent (the 128+signal convention some shells surface, and the
+    Windows-fatal-exception-status case), as a defensive belt-and-suspenders rule."""
+    if returncode == 0:
+        return Verdict.OK
+    if returncode < 0:
+        return Verdict.CRASH
+    if returncode > 128:
+        return Verdict.CRASH
+    return Verdict.REJECT
+
 
 # Statuses a single answer/check can land on. Only PASS/XFAIL (and SKIP, which is
 # excluded from both counts) count as non-failing for the exit code.
@@ -67,7 +107,7 @@ class CaseResult:
         return all(r.status not in _FAILING_STATUSES for r in self.check_results)
 
 
-# --- The standard battery (VALIDATION.md §9.1) -------------------------------------
+# --- The standard battery (DESIGN.md §2) -------------------------------------
 
 
 @dataclass
@@ -90,7 +130,7 @@ class Answer:
 
 
 def input_kind(input_path: Path) -> str:
-    """`board` / `sch` / `sym` / `fp`, from the input's suffix (VALIDATION.md §9.1). A
+    """`board` / `sch` / `sym` / `fp`, from the input's suffix (DESIGN.md §2). A
     footprint library is either a `.pretty` directory or a lone `.kicad_mod` file --
     both record the same `render/` answer (TEST_CASE_FORMAT.md §2)."""
     suffix = input_path.suffix
@@ -105,7 +145,7 @@ def input_kind(input_path: Path) -> str:
     raise ValueError(f"unrecognized input type: {input_path} (suffix {suffix!r})")
 
 
-# The loader verb a `failure/` case's input type runs (DESIGN.md §2's `parse-*` row --
+# The loader verb a rejection case's input type runs (DESIGN.md §2's `parse-*` row --
 # there is no pure "parse and stop" subcommand, so `... upgrade --force` on a scratch
 # copy stands in, exit-polarity only).
 LOADER_VERB = {
@@ -121,7 +161,7 @@ def _json_bytes(artifact: Path) -> object:
 
 
 def battery_for(kind: str) -> list[Answer]:
-    """The fixed, standard-answer set for one input kind (VALIDATION.md §9.1). No
+    """The fixed, standard-answer set for one input kind (DESIGN.md §2). No
     per-case opt-out (DL-0025) -- every happy case of a given type records the same
     answers."""
     if kind == "board":
@@ -158,7 +198,7 @@ def battery_for(kind: str) -> list[Answer]:
         ]
     if kind in ("sym", "fp"):
         # Libraries get drawings only -- kicad-cli 10.0.5 has no structured symbol/
-        # footprint export (VALIDATION.md §4.5). `render` writes one SVG per symbol-unit
+        # footprint export (DESIGN.md §3b.4). `render` writes one SVG per symbol-unit
         # / footprint straight into the out dir, under KiCad's own names.
         return [
             Answer(
@@ -170,7 +210,7 @@ def battery_for(kind: str) -> list[Answer]:
 
 
 def answer_for_extra(name: str) -> Answer:
-    """The one answer `extra = [name]` adds (TEST_CASE_FORMAT.md §6, VALIDATION.md §5).
+    """The one answer `extra = [name]` adds (TEST_CASE_FORMAT.md §6, TEST_CASE_FORMAT.md §6).
     Each name is the answer's filename, except `summary-kicadxml`, which reuses
     `summary.json` and only ever compares (never regenerates) -- see `Answer.compare_only`.
     """
@@ -229,8 +269,7 @@ assert set() == EXTRA_NAMES - {
 def answers_for_case(case: Case) -> list[Answer]:
     """The full list of answers a happy case records: the standard battery for its
     input type, plus one `Answer` per `extra` name."""
-    input_path = case.path / case.inputs[0]
-    kind = input_kind(input_path)
+    kind = input_kind(case.input_paths[0])
     answers = list(battery_for(kind))
     answers.extend(answer_for_extra(name) for name in case.extra)
     return answers
@@ -303,10 +342,17 @@ class Engine:
             return self._run_failure_case(case, tmp_root)
         return self._run_happy_case(case, tmp_root)
 
-    # --- happy/ : the standard battery + extras -------------------------------
+    # --- happy case: the standard battery + extras -------------------------------
 
     def _run_happy_case(self, case: Case, tmp_root: Path) -> CaseResult:
-        input_path = case.path / case.inputs[0]
+        # Every declared input goes to the adapter, not just the first -- a multi-sheet
+        # schematic's sub-sheets (`inputs` + `root`) must all reach the scratch dir under
+        # their original filenames, or `sch export netlist`/`summary` can only see the
+        # root sheet in isolation (DESIGN.md §2's netlist note). `input_path` (singular)
+        # is still what artifact-naming lambdas key off (e.g. a schematic render's
+        # `<stem>.svg`) -- that is always the root/first input.
+        input_paths = case.input_paths
+        input_path = input_paths[0]
         answers = answers_for_case(case)
 
         results: list[CheckResult] = []
@@ -317,7 +363,7 @@ class Engine:
                 continue
 
             out_dir = tmp_root / f"{label.replace('/', '_')}_main"
-            result = self.adapter.invoke(answer.verb, [input_path], out_dir, root=case.root, fmt=answer.fmt)
+            result = self.adapter.invoke(answer.verb, input_paths, out_dir, root=case.root, fmt=answer.fmt)
             verdict = classify(result.returncode)
             if verdict is not Verdict.OK:
                 status = CRASH if verdict is Verdict.CRASH else FAIL
@@ -363,7 +409,7 @@ class Engine:
         return CheckResult(label, FAIL, f"{label}: mismatch vs {expected_path}: {'; '.join(notes)}")
 
     def _compare_svg(self, case: Case, answer: Answer, label: str, out_dir: Path, input_path: Path) -> CheckResult:
-        # render (VALIDATION.md §6): KiCad-vs-KiCad is a normalized-SVG BYTE-EXACT
+        # render (DESIGN.md §3c): KiCad-vs-KiCad is a normalized-SVG BYTE-EXACT
         # compare, zero tolerance, no rasterizer -- the cross-impl raster path (pinned
         # `resvg`) is deferred to M6 (DL-0021).
         artifact = answer.artifact(out_dir, input_path)
@@ -386,7 +432,7 @@ class Engine:
         return CheckResult(label, FAIL, f"{label}: render (SVG) mismatch vs {expected_path} (normalized-SVG byte compare)")
 
     def _compare_dir(self, case: Case, answer: Answer, label: str, out_dir: Path, input_path: Path) -> CheckResult:
-        # gerbers/, drill/, library render/ (VALIDATION.md §7.2/§9.2, TEST_CASE_FORMAT.md
+        # gerbers/, drill/, library render/ (DESIGN.md §3d, TEST_CASE_FORMAT.md
         # §2): a directory answer is compared as a whole -- same filenames present, every
         # file byte-identical after normalization. Absence of any file is a FAILURE, not
         # a skip (TEST_CASE_FORMAT.md §2: "there is no mechanism for 'this answer is
@@ -434,10 +480,10 @@ class Engine:
             return CheckResult(label, FAIL, f"{label}: {len(mismatches)} file(s) differ vs {expected_dir}: {mismatches}")
         return CheckResult(label, PASS)
 
-    # --- failure/ : the type's loader, exit + stderr + control -----------------
+    # --- rejection case: the type's loader, exit + stderr + control -----------------
 
     def _run_failure_case(self, case: Case, tmp_root: Path) -> CaseResult:
-        input_path = case.path / case.inputs[0]
+        input_path = case.input_paths[0]
         kind = input_kind(input_path)
         verb = LOADER_VERB[kind]
         label = verb
@@ -451,7 +497,7 @@ class Engine:
 
         # Positive control (DESIGN §3a, DL-0013): every failure case must be shown
         # falsifiable. Run it even when the main check already failed/crashed, so the
-        # control machinery is exercised (and visible in the report) on every failure/
+        # control machinery is exercised (and visible in the report) on every rejection case
         # case, never just the ones whose main check happens to reject cleanly.
         control_ok, control_note = self._check_control(case, verb, label, tmp_root)
         if satisfied and not control_ok:
@@ -471,7 +517,7 @@ class Engine:
         return CaseResult(case=case, check_results=[CheckResult(label, PASS, control_note)])
 
     def _exit_condition(self, case: Case, result, label: str) -> tuple[bool, str, str]:
-        """Apply the `exit` polarity/substring rule (DESIGN §3a) for a failure/ case --
+        """Apply the `exit` polarity/substring rule (DESIGN §3a) for a rejection case --
         the tool must reject (a graceful, non-crashing non-zero exit) and, if declared,
         stderr must contain the asserted substring(s)."""
         verdict = classify(result.returncode)
@@ -480,7 +526,7 @@ class Engine:
         if verdict is Verdict.CRASH:
             return False, CRASH, (
                 f"{label}: adapter CRASHED (returncode={result.returncode}) instead of a "
-                f"graceful rejection -- CRASH is never a pass, even for a failure/ case "
+                f"graceful rejection -- CRASH is never a pass, even for a rejection case "
                 f"(DL-0013). stderr: {result.stderr.strip()}"
             )
         # REJECT: check substring assertions
