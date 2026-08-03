@@ -1,0 +1,3 @@
+concept = "An aligned dimension plots arrows, extension lines and a formatted measurement string."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

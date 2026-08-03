@@ -1,0 +1,3 @@
+concept = "A chamfered rounded-rectangle SMD pad plots a chamfer-corner aperture macro distinct from a plain roundrect."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

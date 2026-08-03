@@ -1,0 +1,3 @@
+concept = "Rectangular, oval and trapezoidal SMD pads on one footprint produce three distinct gerber apertures."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

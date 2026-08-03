@@ -1,0 +1,3 @@
+concept = "dash, dot and dash_dot stroke types break one line into a distinct pattern of gerber draws."
+doc     = "sexpr-intro"
+input   = "board.kicad_pcb"

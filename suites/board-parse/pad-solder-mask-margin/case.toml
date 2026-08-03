@@ -1,0 +1,3 @@
+concept = "A per-pad solder_mask_margin enlarges only that pad's F.Mask aperture in the gerber; every other projection is unchanged."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

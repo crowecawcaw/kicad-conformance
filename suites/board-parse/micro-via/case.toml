@@ -1,0 +1,3 @@
+concept = "A micro via is counted separately from a through via in counts.vias.micro and drilled with its own (smaller) tool."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

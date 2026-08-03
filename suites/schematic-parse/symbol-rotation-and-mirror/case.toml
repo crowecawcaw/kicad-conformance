@@ -1,0 +1,15 @@
+concept = "Rotating and mirroring a placed symbol transforms its pin coordinates, so a wire drawn to the transformed location connects while the untransformed location would not."
+doc     = "sexpr-schematic#symbols"
+input   = "sheet.kicad_sch"
+
+# Hand-authored fixture (DL-0011): U1 is the minimal T2 part placed with
+# (at 100 100 90) (mirror x). T2's pin 1 sits at the symbol's local origin, so it stays at
+# the placement point (100,100) under ANY rotation/mirror -- rotating or mirroring a
+# point at the origin is a no-op, which is why this fixture also needs pin 2 (local
+# (0, 2.54)): a probe (four candidate labels at the cardinal offsets around U1) measured
+# where 90 degrees + mirror x actually sends it -- (97.46, 100), i.e. X-2.54, not the
+# naive X, Y+2.54 you would get by treating the symbol's local Y axis as the sheet's.
+# U2's pin 1 wires to U1 pin 1 (100,100); U3's pin 1 wires to U1 pin 2's transformed point
+# (97.46,100). Falsifiable by changing the angle or dropping the mirror: the wire to
+# U1 pin 2 then misses, and that pin reverts to "unconnected-(U1-Pad2)" in summary.json
+# (SC-24; `mirror` is undocumented per the inventory's §8.7).

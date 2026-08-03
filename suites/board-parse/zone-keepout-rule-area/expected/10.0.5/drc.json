@@ -1,0 +1,45 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Track [Net-1] on F.Cu, length 16.0000 mm",
+          "pos": {
+            "x": 2.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "items_not_allowed"
+    },
+    {
+      "items": [
+        {
+          "description": "Via [Net-1] on F.Cu - B.Cu",
+          "pos": {
+            "x": 2.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "via_dangling"
+    },
+    {
+      "items": [
+        {
+          "description": "Via [Net-1] on F.Cu - B.Cu",
+          "pos": {
+            "x": 18.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "via_dangling"
+    }
+  ]
+}

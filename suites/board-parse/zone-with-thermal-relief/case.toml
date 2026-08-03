@@ -1,0 +1,3 @@
+concept = "A pad inside a filled zone connects to the pour through a narrow thermal-relief spoke, isolated by the zone's thermal_gap everywhere else -- not solid copper."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

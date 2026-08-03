@@ -1,0 +1,84 @@
+(footprint "TextAndBox"
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(layer "F.Cu")
+	(property "Reference" "REF**"
+		(at 0 -6 0)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "c3000000-0000-4000-8000-000000000001")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Value" "TextAndBox"
+		(at 0 6 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "c3000000-0000-4000-8000-000000000002")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "56264013-6a55-4188-81ab-d35ca4ba9713")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "7c4a72e4-6424-4bfa-99ea-c4dc050efe4a")
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+		)
+	)
+	(duplicate_pad_numbers_are_jumpers no)
+	(fp_text user "HELLO"
+		(at 0 -3 0)
+		(layer "F.SilkS")
+		(uuid "c3000000-0000-4000-8000-000000000003")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(fp_text_box "Wrapped footprint text box example"
+		(start -4 0)
+		(end 4 3)
+		(margins 0.749999 0.749999 0.749999 0.749999)
+		(layer "F.Fab")
+		(uuid "c3000000-0000-4000-8000-000000000004")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+		(border no)
+		(stroke
+			(width -0.000001)
+			(type solid)
+		)
+		(knockout no)
+	)
+	(embedded_fonts no)
+)

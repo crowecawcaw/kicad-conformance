@@ -1,0 +1,3 @@
+concept = "A minimal .pretty library holding one SMD-pad footprint exports exactly one SVG, under KiCad's own footprint name."
+doc     = "sexpr-footprint"
+input   = "lib.pretty"

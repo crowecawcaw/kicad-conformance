@@ -108,7 +108,8 @@ verbs cause the relevant cases to be **skipped and counted**, never failed. Core
 | `version` | — | version string on stdout | `version --format plain` (+ `--format about` for the identity record) |
 | `summary` | `.kicad_pcb` / `.kicad_sch` | **one merged `summary.json`** — everything the tool understood (§3b) | board: `pcb export stats` + `pcb export pos` + `pcb export ipcd356`; schematic: `sch export netlist` |
 | `parse-sch` | `.kicad_sch` | success/failure only | `sch upgrade --force` on a **scratch copy** (rewrites in place) |
-| `parse-pcb` | `.kicad_pcb` | success/failure only | `pcb upgrade --force` on a scratch copy |
+| `parse-pcb` | `.kicad_pcb` | success/failure only | `pcb export stats --format json` on a scratch copy ([DL-0029]; NOT `pcb upgrade --force` — see notes below) |
+| `parse-pcb-upgrade` | `.kicad_pcb` | success/failure only | `pcb upgrade --force` on a scratch copy — retained ONLY so one case (`rejects-unterminated-sexpr`, DIV-0001) can keep deliberately exercising its documented segfault via `known_divergence.probe` ([DL-0029]); no case reaches for this as its default probe |
 | `parse-sym` | `.kicad_sym` | success/failure only | `sym upgrade --force -o <out> <in>` |
 | `parse-fp` | `.pretty` **dir** (never a lone `.kicad_mod`) | success/failure only | `fp upgrade --force -o <dir> <in_dir>` |
 | `erc` | `.kicad_sch` | normalized violation set | `sch erc --format json --severity-all -o <out>/erc.json` |
@@ -125,10 +126,22 @@ verbs cause the relevant cases to be **skipped and counted**, never failed. Core
 Notes, load-bearing for correct mapping:
 
 - **`parse-*` has no dedicated subcommand.** There is no pure "parse and stop" verb in
-  `kicad-cli`; `… upgrade --force` loads the file (proving it parses) and re-emits it.
-  The re-emitted bytes are not compared against anything — `parse-*` is an **exit-polarity
-  check only**, exactly what a rejection case needs. `--force` is always passed so the
-  result never depends on the input's pre-existing version stamp.
+  `kicad-cli`; for `sch`/`sym`/`fp`, `… upgrade --force` loads the file (proving it
+  parses) and re-emits it. The re-emitted bytes are not compared against anything —
+  `parse-*` is an **exit-polarity check only**, exactly what a rejection case needs.
+  `--force` is always passed so the result never depends on the input's pre-existing
+  version stamp.
+- **`parse-pcb` is `pcb export stats`, not `pcb upgrade --force` ([DL-0029]).** Verified
+  (two independent sweeps, 8/8 and 10/10 malformed boards): `pcb upgrade --force`
+  SIGSEGVs on every board it fails to load, always right after printing the correct
+  `Failed to load board: …` message — a crash is never a pass ([DL-0013]), so every
+  `rejects-*` board case scored a strict xfail instead of the genuine reject-and-PASS its
+  concept describes. Every other board-consuming subcommand, including `pcb export
+  stats`, rejects the identical bytes gracefully (exit `3`, same stderr message). The
+  written `stats.json` is discarded, same exit-polarity-only contract as before. The
+  old command survives as its own verb, `parse-pcb-upgrade`, used by exactly one case
+  (`rejects-unterminated-sexpr`, DIV-0001) via `known_divergence.probe` to keep
+  documenting the segfault on purpose now that it is off the default path.
 - **`summary` composes inside the adapter, not inside the runner.** The reference adapter
   runs the exports into its scratch dir and writes `<out>/summary.json` itself. A
   non-KiCad implementation therefore emits its summary directly, without imitating

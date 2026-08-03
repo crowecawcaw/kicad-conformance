@@ -1,0 +1,10 @@
+concept = "A one-symbol .kicad_sym library exports exactly one SVG, under KiCad's own name."
+doc     = "sexpr-symbol-lib"
+input   = "lib.kicad_sym"
+
+# Hand-authored fixture (DL-0011), canonicalized with `kicad-cli sym upgrade --force` in
+# Docker: the minimal 2-pin "T2" body already used across the schematic-parse suite,
+# as a standalone library with one symbol. `sym export svg` writes a `render/` directory
+# holding exactly one file, "T2_unit1.svg" -- the FIRST exercise of the runner's library
+# render/-directory-answer path for this suite (SY-01/SY-03). Falsifiable: deleting the
+# symbol's rectangle body changes render/T2_unit1.svg's bytes.

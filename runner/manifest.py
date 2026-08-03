@@ -46,6 +46,19 @@ class KnownDivergence:
     reason: str
     kind: str
     tracking: Optional[str] = None
+    probe: Optional[str] = None
+    # `probe` (DL-0029) is a narrow, deliberate escape hatch, not a general per-case verb
+    # knob (DL-0025/DL-0027 removed exactly that): it exists ONLY so a `known_divergence`
+    # can keep documenting a crash that lives on a *non-default* code path after the
+    # standard probe for its input kind was remapped away from the path that crashes.
+    # Concretely: `parse-pcb`'s probe moved from `pcb upgrade --force` (SIGSEGVs on every
+    # malformed board) to `pcb export stats` (rejects gracefully) -- see DL-0029. Every
+    # rejects-* board case now exercises the graceful path and genuinely PASSes except
+    # `rejects-unterminated-sexpr` (DIV-0001), which sets `probe = "parse-pcb-upgrade"` to
+    # keep invoking the old crashing command on purpose, so the segfault stays documented
+    # and tested instead of silently going untested once the default probe stopped
+    # tripping over it. `runner/engine.py`'s `_run_failure_case` substitutes this verb for
+    # the derived `LOADER_VERB[kind]` (main check AND control) when set.
 
 
 # The extras a case may opt into (TEST_CASE_FORMAT.md §6). One name, one answer file --
@@ -115,7 +128,10 @@ def _parse_known_divergence(raw: object, where: str) -> Optional[KnownDivergence
     kind = raw.get("kind")
     if not kind:
         raise CaseError(f"{where}: known_divergence.kind is required (e.g. 'crash')")
-    return KnownDivergence(reason=reason, kind=kind, tracking=raw.get("tracking"))
+    probe = raw.get("probe")
+    if probe is not None and not isinstance(probe, str):
+        raise CaseError(f"{where}: known_divergence.probe must be a string (a verb name)")
+    return KnownDivergence(reason=reason, kind=kind, tracking=raw.get("tracking"), probe=probe)
 
 
 def _polarity_from_manifest(control: Optional[str]) -> str:

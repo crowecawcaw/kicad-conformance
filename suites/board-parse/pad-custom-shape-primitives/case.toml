@@ -1,0 +1,3 @@
+concept = "A custom SMD pad built from a gr_poly primitive plots as a generated aperture macro, not a stock rect/circle/oval."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

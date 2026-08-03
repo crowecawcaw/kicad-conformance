@@ -1,0 +1,3 @@
+concept = "gr_line, gr_circle and gr_arc each plot their own geometry on F.Cu."
+doc     = "sexpr-intro"
+input   = "board.kicad_pcb"

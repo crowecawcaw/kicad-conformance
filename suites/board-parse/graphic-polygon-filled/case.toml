@@ -1,0 +1,3 @@
+concept = "A filled gr_poly plots as a solid gerber region rather than an outline."
+doc     = "sexpr-intro"
+input   = "board.kicad_pcb"

@@ -1,0 +1,3 @@
+concept = "Font size, thickness, bold and italic each change the plotted silkscreen glyphs."
+doc     = "sexpr-intro"
+input   = "board.kicad_pcb"

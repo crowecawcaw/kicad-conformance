@@ -1,0 +1,3 @@
+concept = "Two zones whose drawn outlines overlap fill so that the higher-priority zone (NET_A, priority 1) keeps the contested area and the lower-priority zone (NET_B, priority 0) is clipped away from it."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

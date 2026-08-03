@@ -1,0 +1,3 @@
+concept = "A filled copper zone (carrying an explicit filled_polygon) plots as a solid copper region on F.Cu; without filled_polygon a zone plots nothing at all."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

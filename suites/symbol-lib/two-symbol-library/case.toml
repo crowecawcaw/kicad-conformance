@@ -1,0 +1,10 @@
+concept = "A library holding two symbols exports a render/ directory holding both SVGs, one per symbol."
+doc     = "sexpr-symbol-lib"
+input   = "lib.kicad_sym"
+
+# Hand-authored fixture (DL-0011), canonicalized with `kicad-cli sym upgrade --force`:
+# "T2" (rectangle body, 2 pins) and "T3" (circle body, 1 pin) in one .kicad_sym. This is
+# the directory-answer proof the ROADMAP calls out (SY-03): render/ must hold BOTH
+# "T2_unit1.svg" and "T3_unit1.svg", compared as a set (same filenames present, every
+# file byte-exact), not just one arbitrarily-chosen symbol. Falsifiable: removing either
+# symbol from the library changes render/'s file list itself, not just a file's bytes.

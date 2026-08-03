@@ -316,18 +316,35 @@ def reduce_pos(text: str) -> dict[str, dict[str, str]]:
 
 # --- ipcd356 -- board-side net graph (DESIGN.md §3b.1) -------------------------
 
-# One IPC-D-356 "netlist" record (type 317 = through-hole/via feature that carries a
-# drill spec, 327 = SMD feature, no drill). Verified against real kicad-cli 10.0.5
-# output (`pcb export ipcd356`); columns, left to right: record type, net name
-# (whitespace-padded, no fixed width relied on here), refdes+pad (or the literal `VIA`
-# for a via feature), an optional drill-diameter spec ending in `P` immediately before
-# the mandatory `A<NN>` access-layer code, then X/Y position (0.0001 inch units), pad
-# size X/Y, rotation, and a trailing `S<n>` serial.
+# One IPC-D-356 "netlist" record. Verified against real kicad-cli 10.0.5 output (`pcb
+# export ipcd356`), by exporting every board fixture in `suites/` and tabulating the
+# distinct record-type prefixes actually emitted (plus two dedicated probe boards built
+# for this, one with an NPTH mounting hole, one with a blind/buried via). Four record
+# types were observed, no others:
+#
+#   - 317 -- a through-hole (plated) feature that carries a net: a through via, or a
+#     through-hole pad. `mid` is the literal `VIA`, or `<refdes>  -<pad>`.
+#   - 327 -- an SMD feature: no drill segment at all, always carries a net. `mid` is
+#     `<refdes>  -<pad>`.
+#   - 307 -- a blind or buried via (plated, spans a layer pair narrower than the full
+#     stack): same shape as 317 (`mid` is always the literal `VIA`), just a distinct
+#     type code. Verified: `307NET-1            VIA        MD0118PA01X+003150Y-003937X0236Y0000R000S3`.
+#   - 367 -- a netless feature: an NPTH (`np_thru_hole`, unplated) mounting hole with no
+#     electrical net. `net` is the literal `N/C` (IPC-D-356's "no connect" marker, not a
+#     real net name) and `mid` is a bare refdes (`H1`), no `-<pad>` suffix. Verified:
+#     `367N/C              H1          D0315UA00X+001969Y-001969X0591Y0000R000S0`.
+#
+# Columns, left to right: record type, net name (whitespace-padded, no fixed width
+# relied on here), refdes+pad (or the literal `VIA`, or a bare refdes for a netless
+# feature), an optional drill spec -- `<letter-prefix><digits>` followed by a plating
+# code, `P` (plated: 317/307's vias and through-hole pads) or `U` (unplated: 367's NPTH
+# holes) -- immediately before the mandatory `A<NN>` access-layer code, then X/Y position
+# (0.0001 inch units), pad size X/Y, rotation, and a trailing `S<n>` serial.
 _IPCD356_RECORD_RE = re.compile(
-    r"^(?P<rectype>317|327)"
+    r"^(?P<rectype>307|317|327|367)"
     r"(?P<net>\S+)\s+"
     r"(?P<mid>.*?)\s*"
-    r"(?:(?P<drill>[A-Z]+\d+)P)?"
+    r"(?:(?P<drill>[A-Z]+\d+)[PU])?"
     r"A(?P<access>\d{2})"
     r"X(?P<x>[+-]\d+)Y(?P<y>[+-]\d+)"
     r"X(?P<sx>\d+)Y(?P<sy>\d+)"
@@ -344,11 +361,17 @@ def reduce_ipcd356(text: str) -> dict:
     1. `nets`: `{net-name: sorted [[refdes, pad], ...]}` -- the BOARD's own
        connectivity, mirroring `reduce_netlist`'s shape so the two are directly
        comparable. A board that routes a pad to the wrong net diverges here even if
-       the schematic netlist is right. `VIA` features contribute the net but no
-       `(refdes, pad)` member (a via isn't a component pin).
+       the schematic netlist is right. `VIA` features (rectype 317 or 307 -- through,
+       blind, or buried) contribute the net but no `(refdes, pad)` member (a via isn't
+       a component pin). A netless feature (rectype 367 -- an NPTH mounting hole) is
+       NOT a member of `nets` at all: its `net` field is IPC-D-356's `N/C` ("no
+       connect") marker, not a real net name, and inventing a `"N/C"` net would wrongly
+       claim every NPTH hole on a board is electrically the same net.
     2. `testpoints`: `{"refdes:pad": {"x", "y", "access"}}` in the printed 0.0001-inch
        (0.1-mil) quantum straight off the file -- optional test-point geometry for
-       cases that assert access-point placement.
+       cases that assert access-point placement. A netless (367) feature's geometry is
+       still real board data, so it IS recorded here (keyed by its bare refdes, pad
+       ""), just kept out of `nets`.
 
     The trailing `S<n>` serial and rotation are dropped entirely (never compared) --
     per DESIGN §4's IPC-D-356 normalizer note, the serial is stable on VIA records on
@@ -364,8 +387,22 @@ def reduce_ipcd356(text: str) -> dict:
         m = _IPCD356_RECORD_RE.match(line)
         if not m:
             raise ValueError(f"unrecognized IPC-D-356 record: {line!r}")
-        net = m.group("net")
+        rectype = m.group("rectype")
         mid = m.group("mid").strip()
+        if rectype == "367":
+            # Netless feature (e.g. an np_thru_hole/NPTH mounting hole): `net` is the
+            # literal `N/C`, not a real net -- do not add it to net_graph at all. `mid`
+            # is a bare refdes (no `-<pad>`), but reuse the same ref/pad split for
+            # uniformity (falls through to (mid, "") since there's no hyphen).
+            pad_m = _IPCD356_PAD_RE.match(mid)
+            ref, pad = (pad_m.group("ref"), pad_m.group("pad")) if pad_m else (mid, "")
+            testpoints[f"{ref}:{pad}"] = {
+                "x": int(m.group("x")),
+                "y": int(m.group("y")),
+                "access": m.group("access"),
+            }
+            continue
+        net = m.group("net")
         net_graph.setdefault(net, [])
         if mid == "VIA":
             continue

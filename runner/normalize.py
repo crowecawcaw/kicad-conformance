@@ -117,6 +117,19 @@ _GERBER_LAYER_SUFFIXES = (
     ".gta", ".gba", ".gm1", ".gbr",
 )
 
+# Numbered inner-copper layers (`In1.Cu`, `In2.Cu`, ... — any board with 4+ copper
+# layers) have no fixed Protel name, so KiCad names them `.g1`, `.g2`, `.g3`, ...
+# (verified: a 4-layer board's `In1.Cu`/`In2.Cu` plot to `board-In1_Cu.g1`/
+# `board-In2_Cu.g2`). A hardcoded list would need a new entry for every additional
+# inner-layer count a board might have (a 32-layer board has 30 of these); instead,
+# recognize the whole family by its shape -- `.g` followed by one or more digits --
+# which covers every inner layer KiCad can ever emit without growing this file. Same
+# underlying per-plot creation-date stamp as every other gerber (DL-0026's G1/G2), so
+# it gets the identical `normalize_gerber` treatment; this was previously missed
+# because the fixed tuple above never matched it, leaving those two lines
+# wall-clock-timestamped and the gerbers answer flaky on any 4+-copper-layer board.
+_GERBER_INNER_COPPER_RE = re.compile(r"^\.g\d+$")
+
 _BY_SUFFIX = {
     ".gbrjob": normalize_gbrjob,
     ".drl": normalize_drill,
@@ -130,5 +143,9 @@ def normalize_for(path: Path, data: bytes) -> bytes:
     (`.net`, `.csv`, `.rpt`, `.pos`, ...) still gets CRLF->LF (DL-0016) — that one
     applies to every text expected file — but no other rewriting: per the honesty rule (§4),
     we do not invent a normalizer for a kind of drift we have not observed."""
-    normalizer = _BY_SUFFIX.get(path.suffix, normalize_crlf)
-    return normalizer(data)
+    suffix = path.suffix
+    if suffix in _BY_SUFFIX:
+        return _BY_SUFFIX[suffix](data)
+    if _GERBER_INNER_COPPER_RE.match(suffix):
+        return normalize_gerber(data)
+    return normalize_crlf(data)

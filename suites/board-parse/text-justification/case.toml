@@ -1,0 +1,3 @@
+concept = "left/right/top/bottom justification moves the text origin by the string's bounding box relative to the default (centered) origin."
+doc     = "sexpr-intro"
+input   = "board.kicad_pcb"

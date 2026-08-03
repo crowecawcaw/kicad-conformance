@@ -314,6 +314,7 @@ behaviour the case asserts:
 | `reason` | **yes** | string | One line: what actually happens instead. Cite `docs/DIVERGENCES.md`. |
 | `kind` | **yes** | string | The category — currently `"crash"`. |
 | `tracking` | no | string | Upstream issue URL/id, or `"TODO: file upstream"`. |
+| `probe` | no | string | A verb name that overrides the derived loader verb for THIS case only ([DL-0029]). A narrow escape hatch, not a general per-case verb knob — its only current use is `rejects-unterminated-sexpr` pinning itself to `"parse-pcb-upgrade"` so it keeps exercising a crash that moved off the default `parse-pcb` probe's path. |
 
 If the actual verdict matches the declared `kind`, the case scores **`XFAIL`** and the
 build stays green. If it instead comes back clean — the oracle got fixed — that is an

@@ -1,0 +1,308 @@
+<?xml version="1.0" standalone="no"?>
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"> 
+<svg
+  xmlns:svg="http://www.w3.org/2000/svg"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+  version="1.1"
+  width="5.7150mm" height="11.6078mm" viewBox="0.0000 0.0000 5.7150 11.6078">
+<title>NORMALIZED</title>
+  <desc>NORMALIZED</desc>
+<g style="fill:#000000; fill-opacity:1.0000;stroke:#000000; stroke-opacity:1.0000;
+stroke-linecap:round; stroke-linejoin:round;"
+ transform="translate(0 0) scale(1 1)">
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.2540; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<rect x="1.587500" y="3.898900" width="2.540000" height="3.810000" rx="0.000000" />
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.1524; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M2.8575 7.0739
+L2.8575 7.0739
+" />
+<text x="2.8575" y="6.7183"
+textLength="1.4127" font-size="1.6933" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">1</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M3.2204 6.5548
+L2.4947 6.5548
+" />
+<path d="M2.8575 6.5548
+L2.8575 5.2848
+" />
+<path d="M2.8575 5.2848
+L2.7366 5.4663
+" />
+<path d="M2.7366 5.4663
+L2.6156 5.5872
+" />
+<path d="M2.6156 5.5872
+L2.4947 5.6477
+" />
+</g><text x="2.8575" y="10.2489"
+textLength="2.6223" font-size="1.6933" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">U?</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M1.9503 8.9234
+L1.9503 9.9515
+" />
+<path d="M1.9503 9.9515
+L2.0108 10.0725
+" />
+<path d="M2.0108 10.0725
+L2.0713 10.1330
+" />
+<path d="M2.0713 10.1330
+L2.1922 10.1934
+" />
+<path d="M2.1922 10.1934
+L2.4341 10.1934
+" />
+<path d="M2.4341 10.1934
+L2.5551 10.1330
+" />
+<path d="M2.5551 10.1330
+L2.6156 10.0725
+" />
+<path d="M2.6156 10.0725
+L2.6760 9.9515
+" />
+<path d="M2.6760 9.9515
+L2.6760 8.9234
+" />
+<path d="M3.4623 10.0725
+L3.5227 10.1330
+" />
+<path d="M3.5227 10.1330
+L3.4623 10.1934
+" />
+<path d="M3.4623 10.1934
+L3.4018 10.1330
+" />
+<path d="M3.4018 10.1330
+L3.4623 10.0725
+" />
+<path d="M3.4623 10.0725
+L3.4623 10.1934
+" />
+<path d="M3.2204 8.9839
+L3.3413 8.9234
+" />
+<path d="M3.3413 8.9234
+L3.6437 8.9234
+" />
+<path d="M3.6437 8.9234
+L3.7646 8.9839
+" />
+<path d="M3.7646 8.9839
+L3.8251 9.1049
+" />
+<path d="M3.8251 9.1049
+L3.8251 9.2258
+" />
+<path d="M3.8251 9.2258
+L3.7646 9.3468
+" />
+<path d="M3.7646 9.3468
+L3.7042 9.4072
+" />
+<path d="M3.7042 9.4072
+L3.5832 9.4677
+" />
+<path d="M3.5832 9.4677
+L3.5227 9.5282
+" />
+<path d="M3.5227 9.5282
+L3.4623 9.6491
+" />
+<path d="M3.4623 9.6491
+L3.4623 9.7096
+" />
+</g><text x="2.8575" y="2.6289"
+textLength="4.7389" font-size="1.6933" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">Base</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M1.3154 1.9082
+L1.4968 1.9687
+" />
+<path d="M1.4968 1.9687
+L1.5573 2.0291
+" />
+<path d="M1.5573 2.0291
+L1.6177 2.1501
+" />
+<path d="M1.6177 2.1501
+L1.6177 2.3315
+" />
+<path d="M1.6177 2.3315
+L1.5573 2.4525
+" />
+<path d="M1.5573 2.4525
+L1.4968 2.5130
+" />
+<path d="M1.4968 2.5130
+L1.3758 2.5734
+" />
+<path d="M1.3758 2.5734
+L0.8920 2.5734
+" />
+<path d="M0.8920 2.5734
+L0.8920 1.3034
+" />
+<path d="M0.8920 1.3034
+L1.3154 1.3034
+" />
+<path d="M1.3154 1.3034
+L1.4363 1.3639
+" />
+<path d="M1.4363 1.3639
+L1.4968 1.4244
+" />
+<path d="M1.4968 1.4244
+L1.5573 1.5453
+" />
+<path d="M1.5573 1.5453
+L1.5573 1.6663
+" />
+<path d="M1.5573 1.6663
+L1.4968 1.7872
+" />
+<path d="M1.4968 1.7872
+L1.4363 1.8477
+" />
+<path d="M1.4363 1.8477
+L1.3154 1.9082
+" />
+<path d="M1.3154 1.9082
+L0.8920 1.9082
+" />
+<path d="M2.7063 2.5734
+L2.7063 1.9082
+" />
+<path d="M2.7063 1.9082
+L2.6458 1.7872
+" />
+<path d="M2.6458 1.7872
+L2.5249 1.7268
+" />
+<path d="M2.5249 1.7268
+L2.2830 1.7268
+" />
+<path d="M2.2830 1.7268
+L2.1620 1.7872
+" />
+<path d="M2.7063 2.5130
+L2.5854 2.5734
+" />
+<path d="M2.5854 2.5734
+L2.2830 2.5734
+" />
+<path d="M2.2830 2.5734
+L2.1620 2.5130
+" />
+<path d="M2.1620 2.5130
+L2.1016 2.3920
+" />
+<path d="M2.1016 2.3920
+L2.1016 2.2710
+" />
+<path d="M2.1016 2.2710
+L2.1620 2.1501
+" />
+<path d="M2.1620 2.1501
+L2.2830 2.0896
+" />
+<path d="M2.2830 2.0896
+L2.5854 2.0896
+" />
+<path d="M2.5854 2.0896
+L2.7063 2.0291
+" />
+<path d="M3.2506 2.5130
+L3.3715 2.5734
+" />
+<path d="M3.3715 2.5734
+L3.6134 2.5734
+" />
+<path d="M3.6134 2.5734
+L3.7344 2.5130
+" />
+<path d="M3.7344 2.5130
+L3.7948 2.3920
+" />
+<path d="M3.7948 2.3920
+L3.7948 2.3315
+" />
+<path d="M3.7948 2.3315
+L3.7344 2.2106
+" />
+<path d="M3.7344 2.2106
+L3.6134 2.1501
+" />
+<path d="M3.6134 2.1501
+L3.4320 2.1501
+" />
+<path d="M3.4320 2.1501
+L3.3110 2.0896
+" />
+<path d="M3.3110 2.0896
+L3.2506 1.9687
+" />
+<path d="M3.2506 1.9687
+L3.2506 1.9082
+" />
+<path d="M3.2506 1.9082
+L3.3110 1.7872
+" />
+<path d="M3.3110 1.7872
+L3.4320 1.7268
+" />
+<path d="M3.4320 1.7268
+L3.6134 1.7268
+" />
+<path d="M3.6134 1.7268
+L3.7344 1.7872
+" />
+<path d="M4.8229 2.5130
+L4.7020 2.5734
+" />
+<path d="M4.7020 2.5734
+L4.4601 2.5734
+" />
+<path d="M4.4601 2.5734
+L4.3391 2.5130
+" />
+<path d="M4.3391 2.5130
+L4.2787 2.3920
+" />
+<path d="M4.2787 2.3920
+L4.2787 1.9082
+" />
+<path d="M4.2787 1.9082
+L4.3391 1.7872
+" />
+<path d="M4.3391 1.7872
+L4.4601 1.7268
+" />
+<path d="M4.4601 1.7268
+L4.7020 1.7268
+" />
+<path d="M4.7020 1.7268
+L4.8229 1.7872
+" />
+<path d="M4.8229 1.7872
+L4.8834 1.9082
+" />
+<path d="M4.8834 1.9082
+L4.8834 2.0291
+" />
+<path d="M4.8834 2.0291
+L4.2787 2.1501
+" />
+</g></g> 
+</svg>

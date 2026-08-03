@@ -1,0 +1,4 @@
+concept = "A keepout zone with tracks not_allowed makes DRC report an items_not_allowed violation for a track routed through it."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

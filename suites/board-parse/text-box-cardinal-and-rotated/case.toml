@@ -1,0 +1,3 @@
+concept = "A cardinal gr_text_box uses start/end; a non-cardinal one uses angle plus four pts."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

@@ -58,8 +58,24 @@ def check_determinism(adapter: Adapter, case_dir: Path, tmp_root: Path) -> list[
             raw_b = _engine.raw_snapshot(answer, out_b, input_path)
             norm_a = _engine.normalized_snapshot(answer, out_a, input_path)
             norm_b = _engine.normalized_snapshot(answer, out_b, input_path)
-        except FileNotFoundError as e:
-            outcomes.append(DeterminismOutcome(label, ok=False, raw_identical=False, detail=f"{label}: missing artifact {e}"))
+        except (FileNotFoundError, ValueError, OSError) as e:
+            # Broad but bounded: these are the "artifact wasn't shaped the way this
+            # answer expects" exceptions (missing file, a kind="json" artifact that
+            # isn't JSON, a reduce()/raw_reader that can't parse its input) -- i.e. a
+            # real, reportable defect in a case, the adapter, or an Answer's own
+            # wiring, never something to crash the whole suite over (a future failure
+            # must be diagnosable: which case, which answer, which artifact).
+            # Anything outside this tuple (TypeError, AttributeError, ...) is left to
+            # propagate -- that shape of error means the comparison code itself is
+            # broken, which should stay loud, not get laundered into a routine FAIL.
+            artifact_a = answer.artifact(out_a, input_path)
+            outcomes.append(DeterminismOutcome(
+                label, ok=False, raw_identical=False,
+                detail=(
+                    f"{case_dir.as_posix()} :: {label}: could not compare artifact "
+                    f"{artifact_a} across the two runs: {e}"
+                ),
+            ))
             continue
         raw_identical = raw_a == raw_b
         ok = norm_a == norm_b

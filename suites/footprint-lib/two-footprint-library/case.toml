@@ -1,0 +1,3 @@
+concept = "A .pretty library holding two footprints exports a render directory holding both SVGs, one per footprint."
+doc     = "sexpr-footprint"
+input   = "lib.pretty"

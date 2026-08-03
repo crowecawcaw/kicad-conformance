@@ -1,0 +1,3 @@
+concept = "fp_line, fp_rect, fp_circle and fp_arc each draw their own distinct outline in the footprint's library render."
+doc     = "sexpr-footprint"
+input   = "lib.pretty"

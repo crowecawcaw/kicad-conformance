@@ -58,8 +58,9 @@ from runner import summary as summarymod  # noqa: E402
 # `runner/verbs.py` table with the coverage proxy; the proxy is gone (it printed one line
 # nobody read), so this is now a plain literal, owned entirely by this adapter.
 IMPLEMENTED_VERBS = (
-    "version", "parse-sch", "parse-pcb", "parse-sym", "parse-fp", "summary", "erc", "drc",
-    "netlist", "pos", "stats", "ipcd356", "render", "export-gerbers", "export-drill",
+    "version", "parse-sch", "parse-pcb", "parse-pcb-upgrade", "parse-sym", "parse-fp",
+    "summary", "erc", "drc", "netlist", "pos", "stats", "ipcd356", "render",
+    "export-gerbers", "export-drill",
 )
 
 
@@ -224,12 +225,51 @@ def _scratch_copy_all(ins: list[str], scratch_dir: Path, root: str | None) -> Pa
 
 
 def cmd_parse(cli: str, kind: str, ins: list[str], out: str) -> None:
-    """parse-sch / parse-pcb: `sch|pcb upgrade --force` rewrites IN PLACE, so copy the
-    fixture to a scratch dir first and upgrade the copy (§2, §2a). Exit polarity only
-    (DL-0024) -- the re-emitted bytes are never compared against anything."""
+    """parse-sch: `sch upgrade --force` rewrites IN PLACE, so copy the fixture to a
+    scratch dir first and upgrade the copy (§2, §2a). Exit polarity only (DL-0024) --
+    the re-emitted bytes are never compared against anything.
+
+    `kind == "pcb"` is NOT handled here any more (DL-0029, DECISIONS.md) -- see
+    `cmd_parse_pcb`/`cmd_parse_pcb_upgrade` below."""
     out_dir = Path(out)
     dest = _scratch_copy(ins[0], out_dir)
     run_and_relay([cli, kind, "upgrade", "--force", str(dest)])
+
+
+def cmd_parse_pcb(cli: str, ins: list[str], out: str) -> None:
+    """`parse-pcb`, since [DL-0029]: the board-loader probe for every rejection case is
+    `pcb export stats`, not `pcb upgrade --force`. `pcb upgrade --force` was verified
+    (two independent runs, 8/8 and 10/10 malformed boards) to SIGSEGV on every board it
+    fails to load, always immediately after printing the correct `Failed to load board:
+    ...` message -- so it can never distinguish "the harness has a graceful-rejection
+    bug" from "kicad-cli always crashes here" (a crash is never a pass, DL-0013, so every
+    such case scored a strict xfail rather than the genuine PASS its concept describes).
+    `pcb export stats` was verified to reject the identical bytes gracefully, exit 3,
+    with the same `Failed to load board: ...` message on stderr, on every one of those
+    boards -- while still requiring a fully-parsed board to succeed on the accept path
+    (same as `upgrade` did), so it remains a faithful "does this board load" probe. Exit
+    polarity only, same as before -- the written `stats.json` is discarded, never
+    compared against anything."""
+    out_dir = Path(out)
+    dest = _scratch_copy(ins[0], _fresh_scratch_dir())
+    run_and_relay(
+        [cli, "pcb", "export", "stats", "--format", "json",
+         "-o", str(out_dir / "stats.json"), str(dest)]
+    )
+
+
+def cmd_parse_pcb_upgrade(cli: str, ins: list[str], out: str) -> None:
+    """`parse-pcb-upgrade`: the OLD `parse-pcb` probe (`pcb upgrade --force`), kept as its
+    own verb solely so `suites/board-parse/rejects-unterminated-sexpr` (DIV-0001,
+    docs/DIVERGENCES.md) can keep deliberately exercising the `pcb upgrade --force`
+    SIGSEGV documented there, via `case.toml`'s `known_divergence.probe` override
+    (DL-0029) -- since the default `parse-pcb` probe moved to `pcb export stats` (which
+    does NOT crash on that fixture), nothing would exercise this crash any more without
+    a case explicitly asking for the old path. Not part of any case's standard battery;
+    not advertised as a thing a normal case should reach for."""
+    out_dir = Path(out)
+    dest = _scratch_copy(ins[0], out_dir)
+    run_and_relay([cli, "pcb", "upgrade", "--force", str(dest)])
 
 
 def cmd_parse_sym(cli: str, ins: list[str], out: str) -> None:
@@ -480,7 +520,9 @@ def main() -> int:
     if verb == "parse-sch":
         cmd_parse(cli, "sch", ins, out)
     elif verb == "parse-pcb":
-        cmd_parse(cli, "pcb", ins, out)
+        cmd_parse_pcb(cli, ins, out)
+    elif verb == "parse-pcb-upgrade":
+        cmd_parse_pcb_upgrade(cli, ins, out)
     elif verb == "parse-sym":
         cmd_parse_sym(cli, ins, out)
     elif verb == "parse-fp":

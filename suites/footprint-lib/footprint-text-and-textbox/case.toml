@@ -1,0 +1,3 @@
+concept = "An fp_text of type user and a cardinal fp_text_box each render as stroked text in the footprint's library render."
+doc     = "sexpr-footprint"
+input   = "lib.pretty"

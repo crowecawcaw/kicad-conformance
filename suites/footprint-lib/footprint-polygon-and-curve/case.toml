@@ -1,0 +1,3 @@
+concept = "fp_poly draws a filled polygon and fp_curve draws a flattened bezier in the footprint's library render."
+doc     = "sexpr-footprint"
+input   = "lib.pretty"

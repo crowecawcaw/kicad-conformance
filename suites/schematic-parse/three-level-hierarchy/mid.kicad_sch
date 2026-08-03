@@ -1,0 +1,33 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "10.0.5")
+	(uuid "8b030000-0000-4000-8000-000000000102")
+	(paper "A4")
+	(lib_symbols)
+	(sheet
+		(at 100 100)
+		(size 25.4 25.4)
+		(stroke (width 0.1524) (type solid))
+		(fill (color 0 0 0 0.0))
+		(uuid "8b030000-0000-4000-8000-0000000000sl")
+		(property "Sheetname" "leaf"
+			(at 100 99 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Sheetfile" "leaf.kicad_sch"
+			(at 100 126 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(instances
+			(project ""
+				(path "/8b030000-0000-4000-8000-0000000000sm/8b030000-0000-4000-8000-0000000000sl"
+					(page "3")
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/8b030000-0000-4000-8000-0000000000sm" (page "2"))
+	)
+)

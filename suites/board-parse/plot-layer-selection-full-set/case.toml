@@ -1,0 +1,3 @@
+concept = "A board with no (pcbplotparams (layerselection ...)) block plots KiCad's default full layer set, including technical layers such as B.Adhes and Cmts.User that a curated selection would normally omit."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

@@ -1,0 +1,51 @@
+{
+  "counts": {
+    "footprints": {
+      "smd": 0,
+      "tht": 1,
+      "total": 1,
+      "unspecified": 0
+    },
+    "pads": {
+      "castellated": 0,
+      "connector": 0,
+      "npth": 1,
+      "press_fit": 0,
+      "smd": 0,
+      "through_hole": 0
+    },
+    "vias": {
+      "blind": 0,
+      "buried": 0,
+      "micro": 0,
+      "through": 0
+    }
+  },
+  "drill_holes": [
+    {
+      "count": 1,
+      "plated": false,
+      "shape": "Round",
+      "source": "Pad",
+      "start_layer": "F.Cu",
+      "stop_layer": "B.Cu",
+      "x_size": "0.8000 mm",
+      "y_size": "0.8000 mm"
+    }
+  ],
+  "has_outline": true,
+  "kind": "board",
+  "min_drill_diameter": "0.8000 mm",
+  "min_track_width": "2147.4836 mm",
+  "nets": {},
+  "placement": {
+    "H1": {
+      "package": "MountingHole",
+      "rotation": "0.000000",
+      "side": "top",
+      "value": "MountingHole",
+      "x": "5.000000",
+      "y": "-5.000000"
+    }
+  }
+}

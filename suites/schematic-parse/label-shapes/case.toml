@@ -1,0 +1,11 @@
+concept = "The five label shapes -- input, output, bidirectional, tri_state and passive -- each draw a distinct arrow glyph in the render without affecting net names."
+doc     = "sexpr-schematic#labels"
+input   = "sheet.kicad_sch"
+
+# Hand-authored fixture (DL-0011): five distinct global_labels, one per shape, each its
+# own net name so none of them merge with each other; a single T2 component gives
+# summary.json non-trivial "components" content. Per SC-17, `shape` only ever affects
+# render.svg (the glyph outline) -- summary.json's nets are keyed purely by each label's
+# NAME, never its shape. Falsifiable via render.svg: changing any one shape token (e.g.
+# input -> output) changes that label's glyph in the render while summary.json stays
+# identical.

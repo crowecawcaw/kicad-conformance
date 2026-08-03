@@ -1,0 +1,3 @@
+concept = "Graphics on User.10 -- a user layer beyond the nine the docs describe -- plot to their own gerber file."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

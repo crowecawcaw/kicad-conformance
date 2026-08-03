@@ -1,0 +1,3 @@
+concept = "A curved track (arc with start/mid/end) plots as an interpolated copper arc (a gerber G02/G03 curve command), not straight draws."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

@@ -1,0 +1,3 @@
+concept = "A pad's (drill ... (offset X Y)) shifts the copper pad shape away from the drilled hole -- verified the hole itself stays fixed at the pad's own (at) position in both the render and the Excellon drill file, the opposite of the intuitive 'the hole moves' reading (documentation gap: see runner notes)."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

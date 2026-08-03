@@ -1,0 +1,10 @@
+concept = "Blind and buried vias on a four-layer board are counted separately in counts.vias and each produce their own layer-span drill file (front-in1 / in1-in2), distinct from a through via's board.drl."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+
+# Formerly RUNNER-GAP-blocked: `pcb export ipcd356` emits IPC-D-356 record type "307"
+# for a blind/buried via (through vias are "317"; SMD pads are "327");
+# runner/reduce.py's _IPCD356_RECORD_RE only matched 317/327, so `summary` crashed with
+# ValueError('unrecognized IPC-D-356 record') on any board with a non-through via.
+# Fixed by teaching reduce_ipcd356 the 307 record type (see runner/reduce.py's
+# _IPCD356_RECORD_RE docstring for the full verified record-type table).

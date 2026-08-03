@@ -1,0 +1,3 @@
+concept = "A pad with (drill oval ...) reports an Oblong hole in the summary and a routed slot in the Excellon drill file."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

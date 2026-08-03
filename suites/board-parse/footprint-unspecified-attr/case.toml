@@ -1,0 +1,3 @@
+concept = "A footprint with no attr token at all is counted as unspecified, not smd or through_hole."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

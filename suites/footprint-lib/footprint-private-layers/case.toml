@@ -1,0 +1,3 @@
+concept = "Graphics on a footprint's private_layers still appear in the footprint library's own render."
+doc     = "sexpr-footprint"
+input   = "lib.pretty"

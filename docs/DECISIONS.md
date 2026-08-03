@@ -661,6 +661,62 @@ The word "model" is now absent from the contributor-facing surface entirely.
 
 ---
 
+## DL-0029 — `parse-pcb`'s probe moves from `pcb upgrade --force` to `pcb export stats`
+**Status:** accepted (owner decision, 2026-08-03)
+
+**Context.** `parse-pcb` (the loader every `board`-kind rejection case runs, DESIGN.md
+§2) was implemented as `pcb upgrade --force` on a scratch copy. Two independent scale-out
+agents each verified, on every malformed board they tried (8/8 and 10/10), that
+`kicad-cli pcb upgrade --force` **SIGSEGVs** immediately after printing the correct
+`Failed to load board: …` message. A crash is never a pass ([DL-0013]), so every
+`rejects-*` board case in `suites/board-parse/` scored a strict `known_divergence` xfail
+instead of the genuine reject-and-PASS its `concept` describes — eleven cases (as of this
+scale-out), all blocked on the identical bug in the identical command, not eleven
+independent findings.
+
+Both agents also verified that **every other board-consuming subcommand** rejects the
+same malformed bytes gracefully. `pcb export stats --format json` was checked directly
+against all eleven `rejects-*` fixtures (plus their `control` siblings): exit `3`, the
+same `Failed to load board: …` message on stderr, on every malformed one; a clean `0` and
+a written `stats.json` on every control. It is a strictly better loader probe: same
+exit-polarity-only contract (the JSON is discarded either way), same failure message, no
+crash.
+
+**Decision.** `parse-pcb` (`adapters/kicad.py`'s `cmd_parse_pcb`) now runs `pcb export
+stats --format json -o <scratch>/stats.json <scratch-copy>` instead of `pcb upgrade
+--force`. The old command is kept alive as its own verb, `parse-pcb-upgrade`
+(`cmd_parse_pcb_upgrade`), reachable only via a case's `known_divergence.probe` override
+(`runner/manifest.py`, `runner/engine.py`'s `_run_failure_case`) — a narrow, one-case
+escape hatch, not a reintroduction of the per-case verb knob [DL-0025]/[DL-0027] deleted.
+
+**Consequence for the eleven `rejects-*` board cases.** Ten now genuinely PASS: their
+`[known_divergence]` tables are removed, since `pcb export stats` rejects them
+gracefully and their existing `error_contains` substrings still match verbatim (the
+message text is produced by the same board-loading code both commands share; only the
+wrapping command differs). The eleventh, `rejects-unterminated-sexpr`
+([DIV-0001](DIVERGENCES.md)), is deliberately preserved as the one case that still
+documents the `pcb upgrade --force` segfault: it sets `known_divergence.probe =
+"parse-pcb-upgrade"` so it keeps invoking the crashing command on purpose (verified: `pcb
+export stats` rejects this exact fixture gracefully too, exit 3 — without the override
+this case would silently stop testing the crash at all, not merely start passing).
+
+**Rationale.** `export stats` is not picked because it's convenient — every board-facing
+`kicad-cli` subcommand shares the same board-loading front end, so any one of them that
+doesn't crash would do; `stats` is chosen because it is already a verb this adapter
+implements for an unrelated reason (the `stats` extra / `summary`'s board composition),
+so no new kicad-cli surface is introduced. Keeping `upgrade --force` reachable (rather
+than deleting it outright) is what lets DIV-0001 keep meaning what it always meant — "the
+upgrade path segfaults" — instead of being quietly retired the moment nothing exercises
+it.
+
+**Consequences.** `adapters/kicad.py` (`cmd_parse_pcb`, `cmd_parse_pcb_upgrade`,
+`IMPLEMENTED_VERBS`), `runner/manifest.py` (`KnownDivergence.probe`),
+`runner/engine.py` (`LOADER_VERB`'s docstring, `_run_failure_case`'s verb selection),
+`docs/DESIGN.md` §2's verb table, `docs/TEST_CASE_FORMAT.md` §8, `docs/DIVERGENCES.md`'s
+DIV-0001 entry, and the eleven `suites/board-parse/rejects-*` manifests.
+
+---
+
 ## Superseded
 
 Entries below are retired: their mechanism no longer exists in the code, and their

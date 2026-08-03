@@ -1,0 +1,13 @@
+concept = "A through via with remove_unused_layers strips the annular ring (the copper aperture flash) from the inner-layer gerbers it does not electrically connect on."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+
+# Formerly RUNNER-GAP-blocked by the same gap as suites/board-parse/four-layer-stackup:
+# runner/normalize.py's _GERBER_LAYER_SUFFIXES didn't cover the numbered inner-copper
+# extensions (.g1/.g2/...) this fixture's In1.Cu/In2.Cu gerbers use, so their
+# CreationDate lines were never stripped and the gerbers answer flaked on wall-clock
+# time. Fixed: normalize_for now recognizes any `.g<digits>` suffix as a gerber (see
+# runner/normalize.py). The concept itself was confirmed real and observable
+# independent of this bug: exporting gerbers with remove_unused_layers yes vs no on this
+# exact fixture gave board-In1_Cu.g1 = 458 bytes (no annular ring/aperture flash) vs 557
+# bytes (ViaPad flash present) -- a clean, legible diff.

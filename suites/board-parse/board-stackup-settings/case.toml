@@ -1,0 +1,3 @@
+concept = "A (setup (stackup ...)) block's per-layer material, thickness and copper_finish reach the gerber job file's MaterialStackup/Finish fields."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

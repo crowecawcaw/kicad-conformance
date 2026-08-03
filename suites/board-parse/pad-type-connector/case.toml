@@ -1,0 +1,3 @@
+concept = "A pad of type connect (an edge-connector finger) is counted in counts.pads.connector, separately from smd and through_hole."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

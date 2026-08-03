@@ -122,6 +122,18 @@ class Answer:
     artifact: Callable[[Path, Path], Path]  # (out_dir, input_path) -> artifact path
     reduce: Optional[Callable[[Path], object]] = None  # "json" only: artifact -> canonical structure
     fmt: Optional[str] = None  # passed as the adapter's --format (summary-kicadxml)
+    # `kind="json"` selects JSON-*comparison* semantics (structured equality after
+    # `reduce()`) -- it does NOT mean the on-disk artifact is literally JSON text. Most
+    # kind="json" answers' artifact IS a JSON document (summary/drc/erc/stats,
+    # summary-kicadxml), but `pos` (pos.csv), `ipcd356` (board.d356) and `netlist`
+    # (netlist.net) opt into kind="json" purely for the comparison semantics; their raw
+    # artifact is CSV / IPC-D-356 text / an s-expression netlist. `raw_reader`, when set,
+    # is how `engine.raw_snapshot` reads that raw pre-reduction content -- it must NOT
+    # default to `json.loads` for these, or a legitimate non-JSON artifact reads as a
+    # JSONDecodeError crash (see runner/determinism.py's raw/normalized pair). Left `None`
+    # for every kind="json" answer whose artifact really is JSON, which keeps the default
+    # (`_json_bytes`) meaningful.
+    raw_reader: Optional[Callable[[Path], object]] = None
     # `summary-kicadxml` adds no file of its own -- it re-derives `summary.json` and
     # ASSERTS it against the same expected file the standard `summary` answer already
     # wrote, even under --regenerate (TEST_CASE_FORMAT.md §6's "the only entry that adds
@@ -146,8 +158,15 @@ def input_kind(input_path: Path) -> str:
 
 
 # The loader verb a rejection case's input type runs (DESIGN.md §2's `parse-*` row --
-# there is no pure "parse and stop" subcommand, so `... upgrade --force` on a scratch
-# copy stands in, exit-polarity only).
+# there is no pure "parse and stop" subcommand, so each maps to a real kicad-cli
+# subcommand that loads the file, exit-polarity only). `sch`/`sym`/`fp` map to their
+# `... upgrade --force`, which rewrites the scratch copy in place. `board` -> `parse-pcb`
+# maps to `pcb export stats` (DL-0029), NOT `pcb upgrade --force` -- `upgrade --force`
+# SIGSEGVs on every malformed board tested (see docs/DIVERGENCES.md's DIV-0001), while
+# `export stats` rejects the same bytes gracefully. A single case
+# (`rejects-unterminated-sexpr`) deliberately overrides this via
+# `known_divergence.probe = "parse-pcb-upgrade"` to keep exercising that crash on
+# purpose -- see `_run_failure_case` below.
 LOADER_VERB = {
     "board": "parse-pcb",
     "sch": "parse-sch",
@@ -231,6 +250,7 @@ def answer_for_extra(name: str) -> Answer:
             "pos", verb="pos", expected_name="pos.json", kind="json",
             artifact=lambda out, inp: out / "pos.csv",
             reduce=lambda p: reduce.reduce_pos(p.read_text(encoding="utf-8")),
+            raw_reader=lambda p: p.read_text(encoding="utf-8"),
         )
     if name == "stats":
         return Answer(
@@ -243,12 +263,14 @@ def answer_for_extra(name: str) -> Answer:
             "ipcd356", verb="ipcd356", expected_name="ipcd356.json", kind="json",
             artifact=lambda out, inp: out / "board.d356",
             reduce=lambda p: reduce.reduce_ipcd356(p.read_text(encoding="utf-8")),
+            raw_reader=lambda p: p.read_text(encoding="utf-8"),
         )
     if name == "netlist":
         return Answer(
             "netlist", verb="netlist", expected_name="netlist.json", kind="json",
             artifact=lambda out, inp: out / "netlist.net",
             reduce=lambda p: reduce.reduce_netlist(p.read_text(encoding="utf-8")),
+            raw_reader=lambda p: p.read_text(encoding="utf-8"),
         )
     if name == "summary-kicadxml":
         return Answer(
@@ -301,8 +323,25 @@ def raw_snapshot(answer: Answer, out_dir: Path, input_path: Path):
     (runner/determinism.py's raw/normalized pair, DESIGN.md §4a)."""
     artifact = answer.artifact(out_dir, input_path)
     if answer.kind == "json":
-        return _json_bytes(artifact)
+        if not artifact.exists():
+            raise FileNotFoundError(f"{answer.name}: no artifact written at {artifact}")
+        if answer.raw_reader is not None:
+            return answer.raw_reader(artifact)
+        try:
+            return _json_bytes(artifact)
+        except json.JSONDecodeError as e:
+            # A kind="json" answer with no raw_reader is asserting its artifact IS a
+            # literal JSON document (see Answer.raw_reader's docstring) -- if that's
+            # false, that's a real defect (a wrong `kind`/missing `raw_reader`, or the
+            # adapter writing garbage), not something to swallow. Name the answer and
+            # artifact so it's diagnosable without re-deriving them from a bare
+            # JSONDecodeError (json.loads doesn't know the filename it read).
+            raise ValueError(
+                f"{answer.name}: artifact at {artifact} is not valid JSON ({e})"
+            ) from e
     if answer.kind == "svg":
+        if not artifact.exists():
+            raise FileNotFoundError(f"{answer.name}: no artifact written at {artifact}")
         return artifact.read_bytes()
     if answer.kind == "dir":
         return dir_snapshot(artifact, normalized=False)
@@ -485,7 +524,12 @@ class Engine:
     def _run_failure_case(self, case: Case, tmp_root: Path) -> CaseResult:
         input_path = case.input_paths[0]
         kind = input_kind(input_path)
-        verb = LOADER_VERB[kind]
+        # DL-0029: `known_divergence.probe`, when set, overrides the derived loader verb
+        # -- the sole use is `rejects-unterminated-sexpr` (DIV-0001) pinning itself to the
+        # old `parse-pcb-upgrade` verb (`pcb upgrade --force`) so it keeps exercising the
+        # segfault that `parse-pcb`'s default probe (`pcb export stats`) no longer reaches.
+        probe_override = case.known_divergence.probe if case.known_divergence else None
+        verb = probe_override or LOADER_VERB[kind]
         label = verb
 
         if not self.adapter.supports(verb):

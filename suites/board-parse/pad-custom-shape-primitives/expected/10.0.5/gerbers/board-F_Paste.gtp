@@ -1,0 +1,24 @@
+%TF.GenerationSoftware,KiCad,Pcbnew,10.0.5*%
+%TF.CreationDate,NORMALIZED*%
+%TF.ProjectId,board,626f6172-642e-46b6-9963-61645f706362,rev?*%
+%TF.SameCoordinates,Original*%
+%TF.FileFunction,Paste,Top*%
+%TF.FilePolarity,Positive*%
+%FSLAX46Y46*%
+G04 Gerber Fmt 4.6, Leading zero omitted, Abs format (unit mm)*
+G04 Created by KiCad NORMALIZED*
+%MOMM*%
+%LPD*%
+G01*
+G04 APERTURE LIST*
+G04 Aperture macros list*
+%AMFreePoly0*
+4,1,7,1.000000,0.500000,1.000000,-0.500000,0.000000,-1.000000,-1.000000,-0.500000,-1.000000,0.500000,0.000000,1.000000,1.000000,0.500000,1.000000,0.500000,$1*%
+G04 Aperture macros list end*
+%ADD10FreePoly0,0.000000*%
+G04 APERTURE END LIST*
+D10*
+%TO.C,U1*%
+X5000000Y-5000000D03*
+%TD*%
+M02*

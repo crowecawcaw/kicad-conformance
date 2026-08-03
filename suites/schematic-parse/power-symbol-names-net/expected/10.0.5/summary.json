@@ -1,0 +1,23 @@
+{
+  "components": {
+    "U1": {
+      "footprint": "",
+      "part": "T2",
+      "pins": [
+        "1",
+        "2"
+      ],
+      "sheet": "/",
+      "value": "T2"
+    }
+  },
+  "kind": "schematic",
+  "nets": {
+    "GND": [
+      "U1.1"
+    ],
+    "unconnected-(U1-Pad2)": [
+      "U1.2"
+    ]
+  }
+}

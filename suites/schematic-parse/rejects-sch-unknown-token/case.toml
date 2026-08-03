@@ -1,0 +1,5 @@
+concept = "A schematic containing an unrecognised top-level token is rejected."
+doc     = "sexpr-schematic"
+input   = "sheet.kicad_sch"
+control = "control.kicad_sch"                 # same sheet with (bogus_token 1) removed -> must exit 0
+error_contains = "Failed to load schematic"   # the ONLY message KiCad's sch loader emits, for any defect

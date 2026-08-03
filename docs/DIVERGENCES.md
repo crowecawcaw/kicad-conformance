@@ -39,7 +39,11 @@ revisits. See [DL-0018] and `docs/TEST_CASE_FORMAT.md` §8 for the schema, and
   missing its closing paren (the file ends mid-`(generator "pcbnew")` with no terminating
   `)` for the outer `kicad_pcb` form).
 - **Command (adapter mapping):** `pcb upgrade --force <scratch-copy-of-board.kicad_pcb>`
-  (the `parse-pcb` verb, DESIGN.md §2).
+  (the `parse-pcb-upgrade` verb -- **not** the default `parse-pcb` verb any more since
+  [DL-0029] remapped `parse-pcb` to `pcb export stats`, which rejects this exact fixture
+  gracefully; this case pins itself back to the old, crashing command via
+  `known_divergence.probe = "parse-pcb-upgrade"` in `case.toml`, specifically so this
+  entry keeps being exercised instead of going untested. DESIGN.md §2/§2's notes.)
 - **Expected (desired) behavior:** a graceful, bounded non-zero exit (`REJECT`,
   DESIGN.md §3a) with an `Expecting …` parse-position message on stderr -- exactly what
   the *positive control* (`control.kicad_pcb`, the same board with the paren restored)
