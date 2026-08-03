@@ -356,10 +356,13 @@ required for `structured` too and documents the reduction it names.
 ---
 
 ## DL-0015 — Byte goldens are a KiCad-regression signal; cross-adapter conformance is the semantic subset
-**Status:** **SUPERSEDED by [DL-0024].** The analysis below stands and is exactly why the
-byte layer was ultimately deleted rather than kept as a second-class signal; the decision
-it records (keep byte goldens, scoped to KiCad-regression) no longer applies. Read this
-entry as the reasoning that led to [DL-0024], not as current policy.
+**Status:** superseded by [DL-0024], then **partially REINSTATED by [DL-0026]**. The
+analysis below stands. Its scoping rule — *byte answers are a KiCad-version-regression
+signal; a second implementation is judged on the semantic subset* — is **current policy
+again**, but only for **fabrication output** (`gerbers/`, `drill/`). Its application to
+re-serialized `.kicad_pcb`/`.kicad_sch` bytes stays deleted, because the summary
+([DL-0028]) is a strictly better comparator for those. See [DL-0026] §"Why this is not a
+repeat of the mistake".
 
 **Context.** `golden-file`/`golden-dir` compares pin KiCad's *exact formatting* (token
 order, whitespace, aperture numbering, comment style). A clean-room second adapter emits
@@ -619,7 +622,11 @@ diff-image + %pixels + SSIM (b).
 
 ## DL-0022 — One composite `model` answer per case is the default; single projections are opt-in
 **Status:** accepted (owner decision, 2026-08-02) — supersedes [DL-0017]; supersedes the
-per-projection packaging of [DL-0019]
+per-projection packaging of [DL-0019]. **Its manifest surface is superseded by [DL-0025]**
+(the `op = "model"` / `[[check]]` shape is gone; answers now follow from the input's file
+type) and **its filename by [DL-0028]** (`model.json` → `summary.json`). The principle —
+one input, one composite answer, projections opt-in — is unchanged and is what [DL-0025]
+takes to its conclusion. Read "model" throughout this entry as "summary".
 
 **Context.** The design shipped under [DL-0019] gave every projection of a board its own
 case: `board-parse/happy/0002-populated-board-stats` (inventory),
@@ -676,7 +683,11 @@ model ([`VALIDATION.md`](VALIDATION.md) §7.3/§7.4). Four case directories and 
 
 ## DL-0023 — `golden` → `expected`; drop `compare`; `expect` → `outcome` with a default
 **Status:** accepted (owner decision, 2026-08-02) — renames [DL-0004]/[DL-0014]/[DL-0016];
-removes the `compare` field introduced by [DL-0008]
+removes the `compare` field introduced by [DL-0008]. **Partially superseded by [DL-0025]**:
+the `compare` deletion stands and `expected/` stands, but `op`, `outcome` and the
+`expected` *field* are themselves deleted — the fields this entry renamed no longer exist
+to be named. The entry's reasoning (jargon is a defect; a field a case cannot get wrong is
+better than a field with good documentation) is what [DL-0025] applies again.
 
 **Context.** The owner's second objection was jargon. A contributor met "golden",
 "structured", "reduced", "L2", "comparator ladder" and `compare = "golden-file"` before
@@ -723,8 +734,20 @@ a rename note at the top. Cross-references in [DL-0004]/[DL-0014]/[DL-0016] to
 ---
 
 ## DL-0024 — Delete the byte-comparison layer; accept and document the gerber/drill gap
-**Status:** accepted (owner decision, 2026-08-02) — **supersedes [DL-0015]**; voids the
-safety net [DL-0020] relied on; removes the L1 rung of [DL-0019]
+**Status:** accepted 2026-08-02 — **PARTIALLY SUPERSEDED by [DL-0026]** (2026-08-03).
+Superseded [DL-0015]; voids the safety net [DL-0020] relied on; removed the L1 rung of
+[DL-0019].
+
+> **What still stands:** the deletion of the re-serialized-bytes comparison
+> (`… upgrade --force` → canonical `.kicad_pcb`/`.kicad_sch`), the `upgrade` and `bom`
+> verbs, and the general-purpose `golden-file`/`golden-dir` modes.
+>
+> **What is reversed:** the deletion of **gerber and drill** byte answers, and with it the
+> "gerber and drill coverage is zero" gap this entry created. [DL-0026] restores them on
+> **every board case**, using KiCad's own layer set, with five evidence-verified
+> normalizers. The narrow directory-tree comparator comes back with them. The consequences
+> paragraph below — "there is now nothing checking KiCad's fabrication output" — is **no
+> longer true**; it was true for one day.
 
 **Context.** The suite compared KiCad's re-serialized *bytes* in three places: the
 canonical `.kicad_pcb`/`.kicad_sch` from `… upgrade --force`, the gerber file set, and the
@@ -766,3 +789,254 @@ images and compare pixels with a pinned renderer, which is fair across implement
 The gap is recorded in `README.md`, `VALIDATION.md` §7, `DESIGN.md` §9 and the roadmap —
 four places, deliberately, because a fabrication-facing conformance suite with no
 fabrication-output coverage must not be discovered by accident.
+
+---
+
+## DL-0025 — A case's answers follow from the input's file type; `op` and `[[check]]` are deleted
+**Status:** accepted (owner decision, 2026-08-03) — supersedes the manifest surface of
+[DL-0022] and [DL-0023]; supersedes the `[[check]]` shape of [DL-0003]
+
+**Context.** [DL-0022]/[DL-0023] cut the manifest down to this:
+
+```toml
+concept = "A populated two-layer board: one SMD resistor, one through-hole capacitor, a track, a via."
+input   = "board.kicad_pcb"
+
+[[check]]
+op       = "model"
+expected = "model.json"
+```
+
+The owner read it and asked: **"What's `op`? What's `model`?"** That is the whole finding.
+Two of the six lines were vocabulary a contributor had to acquire before writing anything,
+and neither carried a decision the contributor was actually making. `op` selected from a
+13-word verb list; `expected` named a file whose name the runner had just decided.
+
+**Decision.** **Delete `[[check]]`, `op`, `expected`, `outcome` and `args`.** The runner
+infers what to record from the **input file's suffix**, and records a fixed set — the
+**standard answers** — that is the same for every case of that type:
+
+| Input | Standard answers, in `expected/<version>/` |
+|---|---|
+| `.kicad_pcb` | `summary.json`, `render-F_Cu.svg`, `gerbers/`, `drill/` |
+| `.kicad_sch` | `summary.json`, `render.svg` |
+| `.kicad_sym` | `render/` |
+| `.pretty` / `.kicad_mod` | `render/` |
+| anything in `failure/` | none — exit code and stderr only |
+
+The default case file is therefore, in full:
+
+```toml
+concept = "A populated two-layer board: one SMD resistor, one through-hole capacitor, a track, a via."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+```
+
+**Rationale.** A contributor should learn **nothing** to add a case: drop in a board, write
+one sentence, regenerate, read the diff. Every field removed here was a field a case could
+get *wrong* — a mismatched `op`/`expected` pair, an `outcome` contradicting its directory,
+an `args` that quietly made one case incomparable with its neighbours. A knob that has one
+correct setting is not a knob; it is a way to be wrong. This is the same reasoning
+[DL-0023] used to delete `compare`, applied until nothing is left to delete.
+
+The fixed set also makes cases **comparable**. Previously two board cases could assert
+different things, so "the board suite covers X" required reading every manifest. Now the
+suite's coverage is a property of the case *count*.
+
+**Consequences.**
+- The verb vocabulary (`model`, `render`, `parse-pcb`, `parse-sch`, `parse-sym`,
+  `parse-fp`, `export-gerbers`, `export-drill`, …) disappears from the contributor-facing
+  surface entirely. It survives only inside the adapter, where it is an implementation
+  detail. `parse-*` in particular is gone as a name: a `failure/` case runs the type's
+  loader because that is the only thing you can do with a file that will not load.
+- **Cases record more than they strictly need to.** `drc/happy/0001-clean-board` is about
+  a DRC result and now also carries a summary, a render, gerbers and a drill file. This is
+  accepted deliberately: the marginal cost is ~0.4 s and a few kB per answer, and the
+  marginal benefit is that a regression anywhere in the board pipeline is caught by every
+  board fixture in the repo rather than by the two that happened to opt in.
+- **There is no per-case opt-out.** `schematic-parse/happy/0001-empty-root-sheet` gets a
+  render of an empty sheet, which the previous revision had deliberately dropped as
+  asserting nothing. It is now recorded again. That is the price of "no knobs", and it is
+  the right price: one 700-byte SVG is cheaper than a field that lets every future case
+  argue about what to skip.
+- A case that genuinely needs an extra answer uses `extra` ([DL-0027]) — one line, one
+  list, no table.
+
+---
+
+## DL-0026 — Gerbers and drill return as byte answers on every board, using KiCad's own layer set
+**Status:** accepted (owner decision, 2026-08-03) — **partially supersedes [DL-0024]**;
+**partially reinstates [DL-0015]**; closes [`ROADMAP.md`](ROADMAP.md) M4 by its option 1
+
+**Context.** [DL-0024] deleted the byte-comparison layer wholesale, which took gerber and
+drill coverage to **zero** and left a fabrication-facing conformance suite with nothing
+checking fabrication output. That consequence was documented in four places rather than
+fixed. The owner's instruction: *"Add gerbers and drill back, byte answers. Add them for
+all boards."*
+
+**Decision.** Every board case records, as standard answers:
+
+- **`gerbers/`** — everything `kicad-cli pcb export gerbers -o <dir>` writes, compared as a
+  directory tree: same filenames, every file byte-identical after normalization.
+- **`drill/`** — everything `kicad-cli pcb export drill -o <dir>/` writes (one `.drl`),
+  same comparison.
+
+**No `--layers` is passed.** KiCad plots the layer set stored in the board, falling back to
+its built-in default when the board has none. Verified: the populated fixture carries
+`(pcbplotparams (layerselection 0x…_55555555_5755f5ff))` and plots **6 gerbers + a job
+file**; the minimal fixture carries no `pcbplotparams` block and plots **20 gerbers + a job
+file**. Each is stable run-to-run.
+
+**Rationale for taking KiCad's set rather than pinning one.**
+1. It is **what the fab receives**. A pinned `--layers F.Cu,B.Cu,Edge.Cuts` would compare
+   an artifact nobody ships.
+2. It removes a knob, which is the whole direction of [DL-0025]. A per-case layer list is
+   a per-case argument.
+3. It makes the layer *selection* itself part of the recorded answer. If a KiCad release
+   changes which layers are plotted by default, the file list changes and the case goes
+   red — a regression that a pinned list would hide by construction.
+4. Varying per board is not a problem, because the answer is per board.
+
+**The normalizers, re-derived from the binary** (the previous spec's list was inherited
+from memory and was wrong in four places). Method: export twice, two seconds apart, in the
+same container; diff; normalize exactly what moved. Five normalizers:
+
+| # | File | Line |
+|---|---|---|
+| G1 | every gerber | `%TF.CreationDate,<ts>*%` |
+| G2 | every gerber | `G04 Created by KiCad (PCBNEW <ver>) date <ts>*` |
+| G3 | `.gbrjob` | JSON key `Header.CreationDate` |
+| D1 | `.drl` | `; DRILL file KiCad <ver> date <ts>` |
+| D2 | `.drl` | `; #@! TF.CreationDate,<ts>` |
+
+And four normalizers the old spec called for that are **not written**:
+`TF.GenerationSoftware` (gerber), `Header.GenerationSoftware` (`.gbrjob`) and
+`TF.GenerationSoftware` (Excellon) are all **stable across runs** — they are version
+strings, and leaving them intact makes every fab answer assert for free that it was
+produced by the pinned KiCad; the **drill report's "Created on"** line has no input at all,
+because the report requires `--generate-report` and the standard answers do not pass it.
+Evidence for each in [`VALIDATION.md`](VALIDATION.md) §7.3. This is DESIGN §4a applied: a
+normalizer must be shown load-bearing against the real binary, and four of the eight
+inherited ones could not be.
+
+**Why this is not a repeat of the mistake [DL-0024] corrected.** [DL-0024] was right that a
+comparison whose findings must be suppressed for every tool but one is not carrying its
+weight — *when a better comparison already covers the same ground*. That was true of the
+re-serialized `.kicad_pcb` bytes: the summary compares the same file's meaning, exactly,
+and fairly. It is **not** true of fab output. There is no semantic comparator for RS-274X
+([DL-0020] ruled a structural reduction out as a second plotter's worth of engineering),
+so a byte answer here duplicates nothing — it is the only thing in the suite that looks at
+what a fab actually gets. The scoping from [DL-0015] therefore applies again, narrowly:
+**in ecosystem mode `gerbers/` and `drill/` report `INFO`, never `FAIL`.** The
+cross-implementation answer remains rasterize-and-compare ([DL-0021]), now an upgrade path
+rather than a rescue.
+
+**Consequences.**
+- **Real new coverage, named:** track and pad *geometry* (the summary only saw tracks
+  through `min_track_width`), hole *positions* (the summary's hole table has no
+  coordinates), the default layer selection, and every plotter-side change between KiCad
+  patch releases.
+- A narrow **directory-tree comparator** returns to `runner/engine.py`, along with the
+  gerber/Excellon normalizers, both of which [DL-0024] deleted. They come back scoped to
+  two answer names, not as a general mode.
+- **Repo cost:** 12 317 bytes for the 21-file set, 5 573 for the 7-file set. **Runtime
+  cost:** +2 invocations ≈ +0.75 s per board case ([`VALIDATION.md`](VALIDATION.md) §9.4).
+- **Input filenames become load-bearing.** Gerber filenames and the `%TF.ProjectId` line
+  (whose GUID is the input filename's bytes) both embed the input's stem, verified. The
+  runner must copy inputs to scratch under their original names, and case authors name
+  board inputs `board.kicad_pcb`. Normalizing the project id instead was rejected: it
+  would discard a real assertion to buy a freedom nobody needs.
+- `suites/gerber/` and `suites/drill/` stop being "the documented empty gap" and become
+  ordinary suites for cases specifically *about* fab output (an unusual aperture, an oval
+  hole). Routine coverage is now every board case's job.
+- The gap text in `README.md`, `VALIDATION.md` §7, `DESIGN.md` §9 and `ROADMAP.md` M4 is
+  deleted, because it is no longer true.
+
+---
+
+## DL-0027 — Extras are a flat list of names; a failure case is four keys
+**Status:** accepted (owner decision, 2026-08-03) — completes [DL-0025]
+
+**Context.** Deleting `[[check]]` removes the place where the three surviving needs used to
+live: opt-in projections (`drc`, `pos`, `ipcd356`, `stats`, `netlist`), the schematic
+cross-format check (the same summary rebuilt from `kicadxml`), and failure-case assertions
+(`outcome`, `error_contains`, `control`). All three must stay expressible, at the smallest
+possible cost to the zero-boilerplate common case.
+
+**Decision — extras.** One optional key, a flat list of strings:
+
+```toml
+extra = ["drc"]
+```
+
+Each name adds exactly one invocation, and **the name is the answer's filename**: `drc` →
+`drc.json`, `pos` → `pos.json`, and so on. One entry, `summary-kicadxml`, adds no file — it
+rebuilds `summary.json` from KiCad's XML netlist and compares it to the **same**
+`summary.json`, which is the cross-format-fairness proof. Full table in
+[`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md) §6.
+
+**Decision — failure cases.** No `[[check]]`, no `outcome`, no `op`. The `failure/`
+directory states the polarity; the type suffix states the loader. What remains is what the
+case actually asserts:
+
+```toml
+concept = "A board whose (version ...) form is unterminated is rejected with a parse-position error."
+input   = "board.kicad_pcb"
+control = "control.kicad_pcb"
+error_contains = "Expecting"
+```
+
+`error_contains` / `error_contains_any`, `control`, `skip_reason`, `min_kicad` and the
+`[known_divergence]` table are **unchanged**, so DIV-0001's strict xfail
+(`kind = "crash"`, the `Expecting` substring, the control board) is expressible verbatim in
+meaning — it loses only the `[[check]]` wrapper and the `op`/`outcome` lines.
+
+**Rationale.**
+- A list of strings is the smallest thing that can express "and also this". It has no
+  schema to learn, it diffs cleanly, and a typo in it is a runner error naming the valid
+  set.
+- **`error_contains` was deliberately not renamed.** It is already plain English that reads
+  correctly with no prior knowledge, and shortening it (`rejects`, `message`, `says`) would
+  trade clarity for two saved characters. The win in this revision is removing four fields,
+  not polishing the one that already worked.
+- Keeping `outcome` "for explicitness" was rejected: it was stated in exactly the cases
+  where the directory already said it, i.e. all of them.
+
+**Consequences.** `case.toml` now has **twelve possible keys and three that a normal case
+uses** (`concept`, `doc`, `input`). A failure case uses five. Nothing in the repo needs a
+`[[check]]` block, and the parser can reject one with "checks are inferred from the input
+type — see TEST_CASE_FORMAT.md §2" rather than silently honouring a stale manifest.
+
+---
+
+## DL-0028 — `model.json` → `summary.json`
+**Status:** accepted (owner decision pending ratification, 2026-08-03) — renames the file
+introduced by [DL-0022]
+
+**Context.** The owner's question was "What's `op`? What's **`model`**?" [DL-0025] deletes
+`op`. `model` survives as the name of the JSON document describing what the tool
+understood — and the question is evidence that the name failed. A name that needs a
+glossary entry at every point of first use is a name that is doing the glossary's job
+badly.
+
+**Decision.** Rename the file and the concept: **`summary.json`**, "the summary".
+
+**Rationale.**
+- **A reader guesses right on sight, and the guess is correct.** "Model" has four meanings
+  in this domain (a 3D model, a data model, a mental model, a modelled component); the file
+  is none of them. "Summary" has one, and it is the right one.
+- **It is more accurate, not just plainer.** The document deliberately drops computed
+  areas, densities, clearances, bounding boxes and all geometry
+  ([`VALIDATION.md`](VALIDATION.md) §4.1). It *is* a summary. "Model" oversold it as
+  complete.
+- **The cost is two characters**, which is not what "isn't longer" was guarding against —
+  the risk was trading a short jargon word for a long one (`semantic-projection.json`).
+- The rename is free right now: [DL-0025] and [DL-0026] regenerate every answer file
+  anyway.
+
+**Consequences.** `runner/model.py` → `runner/summary.py`; `build_board_model` →
+`build_board_summary`. Older entries in this log ([DL-0019], [DL-0022], [DL-0023],
+[DL-0024]) say "model" and are **not** rewritten — this log is append-only. Read "model"
+in any DL below 0025 as "summary", the same way [DL-0023] left "golden" in place and asked
+readers to read "expected". The word "model" is now absent from the contributor-facing
+surface entirely, since [DL-0025] deleted its other use as a verb name.

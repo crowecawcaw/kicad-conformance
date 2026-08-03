@@ -19,74 +19,212 @@ job ([DL-0010]).
 
 ---
 
-## M0.5 — The `model` rework (next; docs are already written, runner is not)
+## M0.5 — The standard-answers rework (next; docs are written, runner is not)
 
-[DL-0022]–[DL-0024] replaced the per-projection case design with **one composite `model`
-answer per case**, renamed `golden/` → `expected/`, and deleted the byte-comparison layer.
-The docs describe the new design; this milestone migrates the runner and the cases to it.
+[DL-0025]–[DL-0028] finish what [DL-0022]/[DL-0023] started. A case no longer declares
+*what* to check: the input's file suffix chooses a fixed set of **standard answers**, so
+`op`, `[[check]]`, `expected`, `outcome` and `args` are all deleted from the manifest.
+Gerbers and drill return as byte-compared answers on every board case ([DL-0026]),
+reversing the fab half of [DL-0024]. `model.json` becomes `summary.json` ([DL-0028]).
 
 ### Runner work
 
-1. **`runner/model.py`** — `build_board_model(stats_json, pos_csv, d356_text)` and
-   `build_schematic_model(netlist_text, fmt)`, exactly to the schema in
-   [`VALIDATION.md`](VALIDATION.md) §4. Reuse the existing parsers in `runner/reduce.py`;
-   trim `reduce_stats` to the fields §4.1 keeps.
-2. **Adapter** — one `cmd_model` that runs the two or three exports into scratch and
-   writes `<out>/model.json`. Rename `export-pos`/`export-stats`/`export-ipcd356` to
-   `pos`/`stats`/`ipcd356`; collapse `export-svg-*` into `render` (dispatch on suffix);
-   delete `upgrade` and `bom`.
-3. **Manifest** — `expected` replaces `golden`; `outcome` replaces `expect` and defaults
-   from the directory polarity; **delete `compare`** (comparison follows from `op`) and
-   `tags` (unused).
-4. **Engine** — pick the comparison from `op`. Delete `golden-file`/`golden-dir`,
-   `_normalized_dir_tree`, `_write_golden_dir`, and the s-expr/gerber/drill/bom
-   normalizers that only served them. Keep the SVG normalizer and CRLF→LF.
-5. **`expected/` layout** — `case.golden_dir()` → `case.expected_dir()`, path
-   `expected/<version>/`; update `.gitattributes`.
-6. **Housekeeping** — `runner/README.md` and `scripts/regen.sh` still describe the old
-   modes and say "golden"; update both with the code. Re-record every expected file in
-   Docker rather than hand-editing the existing ones (`render-F_Cu.svg` moves from case 4
-   to case 2 unchanged, but the JSON answers are all newly-shaped).
+1. **`runner/summary.py`** — `build_board_summary(stats_json, pos_csv, d356_text)` and
+   `build_schematic_summary(netlist_text, fmt)`, exactly to
+   [`VALIDATION.md`](VALIDATION.md) §4. Reuse the parsers in `runner/reduce.py`; trim
+   `reduce_stats` to the fields §4.1 keeps.
+2. **Adapter** — one entry point per input type that runs the whole standard set into a
+   single scratch directory ([`VALIDATION.md`](VALIDATION.md) §9.1). Six invocations for a
+   board, two for a schematic, one for a library. Mind the `-o` asymmetry: `pcb export svg`
+   takes a **file** path, everything else takes a **directory**.
+3. **Manifest** — delete `op`, `[[check]]`, `expected`, `outcome`, `args`, `compare`,
+   `tags`. Add `extra` (array of strings). Keep `concept`, `doc`, `input`/`inputs`, `root`,
+   `control`, `error_contains`, `error_contains_any`, `min_kicad`, `skip_reason`,
+   `[known_divergence]`. A manifest still containing `[[check]]` should be a clear
+   authoring error, not silently honoured.
+4. **Engine** — dispatch the comparison on the answer's name/extension, not on a field
+   ([`VALIDATION.md`](VALIDATION.md) §9.2). **Reinstate** a directory-tree comparator for
+   `gerbers/` and `drill/` only — the one [DL-0024] deleted — plus the five gerber/Excellon
+   normalizers (G1–G3, D1–D2, [`VALIDATION.md`](VALIDATION.md) §7.3), and no others. Keep
+   the SVG normalizer and CRLF→LF. In ecosystem mode, `gerbers/`/`drill/` report `INFO`,
+   never `FAIL`.
+5. **Scratch copies must preserve the input filename** — gerber filenames and the
+   `%TF.ProjectId` GUID are both derived from it (verified, DESIGN §4). A scratch copy
+   named `input.kicad_pcb` would silently rewrite every gerber answer.
+6. **`.gitattributes`** — add `expected/**/gerbers/**` and `expected/**/drill/**` as LF
+   text ([DL-0016]). Also delete the two `board.kicad_prl` side-effect files if a bare
+   `kicad-cli` run ever leaves them next to a fixture.
+7. **Housekeeping** — `runner/README.md` and `scripts/regen.sh` still describe the old
+   modes and say "golden"/"model"; update both with the code.
 
-### Case migration — exactly what happens to each of the 11 existing cases
+### Case migration — the exact `case.toml` and answers for each of the 7 current cases
 
-| # | Case | Action |
-|---|---|---|
-| 1 | `board-parse/happy/0001-minimal-two-layer-board` | **Rewrite to `model`.** Drop the `parse-pcb` + `canonical.kicad_pcb` byte check. Keeps documenting the smallest valid `.kicad_pcb`; its `model.json` is mostly zeros, which is the point (`has_outline`, empty counts). Its board also serves as the failure case's control. |
-| 2 | `board-parse/happy/0002-populated-board-stats` | **Rename to `0002-populated-board` and make it the one populated-board case.** One `model` check + one `render` check (`--layers F.Cu`). Absorbs cases 3, 4 and 9. New `concept`: *"A populated two-layer board: one SMD resistor, one through-hole capacitor, a track, a via."* |
-| 3 | `board-parse/happy/0003-board-net-graph` | **Delete.** Duplicate fixture; its net graph is `model.json`'s `nets` section. |
-| 4 | `board-parse/happy/0004-fcu-render` | **Merge into 0002** as the second (`render`) check; delete the directory and its duplicate fixture. |
-| 5 | `board-parse/failure/0001-unterminated-sexpr` | **Keep unchanged** except `expect` → `outcome`. This is the XFAIL crash case (DIV-0001, [DL-0018]); its `known_divergence` marker, `error_contains = "Expecting"` and control are untouched. |
-| 6 | `drc/happy/0001-clean-board` | **Keep**, rename the expected file `drc.reduced.json` → `drc.json`, drop `compare`/`golden`. |
-| 7 | `integration/happy/0001-board-parse-drc-gerber` | **Delete, and retire the `integration/` suite** ([DL-0022] supersedes [DL-0017]). Of its seven checks: `parse-pcb`+`export-gerbers` are deleted comparisons; `drc` duplicates case 6 **on a byte-identical board** (verified: both boards hash `8200bdcd625c…`); `stats`/`pos`/`ipcd356`/`svg` all asserted *emptiness* on a board with no footprints and no nets. Nothing is lost. |
-| 8 | `netlist/happy/0001-two-nets` | **Move to `schematic-parse/happy/0002-two-nets-one-shared-pin`, rewrite to `model`.** Two checks sharing **one** expected file: `op = "model"` and `op = "model", format = "kicadxml"` — the cross-format-fairness proof, now free. Add a third check, `render`, for the sheet SVG (this sheet has symbols and wires, so unlike case 11 the drawing is not empty). The `netlist/` suite stays as the home for netlist-interchange-specific cases (hierarchy, buses) — see M2. |
-| 9 | `placement/happy/0001-two-footprint-placement` | **Delete, and retire the `placement/` suite.** Fourth copy of the same board; placement is `model.json`'s `placement` section, verified falsifiable ([`VALIDATION.md`](VALIDATION.md) §4.7 perturbation B). |
-| 10 | `schematic-parse/failure/0001-unterminated-sexpr` | **Keep unchanged** except `expect` → `outcome`. |
-| 11 | `schematic-parse/happy/0001-empty-root-sheet` | **Rewrite to a single `model` check.** Drop the `canonical.kicad_sch` byte check (deleted layer) **and** the empty-sheet SVG check — an SVG of an empty sheet asserts nothing; sheet-render coverage moves to case 8, whose sheet actually draws something. |
+The 11 → 7 case consolidation already happened on disk. What follows is what each of the
+**7 committed cases** becomes. Every gerber/drill file count below was measured against
+`kicad-cli` 10.0.5 in Docker, not estimated.
 
-**Resulting case set — 7 cases, 7 inputs, no duplicated fixture:**
+---
 
-```
-suites/board-parse/happy/0001-minimal-two-layer-board/      model
-suites/board-parse/happy/0002-populated-board/              model + render(F.Cu)
-suites/board-parse/failure/0001-unterminated-sexpr/         reject (XFAIL: oracle segfault)
-suites/schematic-parse/happy/0001-empty-root-sheet/         model
-suites/schematic-parse/happy/0002-two-nets-one-shared-pin/  model + model(kicadxml) + render
-suites/schematic-parse/failure/0001-unterminated-sexpr/     reject
-suites/drc/happy/0001-clean-board/                          drc findings
+**1. `suites/board-parse/happy/0001-minimal-two-layer-board/`**
+
+```toml
+concept = "A minimal two-layer board (no footprints, standard layer table) parses into a mostly-empty but well-formed summary."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
 ```
 
-Down from 11 cases and 16 checks to 7 cases and 9 checks, with the populated board's four
-copies collapsed to one. The two opt-in projection checks that survive are both `render`,
-because drawn geometry is the one thing the model provably does not capture
-([`VALIDATION.md`](VALIDATION.md) §7.3/§7.4).
+Generate `expected/10.0.5/`:
+- `summary.json` — **rename** of the existing `model.json`; regenerate rather than `git mv`.
+- `render-F_Cu.svg` — **new**. This board draws nothing on F.Cu; the answer is a valid
+  726-byte SVG with an empty `<g>`, and that is correct and worth recording.
+- `gerbers/` — **new, 21 files, 12 317 bytes.** No `pcbplotparams` block in this board, so
+  KiCad's built-in default set applies: 20 layer files + `board-job.gbrjob`.
+- `drill/board.drl` — **new**, header-only (no `T` tool lines) because the board has no
+  holes.
+
+**2. `suites/board-parse/happy/0002-populated-board/`**
+
+```toml
+concept = "A populated two-layer board: one SMD resistor, one through-hole capacitor, a track, a via."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+```
+
+Generate `expected/10.0.5/`:
+- `summary.json` — rename of `model.json`.
+- `render-F_Cu.svg` — **already committed and byte-unchanged**; the pinned layer is still
+  `F.Cu` ([`VALIDATION.md`](VALIDATION.md) §6.2), so this decision costs no regeneration.
+  Delete the `args = ["--layers", "F.Cu"]` line that used to produce it.
+- `gerbers/` — **new, 7 files, 5 573 bytes**: `board-F_Cu.gtl`, `board-B_Cu.gbl`,
+  `board-Edge_Cuts.gm1`, `board-Margin.gbr`, `board-F_Courtyard.gbr`,
+  `board-B_Courtyard.gbr`, `board-job.gbrjob`. Fewer than case 1 because this board
+  carries `(pcbplotparams (layerselection 0x…_55555555_5755f5ff))`.
+- `drill/board.drl` — **new**, two tools (`T1C0.400` via, `T2C0.800` pads), three hits.
+
+**3. `suites/board-parse/failure/0001-unterminated-sexpr/`** — the DIV-0001 XFAIL case
+
+```toml
+concept = "A board whose (version ...) form is unterminated is rejected with a parse-position error."
+doc     = "sexpr-intro"
+input   = "board.kicad_pcb"
+control = "control.kicad_pcb"
+error_contains = "Expecting"
+
+# KNOWN ORACLE DIVERGENCE (DL-0018, docs/DIVERGENCES.md): kicad-cli 10.0.5 prints the
+# correct "Expecting" message and then segfaults instead of exiting gracefully. Declared
+# as a strict xfail: today's CRASH reports XFAIL; if a future KiCad rejects this cleanly
+# the case XPASSes and FAILS the build until the ledger and this marker are updated.
+[known_divergence]
+kind     = "crash"
+reason   = "kicad-cli 10.0.5 segfaults (SIGSEGV) after printing the correct 'Expecting' parse-position message on this truncated board, instead of exiting with a graceful non-zero code -- see docs/DIVERGENCES.md."
+tracking = "TODO: file upstream"
+```
+
+**No `expected/`.** Delete the `[[check]]` block, `op = "parse-pcb"` and
+`outcome = "error"`; `error_contains` moves to the top level and the
+`[known_divergence]` table is byte-identical. **The case's meaning is unchanged** — same
+control, same substring, same strict-xfail kind. Note the TOML ordering constraint: the
+scalar keys must precede `[known_divergence]`.
+
+**4. `suites/schematic-parse/happy/0001-empty-root-sheet/`**
+
+```toml
+concept = "An empty root schematic sheet (title block only, no symbols) parses into an empty-but-well-formed summary."
+doc     = "sexpr-schematic"
+input   = "sheet.kicad_sch"
+```
+
+Generate `expected/10.0.5/`: `summary.json` (rename), and `render.svg` — **new**. This
+**reverses** the earlier decision to drop the empty-sheet SVG as "asserting nothing".
+There is no per-case opt-out any more, and that is the accepted price of a manifest with
+no knobs ([DL-0025]). The file is small and the case stays honest either way.
+
+**5. `suites/schematic-parse/happy/0002-two-nets-one-shared-pin/`**
+
+```toml
+concept = "Two 2-pin parts sharing both endpoints wire up into exactly two nets, one per shared pin."
+doc     = "sexpr-schematic#connectivity"
+input   = "sheet.kicad_sch"
+extra   = ["summary-kicadxml"]
+
+# Hand-authored fixture (DL-0011): a minimal custom symbol "T2" with two pins at local
+# (0,0) and (0,2.54), each with pin length 0 so the electrical connection point equals the
+# placed instance's transformed pin coordinate exactly.
+```
+
+Generate `expected/10.0.5/`: `summary.json` (rename), `render.svg` (**already committed,
+unchanged**). The `extra` adds **no file**: it rebuilds the summary from `kicadxml` and
+compares it to the *same* `summary.json`. That equality is the cross-format-fairness
+proof, and it is exactly what the old `format = "kicadxml"` second check did — the
+concept survives verbatim, with the second sentence moved out of `concept` into one word.
+
+**6. `suites/schematic-parse/failure/0001-unterminated-sexpr/`**
+
+```toml
+concept = "A schematic with an unterminated s-expression is rejected by the parser."
+doc     = "sexpr-intro"
+input   = "sheet.kicad_sch"
+control = "control.kicad_sch"
+error_contains = "Failed to load schematic"   # the ONLY message KiCad's sch loader emits
+```
+
+No `expected/`. Same transformation as case 3, without a divergence marker.
+
+**7. `suites/drc/happy/0001-clean-board/`** — the worked example of an extra
+
+```toml
+concept = "A minimal two-layer board with a valid Edge.Cuts outline reports zero DRC violations."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
+```
+
+Generate `expected/10.0.5/`:
+- `drc.json` — the existing answer, unchanged in content.
+- `summary.json`, `render-F_Cu.svg`, `gerbers/` (**21 files, 12 451 bytes** — this board
+  also has no `pcbplotparams`), `drill/board.drl` (header-only, no holes) — **all new**,
+  because a board case gets the standard board answers whether or not that is its headline.
+  This board is **not** a duplicate of case 1's despite the similar shape: verified
+  distinct (`3cc3dc94…` vs `0f97dc3c…`), and its gerber set differs by 134 bytes.
+
+---
+
+**Resulting case set — 7 cases, 7 distinct inputs, 20 compared answers:**
+
+| Case | Answers compared |
+|---|---|
+| `board-parse/happy/0001-minimal-two-layer-board` | 4 — summary, render, gerbers/, drill/ |
+| `board-parse/happy/0002-populated-board` | 4 — summary, render, gerbers/, drill/ |
+| `board-parse/failure/0001-unterminated-sexpr` | 1 — rejection (XFAIL: oracle segfault) |
+| `schematic-parse/happy/0001-empty-root-sheet` | 2 — summary, render |
+| `schematic-parse/happy/0002-two-nets-one-shared-pin` | 3 — summary, render, summary-from-kicadxml |
+| `schematic-parse/failure/0001-unterminated-sexpr` | 1 — rejection |
+| `drc/happy/0001-clean-board` | 5 — summary, render, gerbers/, drill/, drc |
+| **total** | **20** |
+
+That sums to 20; the table is the authority and the prose repeats it rather than
+recomputing it. (The previous revision of this file said "9 checks" in prose while its own
+per-case table summed to 10 — a build agent caught it. The count above is stated once, in
+one place, and is derived from the seven rows above it.)
+
+Two of those 20 are directory answers holding many files: **49 files** land under
+`expected/**/gerbers/` across the three board cases (21 + 7 + 21), plus 3 `.drl` files,
+totalling about **30 kB** of new committed text.
+
+Down from 11 cases and 16 checks (pre-M0.5) to 7 cases and 20 answers — *more* checking
+from *fewer* fixtures, which is the whole point of deriving the answer set from the input
+type.
 
 ### Exit criteria
 
-`python3 -m runner suites/` green in the 10.0.5 Docker job with the new case set; every
-`model.json` regenerated **in Docker**; each of the three perturbations in
-[`VALIDATION.md`](VALIDATION.md) §4.7 demonstrated red; no `golden`, `compare` or
-`expect` left in any manifest or in the runner.
+`python3 -m runner suites/` green in the 10.0.5 Docker job; every answer regenerated **in
+Docker** ([DL-0016]); each of the three perturbations in
+[`VALIDATION.md`](VALIDATION.md) §4.7 demonstrated red; **at least one gerber perturbation
+demonstrated red** (move a track by one quantum and watch `gerbers/board-F_Cu.gtl` change)
+— the new comparison must be shown falsifiable like every other; the run-twice determinism
+test green with the five fab normalizers enabled and **red with any one of them disabled**
+(DESIGN §4a); no `golden`, `compare`, `expect`, `outcome`, `op`, `args` or `[[check]]` left
+in any manifest or in the runner.
 
 ---
 
@@ -99,7 +237,7 @@ Deepen the parse surface — the highest-value format-documentation work.
   section and carrying a positive control ([DL-0013]). Schematic failures assert
   `Failed to load schematic`; PCB failures may assert the `Expecting` position, and any
   oracle crash is `CRASH` + a ledger entry, never a green pass.
-- `happy/`: more boards and sheets whose `model.json` covers format tokens the current two
+- `happy/`: more boards and sheets whose `summary.json` covers format tokens the current two
   fixtures don't reach — zones, multiple footprint types, NPTH holes, blind/buried vias,
   multi-unit symbols, hierarchical sheets.
 - Fixture provenance per [DL-0011]: hand-author small/failure inputs, seed-and-`upgrade`
@@ -127,43 +265,50 @@ netlist case; mismatch bucketing (names-only / count / membership) reported.
 
 ## M3 — Symbol and footprint libraries
 
-`model` does not apply to libraries — `kicad-cli` 10.0.5 offers no structured library
-export ([`VALIDATION.md`](VALIDATION.md) §4.5). So:
+A library's standard answers are **its drawings and nothing else** — `kicad-cli` 10.0.5
+offers no structured library export ([`VALIDATION.md`](VALIDATION.md) §4.5). So:
 
-- `symbol-lib` / `footprint-lib` `happy/`: `render` cases (`sym export svg`,
-  `fp export svg`), one per interesting geometry (pin types, pad shapes, courtyards).
-- `failure/`: `parse-sym` / `parse-fp` rejection cases, honouring the `-o` gotchas
-  (DESIGN §2) — `fp` needs a `.pretty` **directory**, never a lone `.kicad_mod`.
+- `symbol-lib` / `footprint-lib` `happy/`: one case per interesting geometry (pin types,
+  pad shapes, courtyards). Each records `render/` holding KiCad's own filenames —
+  `<Symbol>_unit<N>.svg` for symbols, `<Footprint>.svg` for footprints, both verified.
+- `failure/`: rejection cases, honouring the `-o` gotchas (DESIGN §2) — `fp` needs a
+  `.pretty` **directory**, never a lone `.kicad_mod`.
 
-**Exit criteria:** library render cases green; library parse failures carry controls.
+**Exit criteria:** library render cases green; library parse failures carry controls; the
+`render/` directory-answer path exercised by a library with more than one symbol.
 
 ---
 
-## M4 — Fabrication output: close the gerber/drill gap
+## M4 — Fabrication output: make it fair across implementations
 
-**This is the milestone that pays back [DL-0024].** Today `suites/gerber/` and
-`suites/drill/` are **empty**: the byte comparison that used to cover them measured
-KiCad's formatting rather than anyone's correctness and was deleted, and a structural
-RS-274X reduction was ruled out as a second plotter's worth of engineering ([DL-0020]).
-The honest consequence, restated: **a bug that corrupts gerber or drill output while
-leaving the board model intact is not caught anywhere in this suite.** The model's
-`drill_holes` table catches a dropped or mis-sized *hole*; nothing catches a bad *plot*.
+**Option 1 is done, in M0.5.** [DL-0026] restored byte-recorded gerber and drill answers on
+**every board case** — not in a `gerber/` suite, but as part of the standard board answers,
+so fab coverage scales with the board fixture count instead of needing its own cases. The
+five normalizers were re-derived from the binary and four inherited ones were deleted as
+having no evidence ([`VALIDATION.md`](VALIDATION.md) §7.3). The gap text that used to sit
+in `README.md`, `VALIDATION.md` §7, `DESIGN.md` §9 and this section is gone.
 
-Two candidate approaches — pick one, with the owner:
+**What is left is the fairness problem, and it is the harder half.** A byte answer is a
+KiCad-version-regression signal only: a clean-room tool emitting valid RS-274X with
+different-but-equivalent apertures, a different coordinate format, or regions instead of
+strokes fails every one of those files while being perfectly conformant. So today
+`gerbers/` and `drill/` report `INFO`, never `FAIL`, in ecosystem mode — real coverage
+against KiCad, no coverage against anyone else.
 
-1. **Byte-recorded answers for fab output only.** Re-introduce a narrow file/tree compare
-   used *exclusively* by `gerber/` and `drill/`, labelled explicitly as a
-   KiCad-version-regression signal that a second implementation is **not** judged on. The
-   header normalizers are already specified (DESIGN §4: `G04` `TF.CreationDate` /
-   `TF.GenerationSoftware`, the `.gbrjob` JSON `CreationDate`, the Excellon header date,
-   the drill report's "Created on"). Cheapest path; least fair across implementations.
-2. **Rasterize and compare images.** Plot each gerber/drill layer to a raster with a
-   pinned renderer and compare pixels, the same way the cross-implementation `render` path
-   works ([DL-0021]). Fair across implementations and decomposition-blind; costs a gerber
-   rasterizer in the CI image and a threshold that must be shown load-bearing.
+**Remaining work — option 2: rasterize and compare images.** Plot each gerber to a raster
+with a pinned renderer and compare pixels, the same way the cross-implementation `render`
+path works ([DL-0021]). Fair across implementations and decomposition-blind; costs a
+gerber rasterizer in the CI image and a per-case threshold that must be shown load-bearing
+(perturb the geometry by one quantum, watch it go red, or delete the threshold). A
+structural RS-274X reduction remains ruled out ([DL-0020]).
 
-**Exit criteria:** `gerber/` and `drill/` are no longer empty, and the README's
-known-gap note is deleted because it is no longer true.
+Also here: the `gerber/` and `drill/` suites, now free of routine duty, get cases that are
+specifically *about* fab output — an aperture macro, an oval/slotted hole, a board with
+blind/buried vias whose drill file has multiple layer spans.
+
+**Exit criteria:** a second adapter's gerber output is compared *and can fail*, on a
+threshold demonstrated load-bearing; `gerber/`/`drill/` hold cases about fab-specific
+geometry.
 
 ---
 
@@ -186,7 +331,7 @@ an identified gap.
 ## M6 — Second adapter (ecosystem) + divergence ledger
 
 Prove goal #2: the same corpus drives a non-KiCad implementation. This is materially
-easier after the `model` rework — a second implementation emits `model.json` **directly**
+easier after the standard-answers rework — a second implementation emits `summary.json` **directly**
 and never has to imitate KiCad's stats/pos/ipcd356 export formats.
 
 - Implement a second adapter (candidate: the local `pcb` Rust engine) against the verb

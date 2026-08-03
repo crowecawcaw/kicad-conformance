@@ -2,8 +2,8 @@
 
 This document defines the architecture. Companion docs:
 [`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md) (how to author a case),
-[`VALIDATION.md`](VALIDATION.md) (what a check actually compares — the composite `model`
-projection and its exact schema, [DL-0022]–[DL-0024]),
+[`VALIDATION.md`](VALIDATION.md) (what a case actually compares — the **standard answers**
+per input type and their exact schemas, [DL-0025]–[DL-0028]),
 [`DECISIONS.md`](DECISIONS.md) (numbered rationale), [`ROADMAP.md`](ROADMAP.md),
 [`DIVERGENCES.md`](DIVERGENCES.md) (the checked-in known-divergence ledger, [DL-0009]/[DL-0018]).
 
@@ -75,6 +75,15 @@ as the oracle's identity.
 
 ### Capability verbs
 
+> **Verbs are an adapter-internal vocabulary, not a manifest field.** Since [DL-0025] a
+> `case.toml` names no verb: the runner derives the verbs to run from the input file's
+> suffix (`.kicad_pcb` → the six board exports, and so on —
+> [`VALIDATION.md`](VALIDATION.md) §9.1). The table below is the **adapter contract**,
+> which a second implementation still answers. `parse-*` remains as the loader a
+> `failure/` case invokes; `model` is renamed `summary` ([DL-0028]); `export-gerbers` and
+> `export-drill` are no longer exit-only — they produce compared answers again
+> ([DL-0026]).
+
 Each adapter declares which verbs it supports; unsupported verbs cause the relevant
 cases to be **skipped and counted**, never failed (openjd's capability-negotiation
 idea, expressed in data). Core verbs:
@@ -82,7 +91,7 @@ idea, expressed in data). Core verbs:
 | Verb | Input | Output the runner consumes | `kicad-cli` mapping (10.0.5) |
 |---|---|---|---|
 | `version` | — | version string on stdout | `version --format plain` (+ `--format about` for the identity record) |
-| `model` | `.kicad_pcb` / `.kicad_sch` | **one merged `model.json`** — the composite semantic projection | board: `pcb export stats` + `pcb export pos` + `pcb export ipcd356`; schematic: `sch export netlist` ([`VALIDATION.md`](VALIDATION.md) §4) |
+| `summary` | `.kicad_pcb` / `.kicad_sch` | **one merged `summary.json`** — everything the tool understood ([DL-0028]; was `model`) | board: `pcb export stats` + `pcb export pos` + `pcb export ipcd356`; schematic: `sch export netlist` ([`VALIDATION.md`](VALIDATION.md) §4) |
 | `parse-sch` | `.kicad_sch` | success/failure only | `sch upgrade --force` on a **scratch copy** (rewrites in place) |
 | `parse-pcb` | `.kicad_pcb` | success/failure only | `pcb upgrade --force` on a scratch copy (rewrites in place) |
 | `parse-sym` | `.kicad_sym` | success/failure only | `sym upgrade --force -o <out> <in>` |
@@ -94,8 +103,8 @@ idea, expressed in data). Core verbs:
 | `ipcd356` | `.kicad_pcb` | board net graph + test-point geometry | `pcb export ipcd356 -o <out>/board.d356` |
 | `stats` | `.kicad_pcb` | inventory report | `pcb export stats --format json -o <out>/stats.json` |
 | `render` | any of the four | one SVG per invocation | `pcb\|sch\|sym\|fp export svg` (dispatches on the input suffix) |
-| `export-gerbers` | `.kicad_pcb` | **exit code only** — no comparator exists ([DL-0024]) | `pcb export gerbers --layers <pinned> --no-protel-ext -o <out>/` |
-| `export-drill` | `.kicad_pcb` | **exit code only** — no comparator exists ([DL-0024]) | `pcb export drill --generate-report --report-path <r> -o <dir>` |
+| `export-gerbers` | `.kicad_pcb` | **a directory of gerbers**, compared byte-for-byte after normalization ([DL-0026]) | `pcb export gerbers -o <out>/` — **no `--layers`**, no `--no-protel-ext`: KiCad's own set, which is what a fab receives |
+| `export-drill` | `.kicad_pcb` | **a directory holding one `.drl`**, compared byte-for-byte after normalization ([DL-0026]) | `pcb export drill -o <dir>/` — no map, no report, no `--excellon-separate-th` |
 | `export-step` | `.kicad_pcb` | reserved, unused | `pcb export step` (heavy, least deterministic; see [DL-0012](DECISIONS.md)) |
 
 Retired verbs ([DL-0024]): **`upgrade`** (it existed only to byte-compare KiCad's
@@ -109,13 +118,13 @@ Notes drawn from the research, load-bearing for correct mapping:
   `kicad-cli`; `… upgrade --force` loads the file (proving it parses) and re-emits it. The
   re-emitted bytes are no longer compared against anything — `parse-*` is an
   **exit-polarity check only**, which is exactly what a `failure/` case needs. On a happy
-  case a passing `model` already proves the file parsed, so a `parse-*` check beside it is
+  case a matching `summary` already proves the file parsed, so a parse check beside it is
   redundant. `--force` is always passed so the result never depends on the input's
   pre-existing version stamp.
-- **`model` composes inside the adapter, not inside the runner.** The reference adapter
+- **`summary` composes inside the adapter, not inside the runner.** The reference adapter
   runs the two or three `kicad-cli` exports into its scratch dir and writes
-  `<out>/model.json` itself. A non-KiCad implementation therefore emits its model
-  directly, without having to imitate three KiCad export formats — the model schema
+  `<out>/summary.json` itself. A non-KiCad implementation therefore emits its summary
+  directly, without having to imitate three KiCad export formats — the summary schema
   ([`VALIDATION.md`](VALIDATION.md) §4), not the exports, is the contract.
 - **`pcb`/`sch upgrade` rewrite in place** (no `--output`), so the adapter must copy the
   fixture to a scratch dir first and read the result back. `fp`/`sym upgrade` are
@@ -169,36 +178,55 @@ in-place rewrite (`upgrade`).
 
 | Verb | Adapter passes to `kicad-cli` | Artifact the runner reads |
 |---|---|---|
-| `model` (pcb) | `-o <scratch>/stats.json`, `<scratch>/pos.csv`, `<scratch>/board.d356`, merged | `<out>/model.json` |
-| `model` (sch) | `-o <scratch>/netlist.net`, reduced | `<out>/model.json` |
+| `summary` (pcb) | `-o <scratch>/stats.json`, `<scratch>/pos.csv`, `<scratch>/board.d356`, merged | `<out>/summary.json` |
+| `summary` (sch) | `-o <scratch>/netlist.net`, reduced | `<out>/summary.json` |
 | `drc` | `-o <out>/drc.json` | `<out>/drc.json` |
 | `erc` | `-o <out>/erc.json` | `<out>/erc.json` |
 | `netlist` | `-o <out>/netlist.net` | `<out>/netlist.net` |
 | `pos` | `-o <out>/pos.csv` | `<out>/pos.csv` |
 | `ipcd356` | `-o <out>/board.d356` | `<out>/board.d356` |
 | `stats` | `-o <out>/stats.json` | `<out>/stats.json` |
-| `render` (pcb) | `-o <out>/render.svg` (+ `--layers` from `args`) | `<out>/render.svg` |
-| `render` (sch/sym/fp) | `-o <out>/` — kicad-cli derives `<stem>.svg` | `<out>/<stem>.svg` |
-| `export-gerbers` | `-o <out>/` (+ pinned `--layers`, `--no-protel-ext`) | — (exit only) |
-| `export-drill` | `-o <out>/` `--report-path <out>/drill-report.rpt` | — (exit only) |
+| `render` (pcb) | `-o <out>/render-F_Cu.svg` — a **file** path, and `--layers F.Cu` is mandatory (§2b) | `<out>/render-F_Cu.svg` |
+| `render` (sch/sym/fp) | `-o <out>/` — a **directory**; kicad-cli derives the names (`<stem>.svg`, `<Symbol>_unit<N>.svg`, `<Footprint>.svg`) | `<out>/*.svg` |
+| `export-gerbers` | `-o <out>/` — a directory, created if absent. **No `--layers`** | `<out>/*` (all of it, compared as a tree) |
+| `export-drill` | `-o <out>/` — a directory, created if absent. No report, no map | `<out>/*.drl` |
 | `parse-sch`/`parse-pcb` | (no `-o`; rewrites in place) | — (exit only) |
 | `parse-sym`/`parse-fp` | `-o <out>` (path must **not** pre-exist — see gotcha above) | — (exit only) |
 
 This keeps every artifact location deterministic and avoids CWD pollution.
 
-### 2b. Layer sets are explicit case parameters, not fixed lists
+### 2b. Layer sets are fixed by the harness for SVG, and taken from KiCad for gerbers
 
-For `render`, the layer set is a per-case `args` parameter (`args = ["--layers", "F.Cu"]`)
-— a render case names the layer it is about.
+Both are now decisions, not case parameters ([DL-0025], [DL-0026]) — `args` is gone.
 
-The same used to matter, much more sharply, for gerbers: a default
-`pcb export gerbers` on a 2-layer board emits **seven** files, not four (KiCad plots every
-*enabled/plottable* layer, adding `F_Courtyard`/`B_Courtyard`/`Margin`, with Protel
-`.gtl/.gbl/.gm1` extensions), so the output file set was a function of board state. That
-mattered when the gerber output was compared as a directory of files; with the byte layer
-gone ([DL-0024]) the gerber verb is exit-only, and the pinned
-`--layers F.Cu,B.Cu,Edge.Cuts --no-protel-ext` invocation is retained purely so that any
-future gerber comparison starts from a deterministic file set.
+**SVG: the harness must choose, because KiCad has no default.** `pcb export svg` refuses
+to run without an explicit layer list, in either output mode:
+
+```
+$ kicad-cli pcb export svg --mode-multi -o out --page-size-mode 2 \
+      --exclude-drawing-sheet --black-and-white board.kicad_pcb
+At least one layer must be specified
+```
+
+The harness pins **`--layers F.Cu`**, one file, `render-F_Cu.svg`. Justified in
+[`VALIDATION.md`](VALIDATION.md) §6.2; briefly, the gerbers now cover per-layer geometry
+byte-exactly, so the render's remaining jobs are to be human-readable and to be
+rasterizable later, and one layer does both. `sch|sym|fp export svg` need no choice.
+
+Two `-o` gotchas, verified: for `pcb export svg` in its default single mode `-o` is a
+**file path** (passing a directory fails with `Failed to create file '<dir>'`); for
+`gerbers`, `drill`, and the `sch`/`sym`/`fp` SVG exports it is a **directory**, created if
+absent. `pcb export svg` also prints a deprecation notice that its default will become
+`--mode-multi`; re-verify at the KiCad 11 bump.
+
+**Gerbers: KiCad chooses, and the choice is part of the answer.** `pcb export gerbers` is
+run with **no `--layers`**. KiCad plots the set stored in the board, falling back to its
+built-in default when the board has none — verified as **6 gerbers + a job file** for the
+populated fixture (which carries a `(pcbplotparams (layerselection …))` block) and **20
+gerbers + a job file** for the minimal fixture (which does not). The set varies per board
+and is stable per board, which is exactly what a per-board recorded answer needs. Pinning
+a list instead would compare an artifact nobody ships and would hide a future change to
+KiCad's default selection.
 
 ### 2c. Parser error-verbosity is asymmetric between PCB and schematic (observed oracle behavior)
 
@@ -219,37 +247,40 @@ loaders differ:
 
 ## 3. Comparison model
 
-Pass/fail is decided per check, and **how** a check is compared follows from its `op` —
-there is no `compare` field to set ([DL-0023]). Three kinds of comparison exist:
+**How something is compared follows from what it is** — there is no `compare` field
+([DL-0023]) and, since [DL-0025], no `op` field either. The runner looks at the answer's
+name and extension. Four kinds of comparison exist:
 
-| Kind | Ops | What it compares |
+| Kind | Applied to | What it compares |
 |---|---|---|
-| **exit** (§3a) | `parse-*`, `export-gerbers`, `export-drill` | did the tool accept (exit 0) or gracefully reject the input |
-| **model / projection** (§3b) | `model`, `drc`, `erc`, `netlist`, `pos`, `ipcd356`, `stats` | a normalized JSON document, compared for equality |
-| **render** (§3c) | `render` | the drawn SVG geometry, byte-exact after normalizing `<title>`/`<desc>` |
+| **exit** (§3a) | every `failure/` case | did the tool accept (exit 0) or gracefully reject the input |
+| **summary / projection** (§3b) | `summary.json`, and the JSON extras (`drc.json`, `pos.json`, …) | a normalized JSON document, compared for equality |
+| **render** (§3c) | `render*.svg`, `render/*.svg` | the drawn SVG geometry, byte-exact after normalizing `<title>`/`<desc>` |
+| **bytes** (§3d) | `gerbers/`, `drill/` | a directory of fabrication output: same filenames, every file byte-identical after five normalizers (§4) |
 
-A previous revision numbered these L0–L3 and included a fourth kind, **L1**, which
-compared KiCad's re-serialized bytes (canonical s-expr, gerber files, drill files). L1 and
-the `golden-file`/`golden-dir` modes that implemented it are **deleted** ([DL-0024]); the
-L-numbering is retired with them. [`VALIDATION.md`](VALIDATION.md) is the full spec of
-what each kind compares, including the `model` schema.
+A previous revision numbered these L0–L3. The numbering is retired.
+[`VALIDATION.md`](VALIDATION.md) is the full spec of what each kind compares, including
+the summary schema.
 
 ### 3a. exit — success/failure polarity (+ error substring)
 
 The baseline, and the *only* thing a `failure` case needs. Mirrors openjd's
-filename-polarity trick, moved into the manifest:
+filename-polarity trick — and since [DL-0025] it stays in the filename rather than being
+restated in the manifest:
 
-- `outcome = "ok"` (the default in a `happy/` directory) → the adapter must exit `0`.
-- `outcome = "error"` (the default in a `failure/` directory) → the adapter must exit with
-  a **bounded, graceful non-zero** exit — a clean rejection, *not* a crash (see the crash
-  verdict below).
-- For `outcome = "error"`, an optional `error_contains = "…"` asserts a substring on
-  **stderr** (per-stream, not merged, so a warning can't satisfy an error check). An
+- A case in **`happy/`** → the adapter must exit `0`, and every standard answer must match.
+- A case in **`failure/`** → the adapter must exit with a **bounded, graceful non-zero**
+  exit — a clean rejection, *not* a crash (see the crash verdict below). No answers are
+  recorded or compared.
+- A `failure/` case may set `error_contains = "…"`, asserting a substring on **stderr**
+  (per-stream, not merged, so a warning can't satisfy an error check). An
   `error_contains_any = ["…", "…"]` escape hatch tolerates legitimate wording variation
   between implementations (openjd's `anyOf`).
 
-(The field was called `expect` before [DL-0023]; it was renamed because `expect = "ok"`
-sitting next to `expected = "model.json"` read as two spellings of one thing.)
+(The polarity was a manifest field twice: `expect`, then `outcome` after [DL-0023]. Both
+are gone. It was only ever written in cases whose directory already said the same thing,
+and a manifest that can contradict its own directory is a manifest with a failure mode
+worth deleting.)
 
 Substring matching is deliberately loose: it pins the *observable contract* (the tool
 rejects a malformed board and says something about the offending token) without
@@ -260,7 +291,7 @@ still conforms.
 oracle *crash* rather than reject cleanly: on 10.0.5, a truncated board makes
 `pcb upgrade` print a good `Expecting '('` message and then **segfault** (exit 139 on
 native Windows; a `SIGSEGV` on Docker Linux). 139 is non-zero, so a naïve "non-zero =
-rejected" rule would silently *pass* an `outcome="error"` case on a **crash** — building
+rejected" rule would silently *pass* a `failure/` case on a **crash** — building
 the entire PCB `failure/` corpus on a KiCad bug. The runner therefore classifies
 termination into three outcomes, not two:
 
@@ -290,7 +321,7 @@ silently launder a genuine crash into what looks like an adapter-level `REJECT`.
 
 **Positive control — every `failure` case must be falsifiable ([DL-0013]).** Because
 stderr on the schematic side cannot discriminate *which* defect fired (all defects →
-`Failed to load schematic`), an `outcome="error"` case must ship a runner-enforceable
+`Failed to load schematic`), a `failure/` case must ship a runner-enforceable
 positive control: **removing the injected defect must make the same check exit 0.** The
 runner supports this by re-running the check against a defect-free variant (a sibling
 "control" fixture, or an inline patch declared in the manifest) and requiring the control
@@ -317,7 +348,7 @@ of the verdict, applied only after any positive control has already passed:
   `known_divergence` is entirely unaffected.
 
 This is how `board-parse/failure/0001-unterminated-sexpr` (the 10.0.5 PCB-parse segfault,
-§3a above) reports green without either loosening its `outcome="error"`/`error_contains`
+§3a above) reports green without either loosening its `failure/` polarity or `error_contains`
 assertion or leaving the gating build permanently red over a bug filed upstream, not in
 this repo. See [DL-0018] and [`DIVERGENCES.md`](DIVERGENCES.md) for the full rationale
 and the ledger entry.
@@ -326,12 +357,12 @@ and the ledger entry.
 
 For outputs where formatting, ordering and internal IDs are irrelevant, a byte compare is
 meaningless. The runner turns both sides into a canonical JSON structure and compares them
-for equality. The **default** projection is `model` — one document describing everything
+for equality. The **default** projection is the **summary** — one document describing everything
 the tool understood about the input, composed from several exports
 ([`VALIDATION.md`](VALIDATION.md) §4). The narrower projections behave identically, each
 producing its own document:
 
-- **`model`** → board: `counts`, `drill_holes`, `has_outline`, `min_track_width`,
+- **`summary`** → board: `counts`, `drill_holes`, `has_outline`, `min_track_width`,
   `min_drill_diameter`, `placement`, `nets`; schematic: `components`, `nets`. Full schema
   and worked examples in [`VALIDATION.md`](VALIDATION.md) §4.
 - **`netlist`** → `{ net-name : sorted ["REFDES.PIN", …] }`. A pin on the wrong node, a
@@ -343,7 +374,7 @@ producing its own document:
   child-sheet resolution works.
 - **`drc` / `erc`** → sorted list of `(rule-id, severity, sorted item locations)`. Sorted
   by content, **not by UUID** — some violation-item UUIDs are minted fresh each run.
-- **`pos` / `ipcd356` / `stats`** → the same reductions `model` composes, emitted
+- **`pos` / `ipcd356` / `stats`** → the same reductions the summary composes, emitted
   standalone ([`VALIDATION.md`](VALIDATION.md) §5).
 
 **Numbers.** Tolerance is **the precision the export prints, and nothing wider.** KiCad
@@ -353,11 +384,11 @@ string equality *is* printed-quantum tolerance — no float parsing and no band.
 explicitly **refuse pre-authorized tolerance bands**: the moment a band is wider than the
 export's own printed precision, a genuine coordinate error can hide inside it. Values that
 cannot be compared exactly across implementations — computed float areas and densities —
-are **excluded from the model** rather than compared loosely
+are **excluded from the summary** rather than compared loosely
 ([`VALIDATION.md`](VALIDATION.md) §4.1).
 
 **What is stored as the expected file ([DL-0014], [DL-0023]).** The recorded answer is the
-**normalized document itself** (`model.json`, `drc.json`, …) committed under
+**normalized document itself** (`summary.json`, `drc.json`, …) committed under
 `expected/<version>/`, *not* the raw KiCad JSON/s-expr/CSV. `--regenerate` runs the
 oracle, applies the reduction, and writes that document; at compare time the runner
 reduces the adapter's output the same way and compares. Storing the reduction makes the
@@ -370,7 +401,7 @@ is actionable rather than an opaque "differs."
 
 ### 3c. render — normalized SVG compare
 
-`op = "render"` exports the drawing to SVG, normalizes the one nondeterministic line
+A render answer exports the drawing to SVG, normalizes the one nondeterministic line
 (`<title>`, which carries the output filename and a wall-clock date) plus `<desc>`, and
 compares **byte-exact**. Zero tolerance: KiCad's SVG path geometry is byte-stable
 run-to-run (verified, [`VALIDATION.md`](VALIDATION.md) §6), and determinism is pinned at
@@ -381,22 +412,33 @@ The cross-implementation variant — rasterize both sides with a pinned `resvg` 
 pixel/SSIM-diff under an explicit, per-case, load-bearing threshold — arrives with the
 second adapter ([DL-0021]); no KiCad-vs-KiCad check ever rasterizes.
 
-### 3d. There is no byte-compare mode ([DL-0024])
+### 3d. Byte comparison exists for fabrication output only ([DL-0026])
 
-Earlier revisions had a fourth mode, `golden-file`/`golden-dir`, which compared KiCad's
-re-serialized bytes: the canonical `.kicad_pcb`/`.kicad_sch` from `… upgrade`, the gerber
-file set, the drill file set. It is **deleted**, along with the `upgrade` and `bom` verbs
-that only existed to feed it.
+There **is** a fourth comparison, and its scope is exactly two answers: `gerbers/` and
+`drill/`, on every board case. Each is a directory compared as a whole — the same
+filenames must be present, and every file must be byte-identical after the five
+normalizers in §4.
 
-The reason is that a byte compare pins KiCad's exact *formatting* — token order,
-whitespace, aperture numbering, comment style. That is a decent KiCad-version-regression
-signal and a bad conformance signal: a clean-room implementation emits
-valid-but-differently-formatted output and would "diverge" on essentially every such
-comparison for reasons that are not bugs. Rather than maintain a whole comparison layer
-whose findings must then be filtered back out as formatting-only, the layer is gone. What
-it cost us — all gerber and drill coverage — is documented as an explicit gap in
-[`VALIDATION.md`](VALIDATION.md) §7 and [`ROADMAP.md`](ROADMAP.md), with the two concrete
-ways to get it back.
+Everything else the old `golden-file`/`golden-dir` mode covered stays **deleted**
+([DL-0024]): the canonical `.kicad_pcb`/`.kicad_sch` re-serialize comparison and the
+`upgrade` and `bom` verbs that fed it.
+
+The distinction is worth stating precisely, because it is the same argument reaching
+opposite conclusions on two inputs. A byte compare pins KiCad's exact *formatting* —
+token order, whitespace, aperture numbering, comment style. That is a good
+KiCad-version-regression signal and a bad cross-implementation one.
+
+- For **re-serialized s-expressions**, a better comparison already exists: the summary
+  compares the same file's *meaning*, exactly and fairly. The byte compare was pure
+  duplication with a fairness penalty. Deleted, correctly.
+- For **fab output**, no semantic comparator exists — a structural RS-274X reduction was
+  ruled out as a second plotter's worth of engineering ([DL-0020]). Here the byte compare
+  duplicates nothing; it is the only thing in the suite that looks at what a fab actually
+  receives, and it covers track geometry and hole positions that the summary does not.
+
+So it is kept, with [DL-0015]'s scoping made explicit: **in ecosystem mode `gerbers/` and
+`drill/` report `INFO`, never `FAIL`.** The cross-implementation path remains
+rasterize-and-compare ([DL-0021], [`ROADMAP.md`](ROADMAP.md) M4).
 
 ---
 
@@ -405,14 +447,23 @@ ways to get it back.
 `kicad-cli` output is deterministic in *geometry* but carries build/time/identity noise
 in headers and IDs. Two halves:
 
-**Most of this layer is now unnecessary.** The reductions in §3b *drop* the noisy fields
-by construction — the model never contains a date, a version, a path or a UUID, because
-those fields are simply not part of the schema. So there is nothing left to scrub for
-`model`/`drc`/`erc`/`netlist`/`pos`/`ipcd356`/`stats`. Only two normalizers survive: the
-SVG `<title>`/`<desc>` strip for `render`, and CRLF→LF for stored text. The rest of the
-table below is retained as **reference for output kinds this suite does not currently
-compare** — chiefly gerber and drill, which a future revision may re-introduce
-([`VALIDATION.md`](VALIDATION.md) §7).
+**This layer is small, and every entry in it was re-verified against the 10.0.5 binary for
+this revision.** The reductions in §3b *drop* the noisy fields by construction — the
+summary never contains a date, a version, a path or a UUID, because those fields are not
+part of the schema. So there is nothing to scrub for
+`summary`/`drc`/`erc`/`netlist`/`pos`/`ipcd356`/`stats`. **Seven** normalizers exist in
+total: the SVG `<title>`/`<desc>` strip, CRLF→LF for stored text, and the five
+gerber/Excellon date lines that [DL-0026] brought back.
+
+> **Four normalizers that earlier revisions of this table called for do not exist**, and
+> the reason is evidence, not preference. `TF.GenerationSoftware` (gerber),
+> `Header/GenerationSoftware` (`.gbrjob`) and the Excellon `TF.GenerationSoftware` line
+> are all **byte-identical run to run** — they are version strings, not timestamps, and
+> leaving them intact makes every fab answer assert for free that the pinned KiCad
+> produced it. The drill report's "Created on" line has **no input at all**: the report is
+> only written when `--generate-report` is passed, and the standard answers do not pass
+> it. Full diffs in [`VALIDATION.md`](VALIDATION.md) §7.3. This is §4a applied to the
+> table itself.
 
 **Environment pinning (prevents noise at the source):** every adapter call runs with
 `LC_ALL=C.UTF-8` (decimal separator / thousands grouping leak into numbers) and
@@ -428,18 +479,29 @@ normalization findings and this project's own CLI research:
 |---|---|---|
 | **SVG** (`render`) | **live** | `<title>` (output filename + wall-clock date) and `<desc>` → a constant. The only run-to-run difference KiCad's SVG has (verified, [`VALIDATION.md`](VALIDATION.md) §6). |
 | **All text written to `expected/`** | **live** | CRLF → LF (see below). |
-| model / netlist / pos / ipcd356 / stats | *not needed* | The reduction drops `metadata`, the `(design …)` header, paths, dates, tool versions, UUIDs and net codes by construction — there is nothing left to strip ([`VALIDATION.md`](VALIDATION.md) §4.6). |
+| summary / netlist / pos / ipcd356 / stats | *not needed* | The reduction drops `metadata`, the `(design …)` header, paths, dates, tool versions, UUIDs and net codes by construction — there is nothing left to strip ([`VALIDATION.md`](VALIDATION.md) §4.6). |
 | DRC/ERC JSON | *live, inside the reduction* | drop top-level `date`, `kicad_version`, absolute input path; sort `violations`, `unconnected_items`, `schematic_parity` and each violation's `items[]` by content-derived order (not by UUID). |
+| **Gerber** (RS-274X), every layer file | **live** (G1, G2) | Exactly two lines, verified: **G1** the value in `%TF.CreationDate,<ISO>*%`; **G2** the trailing ` date <YYYY-MM-DD HH:MM:SS>` in `G04 Created by KiCad (PCBNEW <ver>) date …*`. **Not** `TF.GenerationSoftware` — it is stable. |
+| **Gerber job file** (`.gbrjob`) | **live** (G3) | Exactly one line, verified: the JSON key `Header.CreationDate`. **Not** `Header.GenerationSoftware` — it is stable. |
+| **Excellon drill** (`.drl`) | **live** (D1, D2) | Exactly two lines, verified: **D1** the trailing timestamp in `; DRILL file KiCad <ver> date …`; **D2** the value in `; #@! TF.CreationDate,<ISO>`. **Not** the `TF.GenerationSoftware` line — it is stable. |
+| Drill report | *never produced* | Requires `--generate-report`; the standard answers do not pass it, so its "Created on" stamp has no input. Normalizer deleted from this spec ([DL-0026]). |
 | s-expr (`… upgrade`) | *not compared* | (was: `(generator_version …)`; the whole comparison is deleted, [DL-0024]) |
-| Gerber (RS-274X) | *not compared* | `G04` header lines: `TF.CreationDate,<ISO>`, `TF.GenerationSoftware,KiCad,Pcbnew,<ver>`, and the "Created by KiCad … date" comment. |
-| Gerber job file (`.gbrjob`) | *not compared* | JSON `CreationDate` under `Header/CreationDate` and `Header/GenerationSoftware/Version`. |
-| Excellon drill / drill report | *not compared* | header creation date + KiCad version; the report's "Created on" stamp. |
 | BOM | *not compared* | header line with tool name, version, date; row order only deterministic with a fixed sort/group spec. |
 | PDF | *not compared* | `/CreationDate`, `/ModDate`, random `/ID`, producer. **Least diffable — avoid PDF for conformance.** |
 | STEP / BREP (OCC) | *deferred ([DL-0012])* | ISO-10303 `FILE_NAME` timestamp/author/system; entity ordering + tessellation not byte-stable across OCC versions → compare geometrically, not textually. |
 
-The "not compared" rows are kept deliberately: they are the research that a future gerber
-or drill comparison would otherwise have to redo ([`VALIDATION.md`](VALIDATION.md) §7).
+The "not compared" rows are kept deliberately: they are the research a future comparison
+would otherwise have to redo.
+
+**One rule that is not a normalizer.** Gerber output embeds the input file's stem, in both
+the output filenames and the `%TF.ProjectId` line, whose GUID is literally the filename's
+bytes (verified: `board.kicad_pcb` → `board-F_Cu.gtl` /
+`%TF.ProjectId,board,626f6172-642e-46b6-…`; the same board as `renamed.kicad_pcb` →
+`renamed-F_Cu.gtl` / `%TF.ProjectId,renamed,72656e61-6d65-…`). So the runner copies each
+input to its scratch directory **under the original filename**, and case authors name
+board inputs `board.kicad_pcb`. Normalizing the project id instead was rejected: it would
+discard a real assertion — that the tool identified the project correctly — to buy a
+freedom nobody needs.
 
 **Line endings & the canonical platform ([DL-0016]).** Text written to `expected/` is
 normalized to **LF** and stored **LF**. A contributor may develop on Windows, but CI
@@ -470,13 +532,13 @@ evidence."
 ## 5. Expected files: per-version, oracle-authored, regenerable
 
 The recorded correct answers live inside each case at `expected/<kicad-version>/…` (e.g.
-`expected/10.0.5/model.json`). Rationale and mechanics:
+`expected/10.0.5/summary.json`). Rationale and mechanics:
 
 - **Keyed by reference-oracle version, not by adapter.** An expected file is "the correct
   answer as defined by KiCad `<ver>`." A second adapter compares *its* output against the
   same file; there is no per-adapter answer.
-- **Usually exactly one per case.** The `model` verb collapses what used to be several
-  per-projection answers into one `model.json` ([DL-0022]). A case has a second expected
+- **Usually exactly one per case.** The summary collapses what used to be several
+  per-projection answers into one `summary.json` ([DL-0022]). A case has a second expected
   file only when it documents a second, genuinely different concept about the same input —
   in practice a `render`.
 - **Regeneration story.** `python -m runner --regenerate` runs the reference adapter at
@@ -520,7 +582,8 @@ format-token report the runner emits for free**, with no instrumented build:
 
 - **CLI-surface coverage.** Enumerate the `kicad-cli … --help` surface (every subcommand
   × flag) and record which subcommands/flags the suite actually exercises (from each
-  check's verb mapping and `args`). **Unexercised subcommands/flags are the gap list.**
+  input type's verb mapping, [`VALIDATION.md`](VALIDATION.md) §9.1). **Unexercised
+  subcommands/flags are the gap list.**
 - **Format-token coverage.** Track which format `(version YYYYMMDD)` epochs and which
   **top-level s-expr sections** (e.g. `(lib_symbols …)`, `(net …)`, `(footprint …)`,
   `(zone …)`) appear across the fixtures and expected files. **Unexercised top-level sections /
@@ -603,6 +666,16 @@ engine or a Go tool is driven identically.
   triaged in a checked-in ledger (verdict per entry: "KiCad's answer is right, fix the
   tool" vs "the suite is wrong"), so the suite can be stricter than any one tool without
   hiding regressions. See [DL-0009] and the openjd `OPENJD_TEST_RESULTS.md` precedent.
-- **Gerber and drill output are not covered at all** since the byte layer was deleted
-  ([DL-0024]). That is a real hole in a fabrication-facing suite, named in
-  [`VALIDATION.md`](VALIDATION.md) §7 and on the roadmap, not quietly absorbed.
+- **Gerber and drill coverage is byte-recorded, and byte-recorded means KiCad-only.**
+  [DL-0026] restored it on every board case, which closes the hole [DL-0024] opened — but
+  a clean-room tool emitting valid RS-274X with different apertures or a different
+  coordinate format would fail every one of those files while being perfectly conformant.
+  So these answers are `INFO`, never `FAIL`, in ecosystem mode, and the fair
+  cross-implementation comparison (rasterize both sides) is still only on the roadmap. The
+  suite's fab coverage is real against KiCad and absent against anyone else; both halves of
+  that sentence matter.
+- **Cases record more than they need to, on purpose.** Since [DL-0025] there is no per-case
+  opt-out from the standard answers, so a DRC case also carries gerbers it is not about.
+  This trades a little redundancy for a manifest with no knobs to get wrong. If the suite
+  ever grows to where the redundancy costs real time, the fix is parallelism
+  ([`VALIDATION.md`](VALIDATION.md) §9.4), not a skip field.
