@@ -1,7 +1,3 @@
-concept = "An empty root schematic sheet (title block only, no symbols) parses into an empty-but-well-formed model."
+concept = "An empty root schematic sheet (title block only, no symbols) parses into an empty-but-well-formed summary."
 doc     = "sexpr-schematic"
 input   = "sheet.kicad_sch"
-
-[[check]]
-op       = "model"
-expected = "model.json"

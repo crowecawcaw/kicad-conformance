@@ -9,10 +9,10 @@ JSON-serializable structure. `--regenerate` writes exactly this reduced structur
 expected file (never the raw report — DL-0014) — and at compare time the adapter's
 output is reduced the same way and checked for equality.
 
-`runner/model.py`'s `build_board_model`/`build_schematic_model` compose these same
-functions into the single `model` document (VALIDATION.md §4); the functions here also
-back the standalone opt-in projections (`pos`, `ipcd356`, `stats`, `netlist` — §5),
-emitted un-merged.
+`runner/summary.py`'s `build_board_summary`/`build_schematic_summary` compose these same
+functions into the single `summary` document (VALIDATION.md §4); the functions here also
+back the standalone opt-in extras (`pos`, `ipcd356`, `stats`, `netlist` — §5), emitted
+un-merged.
 """
 from __future__ import annotations
 

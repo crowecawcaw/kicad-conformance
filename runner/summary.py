@@ -1,8 +1,9 @@
-"""The composite `model` verb (VALIDATION.md §4, DL-0022): one normalized JSON document
-per input, merging several `kicad-cli` exports for a board or a schematic.
+"""The composite `summary` verb (VALIDATION.md §4, DL-0022, renamed by DL-0028): one
+normalized JSON document per input, merging several `kicad-cli` exports for a board or a
+schematic.
 
-`build_board_model` and `build_schematic_model` are pure functions over already-read
-export output (the adapter -- `runner/adapters/kicad.py`'s `cmd_model` -- is what
+`build_board_summary` and `build_schematic_summary` are pure functions over already-read
+export output (the adapter -- `runner/adapters/kicad.py`'s `cmd_summary` -- is what
 actually shells out to `kicad-cli` and reads the files back; this module never touches a
 subprocess). They reuse the raw parsers in `runner/reduce.py` (`reduce_stats`,
 `reduce_pos`, `reduce_ipcd356`, `reduce_netlist`, `reduce_netlist_kicadxml`) and rename/
@@ -21,12 +22,12 @@ from typing import Optional
 from runner import reduce, sexpr
 
 
-# --- board model (VALIDATION.md §4.1) ---------------------------------------------
+# --- board summary (VALIDATION.md §4.1) --------------------------------------------
 
 
-def build_board_model(stats_json: dict, pos_csv_text: str, d356_text: str) -> dict:
+def build_board_summary(stats_json: dict, pos_csv_text: str, d356_text: str) -> dict:
     """Compose `pcb export stats` + `pcb export pos` + `pcb export ipcd356` into the
-    board model. `stats_json` is the parsed raw `stats.json` (this function applies
+    board summary. `stats_json` is the parsed raw `stats.json` (this function applies
     `reduce.reduce_stats`, which is where the excluded float areas/densities/
     min_track_clearance/width/height are dropped -- VALIDATION.md §4.1); `pos_csv_text`
     and `d356_text` are the raw text of `pos.csv` / `board.d356`.
@@ -68,7 +69,7 @@ def build_board_model(stats_json: dict, pos_csv_text: str, d356_text: str) -> di
     }
 
 
-# --- schematic model (VALIDATION.md §4.2) -----------------------------------------
+# --- schematic summary (VALIDATION.md §4.2) ---------------------------------------
 
 
 def _field_value(field_form: list) -> str:
@@ -176,10 +177,10 @@ def _xml_components(root: ET.Element) -> dict:
     return result
 
 
-def build_schematic_model(netlist_text: str, fmt: Optional[str] = None) -> dict:
+def build_schematic_summary(netlist_text: str, fmt: Optional[str] = None) -> dict:
     """Compose `sch export netlist` (either interchange format) into the schematic
-    model. `fmt` is `"kicadxml"` or `None`/`"kicadsexpr"` (the default) -- VALIDATION.md
-    §4.2's cross-format-fairness proof: both must produce the IDENTICAL model.
+    summary. `fmt` is `"kicadxml"` or `None`/`"kicadsexpr"` (the default) -- VALIDATION.md
+    §4.2's cross-format-fairness proof: both must produce the IDENTICAL summary.
     """
     fmt = fmt or "kicadsexpr"
     if fmt == "kicadxml":

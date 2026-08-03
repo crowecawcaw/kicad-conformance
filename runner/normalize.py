@@ -80,6 +80,22 @@ def normalize_gbrjob(data: bytes) -> bytes:
     return (json.dumps(obj, indent=2, sort_keys=False) + "\n").encode("utf-8")
 
 
+# --- Excellon drill (.drl) ---------------------------------------------------------
+# Observed (KiCad 10.0.5, `pcb export drill`, run twice 2s apart, on both the populated
+# and the empty-holes fixture): exactly two lines carry a wall-clock timestamp, mirroring
+# the gerber date pair above but in Excellon's own comment syntax (VALIDATION.md §7.3,
+# DL-0026). Nothing else in the file (tool table, hit records, `M48`/`M30` framing) moved.
+_DRILL_HEADER_DATE_RE = re.compile(rb"(; DRILL file KiCad [^\n]* date )\S+")
+_DRILL_TF_CREATIONDATE_RE = re.compile(rb"(; #@! TF\.CreationDate,)[^\r\n]*")
+
+
+def normalize_drill(data: bytes) -> bytes:
+    data = normalize_crlf(data)
+    data = _DRILL_HEADER_DATE_RE.sub(rb"\1NORMALIZED", data)
+    data = _DRILL_TF_CREATIONDATE_RE.sub(rb"\1NORMALIZED", data)
+    return data
+
+
 # --- DRC / ERC JSON ---------------------------------------------------------------
 # See runner/reduce.py: for `structured` checks the "normalizer" and the "reduction"
 # are the same step (DL-0014) — the expected file stores the reduced form directly, there is
@@ -108,15 +124,24 @@ def normalize_svg(data: bytes) -> bytes:
 
 
 # --- Dispatch by output kind -------------------------------------------------------
+# Every extension `pcb export gerbers` actually writes for a layer file (VALIDATION.md
+# §7.1, DL-0026) -- Protel-style per-layer extensions where KiCad has one (.gtl/.gbl/...),
+# else the generic `.gbr` (margin, courtyard, user layers, ...).
+_GERBER_LAYER_SUFFIXES = (
+    ".gtl", ".gbl", ".gts", ".gbs", ".gto", ".gbo", ".gtp", ".gbp",
+    ".gta", ".gba", ".gm1", ".gbr",
+)
+
 _BY_SUFFIX = {
     ".kicad_sch": normalize_sexpr,
     ".kicad_pcb": normalize_sexpr,
     ".kicad_sym": normalize_sexpr,
     ".kicad_mod": normalize_sexpr,
-    ".gbr": normalize_gerber,
     ".gbrjob": normalize_gbrjob,
+    ".drl": normalize_drill,
     ".svg": normalize_svg,
 }
+_BY_SUFFIX.update({suffix: normalize_gerber for suffix in _GERBER_LAYER_SUFFIXES})
 
 
 def normalize_for(path: Path, data: bytes) -> bytes:

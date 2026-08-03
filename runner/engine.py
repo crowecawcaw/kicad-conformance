@@ -1,29 +1,34 @@
-"""The runner's core: run every check in a case, apply normalization/reduction, and
-decide a verdict (DESIGN.md §3). This module has no argparse/printing concerns of its
-own -- see runner/cli.py for the CLI and report formatting.
+"""The runner's core: for a `happy/` case, run the standard battery of answers the
+input's file type implies (plus any `extra`) and compare each to `expected/<version>/`;
+for a `failure/` case, run the type's loader and check the exit/stderr/control contract
+(DESIGN.md §3). This module has no argparse/printing concerns of its own -- see
+runner/cli.py for the CLI and report formatting.
 
-DL-0023/DL-0024: comparison mode is chosen by `op` alone, never by a `compare` field.
-`model`/`drc`/`erc`/`netlist`/`pos`/`ipcd356`/`stats` compare a normalized JSON document
-against `expected/<version>/<name>`; `render` compares normalized SVG bytes; every other
-op (`parse-*`, `version`, `export-gerbers`, `export-drill`) is exit-polarity only. The
-`golden-file`/`golden-dir` byte-comparison modes are deleted (DL-0024) along with the
-s-expr/gerber/drill/bom normalizers and directory-tree comparator that only served them.
+DL-0025/DL-0027: a case names no verb and no output file. What gets recorded and how it
+is compared follows from the **input's file suffix** (`board`/`sch`/`sym`/`fp`, via
+`input_kind`) plus the case's `extra` list, never from a manifest field naming a check.
+`battery_for` is the fixed per-type answer set (VALIDATION.md §9.1); `answer_for_extra`
+is the one opt-in knob (VALIDATION.md §5, TEST_CASE_FORMAT.md §6). Comparison follows
+from each answer's own `kind` ("json" -> normalized-JSON equality, "svg" -> normalized-
+SVG byte-exact, "dir" -> a directory-tree compare with per-file normalizers,
+VALIDATION.md §9.2) -- never from a `compare` field (DL-0023).
 """
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from runner import normalize, reduce
 from runner.adapter import Adapter
-from runner.manifest import Case, Check, load_case
+from runner.manifest import EXTRA_NAMES, Case, load_case
 from runner.verdict import Verdict, classify
 
-# Statuses a single [[check]] can land on. Only PASS/XFAIL (and SKIP, which is excluded
-# from both counts) count as non-failing for the exit code.
+# Statuses a single answer/check can land on. Only PASS/XFAIL (and SKIP, which is
+# excluded from both counts) count as non-failing for the exit code.
 PASS = "PASS"
 FAIL = "FAIL"
 CRASH = "CRASH"
@@ -62,102 +67,218 @@ class CaseResult:
         return all(r.status not in _FAILING_STATUSES for r in self.check_results)
 
 
-def _resolve_artifact(check: Check, case: Case, out_dir: Path) -> Path:
-    """Where the adapter wrote the output the runner dictated (DESIGN §2a). For
-    `export-gerbers`/`export-drill` this is the whole scratch directory (exit-only, no
-    comparator reads it -- DL-0024); for everything else it is a single file."""
-    op = check.op
-    input_path = Path(case.inputs[0])
-    if op in ("parse-sch", "parse-pcb"):
-        return out_dir / input_path.name
-    if op == "parse-sym":
-        return out_dir / (input_path.stem + ".kicad_sym")
-    if op == "parse-fp":
-        return out_dir / "upgraded.pretty"
-    if op == "erc":
-        return out_dir / "erc.json"
-    if op == "drc":
-        return out_dir / "drc.json"
-    if op == "netlist":
-        return out_dir / "netlist.net"
-    if op == "pos":
-        return out_dir / "pos.csv"
-    if op == "stats":
-        return out_dir / "stats.json"
-    if op == "ipcd356":
-        return out_dir / "board.d356"
-    if op == "model":
-        return out_dir / "model.json"
-    if op == "render":
-        if input_path.suffix == ".kicad_pcb":
-            return out_dir / "render.svg"
-        # sch/sym/fp: kicad-cli writes its OWN derived filename into the `--out` dir
-        # (`sch|sym|fp export svg -o <out>/` -> `<out>/<input-stem>.svg`), unlike a
-        # board render where the adapter dictates the exact file name (VALIDATION §6).
-        return out_dir / (input_path.stem + ".svg")
-    if op in ("export-gerbers", "export-drill"):
-        return out_dir
-    raise ValueError(f"no artifact resolver for op {op!r}")
+# --- The standard battery (VALIDATION.md §9.1) -------------------------------------
 
 
-# Reduction for each JSON-comparison op (VALIDATION.md §3/§4/§5): given the check and the
-# artifact path the adapter wrote, return the canonical, JSON-serializable structure to
-# compare against the expected file. `model` needs no further reduction -- the adapter
-# already wrote the fully-composed, merged document (DESIGN §2's "composition happens in
-# the adapter").
-def _reduce_json(check: Check, artifact: Path) -> object:
-    op = check.op
-    if op == "model":
-        return json.loads(artifact.read_text(encoding="utf-8"))
-    if op in ("drc", "erc"):
-        raw = json.loads(artifact.read_text(encoding="utf-8"))
-        return reduce.reduce_drc(raw) if op == "drc" else reduce.reduce_erc(raw)
-    if op == "netlist":
-        text = artifact.read_text(encoding="utf-8")
-        if check.format == "kicadxml":
-            return reduce.reduce_netlist_kicadxml(text)
-        return reduce.reduce_netlist(text)
-    if op == "stats":
-        raw = json.loads(artifact.read_text(encoding="utf-8"))
-        return reduce.reduce_stats(raw)
-    if op == "pos":
-        return reduce.reduce_pos(artifact.read_text(encoding="utf-8"))
-    if op == "ipcd356":
-        return reduce.reduce_ipcd356(artifact.read_text(encoding="utf-8"))
-    raise ValueError(f"no JSON reduction for op {op!r}")
+@dataclass
+class Answer:
+    """One recorded answer: which adapter verb produces it, where the adapter writes
+    the artifact, how it's compared, and what its `expected/<version>/` name is."""
+
+    name: str
+    verb: str
+    expected_name: str  # filename (json/svg) or directory name (dir) under expected/<version>/
+    kind: str  # "json" | "svg" | "dir"
+    artifact: Callable[[Path, Path], Path]  # (out_dir, input_path) -> artifact path
+    reduce: Optional[Callable[[Path], object]] = None  # "json" only: artifact -> canonical structure
+    fmt: Optional[str] = None  # passed as the adapter's --format (summary-kicadxml)
+    # `summary-kicadxml` adds no file of its own -- it re-derives `summary.json` and
+    # ASSERTS it against the same expected file the standard `summary` answer already
+    # wrote, even under --regenerate (TEST_CASE_FORMAT.md §6's "the only entry that adds
+    # no file"). Everything else may regenerate; this one only ever compares.
+    compare_only: bool = False
 
 
-JSON_OPS = {"model", "drc", "erc", "netlist", "pos", "ipcd356", "stats"}
+def input_kind(input_path: Path) -> str:
+    """`board` / `sch` / `sym` / `fp`, from the input's suffix (VALIDATION.md §9.1). A
+    footprint library is either a `.pretty` directory or a lone `.kicad_mod` file --
+    both record the same `render/` answer (TEST_CASE_FORMAT.md §2)."""
+    suffix = input_path.suffix
+    if suffix == ".kicad_pcb":
+        return "board"
+    if suffix == ".kicad_sch":
+        return "sch"
+    if suffix == ".kicad_sym":
+        return "sym"
+    if suffix in (".kicad_mod", ".pretty"):
+        return "fp"
+    raise ValueError(f"unrecognized input type: {input_path} (suffix {suffix!r})")
 
 
-def _exit_condition(
-    check: Check, result, label: str
-) -> tuple[bool, str, str]:
-    """Apply the `exit` polarity/substring rule (DESIGN §3a). Returns
-    (satisfied, status_if_not_satisfied, detail)."""
-    verdict = classify(result.returncode)
-    if check.outcome == "ok":
-        if verdict is Verdict.OK:
-            return True, "", ""
-        if verdict is Verdict.CRASH:
-            return False, CRASH, f"{label}: adapter CRASHED (returncode={result.returncode}); a crash is never a pass"
-        return False, FAIL, f"{label}: expected ok, got exit {result.returncode}\nstderr: {result.stderr.strip()}"
-    # outcome == "error"
-    if verdict is Verdict.OK:
-        return False, FAIL, f"{label}: expected error, tool exited 0"
-    if verdict is Verdict.CRASH:
-        return False, CRASH, (
-            f"{label}: adapter CRASHED (returncode={result.returncode}) instead of a "
-            f"graceful rejection -- CRASH is never a pass, even for a failure/ case "
-            f"(DL-0013). stderr: {result.stderr.strip()}"
+# The loader verb a `failure/` case's input type runs (DESIGN.md §2's `parse-*` row --
+# there is no pure "parse and stop" subcommand, so `... upgrade --force` on a scratch
+# copy stands in, exit-polarity only).
+LOADER_VERB = {
+    "board": "parse-pcb",
+    "sch": "parse-sch",
+    "sym": "parse-sym",
+    "fp": "parse-fp",
+}
+
+
+def _json_bytes(artifact: Path) -> object:
+    return json.loads(artifact.read_text(encoding="utf-8"))
+
+
+def battery_for(kind: str) -> list[Answer]:
+    """The fixed, standard-answer set for one input kind (VALIDATION.md §9.1). No
+    per-case opt-out (DL-0025) -- every happy case of a given type records the same
+    answers."""
+    if kind == "board":
+        return [
+            Answer(
+                "summary", verb="summary", expected_name="summary.json", kind="json",
+                artifact=lambda out, inp: out / "summary.json",
+                reduce=_json_bytes,
+            ),
+            Answer(
+                "render", verb="render", expected_name="render-F_Cu.svg", kind="svg",
+                artifact=lambda out, inp: out / "render.svg",
+            ),
+            Answer(
+                "gerbers", verb="export-gerbers", expected_name="gerbers", kind="dir",
+                artifact=lambda out, inp: out,
+            ),
+            Answer(
+                "drill", verb="export-drill", expected_name="drill", kind="dir",
+                artifact=lambda out, inp: out,
+            ),
+        ]
+    if kind == "sch":
+        return [
+            Answer(
+                "summary", verb="summary", expected_name="summary.json", kind="json",
+                artifact=lambda out, inp: out / "summary.json",
+                reduce=_json_bytes,
+            ),
+            Answer(
+                "render", verb="render", expected_name="render.svg", kind="svg",
+                artifact=lambda out, inp: out / (inp.stem + ".svg"),
+            ),
+        ]
+    if kind in ("sym", "fp"):
+        # Libraries get drawings only -- kicad-cli 10.0.5 has no structured symbol/
+        # footprint export (VALIDATION.md §4.5). `render` writes one SVG per symbol-unit
+        # / footprint straight into the out dir, under KiCad's own names.
+        return [
+            Answer(
+                "render", verb="render", expected_name="render", kind="dir",
+                artifact=lambda out, inp: out,
+            ),
+        ]
+    raise ValueError(f"no standard battery for input kind {kind!r}")
+
+
+def answer_for_extra(name: str) -> Answer:
+    """The one answer `extra = [name]` adds (TEST_CASE_FORMAT.md §6, VALIDATION.md §5).
+    Each name is the answer's filename, except `summary-kicadxml`, which reuses
+    `summary.json` and only ever compares (never regenerates) -- see `Answer.compare_only`.
+    """
+    if name == "drc":
+        return Answer(
+            "drc", verb="drc", expected_name="drc.json", kind="json",
+            artifact=lambda out, inp: out / "drc.json",
+            reduce=lambda p: reduce.reduce_drc(_json_bytes(p)),
         )
-    # REJECT: check substring assertions
-    stderr = result.stderr
-    if check.error_contains and check.error_contains not in stderr:
-        return False, FAIL, f"{label}: stderr did not contain {check.error_contains!r}\nstderr: {stderr.strip()}"
-    if check.error_contains_any and not any(s in stderr for s in check.error_contains_any):
-        return False, FAIL, f"{label}: stderr did not contain any of {check.error_contains_any!r}\nstderr: {stderr.strip()}"
-    return True, "", ""
+    if name == "erc":
+        return Answer(
+            "erc", verb="erc", expected_name="erc.json", kind="json",
+            artifact=lambda out, inp: out / "erc.json",
+            reduce=lambda p: reduce.reduce_erc(_json_bytes(p)),
+        )
+    if name == "pos":
+        return Answer(
+            "pos", verb="pos", expected_name="pos.json", kind="json",
+            artifact=lambda out, inp: out / "pos.csv",
+            reduce=lambda p: reduce.reduce_pos(p.read_text(encoding="utf-8")),
+        )
+    if name == "stats":
+        return Answer(
+            "stats", verb="stats", expected_name="stats.json", kind="json",
+            artifact=lambda out, inp: out / "stats.json",
+            reduce=lambda p: reduce.reduce_stats(_json_bytes(p)),
+        )
+    if name == "ipcd356":
+        return Answer(
+            "ipcd356", verb="ipcd356", expected_name="ipcd356.json", kind="json",
+            artifact=lambda out, inp: out / "board.d356",
+            reduce=lambda p: reduce.reduce_ipcd356(p.read_text(encoding="utf-8")),
+        )
+    if name == "netlist":
+        return Answer(
+            "netlist", verb="netlist", expected_name="netlist.json", kind="json",
+            artifact=lambda out, inp: out / "netlist.net",
+            reduce=lambda p: reduce.reduce_netlist(p.read_text(encoding="utf-8")),
+        )
+    if name == "summary-kicadxml":
+        return Answer(
+            "summary-kicadxml", verb="summary", expected_name="summary.json", kind="json",
+            artifact=lambda out, inp: out / "summary.json",
+            reduce=_json_bytes,
+            fmt="kicadxml",
+            compare_only=True,
+        )
+    raise ValueError(f"unknown extra {name!r}")
+
+
+assert set() == EXTRA_NAMES - {
+    "drc", "erc", "pos", "stats", "ipcd356", "netlist", "summary-kicadxml"
+}, "answer_for_extra must handle every name in manifest.EXTRA_NAMES"
+
+
+def answers_for_case(case: Case) -> list[Answer]:
+    """The full list of answers a happy case records: the standard battery for its
+    input type, plus one `Answer` per `extra` name."""
+    input_path = case.path / case.inputs[0]
+    kind = input_kind(input_path)
+    answers = list(battery_for(kind))
+    answers.extend(answer_for_extra(name) for name in case.extra)
+    return answers
+
+
+# --- Directory-tree comparison (gerbers/, drill/, library render/) ----------------
+
+
+def _dir_files(root: Path) -> dict[str, Path]:
+    if not root.exists():
+        return {}
+    return {p.relative_to(root).as_posix(): p for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+def dir_snapshot(root: Path, *, normalized: bool) -> dict[str, bytes]:
+    """Every file under `root`, keyed by its path relative to `root`. Used by both the
+    engine's directory comparator and the determinism self-test's raw/normalized pair."""
+    out = {}
+    for rel, p in _dir_files(root).items():
+        data = p.read_bytes()
+        if normalized:
+            data = normalize.normalize_for(p, data)
+        out[rel] = data
+    return out
+
+
+def raw_snapshot(answer: Answer, out_dir: Path, input_path: Path):
+    """Pre-normalization content, in the same shape `normalized_snapshot` would consume
+    (runner/determinism.py's raw/normalized pair, DESIGN.md §4a)."""
+    artifact = answer.artifact(out_dir, input_path)
+    if answer.kind == "json":
+        return _json_bytes(artifact)
+    if answer.kind == "svg":
+        return artifact.read_bytes()
+    if answer.kind == "dir":
+        return dir_snapshot(artifact, normalized=False)
+    raise ValueError(f"no raw snapshot for answer kind {answer.kind!r}")
+
+
+def normalized_snapshot(answer: Answer, out_dir: Path, input_path: Path):
+    artifact = answer.artifact(out_dir, input_path)
+    if answer.kind == "json":
+        return answer.reduce(artifact)
+    if answer.kind == "svg":
+        return normalize.normalize_svg(artifact.read_bytes())
+    if answer.kind == "dir":
+        return dir_snapshot(artifact, normalized=True)
+    raise ValueError(f"no normalized snapshot for answer kind {answer.kind!r}")
 
 
 class Engine:
@@ -178,77 +299,204 @@ class Engine:
         if case.skip_reason:
             return CaseResult(case=case, skipped=True, skip_reason=case.skip_reason)
 
-        results: list[CheckResult] = []
-        any_ran = False
-        for i, check in enumerate(case.checks):
-            label = check.label(i)
-            if not self.adapter.supports(check.op):
-                results.append(CheckResult(label, SKIP, f"adapter does not support verb {check.op!r}"))
-                continue
-            any_ran = True
-            results.append(self._run_check(case, check, label, tmp_root))
+        if case.polarity == "failure":
+            return self._run_failure_case(case, tmp_root)
+        return self._run_happy_case(case, tmp_root)
 
-        if not any_ran:
-            return CaseResult(case=case, skipped=True, skip_reason="no check's verb is supported by this adapter")
+    # --- happy/ : the standard battery + extras -------------------------------
+
+    def _run_happy_case(self, case: Case, tmp_root: Path) -> CaseResult:
+        input_path = case.path / case.inputs[0]
+        answers = answers_for_case(case)
+
+        results: list[CheckResult] = []
+        for answer in answers:
+            label = answer.name
+            if not self.adapter.supports(answer.verb):
+                results.append(CheckResult(label, SKIP, f"adapter does not support verb {answer.verb!r}"))
+                continue
+
+            out_dir = tmp_root / f"{label.replace('/', '_')}_main"
+            result = self.adapter.invoke(answer.verb, [input_path], out_dir, root=case.root, fmt=answer.fmt)
+            verdict = classify(result.returncode)
+            if verdict is not Verdict.OK:
+                status = CRASH if verdict is Verdict.CRASH else FAIL
+                results.append(CheckResult(
+                    label, status,
+                    f"{label}: adapter did not exit OK (returncode={result.returncode})\n"
+                    f"stderr: {result.stderr.strip()}",
+                ))
+                continue
+
+            if answer.kind == "json":
+                results.append(self._compare_json(case, answer, label, out_dir, input_path))
+            elif answer.kind == "svg":
+                results.append(self._compare_svg(case, answer, label, out_dir, input_path))
+            elif answer.kind == "dir":
+                results.append(self._compare_dir(case, answer, label, out_dir, input_path))
+            else:
+                raise ValueError(f"answer kind {answer.kind!r} has no comparator")
+
+        if not results:
+            return CaseResult(case=case, skipped=True, skip_reason="no answer's verb is supported by this adapter")
         return CaseResult(case=case, check_results=results)
 
-    def _run_check(self, case: Case, check: Check, label: str, tmp_root: Path) -> CheckResult:
-        out_dir = tmp_root / f"{label.replace('/', '_')}_main"
-        inputs = [case.path / p for p in case.inputs]
-        result = self.adapter.invoke(
-            check.op, inputs, out_dir, root=case.root, fmt=check.format, extra_args=check.args
-        )
+    def _compare_json(self, case: Case, answer: Answer, label: str, out_dir: Path, input_path: Path) -> CheckResult:
+        artifact = answer.artifact(out_dir, input_path)
+        expected_root = case.expected_dir(self.version)
+        expected_path = expected_root / answer.expected_name
 
-        satisfied, fail_status, detail = _exit_condition(check, result, label)
+        if not artifact.exists():
+            return CheckResult(label, FAIL, f"{label}: adapter did not write expected artifact at {artifact}")
+        actual = answer.reduce(artifact)
 
-        # Positive control (DESIGN §3a, DL-0013): every failure-case outcome="error"
-        # check must be shown falsifiable. Run it even when the main check already
-        # failed/crashed -- that keeps the control machinery exercised (and visible in
-        # the report) on every failure/ case, not just the ones whose main check
-        # happens to reject cleanly. It can only make an already-failing check's report
-        # richer; it never turns a CRASH/FAIL into a pass.
-        control_note = ""
-        control_ok = True  # vacuously true when there's no control to run (outcome="ok")
-        if check.outcome == "error":
-            control_ok, control_detail = self._check_control(case, check, label, tmp_root)
-            control_note = control_detail
-            if satisfied and not control_ok:
-                return CheckResult(label, NOT_EVIDENCE, control_detail)
+        if self.regenerate and not answer.compare_only:
+            expected_path.parent.mkdir(parents=True, exist_ok=True)
+            expected_path.write_text(json.dumps(actual, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            return CheckResult(label, REGENERATED, f"{label}: wrote {expected_path}")
+        if not expected_path.exists():
+            return CheckResult(label, NEEDS_REGEN, f"{label}: expected file {expected_path} missing -- run --regenerate")
+        expected = json.loads(expected_path.read_text(encoding="utf-8"))
+        if actual == expected:
+            return CheckResult(label, PASS)
+        notes = reduce.describe_structured_mismatch(expected, actual)
+        return CheckResult(label, FAIL, f"{label}: mismatch vs {expected_path}: {'; '.join(notes)}")
 
-        # Known-oracle-divergence strict xfail (DL-0018) -- a layer on top of the plain
-        # OK/REJECT/CRASH verdict, never a replacement for it. Only considered once the
-        # positive control (if any) has already vouched for the check being evidence --
-        # a NOT-EVIDENCE case above takes precedence over either xfail or xpass.
-        kd = check.known_divergence if check.known_divergence is not None else case.known_divergence
+    def _compare_svg(self, case: Case, answer: Answer, label: str, out_dir: Path, input_path: Path) -> CheckResult:
+        # render (VALIDATION.md §6): KiCad-vs-KiCad is a normalized-SVG BYTE-EXACT
+        # compare, zero tolerance, no rasterizer -- the cross-impl raster path (pinned
+        # `resvg`) is deferred to M6 (DL-0021).
+        artifact = answer.artifact(out_dir, input_path)
+        expected_root = case.expected_dir(self.version)
+        expected_path = expected_root / answer.expected_name
+
+        if not artifact.exists():
+            return CheckResult(label, FAIL, f"{label}: adapter did not write expected SVG at {artifact}")
+        actual_bytes = normalize.normalize_svg(artifact.read_bytes())
+
+        if self.regenerate:
+            expected_path.parent.mkdir(parents=True, exist_ok=True)
+            expected_path.write_bytes(actual_bytes)
+            return CheckResult(label, REGENERATED, f"{label}: wrote {expected_path}")
+        if not expected_path.exists():
+            return CheckResult(label, NEEDS_REGEN, f"{label}: expected file {expected_path} missing -- run --regenerate")
+        expected_bytes = normalize.normalize_svg(expected_path.read_bytes())
+        if actual_bytes == expected_bytes:
+            return CheckResult(label, PASS)
+        return CheckResult(label, FAIL, f"{label}: render (SVG) mismatch vs {expected_path} (normalized-SVG byte compare)")
+
+    def _compare_dir(self, case: Case, answer: Answer, label: str, out_dir: Path, input_path: Path) -> CheckResult:
+        # gerbers/, drill/, library render/ (VALIDATION.md §7.2/§9.2, TEST_CASE_FORMAT.md
+        # §2): a directory answer is compared as a whole -- same filenames present, every
+        # file byte-identical after normalization. Absence of any file is a FAILURE, not
+        # a skip (TEST_CASE_FORMAT.md §2: "there is no mechanism for 'this answer is
+        # legitimately absent'").
+        artifact_dir = answer.artifact(out_dir, input_path)
+        expected_root = case.expected_dir(self.version)
+        expected_dir = expected_root / answer.expected_name
+
+        actual_files = _dir_files(artifact_dir)
+        if not actual_files:
+            return CheckResult(label, FAIL, f"{label}: adapter wrote no files at {artifact_dir}")
+
+        if self.regenerate:
+            if expected_dir.exists():
+                shutil.rmtree(expected_dir)
+            expected_dir.mkdir(parents=True, exist_ok=True)
+            for rel, p in actual_files.items():
+                dest = expected_dir / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                dest.write_bytes(normalize.normalize_for(p, p.read_bytes()))
+            return CheckResult(label, REGENERATED, f"{label}: wrote {len(actual_files)} file(s) to {expected_dir}")
+
+        if not expected_dir.exists() or not any(expected_dir.iterdir()):
+            return CheckResult(label, NEEDS_REGEN, f"{label}: expected dir {expected_dir} missing -- run --regenerate")
+
+        expected_files = _dir_files(expected_dir)
+        actual_names, expected_names = set(actual_files), set(expected_files)
+        missing = expected_names - actual_names
+        extra = actual_names - expected_names
+        if missing or extra:
+            detail = f"{label}: file set mismatch vs {expected_dir}"
+            if missing:
+                detail += f"\n  missing (expected but not produced): {sorted(missing)}"
+            if extra:
+                detail += f"\n  unexpected (produced but not expected): {sorted(extra)}"
+            return CheckResult(label, FAIL, detail)
+
+        mismatches = []
+        for rel in sorted(actual_names):
+            a = normalize.normalize_for(actual_files[rel], actual_files[rel].read_bytes())
+            e = normalize.normalize_for(expected_files[rel], expected_files[rel].read_bytes())
+            if a != e:
+                mismatches.append(rel)
+        if mismatches:
+            return CheckResult(label, FAIL, f"{label}: {len(mismatches)} file(s) differ vs {expected_dir}: {mismatches}")
+        return CheckResult(label, PASS)
+
+    # --- failure/ : the type's loader, exit + stderr + control -----------------
+
+    def _run_failure_case(self, case: Case, tmp_root: Path) -> CaseResult:
+        input_path = case.path / case.inputs[0]
+        kind = input_kind(input_path)
+        verb = LOADER_VERB[kind]
+        label = verb
+
+        if not self.adapter.supports(verb):
+            return CaseResult(case=case, skipped=True, skip_reason=f"adapter does not support verb {verb!r}")
+
+        out_dir = tmp_root / "main"
+        result = self.adapter.invoke(verb, [input_path], out_dir)
+        satisfied, fail_status, detail = self._exit_condition(case, result, label)
+
+        # Positive control (DESIGN §3a, DL-0013): every failure case must be shown
+        # falsifiable. Run it even when the main check already failed/crashed, so the
+        # control machinery is exercised (and visible in the report) on every failure/
+        # case, never just the ones whose main check happens to reject cleanly.
+        control_ok, control_note = self._check_control(case, verb, label, tmp_root)
+        if satisfied and not control_ok:
+            return CaseResult(case=case, check_results=[CheckResult(label, NOT_EVIDENCE, control_note)])
+
+        kd = case.known_divergence
         if kd is not None and control_ok:
             xfail_xpass = self._score_known_divergence(kd, satisfied, result, label, control_note)
             if xfail_xpass is not None:
-                return xfail_xpass
+                return CaseResult(case=case, check_results=[xfail_xpass])
 
         if not satisfied:
             if control_note:
                 detail = f"{detail}\n{control_note}"
-            return CheckResult(label, fail_status, detail)
+            return CaseResult(case=case, check_results=[CheckResult(label, fail_status, detail)])
 
-        if check.expected is None:
-            return CheckResult(label, PASS)
+        return CaseResult(case=case, check_results=[CheckResult(label, PASS, control_note)])
 
-        if check.op in JSON_OPS:
-            return self._compare_json(case, check, label, out_dir)
-        if check.op == "render":
-            return self._compare_render(case, check, label, out_dir)
-        raise ValueError(f"check op {check.op!r} has `expected` set but no comparison is defined")
+    def _exit_condition(self, case: Case, result, label: str) -> tuple[bool, str, str]:
+        """Apply the `exit` polarity/substring rule (DESIGN §3a) for a failure/ case --
+        the tool must reject (a graceful, non-crashing non-zero exit) and, if declared,
+        stderr must contain the asserted substring(s)."""
+        verdict = classify(result.returncode)
+        if verdict is Verdict.OK:
+            return False, FAIL, f"{label}: expected error, tool exited 0"
+        if verdict is Verdict.CRASH:
+            return False, CRASH, (
+                f"{label}: adapter CRASHED (returncode={result.returncode}) instead of a "
+                f"graceful rejection -- CRASH is never a pass, even for a failure/ case "
+                f"(DL-0013). stderr: {result.stderr.strip()}"
+            )
+        # REJECT: check substring assertions
+        stderr = result.stderr
+        if case.error_contains and case.error_contains not in stderr:
+            return False, FAIL, f"{label}: stderr did not contain {case.error_contains!r}\nstderr: {stderr.strip()}"
+        if case.error_contains_any and not any(s in stderr for s in case.error_contains_any):
+            return False, FAIL, f"{label}: stderr did not contain any of {case.error_contains_any!r}\nstderr: {stderr.strip()}"
+        return True, "", ""
 
     def _score_known_divergence(self, kd, satisfied: bool, result, label: str, control_note: str) -> Optional[CheckResult]:
-        """Reinterpret an `outcome`-vs-actual outcome already declared as a known,
-        tracked oracle divergence (DL-0018). Returns `None` when the divergence
-        declaration doesn't apply to this outcome (e.g. a genuine unrelated failure),
-        in which case the caller falls through to ordinary FAIL/CRASH reporting."""
+        """Reinterpret an already-classified verdict as a declared, tracked oracle
+        divergence (DL-0018). Returns `None` when the declaration doesn't apply (e.g. a
+        genuine unrelated failure), in which case the caller falls through to ordinary
+        FAIL/CRASH reporting."""
         if satisfied:
-            # The check reached its normally-desired outcome (clean OK/REJECT) despite a
-            # declared divergence -- the oracle no longer reproduces the known bug. That
-            # is progress, but a *silent* pass here would let the ledger rot, so it FAILS
-            # the build until a human retires the marker.
             detail = (
                 f"{label}: XPASS -- known divergence ({kd.kind}) no longer reproduces: "
                 f"the adapter returned a clean/expected result instead of the declared "
@@ -273,81 +521,29 @@ class Engine:
         # marker.
         return None
 
-    def _check_control(self, case: Case, check: Check, label: str, tmp_root: Path) -> tuple[bool, str]:
+    def _check_control(self, case: Case, verb: str, label: str, tmp_root: Path) -> tuple[bool, str]:
         """Returns (control_reached_ok, human-readable note) -- never raises, always
         runs, regardless of the main check's own outcome (see call site above)."""
-        control_spec = check.control if check.control is not None else case.control
-        if control_spec is None:
+        if case.control is None:
             return False, (
                 f"{label}: failure case has no positive control (`control =`); "
                 f"\"a test that can't fail is not evidence\" (DL-0013)"
             )
-        if not isinstance(control_spec, str):
-            return False, (
-                f"{label}: table-form (inline patch) `control` is not implemented by "
-                f"this runner yet -- only a sibling-fixture path is supported"
-            )
-        control_path = case.path / control_spec
+        control_path = case.path / case.control
         if not control_path.exists():
-            return False, f"{label}: control fixture {control_spec!r} does not exist"
+            return False, f"{label}: control fixture {case.control!r} does not exist"
 
-        control_out = tmp_root / f"{label.replace('/', '_')}_control"
-        control_result = self.adapter.invoke(
-            check.op, [control_path], control_out, fmt=check.format, extra_args=check.args
-        )
+        control_out = tmp_root / "control"
+        control_result = self.adapter.invoke(verb, [control_path], control_out)
         verdict = classify(control_result.returncode)
         if verdict is not Verdict.OK:
             return False, (
-                f"{label}: positive control {control_spec!r} did not exit OK "
+                f"{label}: positive control {case.control!r} did not exit OK "
                 f"(verdict={verdict.value}, returncode={control_result.returncode}) -- "
                 f"the defect-free variant must succeed, or the failure isn't evidence "
                 f"of the specific defect (DL-0013)\nstderr: {control_result.stderr.strip()}"
             )
-        return True, f"{label}: positive control {control_spec!r} exited OK, as required (DL-0013)"
-
-    def _compare_json(self, case: Case, check: Check, label: str, out_dir: Path) -> CheckResult:
-        artifact = _resolve_artifact(check, case, out_dir)
-        expected_root = case.expected_dir(self.version)
-        expected_path = expected_root / check.expected
-
-        if not artifact.exists():
-            return CheckResult(label, FAIL, f"{label}: adapter did not write expected artifact at {artifact}")
-        actual = _reduce_json(check, artifact)
-
-        if self.regenerate:
-            expected_path.parent.mkdir(parents=True, exist_ok=True)
-            expected_path.write_text(json.dumps(actual, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            return CheckResult(label, REGENERATED, f"{label}: wrote {expected_path}")
-        if not expected_path.exists():
-            return CheckResult(label, NEEDS_REGEN, f"{label}: expected file {expected_path} missing -- run --regenerate")
-        expected = json.loads(expected_path.read_text(encoding="utf-8"))
-        if actual == expected:
-            return CheckResult(label, PASS)
-        notes = reduce.describe_structured_mismatch(expected, actual)
-        return CheckResult(label, FAIL, f"{label}: mismatch vs {expected_path}: {'; '.join(notes)}")
-
-    def _compare_render(self, case: Case, check: Check, label: str, out_dir: Path) -> CheckResult:
-        # render (VALIDATION.md §6): KiCad-vs-KiCad is a normalized-SVG BYTE-EXACT
-        # compare, zero tolerance, no rasterizer -- the cross-impl raster path (pinned
-        # `resvg`) is deferred to M6 (DL-0021).
-        artifact = _resolve_artifact(check, case, out_dir)
-        expected_root = case.expected_dir(self.version)
-        expected_path = expected_root / check.expected
-
-        if not artifact.exists():
-            return CheckResult(label, FAIL, f"{label}: adapter did not write expected SVG at {artifact}")
-        actual_bytes = normalize.normalize_svg(artifact.read_bytes())
-
-        if self.regenerate:
-            expected_path.parent.mkdir(parents=True, exist_ok=True)
-            expected_path.write_bytes(actual_bytes)
-            return CheckResult(label, REGENERATED, f"{label}: wrote {expected_path}")
-        if not expected_path.exists():
-            return CheckResult(label, NEEDS_REGEN, f"{label}: expected file {expected_path} missing -- run --regenerate")
-        expected_bytes = normalize.normalize_svg(expected_path.read_bytes())
-        if actual_bytes == expected_bytes:
-            return CheckResult(label, PASS)
-        return CheckResult(label, FAIL, f"{label}: render (SVG) mismatch vs {expected_path} (normalized-SVG byte compare)")
+        return True, f"{label}: positive control {case.control!r} exited OK, as required (DL-0013)"
 
 
 def make_tmp_root() -> tempfile.TemporaryDirectory:

@@ -2,18 +2,13 @@ concept = "A board whose (version ...) form is unterminated is rejected with a p
 doc     = "sexpr-intro"
 input   = "board.kicad_pcb"
 control = "control.kicad_pcb"          # well-formed board -> must exit 0
+error_contains = "Expecting"           # PCB surfaces e.g. "Expecting ')' ... line 3, offset 2."
 
-# KNOWN ORACLE DIVERGENCE (DL-0018, see docs/DIVERGENCES.md): kicad-cli 10.0.5 prints the
+# KNOWN ORACLE DIVERGENCE (DL-0018, docs/DIVERGENCES.md): kicad-cli 10.0.5 prints the
 # correct "Expecting" message and then segfaults instead of exiting gracefully. Declared
-# here as a strict xfail: today's CRASH is reported as XFAIL (known divergence), not a
-# build failure; if a future KiCad rejects this cleanly instead, the check XPASSes and
-# FAILS the build until the ledger and this marker are updated.
+# as a strict xfail: today's CRASH reports XFAIL; if a future KiCad rejects this cleanly
+# the case XPASSes and FAILS the build until the ledger and this marker are updated.
 [known_divergence]
 kind     = "crash"
 reason   = "kicad-cli 10.0.5 segfaults (SIGSEGV) after printing the correct 'Expecting' parse-position message on this truncated board, instead of exiting with a graceful non-zero code -- see docs/DIVERGENCES.md."
 tracking = "TODO: file upstream"
-
-[[check]]
-op             = "parse-pcb"
-outcome        = "error"
-error_contains = "Expecting"           # PCB surfaces e.g. "Expecting ')' ... line 3, offset 2."

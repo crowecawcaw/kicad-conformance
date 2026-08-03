@@ -8,16 +8,16 @@ KiCad itself (via `kicad-cli`) is the reference oracle, and any other tool — a
 clean-room parser, a third-party exporter — can run the *same* suite through a thin
 adapter.
 
-> **Status: M0 complete; M0.5 (the standard-answers rework) in progress.** The runner (`runner/`,
+> **Status: M0 and M0.5 (the standard-answers rework) complete.** The runner (`runner/`,
 > Python 3.11 stdlib), the reference `kicad-cli` adapter, the OK/REJECT/CRASH verdict +
 > positive-control machinery, the known-oracle-divergence strict-xfail layer, the cheap
-> coverage proxy, and worked examples in `board-parse`, `schematic-parse` and `drc` are
+> coverage proxy, and all 7 cases across `board-parse`, `schematic-parse` and `drc` are
 > real, committed, and green against `kicad-cli` 10.0.5 in Docker — see
-> `python3 -m runner suites/` and `docs/ROADMAP.md`. The docs currently describe the
+> `python3 -m runner suites/` and `docs/ROADMAP.md`. The manifest and runner now match the
 > **revised** design ([DL-0025]–[DL-0028](docs/DECISIONS.md): a fixed set of answers chosen
 > by the input's file type, no `op`/`[[check]]` in the manifest, gerbers and drill recorded
-> as bytes on every board, `model.json` renamed `summary.json`); the runner is being
-> migrated to match — see `docs/ROADMAP.md` M0.5 for the exact per-case migration. One case
+> as bytes on every board, `model.json` renamed `summary.json`) — 7 cases, 20 compared
+> answers, exactly as `docs/ROADMAP.md` M0.5 lays out. One case
 > (`board-parse/failure/0001-unterminated-sexpr`) reports `XFAIL` (known divergence): it
 > documents a real KiCad 10.0.5 segfault (DL-0013) as a tracked, checked-in ledger entry
 > (`docs/DIVERGENCES.md`, DL-0018) rather than a harness bug or a permanently-red build.

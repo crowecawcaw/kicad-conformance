@@ -1,31 +1,21 @@
-"""Loads and validates `case.toml` per docs/TEST_CASE_FORMAT.md §4.
+"""Loads and validates `case.toml` per docs/TEST_CASE_FORMAT.md §5.
 
-The schema there is the authoring contract, documented independently of this runner
-(DESIGN.md §9: "the runner is a reference, not the spec"). This module enforces the
-"Rules the runner enforces" list at the end of TEST_CASE_FORMAT.md §4.2.
+Since [DL-0025]/[DL-0027] a case names no verb and no output file: the input's file
+suffix chooses a fixed set of **standard answers** (VALIDATION.md §9.1), and `extra`
+(a flat list of names) is the only opt-in knob. There is no `[[check]]`, `op`,
+`expected`, `outcome`, `args` or `compare` any more -- a manifest that still has one of
+those is an authoring error, not something to silently honour (ROADMAP.md M0.5 item 3).
 
-Judgment call (documented, not a silent guess): §4.2's field table lists `control` as a
-**check**-level field, but the worked examples in §5.2/§5.2b place `control = "..."` at
-the case's top level, alongside `input`. Since a failure case's positive control is
-naturally "the one alternate fixture for this case" rather than a per-check knob, this
-loader accepts `control` at the case level (as the worked examples show) and *also*
-allows a `[[check]]` to override it with its own `control`, so both spellings work.
-
-`known_divergence` (DL-0018) follows the identical resolution pattern: a case-level
-`[known_divergence]` table is the default for every check in the case, and a `[[check]]`
-may set its own `known_divergence = { ... }` to override it. See `KnownDivergence` below
-and `runner/engine.py` for the strict-xfail scoring this enables.
-
-DL-0023 renamed the schema: `golden` -> `expected`, `expect` -> `outcome` (optional,
-defaulting from directory polarity), and deleted `compare` entirely -- how a check is
-compared now follows from its `op` alone (`runner/engine.py`).
+`known_divergence` (DL-0018) is unchanged: a case-level `[known_divergence]` table
+declares that the *reference oracle itself* is known to diverge, as a strict xfail. See
+`runner/engine.py` for the scoring this enables.
 """
 from __future__ import annotations
 
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 
 class CaseError(Exception):
@@ -40,9 +30,9 @@ class KnownDivergence:
     verdict (DESIGN.md §3a) -- it never changes what the adapter's verdict *is*, only how
     the runner scores an already-bad, already-expected verdict:
 
-    - the check's actual verdict matches `kind` (e.g. a CRASH when `kind = "crash"`) ->
+    - the case's actual verdict matches `kind` (e.g. a CRASH when `kind = "crash"`) ->
       XFAIL ("known divergence"), not a failure -- the build stays green.
-    - the check instead comes back clean (the oracle got fixed) -> XPASS -- FAILS the
+    - the case instead comes back clean (the oracle got fixed) -> XPASS -- FAILS the
       build, because a strict xfail must not silently rot (docs/DIVERGENCES.md must be
       updated and the marker removed).
     """
@@ -52,21 +42,33 @@ class KnownDivergence:
     tracking: Optional[str] = None
 
 
-@dataclass
-class Check:
-    op: str
-    outcome: str  # "ok" or "error" -- always resolved (defaulted from polarity if unset)
-    expected: Optional[str] = None
-    error_contains: Optional[str] = None
-    error_contains_any: Optional[list[str]] = None
-    control: Optional[Union[str, dict]] = None
-    format: Optional[str] = None
-    args: list[str] = field(default_factory=list)
-    name: Optional[str] = None
-    known_divergence: Optional[KnownDivergence] = None
+# The extras a case may opt into (TEST_CASE_FORMAT.md §6). One name, one answer file --
+# except `summary-kicadxml`, which adds no file and instead re-asserts the SAME
+# `summary.json` from KiCad's XML netlist export (VALIDATION.md §4.2's cross-format-
+# fairness proof). `runner/engine.py`'s `answer_for_extra` is the other half of this
+# table (name -> invocation + comparison); kept here, not there, so `manifest.py` never
+# has to import the engine to validate a case.
+EXTRA_NAMES = frozenset(
+    {"drc", "erc", "pos", "stats", "ipcd356", "netlist", "summary-kicadxml"}
+)
 
-    def label(self, index: int) -> str:
-        return self.name or f"{self.op}#{index + 1}"
+# Every key `case.toml` is allowed to declare (TEST_CASE_FORMAT.md §5's field table). A
+# manifest with anything else -- `op`, `[[check]]` (-> raw key `check`), `expected`,
+# `outcome`, `args`, `compare`, `tags`, ... -- is loud, not silently accepted.
+_KNOWN_KEYS = {
+    "concept",
+    "doc",
+    "input",
+    "inputs",
+    "root",
+    "extra",
+    "control",
+    "error_contains",
+    "error_contains_any",
+    "min_kicad",
+    "skip_reason",
+    "known_divergence",
+}
 
 
 @dataclass
@@ -76,11 +78,13 @@ class Case:
     doc: Optional[str]
     inputs: list[str]
     root: Optional[str]
+    extra: list[str]
+    control: Optional[str]
+    error_contains: Optional[str]
+    error_contains_any: Optional[list[str]]
     min_kicad: Optional[str]
     skip_reason: Optional[str]
-    control: Optional[Union[str, dict]]
     known_divergence: Optional[KnownDivergence]
-    checks: list[Check]
     polarity: str  # "happy" or "failure", read off the directory path
 
     @property
@@ -91,21 +95,8 @@ class Case:
         return self.path / "expected" / version
 
 
-_VALID_OUTCOME = {"ok", "error"}
-
-# Ops with no recorded answer -- exit polarity (+ optional stderr substring) is the
-# whole check (TEST_CASE_FORMAT.md §4.2's "Rules the runner enforces"). Every other op
-# compares a normalized JSON document (`model`/`drc`/`erc`/`netlist`/`pos`/`ipcd356`/
-# `stats`) or normalized SVG bytes (`render`), so `expected` is required for it.
-EXIT_ONLY_OPS = {
-    "parse-sch", "parse-pcb", "parse-sym", "parse-fp",
-    "version", "export-gerbers", "export-drill",
-}
-
-
 def _parse_known_divergence(raw: object, where: str) -> Optional[KnownDivergence]:
-    """Parse a `[known_divergence]` table (case-level) or an inline `known_divergence =
-    { ... }` (check-level override) -- same schema either way (TEST_CASE_FORMAT.md §4)."""
+    """Parse a `[known_divergence]` table (TEST_CASE_FORMAT.md §8)."""
     if raw is None:
         return None
     if not isinstance(raw, dict):
@@ -136,6 +127,14 @@ def load_case(case_dir: Path) -> Case:
     with open(toml_path, "rb") as f:
         raw = tomllib.load(f)
 
+    unknown = set(raw) - _KNOWN_KEYS
+    if unknown:
+        raise CaseError(
+            f"{toml_path}: unknown key(s) {sorted(unknown)} -- checks are inferred from "
+            f"the input's file type, see docs/TEST_CASE_FORMAT.md §2/§5 (there is no "
+            f"[[check]], op, expected, outcome, args or compare any more, DL-0025/DL-0027)"
+        )
+
     has_input = "input" in raw
     has_inputs = "inputs" in raw
     if has_input == has_inputs:
@@ -150,92 +149,53 @@ def load_case(case_dir: Path) -> Case:
         raise CaseError(
             f"{toml_path}: case is not under a happy/ or failure/ directory"
         )
-    default_outcome = "error" if polarity == "failure" else "ok"
 
-    raw_checks = raw.get("check", [])
-    if not raw_checks:
-        raise CaseError(f"{toml_path}: at least one [[check]] is required")
+    if not raw.get("concept"):
+        raise CaseError(f"{toml_path}: `concept` is required (one sentence, the case's headline)")
 
-    checks: list[Check] = []
-    for i, rc in enumerate(raw_checks):
-        if "op" not in rc:
-            raise CaseError(f"{toml_path}: check #{i + 1} missing required `op`")
-        op = rc["op"]
-
-        outcome = rc.get("outcome")
-        if outcome is not None:
-            if outcome not in _VALID_OUTCOME:
-                raise CaseError(
-                    f"{toml_path}: check #{i + 1} has invalid `outcome` "
-                    f"(must be 'ok' or 'error'), got {outcome!r}"
-                )
-            if outcome != default_outcome:
-                raise CaseError(
-                    f"{toml_path}: check #{i + 1} sets outcome={outcome!r}, which "
-                    f"contradicts the directory polarity ({polarity!r} implies "
-                    f"outcome={default_outcome!r})"
-                )
-        else:
-            outcome = default_outcome
-
-        expected = rc.get("expected")
-        if op in EXIT_ONLY_OPS:
-            if expected:
-                raise CaseError(
-                    f"{toml_path}: check #{i + 1} op={op!r} is exit-only and must "
-                    f"not set `expected`"
-                )
-        elif not expected:
-            raise CaseError(
-                f"{toml_path}: check #{i + 1} op={op!r} requires `expected` "
-                f"(the recorded-answer file)"
-            )
-
-        error_contains = rc.get("error_contains")
-        error_contains_any = rc.get("error_contains_any")
-        if (error_contains or error_contains_any) and outcome != "error":
-            raise CaseError(
-                f"{toml_path}: check #{i + 1} `error_contains*` only valid with "
-                f"outcome='error'"
-            )
-        checks.append(
-            Check(
-                op=op,
-                outcome=outcome,
-                expected=expected,
-                error_contains=error_contains,
-                error_contains_any=error_contains_any,
-                control=rc.get("control"),
-                format=rc.get("format"),
-                args=list(rc.get("args", [])),
-                name=rc.get("name"),
-                known_divergence=_parse_known_divergence(
-                    rc.get("known_divergence"), f"{toml_path}: check #{i + 1}"
-                ),
-            )
-        )
-
-    has_error_check = any(c.outcome == "error" for c in checks)
-    if polarity == "happy" and has_error_check:
+    extra = list(raw.get("extra", []))
+    bad_extra = sorted(set(extra) - EXTRA_NAMES)
+    if bad_extra:
         raise CaseError(
-            f"{toml_path}: case is under happy/ but has an outcome='error' check"
+            f"{toml_path}: unknown extra name(s) {bad_extra}; valid: {sorted(EXTRA_NAMES)}"
         )
-    if polarity == "failure" and not has_error_check:
-        raise CaseError(
-            f"{toml_path}: case is under failure/ but has no outcome='error' check"
-        )
+
+    control = raw.get("control")
+    if control is not None and not isinstance(control, str):
+        raise CaseError(f"{toml_path}: `control` must be a string (a sibling fixture path)")
+
+    error_contains = raw.get("error_contains")
+    error_contains_any = raw.get("error_contains_any")
+
+    if polarity == "happy":
+        if control is not None:
+            raise CaseError(f"{toml_path}: happy/ case must not set `control` (failure/ only)")
+        if error_contains is not None or error_contains_any is not None:
+            raise CaseError(f"{toml_path}: happy/ case must not set error_contains* (failure/ only)")
+    else:  # failure
+        if control is None:
+            raise CaseError(
+                f"{toml_path}: failure/ case requires `control` -- a defect-free sibling "
+                f"input that must be accepted (DL-0013: \"a test that can't fail is not evidence\")"
+            )
+        if extra:
+            raise CaseError(
+                f"{toml_path}: failure/ case records no answers at all, so `extra` is not valid here"
+            )
 
     return Case(
         path=case_dir,
-        concept=raw.get("concept", ""),
+        concept=raw["concept"],
         doc=raw.get("doc"),
         inputs=inputs,
         root=raw.get("root"),
+        extra=extra,
+        control=control,
+        error_contains=error_contains,
+        error_contains_any=list(error_contains_any) if error_contains_any else None,
         min_kicad=raw.get("min_kicad"),
         skip_reason=raw.get("skip_reason"),
-        control=raw.get("control"),
         known_divergence=_parse_known_divergence(raw.get("known_divergence"), str(toml_path)),
-        checks=checks,
         polarity=polarity,
     )
 

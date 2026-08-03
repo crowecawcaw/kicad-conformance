@@ -13,10 +13,13 @@ Invocation (matches DESIGN §2's `<adapter> <verb> --in <path...> --out <dir> [f
 - `--out` is always an explicit path the runner dictates (§2a) — this adapter never
   relies on kicad-cli's derived-filename default.
 - `--root` names which `--in` is the netlist root sheet (only meaningful for `netlist`).
-- `--format` selects the schematic interchange format for `model`/`netlist`
+- `--format` selects the schematic interchange format for `summary`/`netlist`
   (`kicadsexpr`, the default, or `kicadxml`).
-- Trailing unrecognized tokens are forwarded verbatim to kicad-cli (`case.toml`'s
-  `args =`, e.g. `--layers F.Cu,B.Cu,Edge.Cuts`).
+- Trailing unrecognized tokens are forwarded verbatim to kicad-cli. This remains part of
+  the adapter's own protocol (a generic escape hatch, DESIGN §2), but since [DL-0025] a
+  `case.toml` has no `args` field to populate it with -- every choice this used to carry
+  (which layer to render, which flags to pin) is now a fixed harness decision baked into
+  this adapter (§2b).
 - `version` and `capabilities` are meta-verbs answered directly by this script, not by
   shelling out per-file.
 
@@ -46,7 +49,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from runner import model as modelmod  # noqa: E402
+from runner import summary as summarymod  # noqa: E402
 from runner.verbs import IMPLEMENTED_VERBS  # noqa: E402
 
 
@@ -80,7 +83,7 @@ def discover_kicad_cli() -> str:
 
 def _run_step(argv: list[str]) -> int:
     """Run kicad-cli and return its raw returncode, without relaying/exiting -- used
-    when several subcommands must run in sequence (`model`) and only the FIRST failure
+    when several subcommands must run in sequence (`summary`) and only the FIRST failure
     should end this adapter process."""
     return subprocess.run(argv).returncode
 
@@ -251,23 +254,28 @@ def cmd_netlist(cli: str, ins: list[str], out: str, root: str | None, fmt: str |
 
 
 def cmd_export_gerbers(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
+    """`pcb export gerbers`, byte-compared answers on every board (VALIDATION.md §7.1,
+    DL-0026). **No `--layers`** (KiCad plots the board's own stored set, or its built-in
+    default) and **no `--no-protel-ext`** -- the verified command is exactly this, and
+    passing `--no-protel-ext` would switch every per-layer extension away from the
+    Protel-style ones (`.gtl`/`.gbl`/`.gm1`/...) actually observed."""
     out_dir = Path(out)
     src = _scratch_copy(ins[0], _fresh_scratch_dir())
-    args = list(extra)
-    if "--no-protel-ext" not in args:
-        args.append("--no-protel-ext")  # always pinned, DESIGN §2b
     run_and_relay(
-        [cli, "pcb", "export", "gerbers", *args, "-o", str(out_dir) + "/", str(src)]
+        [cli, "pcb", "export", "gerbers", *extra, "-o", str(out_dir) + "/", str(src)]
     )
 
 
 def cmd_export_drill(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
+    """`pcb export drill`, byte-compared answer on every board (VALIDATION.md §7.1,
+    DL-0026). No `--generate-map`, no `--generate-report` (its "Created on" stamp has no
+    input to normalize -- VALIDATION §7.3's fourth non-normalizer), no
+    `--excellon-separate-th`: the verified default writes exactly one file, `<stem>.drl`.
+    """
     out_dir = Path(out)
     src = _scratch_copy(ins[0], _fresh_scratch_dir())
     run_and_relay(
-        [cli, "pcb", "export", "drill", "--generate-report",
-         "--report-path", str(out_dir / "drill-report.rpt"),
-         "-o", str(out_dir) + "/", *extra, str(src)]
+        [cli, "pcb", "export", "drill", "-o", str(out_dir) + "/", *extra, str(src)]
     )
 
 
@@ -299,28 +307,32 @@ def cmd_ipcd356(cli: str, ins: list[str], out: str) -> None:
 
 def cmd_render(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
     """`render` dispatches on the input's suffix (VALIDATION.md §6, DL-0022): one board
-    layer set, one schematic sheet, one symbol, one footprint library -- all the same
-    verb, all the same normalized-SVG-byte-exact comparison."""
+    layer, one schematic sheet, one symbol, one footprint library -- all the same verb,
+    all the same normalized-SVG-byte-exact comparison."""
     out_dir = Path(out)
     input_path = Path(ins[0])
     suffix = input_path.suffix
     if suffix == ".kicad_pcb":
-        # `--layers <L>` (from `args =`) is a per-case parameter, never a fixed list
-        # (VALIDATION §6); the rest is pinned for determinism: `--page-size-mode 2`
-        # (board-area only), `--exclude-drawing-sheet`, `--black-and-white`.
+        # `--layers F.Cu` is now a fixed harness decision, not a per-case parameter
+        # (VALIDATION.md §6.2, DL-0025 -- `args` is gone): F.Cu is the one layer every
+        # board has, and the gerbers already cover every other layer byte-exactly. The
+        # rest is pinned for determinism: `--page-size-mode 2` (board-area only),
+        # `--exclude-drawing-sheet`, `--black-and-white`.
         src = _scratch_copy(ins[0], _fresh_scratch_dir())
         run_and_relay(
-            [cli, "pcb", "export", "svg", "--page-size-mode", "2",
+            [cli, "pcb", "export", "svg", "--layers", "F.Cu", "--page-size-mode", "2",
              "--exclude-drawing-sheet", "--black-and-white", *extra,
              "-o", str(out_dir / "render.svg"), str(src)]
         )
     elif suffix == ".kicad_sch":
         # `sch export svg` writes `<out>/<stem>.svg` (a directory `-o`, not a file path).
+        # `--exclude-drawing-sheet --black-and-white` per VALIDATION.md §9.1's verified
+        # invocation (matches the board/library renders' determinism pinning).
         out_dir.mkdir(parents=True, exist_ok=True)
         src = _scratch_copy(ins[0], _fresh_scratch_dir())
         run_and_relay(
-            [cli, "sch", "export", "svg", "--no-background-color", *extra,
-             "-o", str(out_dir) + "/", str(src)]
+            [cli, "sch", "export", "svg", "--exclude-drawing-sheet", "--black-and-white",
+             *extra, "-o", str(out_dir) + "/", str(src)]
         )
     elif suffix == ".kicad_sym":
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -339,20 +351,20 @@ def cmd_render(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
         )
 
 
-def cmd_model(cli: str, ins: list[str], out: str, fmt: str | None) -> None:
-    """`model` (VALIDATION.md §4, DL-0022) dispatches on the input's suffix and composes
-    the resulting export(s) into one merged `<out>/model.json`, written by THIS adapter
-    (DESIGN §2's "composition happens in the adapter") -- the runner only ever reads the
-    merged document back, never the intermediate `stats.json`/`pos.csv`/`board.d356`/
-    `netlist.net` files.
+def cmd_summary(cli: str, ins: list[str], out: str, fmt: str | None) -> None:
+    """`summary` (VALIDATION.md §4, DL-0022, renamed by DL-0028) dispatches on the
+    input's suffix and composes the resulting export(s) into one merged
+    `<out>/summary.json`, written by THIS adapter (DESIGN §2's "composition happens in
+    the adapter") -- the runner only ever reads the merged document back, never the
+    intermediate `stats.json`/`pos.csv`/`board.d356`/`netlist.net` files.
 
     A board runs all three exports in sequence and relays the FIRST failure exactly as
     `run_and_relay` would (crash relay included). A schematic runs one export, in the
     format `fmt` names (`kicadsexpr` default, or `kicadxml` -- VALIDATION §4.2's
-    cross-format-fairness proof: both formats must compose to the identical model). A
-    `.kicad_sym`/`.pretty` input has no structured kicad-cli export to build a model
-    from (VALIDATION §4.5) -- the runner rejects it with a clear error instead of
-    inventing a projection.
+    cross-format-fairness proof: both formats must compose to the identical summary,
+    which is what `extra = ["summary-kicadxml"]` asserts). A `.kicad_sym`/`.pretty` input
+    has no structured kicad-cli export to build a summary from (VALIDATION §4.5) -- the
+    runner rejects it with a clear error instead of inventing a projection.
     """
     out_dir = Path(out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -378,7 +390,7 @@ def cmd_model(cli: str, ins: list[str], out: str, fmt: str | None) -> None:
         stats_json = json.loads(stats_path.read_text(encoding="utf-8"))
         pos_text = pos_path.read_text(encoding="utf-8")
         d356_text = d356_path.read_text(encoding="utf-8")
-        model = modelmod.build_board_model(stats_json, pos_text, d356_text)
+        summary = summarymod.build_board_summary(stats_json, pos_text, d356_text)
     elif suffix == ".kicad_sch":
         scratch = _fresh_scratch_dir()
         net_path = scratch / "netlist.net"
@@ -390,18 +402,18 @@ def cmd_model(cli: str, ins: list[str], out: str, fmt: str | None) -> None:
         if rc != 0:
             _relay_and_exit(rc)
         netlist_text = net_path.read_text(encoding="utf-8")
-        model = modelmod.build_schematic_model(netlist_text, export_fmt)
+        summary = summarymod.build_schematic_summary(netlist_text, export_fmt)
     else:
         print(
-            f"model: does not apply to {suffix or '(directory)'!r} input -- "
+            f"summary: does not apply to {suffix or '(directory)'!r} input -- "
             f"kicad-cli 10.0.5 offers no structured symbol/footprint export "
             f"(VALIDATION.md §4.5); use `render` instead",
             file=sys.stderr,
         )
         sys.exit(2)
 
-    (out_dir / "model.json").write_text(
-        json.dumps(model, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    (out_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     sys.exit(0)
 
@@ -431,8 +443,8 @@ def main() -> int:
         cmd_parse_sym(cli, ins, out)
     elif verb == "parse-fp":
         cmd_parse_fp(cli, ins, out)
-    elif verb == "model":
-        cmd_model(cli, ins, out, fmt)
+    elif verb == "summary":
+        cmd_summary(cli, ins, out, fmt)
     elif verb == "erc":
         cmd_erc(cli, ins, out)
     elif verb == "drc":

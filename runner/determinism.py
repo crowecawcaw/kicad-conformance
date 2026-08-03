@@ -1,25 +1,26 @@
-"""The determinism self-test (DESIGN.md §4a): run every rich-output check TWICE on the
-same fixture and assert the *normalized/reduced* result is byte-/value-identical both
-times. This is what proves a normalizer is load-bearing rather than decorative --
-"a test that cannot fail is not evidence" (ROADMAP.md, standing rule).
+"""The determinism self-test (DESIGN.md §4a): run every answer in a happy case's
+battery TWICE on the same fixture and assert the *normalized/reduced* result is byte-/
+value-identical both times. This is what proves a normalizer is load-bearing rather than
+decorative -- "a test that cannot fail is not evidence" (ROADMAP.md, standing rule).
 
-For each qualifying check this also reports whether the RAW (pre-normalization) output
-already differed between the two runs. That is informational, not a failure condition
--- some outputs are provably stable and get no normalizer at all (the honesty rule, §4)
--- but when raw output *does* differ while the normalized result does not, that is the
+For each qualifying answer this also reports whether the RAW (pre-normalization) output
+already differed between the two runs. That is informational, not a failure condition --
+some outputs are provably stable and get no normalizer at all (the honesty rule, §4) --
+but when raw output *does* differ while the normalized result does not, that is the
 concrete, printed proof that the normalizer is doing real work (rather than "a
 normalizer that never changes anything is either dead or masking something").
+
+`failure/` cases have no recorded answers (TEST_CASE_FORMAT.md §7) and are excluded --
+there is nothing rich to compare twice.
 """
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
 from runner import engine as _engine
-from runner import normalize
 from runner.adapter import Adapter
-from runner.manifest import Case, Check, load_case
+from runner.manifest import load_case
 
 
 @dataclass
@@ -30,51 +31,32 @@ class DeterminismOutcome:
     detail: str = ""
 
 
-def _raw_snapshot(check: Check, case: Case, out_dir: Path):
-    """The pre-normalization content, in the same shape `_normalized_snapshot` would
-    consume, so a raw/normalized pair is a fair apples-to-apples comparison."""
-    artifact = _engine._resolve_artifact(check, case, out_dir)
-    if check.op == "render":
-        return artifact.read_bytes()
-    if check.op in ("drc", "erc", "stats", "model"):
-        return json.loads(artifact.read_text(encoding="utf-8"))
-    if check.op in ("netlist", "pos", "ipcd356"):
-        return artifact.read_text(encoding="utf-8")
-    raise ValueError(f"no raw snapshot for op={check.op!r}")
-
-
-def _normalized_snapshot(check: Check, case: Case, out_dir: Path):
-    artifact = _engine._resolve_artifact(check, case, out_dir)
-    if check.op == "render":
-        return normalize.normalize_svg(artifact.read_bytes())
-    if check.op in _engine.JSON_OPS:
-        return _engine._reduce_json(check, artifact)
-    raise ValueError(f"no normalized snapshot for op={check.op!r}")
-
-
 def check_determinism(adapter: Adapter, case_dir: Path, tmp_root: Path) -> list[DeterminismOutcome]:
     case = load_case(case_dir)
     outcomes: list[DeterminismOutcome] = []
-    if case.skip_reason:
+    if case.skip_reason or case.polarity == "failure":
         return outcomes
-    for i, check in enumerate(case.checks):
-        if check.expected is None:
-            continue  # exit-only op -- nothing rich to compare twice
-        if not adapter.supports(check.op):
+
+    input_path = case.path / case.inputs[0]
+    for answer in _engine.answers_for_case(case):
+        if not adapter.supports(answer.verb):
             continue
-        label = check.label(i)
-        inputs = [case.path / p for p in case.inputs]
+        label = answer.name
         out_a = tmp_root / f"{label}_run1"
         out_b = tmp_root / f"{label}_run2"
-        result_a = adapter.invoke(check.op, inputs, out_a, root=case.root, fmt=check.format, extra_args=check.args)
-        result_b = adapter.invoke(check.op, inputs, out_b, root=case.root, fmt=check.format, extra_args=check.args)
+        result_a = adapter.invoke(answer.verb, [input_path], out_a, root=case.root, fmt=answer.fmt)
+        result_b = adapter.invoke(answer.verb, [input_path], out_b, root=case.root, fmt=answer.fmt)
         if result_a.returncode != 0 or result_b.returncode != 0:
-            outcomes.append(DeterminismOutcome(label, ok=False, raw_identical=False,
-                                                 detail=f"{label}: adapter did not exit 0 on one or both runs; cannot compare"))
+            outcomes.append(DeterminismOutcome(
+                label, ok=False, raw_identical=False,
+                detail=f"{label}: adapter did not exit 0 on one or both runs; cannot compare",
+            ))
             continue
         try:
-            raw_a, raw_b = _raw_snapshot(check, case, out_a), _raw_snapshot(check, case, out_b)
-            norm_a, norm_b = _normalized_snapshot(check, case, out_a), _normalized_snapshot(check, case, out_b)
+            raw_a = _engine.raw_snapshot(answer, out_a, input_path)
+            raw_b = _engine.raw_snapshot(answer, out_b, input_path)
+            norm_a = _engine.normalized_snapshot(answer, out_a, input_path)
+            norm_b = _engine.normalized_snapshot(answer, out_b, input_path)
         except FileNotFoundError as e:
             outcomes.append(DeterminismOutcome(label, ok=False, raw_identical=False, detail=f"{label}: missing artifact {e}"))
             continue

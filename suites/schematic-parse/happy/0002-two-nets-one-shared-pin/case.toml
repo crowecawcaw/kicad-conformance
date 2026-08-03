@@ -1,29 +1,8 @@
-concept = "Two 2-pin parts sharing both endpoints wire up into exactly two nets, one per shared pin -- and the same model is recoverable from EITHER netlist interchange format (VALIDATION.md §4.2's cross-format fairness: kicadsexpr and kicadxml reduce to the identical model)."
+concept = "Two 2-pin parts sharing both endpoints wire up into exactly two nets, one per shared pin."
 doc     = "sexpr-schematic#connectivity"
+input   = "sheet.kicad_sch"
+extra   = ["summary-kicadxml"]
 
 # Hand-authored fixture (DL-0011): a minimal custom symbol "T2" with two pins at local
-# (0,0) and (0,2.54), each with pin length 0 so the electrical connection point equals
-# the placed instance's transformed pin coordinate exactly -- avoids needing a real
-# library symbol's geometry just to prove net membership.
-input = "sheet.kicad_sch"
-
-[[check]]
-name     = "model"
-op       = "model"
-expected = "model.json"
-
-# Same connectivity, the OTHER interchange format -- proves the model measures meaning,
-# not one serialization (VALIDATION.md §4.2). Shares the SAME expected file as the check
-# above: that equality IS the cross-format-fairness proof.
-[[check]]
-name     = "model-kicadxml"
-op       = "model"
-format   = "kicadxml"
-expected = "model.json"
-
-# This sheet has symbols and wires, so unlike schematic-parse/happy/0001 the drawing is
-# not empty (VALIDATION.md §6).
-[[check]]
-name     = "render"
-op       = "render"
-expected = "render.svg"
+# (0,0) and (0,2.54), each with pin length 0 so the electrical connection point equals the
+# placed instance's transformed pin coordinate exactly.
