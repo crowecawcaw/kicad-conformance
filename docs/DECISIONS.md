@@ -78,7 +78,9 @@ so alternate runners don't drift.
 ---
 
 ## DL-0004 — Goldens are per-KiCad-version, oracle-authored, regenerable
-**Status:** accepted
+**Status:** accepted — **renamed by [DL-0023]**: everything below still holds, but the
+directory is `expected/<version>/` and the artifact is called an *expected file*, not a
+"golden".
 
 **Context.** Rich outputs (gerbers, drill, upgraded s-expr, DRC JSON) need a reference to
 compare against. That reference must represent KiCad's actual behavior at a version.
@@ -167,7 +169,10 @@ stable as suites grow.
 ---
 
 ## DL-0008 — Comparison model: exit / structured / golden-file, plus printed-quantum tolerance
-**Status:** accepted
+**Status:** **superseded in part** — the `golden-file`/`golden-dir` mode is deleted by
+[DL-0024], and the `compare` field that selected a mode is deleted by [DL-0023]
+(comparison now follows from the verb). The `exit` mode, the semantic reduction, and the
+printed-quantum / no-pre-authorized-bands rule survive unchanged.
 
 **Context.** Different outputs need different comparison strength: exit polarity for
 parse/failure, semantic membership for DRC/ERC/netlist, normalized text diff for
@@ -327,7 +332,10 @@ the real `Expecting` substring so a future clean rejection conforms without an e
 ---
 
 ## DL-0014 — `structured` goldens store a canonical reduction, not the raw report
-**Status:** accepted (clarifies [DL-0008])
+**Status:** accepted (clarifies [DL-0008]) — **renamed by [DL-0023]**: the stored
+canonical reduction is now called the *expected file* and lives in `expected/<version>/`;
+the principle (store the reduction, never the raw report) is unchanged and is why
+`model.json` is what it is.
 
 **Context.** Early wording was incoherent: DESIGN §5 called DRC "structured, no stored
 golden — derived from the golden JSON," while the schema stored `golden = "drc.json"`. It
@@ -348,7 +356,10 @@ required for `structured` too and documents the reduction it names.
 ---
 
 ## DL-0015 — Byte goldens are a KiCad-regression signal; cross-adapter conformance is the semantic subset
-**Status:** accepted (scopes goal #2, refines [DL-0008]/[DL-0009])
+**Status:** **SUPERSEDED by [DL-0024].** The analysis below stands and is exactly why the
+byte layer was ultimately deleted rather than kept as a second-class signal; the decision
+it records (keep byte goldens, scoped to KiCad-regression) no longer applies. Read this
+entry as the reasoning that led to [DL-0024], not as current policy.
 
 **Context.** `golden-file`/`golden-dir` compares pin KiCad's *exact formatting* (token
 order, whitespace, aperture numbering, comment style). A clean-room second adapter emits
@@ -376,7 +387,8 @@ structural reduction defined before they cross-check a foreign tool.
 ---
 
 ## DL-0016 — Goldens are Docker-Linux-authored and stored LF; normalize line endings
-**Status:** accepted
+**Status:** accepted — **renamed by [DL-0023]**: read `golden/**` as `expected/**`
+throughout. The Docker-Linux-authored, stored-LF rule is unchanged.
 
 **Context.** CI compares inside the `kicad/kicad:10.0.5` **Docker (Linux)** image, but a
 contributor may develop on native Windows, where `kicad-cli` writes **CRLF** (and can leak
@@ -399,7 +411,11 @@ The `.gitattributes` and CRLF→LF normalizer land in M0.
 ---
 
 ## DL-0017 — Multi-verb cases live in a dedicated `integration/` suite; per-verb coverage via a generated index
-**Status:** accepted
+**Status:** **SUPERSEDED by [DL-0022].** The `integration/` suite is retired and its one
+case deleted: the composite `model` verb *is* "one input, many projections", so a case
+that validates a whole board no longer spans several verbs and simply lives in its input's
+own suite. The generated per-verb coverage index survives (it is part of the coverage
+proxy, DESIGN §7a) and is now the only mechanism this entry contributes.
 
 **Context.** The design's headline virtue is "the directory listing IS the coverage map."
 A multi-operation case (one board feeding `parse-pcb` + `drc` + `export-gerbers`) placed
@@ -488,7 +504,13 @@ must be kept current with the `tracking` field (upstream issue) once filed.
 ---
 
 ## DL-0019 — L2 (semantic extraction) and L3 (vector render) are first-class comparators
-**Status:** accepted (extends [DL-0008]/[DL-0014]/[DL-0015]; full spec in [`VALIDATION.md`](VALIDATION.md))
+**Status:** **superseded in part** — the *substance* (compare meaning, not bytes; derive it
+from interchange exports; reuse the reduction machinery) is now the core of the design, but
+the *packaging* changed twice over: [DL-0022] composes the individual L2 projections into a
+single `model`, [DL-0024] deletes the L1 rung entirely, and the L0–L3 ladder vocabulary is
+retired with it (three named comparison kinds — exit, model, render — need no ladder). The
+per-projection `case.toml` examples in this entry are obsolete; see
+[`VALIDATION.md`](VALIDATION.md).
 
 **Context.** M0 validates a parser by exit polarity — *did it load* (DESIGN §3a) — plus L1
 byte goldens (KiCad-regression) and the embryonic `structured` reductions for DRC/ERC/
@@ -523,7 +545,11 @@ PNG (L3) forms. Build order in VALIDATION.md §8 (stats → pos → ipcd356 → 
 ---
 
 ## DL-0020 — Gerber geometry is NOT reduced structurally; board copper is covered by stats+pos+ipcd356+SVG
-**Status:** accepted (scopes [DL-0019]; refines [DL-0015])
+**Status:** accepted — **but its safety net is gone.** The decision (do not build an
+RS-274X structural reduction) stands. Its stated consequence — "the `gerber` suite keeps
+its L1 `golden-dir` byte compare as a KiCad-version-regression signal" — is **void**: that
+byte compare is deleted by [DL-0024], so gerber coverage is now **zero**, not "byte-only".
+See [DL-0024] and [`VALIDATION.md`](VALIDATION.md) §7.
 
 **Context.** An L2 for the `gerber` suite could be a structural RS-274X reduction (apertures
 + flashes/draws with per-layer coordinates). Whether that is worth building was left as an
@@ -553,7 +579,9 @@ need appears.
 ---
 
 ## DL-0021 — SVG L3: hybrid normalized-SVG-exact (KiCad-regr.) + pinned-`resvg` raster (cross-impl); audited tolerance
-**Status:** accepted (implements the L3 rung of [DL-0019])
+**Status:** accepted — unchanged in substance. Renamed by [DL-0022]/[DL-0023]: the four
+`export-svg-*` verbs are one `render` verb dispatching on the input suffix, the `image`
+compare mode is gone (comparison follows from the verb), and "L3" is just "render".
 
 **Context.** L3 needs a deterministic SVG comparison in CI. Empirically the
 `kicad/kicad:10.0.5` image ships **no SVG rasterizer** (probed: `rsvg-convert`, `resvg`,
@@ -586,3 +614,155 @@ reference **PNG** (mode b). The `image` compare mode + `svg` normalizer land wit
 step 4a); pinning `resvg` and the raster/SSIM path land with the second adapter (M7, step
 4b) since KiCad-only conformance never rasterizes. Diff report: textual SVG diff (a) or
 diff-image + %pixels + SSIM (b).
+
+---
+
+## DL-0022 — One composite `model` answer per case is the default; single projections are opt-in
+**Status:** accepted (owner decision, 2026-08-02) — supersedes [DL-0017]; supersedes the
+per-projection packaging of [DL-0019]
+
+**Context.** The design shipped under [DL-0019] gave every projection of a board its own
+case: `board-parse/happy/0002-populated-board-stats` (inventory),
+`0003-board-net-graph` (connectivity), `0004-fcu-render` (drawing) and
+`placement/happy/0001-two-footprint-placement` (placement) were **four case directories
+holding four byte-identical copies of one `board.kicad_pcb`** (verified: all four hash
+`86f28fe9c64df93856f5de7ff446c9a9`), each asserting exactly one projection. Meanwhile the
+one case that did span several verbs, `integration/happy/0001-board-parse-drc-gerber`,
+used a *different*, near-empty board — so its `stats`/`pos`/`ipcd356`/`svg` checks all
+asserted **emptiness**, validating nothing interesting. The owner's review was blunt: the
+suite is fragmented and jargon-heavy, and the mental model should be *"each test case is
+one schematic or board as input then one output that fully validates the parsing and
+processing."*
+
+**Decision.** Add a **`model` verb** that internally invokes whichever `kicad-cli` exports
+it needs and merges them into **one normalized JSON document per input**
+(`expected/<version>/model.json`). `model` is the **default check for every happy board
+and schematic case**: one input, one answer, one check. The board model is composed from
+`pcb export stats` (integer counts and the drill-hole table), `pcb export pos`
+(placement) and `pcb export ipcd356` (net-to-pad connectivity); the schematic model from
+`sch export netlist` (components + nets). **Individual projection verbs remain available**
+(`pos`, `ipcd356`, `stats`, `netlist`, `render`, `drc`, `erc`) and are used when that
+projection *is* the concept the case documents — in practice `render`, because drawn
+geometry is the one thing the model does not capture. Composition happens **in the
+adapter**, so a non-KiCad implementation emits `model.json` directly instead of imitating
+three KiCad export formats. `model` dispatches on the input suffix and **does not apply to
+libraries** (`kicad-cli` 10.0.5 offers no structured `.kicad_sym`/`.pretty` export —
+verified: `sym export` and `fp export` both offer only `svg`), which use `render` instead.
+The `integration/` suite is **retired** ([DL-0017] superseded): a multi-verb case was the
+old way to say "one input, many outputs", and `model` is the new one.
+
+**Rationale.** Fixture duplication was the real defect: four copies of one board meant a
+fixture change had to be made four times, and no single case validated the board. Merging
+the projections makes each case *stronger* (one file proves counts **and** placement
+**and** connectivity **and** holes) and the repo *smaller* (11 cases → 7; 16 checks → 9).
+A merged JSON document is also a better diff than four files: a pad moved to the wrong net
+is one changed line. Empirically verified before adopting: the merged document is
+**byte-identical run-to-run** for both board and schematic, and it is **falsifiable** —
+deleting the board's only track, rotating a footprint by 45°, and moving one pad to
+another net each produce a minimal, legible diff ([`VALIDATION.md`](VALIDATION.md) §4.6,
+§4.7).
+
+**Consequences.** New `runner/model.py` and a `cmd_model` in the adapter; the existing
+`reduce_*` functions become its parsers and keep serving the standalone projections. The
+model **excludes** `stats`' computed float areas and densities (owner's call: low
+conformance value, high false-failure risk across implementations) and therefore records
+routing only coarsely — a lost track shows up as `min_track_width` flipping to KiCad's
+INT_MAX sentinel, and pad-within-footprint geometry is covered by `render`, not by the
+model ([`VALIDATION.md`](VALIDATION.md) §7.3/§7.4). Four case directories and two suites
+(`integration/`, `placement/`) are deleted; the migration is enumerated per case in
+[`ROADMAP.md`](ROADMAP.md) M0.5.
+
+---
+
+## DL-0023 — `golden` → `expected`; drop `compare`; `expect` → `outcome` with a default
+**Status:** accepted (owner decision, 2026-08-02) — renames [DL-0004]/[DL-0014]/[DL-0016];
+removes the `compare` field introduced by [DL-0008]
+
+**Context.** The owner's second objection was jargon. A contributor met "golden",
+"structured", "reduced", "L2", "comparator ladder" and `compare = "golden-file"` before
+meeting a single idea, and a manifest carried four fields (`op`, `expect`, `compare`,
+`golden`) where two carry the information. "Golden file" is EDA/test-harness insider
+vocabulary; nothing about the word says *recorded correct answer*.
+
+**Decision.**
+1. **`golden` → `expected`**, everywhere: the manifest field, and the directory
+   `golden/<version>/` → `expected/<version>/`. The docs define the term once, in plain
+   language: *an expected file is the recorded correct answer for one check — the output
+   the reference tool produced when the case was written, generated once and frozen; other
+   frameworks call it a snapshot, a baseline, or a golden file.*
+2. **Delete `compare`.** How a check is compared follows from its `op`: `model`/`drc`/
+   `erc`/`netlist`/`pos`/`ipcd356`/`stats` compare a normalized JSON document, `render`
+   compares normalized SVG bytes, `parse-*` compares only the exit code. The field could
+   only ever have let a case request a comparison its verb cannot perform.
+3. **`expect` → `outcome`**, and make it **optional, defaulting to the directory
+   polarity** (`happy/` → `"ok"`, `failure/` → `"error"`). `expect = "ok"` sitting beside
+   `expected = "model.json"` read as two spellings of one thing; `outcome` says what it
+   means. A happy case now writes no polarity field at all; a failure case writes
+   `outcome = "error"` because in a failure case the polarity *is* the point. An explicit
+   value that contradicts the directory is an authoring error the runner rejects.
+4. **Retire the L0–L3 ladder vocabulary** in favour of three named kinds — **exit**,
+   **model**, **render** — and drop the unused `tags` field. Expected-file names lose the
+   `.reduced` infix (`drc.reduced.json` → `drc.json`): every expected file is a recorded
+   normalized answer, so marking some of them "reduced" is noise.
+
+The result is the owner's target shape — a typical case is `concept` + `doc` + `input` +
+one three-line `[[check]]`.
+
+**Rationale.** Every removed field is one fewer thing to explain, get wrong, or drift out
+of sync with the verb. Defaults derived from the directory keep the "listing is the
+coverage map" property doing real work instead of being decoration. Plain naming serves
+goal #1 (documentation) and goal #3 (AI-agent readability) directly: a reader who has
+never seen this repo can read a case without a glossary.
+
+**Consequences.** A mechanical migration of every `case.toml` and of `runner/manifest.py`,
+`engine.py`, `cli.py`; `case.golden_dir()` → `case.expected_dir()`; `.gitattributes` marks
+`expected/**` as LF. Older decision entries keep their original wording (append-only) with
+a rename note at the top. Cross-references in [DL-0004]/[DL-0014]/[DL-0016] to
+`golden/**` should be read as `expected/**`.
+
+---
+
+## DL-0024 — Delete the byte-comparison layer; accept and document the gerber/drill gap
+**Status:** accepted (owner decision, 2026-08-02) — **supersedes [DL-0015]**; voids the
+safety net [DL-0020] relied on; removes the L1 rung of [DL-0019]
+
+**Context.** The suite compared KiCad's re-serialized *bytes* in three places: the
+canonical `.kicad_pcb`/`.kicad_sch` from `… upgrade --force`, the gerber file set, and the
+drill file set (plus `pos`/`bom` as text). [DL-0015] had already established what those
+comparisons measure — KiCad's exact formatting — and scoped them to
+"KiCad-version-regression only, a second implementation is judged on the semantic subset".
+That left a whole comparison layer, a `golden-file`/`golden-dir` mode, a directory-tree
+comparator, four normalizers and two verbs (`upgrade`, `bom`) in the codebase whose
+findings had to be *filtered back out* whenever they fired for a non-KiCad tool.
+
+**Decision.** **Delete the byte layer entirely.** Specifically: the canonical
+re-serialize comparison, the gerber `golden-dir` comparison, the drill byte comparison,
+the `golden-file`/`golden-dir` modes themselves, the `upgrade` verb (it existed only to
+feed them) and the `bom` verb (a BOM is the schematic model's `components` section by
+another name). `parse-*` verbs **remain**, as **exit-polarity checks only** — which is
+what `failure/` cases need, and on a happy case a passing `model` already proves the file
+parsed, so a `parse-*` check beside it is redundant. The `render` (SVG) comparison is
+**not** part of this deletion; it compares drawn geometry, not serialization, and stays.
+
+**Rationale.** Prefer deleting dead machinery to keeping a vestigial path. A comparison
+whose results must be suppressed for every tool except one is not carrying its weight, and
+its existence pushed the design toward per-projection cases and a four-rung ladder that
+the owner found fragmenting. Removing it makes the remaining story sayable in one
+sentence: *one input, one recorded answer, and the answer is about meaning.*
+
+**Consequences — the honest cost, stated up front.** This removes **all gerber and drill
+coverage.** `suites/gerber/` and `suites/drill/` become empty, and they stay in the tree
+as a visible reminder rather than being quietly deleted. Since [DL-0020] already ruled out
+a portable Gerber-native structural reduction, there is now **nothing** checking KiCad's
+fabrication output: a bug that corrupts RS-274X or Excellon output while leaving the
+`.kicad_pcb` model intact is caught by no case in this suite. Partial mitigations, named
+so nobody overestimates them: the model's `drill_holes` section still catches a dropped or
+mis-sized *hole* (but records no hole positions), and a `render` of the copper layers
+still shows the drawn geometry (but is not the plot). Two concrete ways back, in
+[`VALIDATION.md`](VALIDATION.md) §7 and scheduled as [`ROADMAP.md`](ROADMAP.md) M4: (1)
+byte-recorded answers for fab output only, explicitly labelled a KiCad-regression signal
+(the header normalizers are already specified in DESIGN §4); or (2) rasterize gerbers to
+images and compare pixels with a pinned renderer, which is fair across implementations.
+The gap is recorded in `README.md`, `VALIDATION.md` §7, `DESIGN.md` §9 and the roadmap —
+four places, deliberately, because a fabrication-facing conformance suite with no
+fabrication-output coverage must not be discovered by accident.

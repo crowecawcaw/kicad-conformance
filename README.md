@@ -8,17 +8,20 @@ KiCad itself (via `kicad-cli`) is the reference oracle, and any other tool — a
 clean-room parser, a third-party exporter — can run the *same* suite through a thin
 adapter.
 
-> **Status: M0 complete.** The runner (`runner/`, Python 3.11 stdlib), the reference
-> `kicad-cli` adapter, the normalization layer, the OK/REJECT/CRASH verdict + positive-
-> control machinery, the known-oracle-divergence strict-xfail layer, the cheap coverage
-> proxy, and one worked example per core suite (`schematic-parse`, `board-parse`,
-> `netlist`, `drc`, `integration`) are real, committed, and green against `kicad-cli`
-> 10.0.5 in Docker — see `python3 -m runner suites/` and `docs/ROADMAP.md` M0. One case
+> **Status: M0 complete; M0.5 (the `model` rework) in progress.** The runner (`runner/`,
+> Python 3.11 stdlib), the reference `kicad-cli` adapter, the OK/REJECT/CRASH verdict +
+> positive-control machinery, the known-oracle-divergence strict-xfail layer, the cheap
+> coverage proxy, and worked examples in `board-parse`, `schematic-parse` and `drc` are
+> real, committed, and green against `kicad-cli` 10.0.5 in Docker — see
+> `python3 -m runner suites/` and `docs/ROADMAP.md`. The docs currently describe the
+> **revised** design ([DL-0022]–[DL-0024](docs/DECISIONS.md): one composite `model` answer per case,
+> `expected/` instead of `golden/`, no byte comparisons); the runner is being migrated to
+> match — see `docs/ROADMAP.md` M0.5 for the exact per-case migration. One case
 > (`board-parse/failure/0001-unterminated-sexpr`) reports `XFAIL` (known divergence): it
 > documents a real KiCad 10.0.5 segfault (DL-0013) as a tracked, checked-in ledger entry
 > (`docs/DIVERGENCES.md`, DL-0018) rather than a harness bug or a permanently-red build.
-> Everything past M0 (deeper parse coverage, ERC, more DRC rule classes, drill/pos/bom,
-> library suites, a second adapter) is still ahead — see
+> Everything past that (deeper parse coverage, ERC, more DRC rule classes, library
+> suites, fab-output coverage, a second adapter) is still ahead — see
 > [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ---
@@ -43,7 +46,7 @@ adapter.
 
 **KiCad 10.0.5.** This is a deliberate choice: KiCad 11 is not released (the `master`
 dev line currently reports `10.99` via nightlies), so 10.0.5 is the newest *stable*
-oracle. The layout is **version-parametric** — goldens live under a per-version
+oracle. The layout is **version-parametric** — recorded answers live under a per-version
 directory and KiCad 11 slots in as an additional target when it ships. Nothing is
 gated on 11. See [DL-0001](docs/DECISIONS.md).
 
@@ -51,56 +54,65 @@ gated on 11. See [DL-0001](docs/DECISIONS.md).
 
 ## 60-second mental model — how a test case works
 
-A **case** is a directory. It holds a tiny manifest (`case.toml`), one or more input
-**fixtures**, and — for cases that compare rich output — a **golden** tree keyed by
-KiCad version.
+**One input file in, one recorded correct answer out.** A case is a directory holding a
+tiny manifest, the input, and the answer:
 
 ```
-suites/board-parse/happy/0002-minimal-two-layer-board/
-├── case.toml            # what to run and what to expect
-├── board.kicad_pcb      # the input fixture
-└── golden/
+suites/board-parse/happy/0002-populated-board/
+├── case.toml            # what to run
+├── board.kicad_pcb      # the input
+└── expected/
     └── 10.0.5/
-        └── canonical.kicad_pcb   # KiCad's authoritative re-save (normalized)
+        └── model.json   # the recorded correct answer, for KiCad 10.0.5
 ```
-
-`case.toml` declares one or more **checks**, each naming an adapter **verb**
-(`parse-pcb`, `drc`, `export-gerbers`, …) and an **expectation**:
 
 ```toml
-concept = "A minimal two-layer board parses and canonicalizes cleanly."
+concept = "A populated two-layer board: one SMD resistor, one through-hole capacitor, a track, a via."
 doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
 
 [[check]]
-op      = "parse-pcb"       # verb the adapter must implement
-expect  = "ok"              # exit success
-compare = "golden-file"     # normalize output, diff against the golden
-golden  = "canonical.kicad_pcb"
+op       = "model"
+expected = "model.json"
 ```
 
-The **runner** walks `suites/`, and for each check invokes the **adapter** (for KiCad,
-a subprocess wrapping `kicad-cli`), applies the **normalization layer** to strip
-nondeterminism (timestamps, generator strings, fresh UUIDs, …), then decides pass/fail:
+**`model.json` is one JSON document describing everything the tool understood** about the
+board: how many pads, vias and footprints; the drilled holes; where each footprint sits
+(to the nanometre) and which way up; and which pads are on which nets. For a schematic it
+describes the components and the nets. The runner builds it by running several
+`kicad-cli` exports and merging them — the case author never sees the intermediate files.
+[`docs/VALIDATION.md`](docs/VALIDATION.md) §4 has the exact schema and a real example.
 
-- `expect = "ok"` / `"error"` pins the exit-code polarity (openjd-style), where `"error"`
-  means a **graceful** non-zero rejection — a **crash** (termination by signal / exit
-  `>128`) is a distinct verdict and **never** a pass, for either polarity
-  ([`docs/DESIGN.md`](docs/DESIGN.md) §3a),
-- for failure cases, an optional `error_contains` substring is asserted on stderr, plus a
-  required **positive control** (removing the injected defect must make the check exit 0 —
-  "a test that can't fail is not evidence"),
-- for rich output, the normalized result is compared to the golden — **byte-exact after
-  normalization** for text (gerbers, drill, upgraded s-expr; a KiCad-regression signal) or
-  a **structural reduction** for semantic outputs (DRC/ERC violation sets, netlist net→node
-  membership; the cross-adapter conformance signal). Text goldens are stored **LF** and
-  regenerated inside the Linux Docker image so they are platform-canonical. The full
-  **L0–L3 comparator ladder** — exit, KiCad-regression byte goldens, richer L2 semantic
-  projections (stats / placement / board-netlist) and an L3 SVG-render comparator — is
-  specified in [`docs/VALIDATION.md`](docs/VALIDATION.md).
+**An "expected file" is the recorded correct answer**: the output KiCad produced when the
+case was written, generated once and then frozen in the repo. Other test frameworks call
+it a snapshot, a baseline, or a golden file. It is never hand-written — a hand-written
+answer records a human's belief about KiCad, a generated one records KiCad's behaviour —
+and it lives under `expected/<version>/` because "correct" is defined by a specific KiCad
+release.
 
-That's the whole model. One input fixture can drive several checks (e.g. one board
-feeding both `drc` and `export-gerbers`). Full details in
+The **runner** walks `suites/`, and for each check invokes the **adapter** (for KiCad, a
+subprocess wrapping `kicad-cli`), then decides pass/fail:
+
+- a **happy** case compares the answer. If the model matches, the tool parsed the file
+  into the same thing KiCad did; if it doesn't, the JSON diff names the exact fact that is
+  wrong (a pad on the wrong net is one changed line).
+- a **failure** case compares nothing but the outcome: the tool must **gracefully reject**
+  the input. A **crash** (termination by signal / exit `>128`) is a distinct verdict and
+  **never** a pass ([`docs/DESIGN.md`](docs/DESIGN.md) §3a). Failure cases also carry a
+  **positive control** — a defect-free copy of the input that must be accepted — because a
+  test that can't fail is not evidence.
+- a case whose whole point is the *drawing* compares a **render** (SVG) instead, byte-exact
+  after normalizing the one line KiCad stamps with a date.
+
+That's the whole model. Full details in
 [`docs/TEST_CASE_FORMAT.md`](docs/TEST_CASE_FORMAT.md).
+
+> **Known gap, stated up front:** there is currently **no gerber and no drill-file
+> coverage**. Comparing KiCad's exact output bytes turned out to measure KiCad's
+> formatting rather than anyone's correctness, so that layer was removed, and the
+> `gerber/` and `drill/` suites are empty. The model's hole table still catches a dropped
+> or mis-sized hole. See [`docs/VALIDATION.md`](docs/VALIDATION.md) §7 for the two
+> concrete ways to get real fab-output coverage back.
 
 ---
 
@@ -119,7 +131,7 @@ python -m runner suites/                        # run everything
 python -m runner suites/drc/                     # scope to one suite
 python -m runner suites/board-parse/happy/0002-* # scope to one case
 
-# Regenerate goldens after a kicad-cli version bump (review the diff before committing):
+# Re-record the expected answers after a kicad-cli version bump (review the diff first):
 python -m runner --regenerate suites/
 ```
 
@@ -142,9 +154,11 @@ python -m runner --adapter ./adapters/mytool.sh suites/board-parse/
 ```
 
 The adapter is any executable that answers the verb protocol in
-[`docs/DESIGN.md`](docs/DESIGN.md). Its output is compared against the **KiCad-authored**
-golden — KiCad is authoritative; a divergence is a finding for the *other* tool (or,
-occasionally, for the suite), triaged in a checked-in divergence ledger.
+[`docs/DESIGN.md`](docs/DESIGN.md). Its output is compared against the **KiCad-recorded**
+answer — KiCad is authoritative; a divergence is a finding for the *other* tool (or,
+occasionally, for the suite), triaged in a checked-in divergence ledger. A second
+implementation does not have to imitate KiCad's exports: it emits the `model.json`
+schema directly ([`docs/VALIDATION.md`](docs/VALIDATION.md) §4).
 
 ---
 
@@ -155,23 +169,21 @@ kicad-conformance/
 ├── README.md                  # you are here
 ├── docs/
 │   ├── DESIGN.md              # architecture: model, adapter contract, comparison, coverage
-│   ├── VALIDATION.md          # the L0–L3 comparator ladder (L2 semantic, L3 SVG render)
+│   ├── VALIDATION.md          # what a check compares: the `model` schema + known gaps
 │   ├── TEST_CASE_FORMAT.md    # the authoring spec (manifest schema, layout, worked examples)
 │   ├── DECISIONS.md           # numbered decision log (ADR-style, append-only)
 │   ├── DIVERGENCES.md         # checked-in known-divergence ledger (DL-0009/DL-0018)
 │   └── ROADMAP.md             # milestones
 ├── suites/                    # the curated, hand-authored corpus (committed)
-│   ├── schematic-parse/{happy,failure}/
-│   ├── board-parse/{happy,failure}/
-│   ├── erc/{happy,failure}/
-│   ├── drc/{happy,failure}/
-│   ├── gerber/{happy,failure}/
-│   ├── drill/{happy,failure}/
-│   ├── netlist/{happy,failure}/
-│   ├── symbol-lib/{happy,failure}/
-│   ├── footprint-lib/{happy,failure}/
-│   ├── placement/{happy,failure}/     # L2 `export-pos` reduction (VALIDATION.md §3.4)
-│   └── integration/{happy,failure}/   # multi-verb cases only (per-verb suites stay pure)
+│   ├── board-parse/{happy,failure}/      # boards -- `model` cases + parse failures
+│   ├── schematic-parse/{happy,failure}/  # schematics -- `model` cases + parse failures
+│   ├── drc/{happy,failure}/              # design-rule findings
+│   ├── erc/{happy,failure}/              # electrical-rule findings (empty; next up)
+│   ├── netlist/{happy,failure}/          # netlist-interchange specifics (empty; hierarchy cases)
+│   ├── symbol-lib/{happy,failure}/       # .kicad_sym -- render projection (empty)
+│   ├── footprint-lib/{happy,failure}/    # .pretty -- render projection (empty)
+│   ├── gerber/{happy,failure}/           # EMPTY -- documented coverage gap (VALIDATION.md §7)
+│   └── drill/{happy,failure}/            # EMPTY -- documented coverage gap (VALIDATION.md §7)
 ├── corpus/                    # large real-world projects for coverage sweeps (gitignored)
 │   ├── manifest.toml         #   pinned SHA + SPDX per project (committed)
 │   └── projects/             #   downloaded, never redistributed (gitignored)
@@ -190,19 +202,20 @@ scheduled line-coverage sweep and broad regression. See [DL-0009](docs/DECISIONS
 
 ## Contributing a case
 
-1. Pick the suite (operation family) and polarity (`happy`/`failure`). Single-verb cases
-   go in their verb suite; **multi-verb cases go in `integration/`** so each verb suite's
-   listing stays a true coverage map.
+1. Pick the suite (the input's family) and polarity (`happy`/`failure`).
 2. Create `suites/<suite>/<happy|failure>/<NNNN-slug>/` with a `case.toml` and the
-   smallest possible fixture that demonstrates exactly one concept.
+   smallest possible input that demonstrates exactly one concept.
 3. Cite the format-doc section in `doc = ` and write a one-line `concept = `.
-4. For rich-output checks, generate the golden with `python -m runner --regenerate`
-   **inside the `kicad/kicad:10.0.5` Docker image** (so goldens are LF / Linux-canonical),
-   inspect the diff, and commit `golden/10.0.5/…`. For `structured` checks the committed
-   golden is the canonical reduction, not the raw KiCad report.
-5. Run `python -m runner <your case>` and confirm it passes; for a failure case, add a
-   positive control and confirm it fails for the *right* reason (assert `error_contains`,
-   and prove that removing the defect makes the check exit 0). A crash is never a pass.
+4. Default to **one check**: `op = "model"`, `expected = "model.json"`. Add a second check
+   only for a genuinely different concept about the same input (e.g. a `render`); add a
+   second *case* only for a different input.
+5. Record the answer with `python -m runner --regenerate` **inside the
+   `kicad/kicad:10.0.5` Docker image** (so it is LF / Linux-canonical), read the diff, and
+   commit `expected/10.0.5/…`.
+6. Run `python -m runner <your case>` and confirm it passes — then **break the input**
+   (move a pad to another net, rotate a footprint) and confirm it goes red. For a failure
+   case, add the positive control and confirm it fails for the *right* reason. A crash is
+   never a pass.
 
 The full contributor checklist is in [`docs/TEST_CASE_FORMAT.md`](docs/TEST_CASE_FORMAT.md).
 

@@ -5,17 +5,18 @@ place where a known non-conformance is triaged and tracked instead of hidden. Tw
 distinct things can diverge from what the suite expects, and this ledger covers both:
 
 - **The reference oracle itself (KiCad/`kicad-cli`) can fail the suite's own, stricter
-  standard.** KiCad-as-oracle means KiCad's behavior *is* the golden -- but that does not
-  mean KiCad is bug-free. A crash is never conformant behavior ([DL-0013]), even when the
-  crashing tool is the one defining every other golden. When this happens, the paired
-  case still documents and asserts the *desired* behavior (a graceful rejection); it is
-  marked with a `known_divergence` ([DL-0018]) so the suite stays green without either
-  (a) quietly downgrading the assertion to match the bug, or (b) leaving `main`
-  permanently red over a bug that is not this repo's to fix.
+  standard.** KiCad-as-oracle means KiCad's behavior *is* the recorded correct answer --
+  but that does not mean KiCad is bug-free. A crash is never conformant behavior
+  ([DL-0013]), even when the crashing tool is the one defining every other answer. When
+  this happens, the paired case still documents and asserts the *desired* behavior (a
+  graceful rejection); it is marked with a `known_divergence` ([DL-0018]) so the suite
+  stays green without either (a) quietly downgrading the assertion to match the bug, or
+  (b) leaving `main` permanently red over a bug that is not this repo's to fix.
 - **A second adapter (a non-KiCad implementation-under-test) can diverge from the
-  KiCad-authored golden.** That is the M7 use of this ledger ([DL-0009], [DL-0017]): each
-  entry gets a verdict of "KiCad/golden is right, fix the tool" or "the suite/golden is
-  wrong." No entries of this kind exist yet -- M7 (second adapter) has not landed.
+  KiCad-recorded answer.** That is the second-adapter use of this ledger ([DL-0009],
+  [DL-0018]): each entry gets a verdict of "KiCad's answer is right, fix the tool" or
+  "the suite is wrong." No entries of this kind exist yet -- the second adapter has not
+  landed.
 
 **Why "strict xfail" and not just a skip.** A `known_divergence` marker is not a
 permanent excuse. It is scored strictly: today's declared-bad verdict (e.g. `CRASH`)

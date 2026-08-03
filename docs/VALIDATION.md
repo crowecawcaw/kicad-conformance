@@ -1,522 +1,609 @@
-# Validation — the comparator ladder (L0–L3)
+# Validation — what a test case actually compares
 
-How kicad-conformance decides "did the tool get it *right*", beyond the exit-code
-polarity M0 shipped. Companion docs: [`DESIGN.md`](DESIGN.md) (architecture, esp. §2 verbs
-and §3 comparison model), [`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md) (`case.toml`),
-[`DECISIONS.md`](DECISIONS.md) (DL-0019–DL-0021 ratify what this doc specifies).
+How kicad-conformance decides "did the tool get it **right**". Companion docs:
+[`DESIGN.md`](DESIGN.md) (architecture), [`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md)
+(how to write a case), [`DECISIONS.md`](DECISIONS.md) (numbered rationale —
+[DL-0022]–[DL-0024] ratify this document).
 
-Every empirical claim below was produced against **`kicad-cli` 10.0.5, release build**
-(`kicad/kicad:10.0.5` Docker image, `wxWidgets 3.2.8`, `FreeType 2.13.3`) on a small
-hand-authored populated board (`R_0805` SMD + `C_THT` through-hole, one track, one via,
-an `Edge.Cuts` outline), upgraded to the current format via `kicad-cli pcb upgrade
---force` so it is a genuine KiCad artifact. The exact commands are shown inline.
+Every empirical claim below was produced against **`kicad-cli` 10.0.5** in the
+`kicad/kicad:10.0.5` Docker image, on a small hand-authored populated board (one SMD
+resistor `R1`, one through-hole capacitor `C1`, one `F.Cu` track, one through via, an
+`Edge.Cuts` outline) and a two-symbol schematic. The exact commands are shown inline; all
+of them were run as:
+
+```
+docker run --rm -v "<dir>:/work" -w /work -e LC_ALL=C.UTF-8 -e TZ=UTC \
+    kicad/kicad:10.0.5 bash -lc '<command>'
+```
 
 ---
 
-## 1. The reframe — validate a parser by its projections
+## 1. The idea in one paragraph
 
-M0 validates a parser by **exit polarity**: did `kicad-cli` load the file (exit 0) or
-reject it (graceful non-zero), and — for `failure/` cases — did it reject for a provable
-reason (positive control, [DL-0013]). That answers *did it parse*. It does not answer
-*did it parse into the **right model***: a tool can load a board, exit 0, and still have
-mis-assigned a pad to the wrong net, dropped a via, or placed a footprint at the wrong
-angle.
+A test case is **one input file** — a board or a schematic — and **one recorded correct
+answer**. The runner feeds the input to the tool, asks the tool to describe what it
+understood, and compares that description to the recorded answer. The description is a
+single normalized JSON document called the **model**. If the model matches, the tool
+parsed the file into the same thing KiCad did: same footprints in the same places, same
+pads on the same nets, same counts, same holes. If it doesn't match, the diff says
+exactly which fact the tool got wrong.
 
-The richer question is answered without ever reaching into the tool's internal data
-structures — which would break the language-agnostic subprocess contract ([DL-0007]).
-Instead we lean on a property KiCad already gives us: **a parsed model can be projected
-back out through many independent export verbs.** One board fixture yields a stats
-summary, a placement file, a board-side netlist, a per-layer SVG, gerbers, drill data —
-each an independently-derived *view* of the same parsed model. If the model is right,
-every projection is right; if a projection is wrong, the model was wrong in a way that
-projection is sensitive to. So:
+That's the whole validation story. Two smaller pieces sit beside it: a **failure case**
+only checks that a bad file is rejected (there is no model to compare), and a case whose
+whole point is *drawn geometry* compares a **render** (SVG) instead.
 
-> **One fixture → many projections; each projection is an independent comparator.** A
-> projection is "fair" across implementations to the degree it captures *meaning* rather
-> than *KiCad's byte-formatting*.
+## 2. What an "expected file" is
 
-### The comparator ladder
+An **expected file** is the recorded correct answer for one check. It is produced once,
+by running the reference tool (`kicad-cli`) on the case's input, and then frozen in the
+repo under `expected/<kicad-version>/`. Other test frameworks call the same thing a
+*snapshot*, a *baseline*, or a *golden file*; this repo calls it what it is.
 
-| Ladder | What it compares | Derived from | Cross-impl fairness |
+Three properties follow from "recorded, not written":
+
+- **It is never hand-authored.** A hand-written expected file encodes a human's belief
+  about KiCad. A generated one encodes KiCad's behaviour. Only the second is a
+  conformance reference ([DL-0004]).
+- **It is keyed by KiCad version**, not by tool. `expected/10.0.5/model.json` means "the
+  correct answer as defined by KiCad 10.0.5". A second implementation is compared against
+  that same file — there is no per-implementation expected file.
+- **It is reviewed like source.** Regenerating is a deliberate act (`--regenerate` inside
+  the pinned Docker image, [DL-0016]); the contributor reads the diff before committing
+  it. A changed expected file is a changed claim about KiCad.
+
+## 3. The three kinds of comparison
+
+| Kind | What it compares | Used by |
+|---|---|---|
+| **exit** | did the tool accept (exit 0) or gracefully reject (bounded non-zero) the file | every `failure/` case; `parse-*` checks |
+| **model** | one normalized JSON document describing everything the tool understood | every `happy/` board & schematic case (the default) |
+| **render** | the drawn vector geometry of a layer / sheet / symbol / footprint | cases whose concept *is* the drawing |
+
+An earlier revision of this doc numbered these L0–L3 and included a fourth rung, **L1**,
+which compared KiCad's re-serialized bytes (canonical `.kicad_pcb`, gerber files, drill
+files). **L1 is gone** ([DL-0024]); the numbering is retired with it, because three
+named things do not need a ladder. Where other docs still say "L2" read "model", and "L3"
+read "render".
+
+Findings verbs (`drc`, `erc`) are a fourth, narrower thing: they compare a normalized
+*finding set*, not a model of the file. They are unchanged by this revision.
+
+---
+
+## 4. The `model` verb
+
+`op = "model"` is the default check for a happy board or schematic case. The runner
+invokes several `kicad-cli` exports internally, merges them into one JSON document, and
+compares it to `expected/<version>/model.json`. The case author never sees the
+intermediate exports; they are an implementation detail of the verb.
+
+The verb **dispatches on the input's suffix**:
+
+| Input | Composed from | Result |
+|---|---|---|
+| `.kicad_pcb` | `pcb export stats` + `pcb export pos` + `pcb export ipcd356` | board model (§4.1) |
+| `.kicad_sch` | `sch export netlist` | schematic model (§4.2) |
+| `.kicad_sym`, `.pretty` | — | **error**: `model` does not apply (§4.5) |
+
+### 4.0 Canonical form (applies to both models)
+
+- **JSON, UTF-8, LF line endings, two-space indent, keys sorted, trailing newline.**
+  Written by `json.dumps(model, indent=2, sort_keys=True) + "\n"`. Sorted keys make the
+  document order-independent, so a diff is always a semantic diff.
+- **Every list is sorted** by its own printed content. Nothing in the model depends on the
+  order KiCad happened to emit.
+- **Numbers that KiCad prints as fixed-precision strings stay strings**, verbatim
+  (`"0.2500 mm"`, `"20.000000"`). String equality then *is* printed-quantum tolerance
+  (DESIGN §3c): `pos` prints 6 decimals of a millimetre = 1 nm = KiCad's own integer board
+  unit, so an exact string compare is exactly-1-nm and nothing wider. No float parsing, no
+  tolerance band, nothing for a real error to hide inside.
+- **Counts are JSON integers.**
+- **No timestamps, no versions, no paths, no UUIDs, no net codes** — every such field is
+  dropped by construction (see the per-section notes), so the model needs no separate
+  "normalizer" step.
+
+### 4.1 Board model
+
+Six top-level keys. Shown in the order they are explained; on disk they are sorted.
+
+| Key | Type | Source | Meaning |
 |---|---|---|---|
-| **L0 — exit** | success/failure polarity (+ stderr substring) | the process exit code | **fully portable** — every tool exits (DESIGN §3a) |
-| **L1 — canonical serialize** | KiCad's exact re-serialized bytes (`… upgrade`, gerbers, drill, bom) after normalization | the tool's own writer | **KiCad-regression only** — over-fits a second tool's formatting ([DL-0015]) |
-| **L2 — semantic extraction** | a normalized *structured* projection: connectivity, counts, geometry, placement | an interchange export (`netlist`, `stats`, `pos`, `ipcd356`, `erc`, `drc`) | **portable** — meaning, not bytes; the cross-adapter conformance signal |
-| **L3 — vector render** | the drawn geometry of a layer/sheet/symbol/footprint | `… export svg` | **portable-with-a-caveat** — visual meaning; exact for KiCad-vs-KiCad, justified threshold cross-impl |
+| `kind` | string | — | Always `"board"`. Says which schema this document follows. |
+| `has_outline` | bool | `stats` → `board.has_outline` | Did the board yield a closed `Edge.Cuts` outline. |
+| `min_track_width` | string | `stats` → `board.min_track_width` | Narrowest track actually on the board, e.g. `"0.2500 mm"`. |
+| `min_drill_diameter` | string | `stats` → `board.min_drill_diameter` | Smallest drilled hole, e.g. `"0.4000 mm"`. |
+| `counts` | object | `stats` | Integer inventory: `footprints{tht,smd,unspecified,total}`, `pads{through_hole,smd,connector,npth,castellated,press_fit}`, `vias{through,blind,buried,micro}`. Copied verbatim from KiCad's own key names except `components` → `footprints` (on a board they are placed footprints; "component" is KiCad's word in the stats report). The front/back split of the component table is dropped — `placement` already records each footprint's side. |
+| `drill_holes` | array | `stats` → `drill_holes[]` | The hole table. Each entry keeps `count`, `shape`, `x_size`, `y_size`, `plated`, `source`, `start_layer`, `stop_layer`. Content-sorted (sort key = the entry serialized with sorted keys), so hole ordering never matters. |
+| `placement` | object | `pos` | `refdes → {value, package, x, y, rotation, side}`. Strings, verbatim from the CSV. |
+| `nets` | object | `ipcd356` | `net-name → sorted array of "REFDES.PAD"` strings. |
 
-Two axes, not one. **Richness** (how much meaning is captured) climbs L0 → L3.
-**Cross-impl fairness** is *not* monotonic: L1 is the outlier — it is the strongest signal
-for *KiCad-vs-KiCad regression* and the weakest for a second implementation, exactly as
-[DL-0015] already argued for byte goldens. L0, L2, L3 all port; L1 does not. This doc adds
-**L2** (interchange projections — the existing `structured` mode already contains its
-embryo in `reduce.py`) and **L3** (SVG render) as first-class alongside the L0/L1 M0 shipped.
+**Sources, and the exact commands.**
 
-L2 is the load-bearing addition: it is where "the pad is on the wrong net" or "the
-footprint is rotated 90° wrong" becomes a *comparable value* that ports to a clean-room
-adapter, without a byte-golden's formatting over-fit.
+```
+$ kicad-cli pcb export stats  --format json                             -o stats.json  b.kicad_pcb
+$ kicad-cli pcb export pos    --format csv --side both --units mm       -o pos.csv     b.kicad_pcb
+$ kicad-cli pcb export ipcd356                                          -o board.d356  b.kicad_pcb
+```
 
+`pos` uses the **CSV** form deliberately: the ASCII form carries a `created on
+<timestamp>` header that CSV does not, so the CSV needs no normalizer at all. `ipcd356`
+carries no timestamp either. `stats` has exactly one nondeterministic field, `metadata.date`
+— and the whole `metadata` object is dropped anyway (it also carries the KiCad version
+string and the scratch-copy filename).
+
+**`nets` — member format and the uppercase gotcha.** A net member is the single string
+`"<refdes>.<pad>"` (`"R1.1"`), sorted lexicographically — one token per line in the
+formatted JSON, which is what makes a connectivity change read as a one-line diff. Split
+on the **first** `.`; a refdes never contains one. Vias contribute their **net name** but
+no member, so a net routed only through a via appears with an empty array.
+
+> **IPC-D-356 is an uppercase-only format.** The board's net is literally `Net-1`, but
+> `pcb export ipcd356` emits `NET-1`, and the model records what the export prints.
+> Verified: the fixture contains `(net "Net-1")`, the export line is
+> `327NET-1            R1    -1          A01X+007874Y…`. Consequence for a second
+> implementation: **upper-case net names in `model.nets`**, and be aware that two nets
+> differing only in case would collide here. Schematic-side net names (§4.2) are *not*
+> uppercased — the netlist export preserves them.
+
+**Board Y is flipped.** `pos` reports fab-convention coordinates: a footprint at board
+`y = 20 mm` prints as `-20.000000`. Both sides of a comparison see the same convention, so
+it is invisible to the check — but it is why the recorded `y` values are negative.
+
+**What is deliberately excluded from `stats`, and why.**
+
+`pcb export stats` also reports `area`, `front_copper_area`, `back_copper_area`,
+`front_footprint_area`, `back_footprint_area`, `front_component_density`,
+`back_component_density`, `min_track_clearance`, `width`, `height`. **None of them are in
+the model.** The rule: *keep counts and echoed input values; drop computed geometry.*
+
+- **Areas and densities are computed float geometry** — polygon unions, clipping,
+  and rounding to 3–4 significant digits (`"9.258 mm²"`). Two conformant implementations
+  can legitimately differ in the last printed digit for reasons that are not bugs
+  (different polygon tessellation of an arc, different rounding at a boundary), so these
+  fields are a **false-failure generator with very little conformance signal**: every
+  defect they could catch — a dropped pad, a lost footprint, a mis-parsed outline — is
+  already caught exactly and integer-precisely by `counts`, `placement`, and `has_outline`.
+  This is the owner's explicit call, and it is the same reasoning that rules out
+  pre-authorized tolerance bands (DESIGN §3c): a float you cannot compare exactly is a
+  float you end up comparing loosely, and a loose compare hides real errors.
+- **`min_track_clearance` is excluded** for the same reason (a pairwise geometry
+  computation) *and* because it is usually the sentinel `"2147.4836 mm"` (INT_MAX
+  nanometres — KiCad's "only one segment on this net" placeholder).
+- **`width`/`height` are excluded** as bounding-box arithmetic over the outline; the
+  boolean `has_outline` carries the fact that matters (the outline parsed) without the
+  arithmetic.
+- **`min_track_width` and `min_drill_diameter` are kept** because they are *echoed input
+  values*, not computed geometry: they are the width of a track that is literally in the
+  file and the drill diameter of a pad that is literally in the file. Comparing them is
+  comparing a parsed number, not a derived one.
+
+**`min_track_width` is also how the model notices a lost track** — the one thing `stats`
+gives no count for. Verified by deleting the board's only `(segment …)` and re-running:
+
+```
+$ diff model-base.json model-notrack.json
+49c49
+<   "min_track_width": "0.2500 mm",
 ---
-
-## 2. Per-suite comparator spec
-
-For each suite: what's under test, the L2 projection(s) with the exact `kicad-cli`
-command, the L3 (visual) projection where one exists, and the comparator + its
-cross-impl fairness. `export-pos` already exists as a verb (L1 `golden-file` today); this
-doc promotes its **L2** reduction. New verbs are marked ⁺.
-
-| Suite | Under test | L2 projection → `kicad-cli` | L3 (visual) | Comparator · fairness |
-|---|---|---|---|---|
-| **schematic-parse** | `.kicad_sch` loads into the right model | net→node graph → `sch export netlist` | `sch export svg` | L0 exit; L1 `upgrade` byte-golden (KiCad-regr.); **L2** netlist `structured`; **L3** sheet SVG. L2/L3 portable |
-| **board-parse** | `.kicad_pcb` loads into the right model | counts/areas → `pcb export stats`⁺; placement → `pcb export pos`; board net graph → `pcb export ipcd356`⁺ | `pcb export svg` (per layer)⁺ | L0/L1 as above; **L2** stats+pos+ipcd356 `structured`; **L3** copper/silk SVG. L2/L3 portable |
-| **symbol-lib** | `.kicad_sym` pins/geometry | pin inventory (number, name, position, type) reduced from the upgraded `.kicad_sym` s-expr | `sym export svg`⁺ | L0 exit; L1 `sym upgrade` byte-golden; **L2** pin-inventory `structured`; **L3** symbol SVG |
-| **footprint-lib** | `.pretty` pads/geometry | pad inventory (number, type, layers, at, drill) reduced from the upgraded `.kicad_mod` | `fp export svg`⁺ | L0 exit; L1 `fp upgrade` byte-golden; **L2** pad-inventory `structured`; **L3** footprint SVG |
-| **erc** | electrical-rules findings | violation set → `sch erc --format json` | — | L2 `structured` (exists). Portable |
-| **drc** | design-rules findings | violation set → `pcb drc --format json` | — | L2 `structured` (exists). Portable |
-| **netlist** | connectivity | net→node graph → `sch export netlist` (`kicadsexpr` **or** `kicadxml`) | — | L2 `structured` (exists; cross-format §3.1). Portable |
-| **gerber** | fab copper output | *none as RS-274X reduction* (ruled out, §3.6) — copper **meaning** covered by stats+pos+ipcd356+SVG | `pcb export svg` copper layers | L1 `golden-dir` byte (KiCad-regr.); L2/L3 via the board-parse projections. See [DL-0020] |
-| **drill** | fab hole output | hole table → `pcb export stats` `drill_holes[]` + `ipcd356` drill fields | — (drill-map is derivative) | L1 `golden-dir` byte; **L2** drill-table `structured`. Portable at L2 |
-| **placement / pos**⁺ | footprint placement | refdes→(x,y,rot,side) → `pcb export pos --format csv` | — | **L2** `structured`, tolerance = printed quantum. Portable |
-| **stats**⁺ | board inventory & geometry | field map → `pcb export stats --format json` | — | **L2** `structured`, field/string compare. Portable |
-| **render (3D)** | 3D geometry | — deferred, not in scope | `pcb render` PNG/JPEG (3D) | **Skipped** — least deterministic, needs OCC/display ([DL-0012]); 2D SVG (L3) covers the visual need |
-
----
-
-## 3. L2 reduction schemas
-
-Each L2 extractor emits a **canonical, normalized, JSON-serializable structure**; the
-stored golden is that structure (a `*.reduced.json`), never the raw export ([DL-0014]).
-At compare time the adapter's output is reduced the same way and checked by **membership
-equality** (sets/maps) or **field equality** (printed-quantum strings). All live in
-`runner/reduce.py` beside the existing `reduce_drc`/`reduce_erc`/`reduce_netlist`.
-
-### 3.1 netlist graph (extend existing — add cross-format fairness)
-
-`reduce_netlist` today parses `kicadsexpr`. The same net→node graph is recoverable from
-`kicadxml`, which proves the graph is a property of the *connectivity*, not of one
-serialization. Verified:
-
-```
-$ kicad-cli sch export netlist --format kicadsexpr -o n.net s.kicad_sch
-    (net (code "1") (name "Net-(U1-Pad1)")
-      (node (ref "U1") (pin "1") (pinfunction "1_1") (pintype "passive"))
-      (node (ref "U2") (pin "1") (pinfunction "1_1") (pintype "passive")))
-$ kicad-cli sch export netlist --format kicadxml -o n.xml s.kicad_sch
-    <net code="1" name="Net-(U1-Pad1)" class="Default">
-      <node ref="U1" pin="1" pinfunction="1_1" pintype="passive"/>
-      <node ref="U2" pin="1" pinfunction="1_1" pintype="passive"/>
+>   "min_track_width": "2147.4836 mm",
 ```
 
-**Schema (unchanged shape):** `{ net-name : sorted [[refdes, pin], …] }`. `code`,
-`class`, `pinfunction`, `pintype` and the `(design …)` header are dropped as before.
-**Extension:** add a `kicadxml` reader alongside the s-expr reader so a second adapter may
-emit *either* interchange format and be judged on the identical reduced graph — the
-membership compare is format-blind. This is the cleanest demonstration that L2 measures
-meaning.
+The trackless board reports the INT_MAX sentinel, so "all tracks vanished" is a one-line
+model diff. That is *coarse* — the model counts no tracks and records no track geometry
+(§7). It is the honest limit of what `kicad-cli` 10.0.5 exposes without a gerber
+interpreter.
 
-### 3.2 DRC / ERC violation set (existing)
+### 4.2 Schematic model
 
-Unchanged: sorted list of `{type, severity, items:[{description, pos}]}`, sorted by
-content, never by UUID (`reduce_drc`, DESIGN §3b). Kept here for completeness — it is the
-canonical L2 template every new reduction below follows.
+For a schematic the netlist export is already very nearly the complete semantic
+projection — it is KiCad's own answer to "what did I understand this schematic to mean" —
+so the schematic model is a thin, de-noised rewrite of it. Three top-level keys:
 
-### 3.3 stats-json (new — field compare)
-
-`pcb export stats --format json` is a compact, richly-diffable inventory. Verified
-output (populated board, trimmed):
+| Key | Type | Meaning |
+|---|---|---|
+| `kind` | string | Always `"schematic"`. |
+| `components` | object | `refdes → {value, part, footprint, sheet, pins[]}`. `part` is the library part name (`libsource/part`), `footprint` the `Footprint` field (`""` when unset), `sheet` the sheet path (`"/"` for a single-sheet design), `pins` the sorted list of pin numbers the symbol declares. |
+| `nets` | object | `net-name → sorted array of "REFDES.PIN"` strings — identical shape to the board model's `nets`, so the two are directly comparable. |
 
 ```
-$ kicad-cli pcb export stats --format json -o s.json b.kicad_pcb
+$ kicad-cli sch export netlist --format kicadsexpr -o net.net s.kicad_sch
+$ kicad-cli sch export netlist --format kicadxml   -o net.xml s.kicad_sch
+```
+
+**Dropped:** the `(design …)` header (absolute source path, wall-clock date, tool
+version), every `tstamps` UUID, the net `code` and `class`, `pinfunction`/`pintype` (they
+describe the library symbol, not the connectivity), and the whole `title_block`.
+
+**`pins` is what makes the model catch a dropped pin.** `nets` only lists pins that are
+*connected*; a symbol whose unconnected pin was silently lost would not change `nets` at
+all, but it changes `components.<ref>.pins`.
+
+**Either interchange format produces the identical model.** `kicadsexpr` and `kicadxml`
+carry the same `components`/`units/pins`/`nets` content (verified field-by-field on the
+two-symbol fixture), so the model reducer reads both and a case may assert the *same*
+`model.json` twice, once per format. That is the cheapest available proof that the model
+measures meaning rather than one serialization — and it is why a second implementation may
+emit whichever format it prefers.
+
+### 4.3 A real, verbatim example — board
+
+Generated by running the three commands in §4.1 on the populated fixture and merging them
+with the reduction described above. **This is exactly what
+`expected/10.0.5/model.json` must contain** for
+`suites/board-parse/happy/0002-populated-board/`:
+
+```json
 {
-  "metadata": { "date": "2026-08-03T02:49:38", "generator": "KiCad 10.0.5",
-                "project": "b", "board_name": "b" },
-  "board": { "has_outline": true, "width": "50.0000 mm", "height": "35.0000 mm",
-             "area": "1750.00 mm²", "front_copper_area": "11.899 mm²",
-             "min_track_width": "0.2500 mm", "min_drill_diameter": "0.4000 mm",
-             "board_thickness": "1.6000 mm", … },
-  "pads": { "through_hole": 2, "smd": 2, "npth": 0, … },
-  "vias": { "through": 1, "blind": 0, "buried": 0, "micro": 0 },
-  "components": { "tht": {…}, "smd": {…}, "unspecified": {"front":1,"back":1,"total":2}, … },
-  "drill_holes": [ {"count":2,"shape":"Round","x_size":"0.8000 mm","plated":true,
-                    "source":"Pad","start_layer":"F.Cu","stop_layer":"B.Cu"}, … ]
+  "counts": {
+    "footprints": {
+      "smd": 1,
+      "tht": 1,
+      "total": 2,
+      "unspecified": 0
+    },
+    "pads": {
+      "castellated": 0,
+      "connector": 0,
+      "npth": 0,
+      "press_fit": 0,
+      "smd": 2,
+      "through_hole": 2
+    },
+    "vias": {
+      "blind": 0,
+      "buried": 0,
+      "micro": 0,
+      "through": 1
+    }
+  },
+  "drill_holes": [
+    {
+      "count": 1,
+      "plated": true,
+      "shape": "Round",
+      "source": "Via",
+      "start_layer": "F.Cu",
+      "stop_layer": "B.Cu",
+      "x_size": "0.4000 mm",
+      "y_size": "0.4000 mm"
+    },
+    {
+      "count": 2,
+      "plated": true,
+      "shape": "Round",
+      "source": "Pad",
+      "start_layer": "F.Cu",
+      "stop_layer": "B.Cu",
+      "x_size": "0.8000 mm",
+      "y_size": "0.8000 mm"
+    }
+  ],
+  "has_outline": true,
+  "kind": "board",
+  "min_drill_diameter": "0.4000 mm",
+  "min_track_width": "0.2500 mm",
+  "nets": {
+    "GND": [
+      "C1.1",
+      "R1.2"
+    ],
+    "NET-1": [
+      "C1.2",
+      "R1.1"
+    ]
+  },
+  "placement": {
+    "C1": {
+      "package": "C_Disc_D3.0mm_W1.6mm_P2.50mm",
+      "rotation": "180.000000",
+      "side": "bottom",
+      "value": "100n",
+      "x": "40.000000",
+      "y": "-30.000000"
+    },
+    "R1": {
+      "package": "R_0805_2012Metric",
+      "rotation": "90.000000",
+      "side": "top",
+      "value": "1k",
+      "x": "20.000000",
+      "y": "-20.000000"
+    }
+  }
 }
 ```
 
-**Determinism (run twice, 1 s apart):** *only* `metadata.date` differs —
+Read it top to bottom and it is a complete, plain description of the board: two
+footprints (one SMD, one through-hole), four pads, one via, three drilled holes in two
+sizes, an outline, a 0.25 mm minimum track, `R1` at 20/−20 rotated 90° on top, `C1` at
+40/−30 rotated 180° on the bottom, and two nets each joining one pad of each part.
 
-```
-$ diff s1.json s2.json
-3c3
-<     "date": "2026-08-03T02:49:38",
->     "date": "2026-08-03T02:49:39",
-```
+### 4.4 A real, verbatim example — schematic
 
-**Reduction `reduce_stats`:** **drop the entire `metadata` object** — `date` is wall-clock
-noise, `generator` is the version string ([DL-0005] keeps the format-version key, not the
-app version), and `project`/`board_name` are derived from the *scratch-copy filename* (here
-`"b"`) so they leak the adapter's temp name. Keep `board`, `pads`, `vias`, `components`
-verbatim, and `drill_holes` as a **content-sorted list** (sort key = all fields) so hole
-ordering never matters. **Compare = field/string equality**: every numeric value is a
-KiCad-printed fixed-precision string (`"0.2500 mm"`, `"11.899 mm²"`), so string-exact
-compare *is* printed-quantum tolerance (DESIGN §3d) — no float parsing, no band. Count
-fields (`through_hole: 2`) compare as integers. A footprint dropped on load → wrong
-`components.total`; a mis-parsed pad → wrong `pads`; a wrong outline → wrong `board.area`.
-Note `min_track_clearance` can be a sentinel (`"2147.4836 mm"` ≈ INT_MAX nm, "only one
-segment on the net") — stable, kept as-is; if a fixture makes it wobble it is named-and-
-excluded ([DL-0005]), not band-normalized.
+From the two-symbol fixture (`sheet.kicad_sch`, two 2-pin parts sharing both endpoints):
 
-### 3.4 pos — placement rows (new — printed-quantum tolerance)
-
-`pcb export pos --format csv` (the **CSV** form, deliberately, because the **ASCII** form
-carries a `created on <timestamp>` header the CSV does not). Verified:
-
-```
-$ kicad-cli pcb export pos --format csv --side both --units mm -o pos.csv b.kicad_pcb
-Ref,Val,Package,PosX,PosY,Rot,Side
-"C1","100n","C_THT",40.000000,-30.000000,180.000000,bottom
-"R1","1k","R_0805",20.000000,-20.000000,90.000000,top
-$ diff pos.csv pos2.csv     # run twice
-$                            # byte-identical — CSV has NO timestamp header
-```
-
-**Reduction `reduce_pos`:** parse the CSV into
-`{ refdes : {"val", "package", "x", "y", "rot", "side"} }`. Rows are keyed by refdes
-(unique per board), so CSV row order is irrelevant. **Compare = field equality** with
-**tolerance = the printed quantum**: the CSV prints 6 decimal places in mm = **1 nm**, i.e.
-KiCad's native integer board unit, so string-exact compare on `x/y/rot` is exactly-1-nm and
-nothing wider — a genuine placement error cannot hide (DESIGN §3d, no pre-authorized band).
-`val`/`package`/`side` compare as strings. (Note KiCad's pos Y is board-Y-flipped —
-`20 mm` → `-20.000000`; that is KiCad's fab convention, identical on both compare sides, so
-it is invisible to the compare.) `pos` needs **no** normalizer for the CSV form — honoring
-the honesty rule (DESIGN §4): "add no normalizer where output is byte-stable."
-
-### 3.5 ipcd356 — board-side net graph (new)
-
-`pcb export ipcd356` is the **board's own** netlist + test-point geometry (as opposed to
-the *schematic's* netlist from §3.1) — a second, independent connectivity projection.
-Verified, byte-identical run-to-run (no timestamp):
-
-```
-$ kicad-cli pcb export ipcd356 -o board.d356 b.kicad_pcb
-P  UNITS CUST 0
-317NET1             VIA        MD0157PA00X+015748Y-007874X0315Y0000R000S3
-327NET1             R1    -1          A01X+007874Y-008248X0394Y0551R270S2
-327GND              R1    -2          A01X+007874Y-007500X0394Y0551R270S2
-317GND              C1    -1    D0315PA00X+016732Y-011811X0630Y0000R000S0
-317NET1             C1    -2    D0315PA00X+014764Y-011811X0630Y0000R000S0
-999
-$ diff board.d356 board2.d356    # byte-identical run-to-run
+```json
+{
+  "components": {
+    "U1": {
+      "footprint": "",
+      "part": "T2",
+      "pins": [
+        "1",
+        "2"
+      ],
+      "sheet": "/",
+      "value": "T2"
+    },
+    "U2": {
+      "footprint": "",
+      "part": "T2",
+      "pins": [
+        "1",
+        "2"
+      ],
+      "sheet": "/",
+      "value": "T2"
+    }
+  },
+  "kind": "schematic",
+  "nets": {
+    "Net-(U1-Pad1)": [
+      "U1.1",
+      "U2.1"
+    ],
+    "Net-(U1-Pad2)": [
+      "U1.2",
+      "U2.2"
+    ]
+  }
+}
 ```
 
-Record types: `317` = through-hole/via feature (has a drill `MD…`/`D…`), `327` = SMD
-feature; columns carry the **net name**, **refdes + pad** (or `VIA`), the **access layer**
-(`A00` = both, `A01` = top), **X/Y** in 0.0001-inch units, pad size, rotation, and a
-trailing `S…` code.
+### 4.5 Symbol and footprint libraries: no model
 
-**Reduction `reduce_ipcd356`:** two membership structures.
-1. **Board net graph** — `{ net-name : sorted set of (refdes, pad) }`, mirroring the
-   schematic netlist's shape so the two are directly comparable (a board that routes a pad
-   to the wrong net diverges here even if the schematic netlist is right). `VIA` features
-   contribute the net but no `(refdes,pad)` member.
-2. **Test-point geometry (optional, tolerance-compared)** — `{ (refdes, pad) : (x, y,
-   access-layer) }` in the printed 0.1-mil quantum, for cases that assert access-point
-   placement.
+`kicad-cli` 10.0.5 offers exactly two things for a library — `upgrade` and `export svg`:
 
-**Normalizer:** DESIGN §4 already anticipates "IPC-D-356 trailing `S…` serial on VIA
-records only." On this board the VIA carried `S3` and was stable run-to-run; because the
-reduction keys on **net + refdes/pad membership** and drops the raw `S…`/rotation tail
-entirely, the reduction is robust whether or not that serial is stable on a given board —
-the graph shape is what ports to a second adapter.
+```
+$ kicad-cli sym export --help
+Usage: sym export [--help] {svg}
+$ kicad-cli fp export --help
+Usage: fp export [--help] {svg}
+```
 
-### 3.6 gerber geometry — **ruled out as a structural reduction** ([DL-0020])
+There is **no structured export** to build a model from (no pin table, no pad table), and
+`upgrade`'s re-serialized bytes are exactly the comparison this revision deleted
+([DL-0024]). So:
 
-**Decision: do NOT build an RS-274X structural reduction** (apertures + flashes/draws with
-per-layer coordinates). Board copper *meaning* is instead covered by the composition of
-**stats** (copper areas, track/via/pad counts, min widths — §3.3) + **pos** (placement —
-§3.4) + **ipcd356** (net-to-pad connectivity + access-point geometry — §3.5) + **SVG**
-(the actual drawn copper geometry, L3 — §4).
+> **`model` does not apply to `.kicad_sym` or `.pretty` inputs.** A library case uses
+> `render` (the SVG projection) as its expected output, plus `parse-sym`/`parse-fp` exit
+> checks for failure cases. The runner rejects `op = "model"` on a library input with a
+> clear error rather than inventing a projection.
 
-**Why.** A faithful RS-274X reducer is disproportionately hard for the marginal value: it
-must implement a Gerber *interpreter* (aperture macros/`AM`, `%LP` dark/clear polarity,
-`G36/G37` region fills, arc `G02/G03` interpolation, step-and-repeat `SR`, coordinate-
-format `%FS`), then canonicalize a *rendered flash/draw set* that two conformant plotters
-may legitimately decompose differently (a pad as one flashed aperture vs. an outline region;
-a track as a draw vs. a thin region). That is a second rasterizer's worth of engineering,
-and its cross-impl output is exactly as formatting-sensitive as the L1 byte golden it was
-meant to improve on. The three semantic projections above already localize every copper
-defect that matters (wrong count, wrong net, wrong placement, wrong area), and L3-SVG
-captures the drawn geometry directly and *fairly* (a rendered raster is decomposition-
-blind). **Tradeoff, stated honestly:** we lose a *native-Gerber* semantic check — a bug
-that corrupts RS-274X output while leaving the `.kicad_pcb` model intact (e.g. a plotter-
-only aperture bug) is caught only by the **L1 byte golden** (a KiCad-regression signal, not
-cross-impl) and by L3-SVG, not by a portable Gerber-native L2. Given gerber is a *fab
-output* verb whose cross-impl story [DL-0015] already scopes to "semantic subset," this is
-an acceptable, documented gap; the door stays open to add a Gerber reducer later if a
-concrete second-adapter need appears.
+If a future KiCad grows a structured symbol/footprint export, a library `model` (pin
+inventory / pad inventory) is the obvious extension and this section is where it lands.
+
+### 4.6 The model is deterministic — verified
+
+Generated twice in the same container, one second apart:
+
+```
+$ diff model-board-1.json model-board-2.json && echo IDENTICAL
+IDENTICAL
+$ diff model-sch-1.json model-sch-2.json && echo IDENTICAL
+IDENTICAL
+```
+
+No normalizer is involved: the nondeterministic fields (`metadata.date` in `stats`, the
+netlist header's date/path/tool) are *dropped by the reduction itself*, not scrubbed after
+the fact. This satisfies the honesty rule (DESIGN §4): add no normalizer where the output
+is already stable.
+
+### 4.7 The model is falsifiable — verified
+
+Three single-token perturbations of the fixture, each producing a minimal, legible diff:
+
+```
+# A -- delete the board's only track
+49c49
+<   "min_track_width": "0.2500 mm",
+>   "min_track_width": "2147.4836 mm",
+
+# B -- rotate R1 from 90 to 45 degrees
+71c71
+<       "rotation": "90.000000",
+>       "rotation": "45.000000",
+
+# C -- move R1 pad 1 from Net-1 to GND
+52a53
+>       "R1.1",
+56,57c57
+<       "C1.2",
+<       "R1.1"
+>       "C1.2"
+```
+
+"A test that cannot fail is not evidence": a new case is not trusted until its author has
+broken the fixture and watched the model go red like this.
 
 ---
 
-## 4. L3 — SVG render comparison
+## 5. Individual projections (opt-in)
 
-### 4.1 What ships in the image (probed, not assumed)
+The single-projection verbs still exist, and a case uses one **when that projection *is*
+the concept the case documents** — not as a way to spread one board's validation across
+several cases (which is what this revision removed).
 
-```
-$ for t in rsvg-convert resvg inkscape cairosvg convert magick dvisvgm pdftocairo gs; \
-      do printf "%s: " $t; command -v $t || echo MISSING; done
-rsvg-convert: MISSING   resvg: MISSING   inkscape: MISSING   cairosvg: MISSING
-convert: MISSING        magick: MISSING  dvisvgm: MISSING     pdftocairo: MISSING
-gs: /usr/bin/gs         # ghostscript 10.05.1 — PostScript/PDF only, NOT an SVG rasterizer
-$ python3 -c "import cairosvg" → ModuleNotFoundError; import cairo → ModuleNotFoundError
-$ python3 -c "import PIL; print(PIL.__version__)" → 11.1.0   # present, but cannot rasterize SVG
-```
+| Verb | `kicad-cli` | Expected file | Use it when the case is about… |
+|---|---|---|---|
+| `render` | `pcb\|sch\|sym\|fp export svg` | `render*.svg` | the **drawing**: copper geometry, silkscreen, a symbol's or footprint's shape |
+| `pos` | `pcb export pos --format csv --side both --units mm` | `pos.json` | placement specifically (e.g. a rotation/side edge case) |
+| `ipcd356` | `pcb export ipcd356` | `ipcd356.json` | board connectivity or **test-point/access-point geometry** specifically |
+| `stats` | `pcb export stats --format json` | `stats.json` | the inventory report itself |
+| `netlist` | `sch export netlist` | `netlist.json` | the netlist interchange format itself (formats, hierarchy) |
+| `drc` / `erc` | `pcb drc` / `sch erc --format json --severity-all` | `drc.json` / `erc.json` | **findings** — a rule violation is data to compare, not a tool failure |
 
-**Finding: the `kicad/kicad:10.0.5` image ships NO SVG rasterizer.** Only ghostscript
-(PS/PDF, not SVG) and Pillow (raster ops, not an SVG engine) are present. So a rasterizing
-L3 needs a rasterizer *added* to the container/CI. But the probe of KiCad's SVG itself
-reshapes the whole design:
+The reductions for `pos`, `ipcd356`, `stats` and `netlist` are the same ones the `model`
+verb composes, emitted standalone. `ipcd356` standalone additionally exposes the
+**test-point geometry** map (`REFDES.PAD → {x, y, access-layer}` in the printed 0.1-mil
+integers) that the model omits — see §7.
 
-### 4.2 KiCad's SVG is deterministic modulo one line
+**Rule of thumb.** If you find yourself writing a second case on the same fixture to
+assert a second projection, you want one case with a `model` check. If you are writing a
+case whose one-sentence `concept` names the projection ("the front-copper layer draws the
+pad, track and via"), the projection verb is right.
+
+---
+
+## 6. `render` — the SVG comparison
+
+Unchanged in substance by this revision ([DL-0021] still stands); only the verb name is
+simpler (`render`, dispatching on the input suffix, replaces `export-svg-pcb`/`-sch`/
+`-sym`/`-fp`).
+
+**KiCad's SVG is deterministic except one line.** Verified again for this revision:
 
 ```
 $ kicad-cli pcb export svg --layers F.Cu --page-size-mode 2 --exclude-drawing-sheet \
-      -o fcu.svg b.kicad_pcb
-$ diff fcu.svg fcu2.svg      # run twice
+      --black-and-white -o r1.svg b.kicad_pcb      # and again as r2.svg, 1 s later
+$ diff r1.svg r2.svg
 11c11
-< <title>SVG Image created as fcu.svg date 2026-08-03T02:50:41 </title>
-> <title>SVG Image created as fcu2.svg date 2026-08-03T02:50:43 </title>
+< <title>SVG Image created as r1.svg date 2026-08-03T04:13:09 </title>
+---
+> <title>SVG Image created as r2.svg date 2026-08-03T04:13:11 </title>
 ```
 
-The **only** run-to-run difference is the `<title>` (filename + wall-clock date). The path
-geometry (`d="M 9.5500,11.4500 …"`, coordinates in mm to 4 decimals) and all fills are
-byte-stable. That single fact lets L3 avoid rasterization entirely *for the KiCad-vs-KiCad
-case*.
+The path geometry (`d="M 9.5500,11.4500 …"`, mm to 4 decimals) and every fill are
+byte-stable. So:
 
-### 4.3 The chosen method — a hybrid
+- **KiCad vs KiCad (today's only case):** normalize `<title>` and `<desc>` to a constant
+  and compare the SVG **byte-exact**. Zero tolerance, no rasterizer needed — none ships in
+  the image. Determinism is pinned at the source with `--page-size-mode 2` (board area
+  only), `--exclude-drawing-sheet`, `--black-and-white`, plus `LC_ALL=C.UTF-8`/`TZ=UTC`.
+- **Cross-implementation (arrives with the second adapter):** a clean-room tool emits
+  valid-but-differently-structured SVG, so exact matching would over-fit it. That path
+  rasterizes both sides with a **pinned `resvg`** and pixel/SSIM-diffs under an explicit,
+  per-case, documented threshold that must be shown load-bearing (perturb the geometry by
+  one quantum, watch it go red, or delete the threshold). Full rationale in [DL-0021].
 
-**(a) KiCad-vs-KiCad regression → normalized-SVG structural exact match (no rasterizer).**
-Normalize the `<title>` line (and the `<desc>`) to a constant, then compare the SVG
-**byte-exact after normalization**, exactly like an L1 text golden but over the vector
-drawing. It is fully deterministic (§4.2), needs no added dependency, and — per the
-project's "no pre-authorized tolerance bands" principle — is **exact-match, zero
-tolerance**. This is the default L3 comparator and the one the M0-style regression build
-uses. Determinism is pinned at the source: fixed `--black-and-white` (removes theme-color
-dependence), `--page-size-mode 2` (board-area only, so page size can't drift),
-`--exclude-drawing-sheet`, and the existing `LC_ALL=C.UTF-8`/`TZ=UTC` (number formatting).
-
-**(b) Cross-implementation → rasterize both, perceptual diff.** A clean-room adapter emits
-*valid-but-differently-structured* SVG (arcs vs. polyline approximations, different element
-order/grouping, different path decomposition) — structural exact-match would over-fit it
-exactly as an L1 byte golden does ([DL-0015]). So for the second-adapter path, **rasterize
-both SVGs to PNG with a single pinned deterministic renderer and pixel/perceptual-diff.**
-
-Recommended renderer: **`resvg`** (the Rust `resvg`/`usvg` CLI), pinned by exact version and
-added to the CI image (and/or the container). Rationale for `resvg` over the alternatives:
-it is a single static binary (no cairo/Qt/GTK system-library variance), renders on the CPU
-deterministically, ships its own font handling (no system-font drift), and is reproducible
-across machines — the properties CI determinism needs. `rsvg-convert`/Inkscape/cairosvg all
-pull in system libraries (cairo, pango, fontconfig) whose versions and installed fonts
-change the pixels; ghostscript cannot read SVG at all. The renderer is invoked at a **fixed
-DPI, white opaque background, and no anti-aliasing variance** (documented flags), so its
-output is itself reproducible.
-
-**Why not rasterize KiCad-vs-KiCad too?** We can, but we don't need to: §4.2 shows KiCad's
-SVG is already exact, and an exact vector compare is *stronger and cheaper* than a raster
-compare (no renderer in the loop, no threshold). Rasterization is reserved for the case that
-genuinely needs it — comparing two different tools' drawings.
-
-### 4.4 Tolerance policy — reconciled with "no pre-authorized bands"
-
-- **KiCad-vs-KiCad (a):** **exact**, zero tolerance. Normalized-SVG byte compare; a
-  single differing pixel of geometry is a diff. There is no band to hide a bug in.
-- **Cross-impl (b):** an **explicit, per-comparator, documented threshold**, never a silent
-  global band. The threshold lives in the `case.toml` (e.g. `max_diff_ratio = 0.001`),
-  must cite *why* that value (which legitimate rendering difference it tolerates — e.g.
-  sub-pixel arc-tessellation at the pinned DPI), and must be shown **load-bearing**: the
-  determinism/falsifiability test perturbs the geometry (shift a pad by one quantum) and
-  requires the comparator to go **red**, proving the threshold cannot swallow a real error.
-  A threshold that never triggers a red is dead and is removed — same rule as a normalizer
-  (DESIGN §4a). This is the [DL-0015] cross-impl-fairness carve-out made concrete for
-  pixels: exact where we can, an *audited* threshold only where cross-tool rendering
-  legitimately differs.
-
-### 4.5 The diff report
-
-On an L3 failure the runner writes, next to the scratch output: (1) the **normalized
-candidate SVG** and the **reference SVG** (for `(a)`, a textual diff pinpoints the changed
-path); (2) for `(b)`, the two **rendered PNGs**, a **diff image** (per-pixel XOR/highlight
-of changed regions), the **% of pixels differing**, and an **SSIM** score. The report names
-*where* on the board the drawing diverges, so a mismatch is actionable, not "images
-differ."
+The layer set for a board render is a per-case parameter: `args = ["--layers", "F.Cu"]`.
 
 ---
 
-## 5. Runner integration
+## 7. Known gaps — stated plainly
 
-### 5.1 New / promoted adapter verbs (real `kicad-cli` mappings, explicit `-o`)
+This revision deliberately deleted comparisons. Here is what is no longer covered, so
+nobody discovers it by accident.
 
-Following DESIGN §2a (the runner always dictates an explicit output path; the adapter
-scratch-copies the input first). 3D `render` is **skipped** ([DL-0012]).
+### 7.1 Gerber output: **no coverage at all**
 
-| Verb | `kicad-cli` command (adapter fills `<out>`) | Artifact the runner reads |
+The `gerber/` suite is **empty**. Before this revision it held (or was to hold) byte
+comparisons of KiCad's RS-274X files; those are deleted with the rest of the byte layer
+([DL-0024]), and a *structural* gerber comparison was already ruled out for good reasons
+([DL-0020]: a faithful RS-274X reducer means implementing aperture macros, `%LP`
+polarity, `G36/G37` regions, arc interpolation, step-and-repeat and `%FS` coordinate
+formats — a second plotter's worth of engineering whose output is as
+formatting-sensitive as the byte compare it replaces).
+
+**What this means concretely:** a bug that corrupts gerber output while leaving the
+`.kicad_pcb` model intact — a plotter-only aperture or polarity bug — **is not caught by
+this suite.** The board model proves the *board* was understood correctly; nothing proves
+the *plot* of it is correct, except indirectly through the `render` SVG of the same
+copper layers.
+
+**Two ways back, when someone wants it:**
+1. **Byte expected-files for gerbers only** — cheap to build (the normalizers for the
+   `G04` header dates and the `.gbrjob` JSON date are already specified in DESIGN §4), and
+   honest as long as it is labelled a KiCad-version-regression check rather than a
+   cross-implementation one.
+2. **Rasterize gerbers → image compare** — plot each gerber to a raster with a pinned
+   renderer and compare images, exactly as the cross-implementation `render` path does.
+   This is the fair-across-implementations option and the better long-term answer, at the
+   cost of adding a gerber rasterizer to the CI image.
+
+### 7.2 Drill output: **no file-level coverage; the hole table survives**
+
+The `drill/` suite is **empty** for the same reason. What remains is the model's
+`drill_holes` section — the hole *table* (count, shape, size, plated, source, layer
+span), which does catch a dropped or mis-sized hole. What is **not** covered: the Excellon
+file itself (coordinate formatting, tool assignment, header) and **hole positions** — the
+table has no coordinates.
+
+Restoration options are the same two as gerbers; option 1 (byte expected-files, with the
+already-specified header-date normalizer) is materially easier for drill than for gerber.
+
+### 7.3 Pad geometry within a footprint
+
+The model records where each *footprint* sits (1 nm precision) and which net each *pad* is
+on, but not where each pad sits. A bug that applies footprint rotation to the origin but
+not to the pad offsets would leave the model unchanged.
+
+This is a deliberate trade. `ipcd356` prints pad positions in 0.0001-inch integers — a
+2.54 µm quantum reached by unit conversion and rounding, which is exactly the
+false-failure risk that got the float areas excluded (§4.1). Instead: the **`render` check
+on the same fixture** compares the actual drawn copper, which *does* move when a pad
+moves, and a case specifically about access-point geometry can use the standalone
+`ipcd356` projection, which exposes the test-point map.
+
+### 7.4 Track and graphic geometry
+
+`stats` counts no tracks and no graphics, so the model sees routing only through
+`min_track_width` (§4.1) and net membership. Track *paths* are covered by `render`, not by
+the model. If KiCad ever adds a track count to `stats`, it belongs in `counts`.
+
+---
+
+## 8. Runner integration (for the implementing agent)
+
+### 8.1 Verb table
+
+| Verb | `kicad-cli` invocation (adapter fills `<out>`) | Comparison |
 |---|---|---|
-| `export-stats`⁺ | `pcb export stats --format json -o <out>/stats.json <in>` | `<out>/stats.json` |
-| `export-ipcd356`⁺ | `pcb export ipcd356 -o <out>/board.d356 <in>` | `<out>/board.d356` |
-| `export-pos` (promote) | `pcb export pos --format csv --side both --units mm -o <out>/pos.csv <in>` | `<out>/pos.csv` (now L2-reducible) |
-| `export-svg-pcb`⁺ | `pcb export svg --layers <L> --page-size-mode 2 --exclude-drawing-sheet --black-and-white -o <out>/render.svg <in>` | `<out>/render.svg` |
-| `export-svg-sch`⁺ | `sch export svg --no-background-color -o <out>/ <in>` (writes `<stem>.svg`) | `<out>/<stem>.svg` |
-| `export-svg-sym`⁺ | `sym export svg --black-and-white -o <out>/ <in>` | `<out>/<sym>.svg` |
-| `export-svg-fp`⁺ | `fp export svg --black-and-white -o <out>/ <in>` | `<out>/<fp>.svg` |
+| `version` | `version --format plain` | — (identity record) |
+| `parse-pcb` / `parse-sch` | `pcb\|sch upgrade --force` on a scratch copy | exit only |
+| `parse-sym` / `parse-fp` | `sym\|fp upgrade --force -o <out> <in>` | exit only |
+| `model` | composes `stats`+`pos`+`ipcd356` (pcb) or `netlist` (sch) | `model.json` |
+| `drc` / `erc` | `pcb drc` / `sch erc --format json --severity-all -o <out>/…` | `drc.json` / `erc.json` |
+| `netlist` | `sch export netlist --format kicadsexpr\|kicadxml -o <out>/netlist.net` | `netlist.json` |
+| `pos` | `pcb export pos --format csv --side both --units mm -o <out>/pos.csv` | `pos.json` |
+| `ipcd356` | `pcb export ipcd356 -o <out>/board.d356` | `ipcd356.json` |
+| `stats` | `pcb export stats --format json -o <out>/stats.json` | `stats.json` |
+| `render` | `pcb\|sch\|sym\|fp export svg` (+ `--layers` from `args` for pcb) | `*.svg`, byte-exact after `<title>`/`<desc>` normalization |
+| `export-gerbers` / `export-drill` | `pcb export gerbers\|drill …` | **exit only** — no comparator exists (§7.1/§7.2) |
+| `export-step` | — | reserved, unused ([DL-0012]) |
 
-`export-svg-*` share one adapter helper differing only in the `pcb|sch|sym|fp` subcommand
-and the layer/theme flags; the SVG `--layers` set is a per-case `args` parameter (like the
-gerber layer set, DESIGN §2b). Add the four `export-svg-*` (or a single `export-svg` that
-dispatches on input suffix), `export-stats`, and `export-ipcd356` to `runner/verbs.py`
-`VERB_TABLE`/`IMPLEMENTED_VERBS`, and a resolver branch in `engine._resolve_artifact`.
+Deleted verbs: `upgrade` (its only purpose was the byte compare), `bom` (a BOM is the
+schematic model's `components` section by another name), and the four `export-svg-*`
+variants (folded into `render`). Renamed: `export-pos` → `pos`, `export-stats` → `stats`,
+`export-ipcd356` → `ipcd356`.
 
-### 5.2 New / extended `compare` modes
+### 8.2 Where `model` lives in the runner
 
-- **`structured`** — extended, not replaced. Add `reduce_stats`, `reduce_pos`,
-  `reduce_ipcd356` to `runner/reduce.py`, and dispatch them in
-  `engine._reduce_structured` for ops `export-stats`/`export-pos`/`export-ipcd356` (and the
-  `netlist` `kicadxml` reader). The golden stays a stored `*.reduced.json` ([DL-0014]);
-  the existing membership/field machinery and `describe_structured_mismatch` bucketing are
-  reused unchanged.
-- **`image`** (new, L3) — normalize the SVG (strip `<title>`/`<desc>`), then: mode `(a)`
-  compare the normalized SVG **byte-exact** against a stored reference SVG (default); mode
-  `(b)` rasterize both via the pinned `resvg` and pixel/SSIM-diff under a declared,
-  load-bearing threshold (§4.4). Golden is the reference SVG (mode a) or reference PNG
-  (mode b), stored per KiCad version. Add an `image`/`svg-image` branch to
-  `engine._compare_rich_output` and an `svg` normalizer to `runner/normalize.py`
-  (`_SVG_TITLE_RE`, `_SVG_DESC_RE` → constant), exercised by the determinism self-test.
+- **`runner/model.py`** (new) — `build_board_model(stats_json, pos_csv, d356_text)` and
+  `build_schematic_model(netlist_text, fmt)`. The existing `reduce_stats` / `reduce_pos` /
+  `reduce_ipcd356` / `reduce_netlist` / `reduce_netlist_kicadxml` in `runner/reduce.py`
+  are the raw parsers these compose; keep them (the standalone projections still use them)
+  and drop from `reduce_stats` everything §4.1 excludes.
+- **`runner/adapters/kicad.py`** — one new `cmd_model` that runs the two or three
+  `kicad-cli` exports into the same scratch `--out` dir and writes `<out>/model.json`
+  itself. Composition happens **in the adapter**, so a non-KiCad implementation can emit
+  its model directly without imitating three KiCad exports.
+- **`runner/engine.py`** — comparison mode is now chosen by `op`, not by a `compare`
+  field: `model`/`drc`/`erc`/`netlist`/`pos`/`ipcd356`/`stats` → JSON equality against the
+  expected file; `render` → normalized-SVG byte equality; everything else → exit only.
+  Delete `golden-file`/`golden-dir` handling, `_normalized_dir_tree`, and the s-expr /
+  gerber / drill / bom normalizers that only served them.
 
-### 5.3 Example `case.toml` snippets
+### 8.3 Failure-case machinery is unchanged
 
-**Board stats-json (L2 field compare):**
-```toml
-concept = "A populated two-layer board reports the correct pad/via/component inventory."
-doc     = "cli:pcb-export-stats"
-input   = "board.kicad_pcb"
-
-[[check]]
-op      = "export-stats"
-expect  = "ok"
-compare = "structured"          # reduce_stats: drop metadata, field/string compare
-golden  = "stats.reduced.json"  # stored canonical reduction, NOT the raw stats json
-```
-
-**Placement / pos (L2, printed-quantum tolerance):**
-```toml
-concept = "Footprint placement (x, y, rotation, side) is recovered exactly to the nm quantum."
-doc     = "cli:pcb-export-pos"
-input   = "board.kicad_pcb"
-
-[[check]]
-op      = "export-pos"
-expect  = "ok"
-compare = "structured"          # reduce_pos: refdes -> (x,y,rot,side); string-exact = 1 nm
-golden  = "pos.reduced.json"
-```
-
-**PCB copper SVG (L3 render):**
-```toml
-concept = "The front-copper layer renders to the expected vector geometry."
-doc     = "cli:pcb-export-svg"
-input   = "board.kicad_pcb"
-
-[[check]]
-op      = "export-svg-pcb"
-expect  = "ok"
-compare = "image"               # (a) normalized-SVG exact for KiCad-vs-KiCad
-golden  = "render-F_Cu.svg"     # reference SVG, per KiCad version
-args    = ["--layers", "F.Cu"]  # per-case layer selection (DESIGN §2b)
-```
+`OK`/`REJECT`/`CRASH` classification ([DL-0013]), the positive control, and the
+`known_divergence` strict-xfail layer ([DL-0018]) are untouched by this revision.
 
 ---
 
-## 6. Cross-implementation semantics
+## 9. Decisions
 
-Restating [DL-0015] for the ladder: **L2 and L3 are the conformance signal for a second
-(non-KiCad) adapter; L1 byte-goldens remain a KiCad-version-regression signal.** A
-clean-room engine that parses correctly but formats its s-expr/gerbers/SVG differently must
-*not* light up the divergence ledger with formatting non-findings — it is judged on the
-portable subset (L0 exit + L2 reductions + L3 render), and an L1 diff that reduces to an
-identical L2/L3 projection is auto-classified formatting-only and kept out of the ledger.
-
-**How goldens work per layer:**
-- **L2** — the golden is the **stored canonical reduction** (`stats.reduced.json`,
-  `pos.reduced.json`, `board-net.reduced.json`, the net map, the DRC/ERC set), committed
-  under `golden/<version>/`, regenerated in the Docker Linux image ([DL-0016]). A second
-  adapter's output is reduced the same way and compared by membership/field. The reduction
-  *is* the contract shape a second adapter must satisfy.
-- **L3** — the golden is the **stored reference render**, per KiCad version: the normalized
-  reference **SVG** for mode `(a)` (KiCad-vs-KiCad exact), and/or a reference **PNG** for
-  mode `(b)` (cross-impl raster diff). Because both the KiCad SVG (§4.2) and the pinned
-  `resvg` raster (§4.3) are deterministic, the reference is stable to regenerate and review;
-  it re-baselines on a KiCad version bump exactly like every other golden (DESIGN §5).
-
----
-
-## 7. Decisions
-
-Ratified in [`DECISIONS.md`](DECISIONS.md): **[DL-0019]** (L2/L3 as first-class comparators),
-**[DL-0020]** (gerber-geometry ruled out; board copper covered by stats+pos+ipcd356+SVG),
-**[DL-0021]** (SVG rasterization method — hybrid normalized-SVG-exact + pinned-`resvg`
-cross-impl raster — and the tolerance policy).
-
----
-
-## 8. Build plan (for the implementing agent)
-
-Ordered **highest-value / lowest-effort first**. Each step lands a verb + a reduction (or
-compare mode) + at least one worked case + its Docker-regenerated golden, green in the
-`kicad/kicad:10.0.5` CI job before moving on. All goldens regenerated **inside the Docker
-Linux image** ([DL-0016]).
-
-1. **stats-json (L2)** — *highest value, lowest effort; no new dependency.*
-   - Verb `export-stats` in `verbs.py` + adapter `cmd_export_stats` + `_resolve_artifact`
-     branch.
-   - `reduce_stats(raw)` in `reduce.py`: drop `metadata`; keep `board`/`pads`/`vias`/
-     `components`; content-sort `drill_holes`. Wire into `engine._reduce_structured`.
-   - Case: `suites/board-parse/happy/0002-populated-board-stats/` (reuse a populated board
-     fixture — seed-and-`upgrade` per [DL-0011]) with the §5.3 stats snippet.
-   - Golden: `golden/10.0.5/stats.reduced.json` via `--regenerate` in Docker.
-   - Falsifiability: bump a pad/footprint in the fixture, watch `components`/`pads` go red.
-
-2. **pos (L2)** — *promote the existing verb; tiny reduction.*
-   - `reduce_pos(csv_text)` → `{refdes: {val,package,x,y,rot,side}}`; dispatch `export-pos`
-     to `structured`. (Keep the L1 `golden-file` path available for KiCad-regression.)
-   - Case: `suites/placement/happy/0001-two-footprint-placement/` (new `placement` suite,
-     or under `board-parse`) with the §5.3 pos snippet.
-   - Golden: `pos.reduced.json`. Falsifiability: rotate a footprint 90° in the fixture →
-     `rot` mismatch red.
-
-3. **ipcd356 (L2)** — *second, independent connectivity projection.*
-   - Verb `export-ipcd356` + adapter mapping (`pcb export ipcd356 -o <out>/board.d356`).
-   - `reduce_ipcd356(text)` → board net graph `{net: sorted[(refdes,pad)]}` (+ optional
-     test-point geometry map). Wire into `_reduce_structured`.
-   - Case: `suites/board-parse/happy/0003-board-net-graph/` asserting the board net graph
-     matches the schematic netlist's shape. Golden: `board-net.reduced.json`.
-   - Falsifiability: move a pad to another net in the fixture → membership red.
-
-4. **svg-image (L3)** — *needs a normalizer + a new compare mode; raster path deferred to
-   cross-impl.*
-   - Verbs `export-svg-pcb`/`-sch`/`-sym`/`-fp` (or one `export-svg` dispatching on suffix)
-     with the §5.1 pinned flags.
-   - `svg` normalizer in `normalize.py` (strip `<title>`/`<desc>`), added to the determinism
-     self-test. New `image` compare mode in `engine._compare_rich_output`: mode `(a)`
-     normalized-SVG byte-exact vs. a stored reference SVG.
-   - Case: `suites/board-parse/happy/0004-fcu-render/` with the §5.3 svg snippet; golden
-     `render-F_Cu.svg`. One `sch export svg` case likewise.
-   - Cross-impl raster mode `(b)`: pin `resvg` (exact version) into the CI image, add the
-     rasterize+SSIM/pixel-diff path and the load-bearing per-case threshold — needed only
-     when the **second adapter** (M7) lands, so schedule it there, not in the KiCad-only
-     pass.
-
-5. **gerber-geometry** — *nothing to build* (ruled out, §3.6 / [DL-0020]). Board copper is
-   covered by steps 1–4 (stats + pos + ipcd356 + SVG) plus the existing L1 gerber
-   `golden-dir`. Record the decision; revisit only if a concrete second-adapter Gerber-
-   native need appears.
-
-**Suggested landing order in the roadmap:** steps 1–3 slot naturally beside M2/M3 (they
-are `structured` reductions like netlist/DRC); step 4a beside M5 (library SVG); step 4b with
-M7 (second adapter). Symbol/footprint L2 pin/pad inventories (§2) follow the same
-`structured` template and can piggyback on M5.
+[DL-0022] (composite `model` as the default; single projections opt-in),
+[DL-0023] (`golden` → `expected`, `expect` → `outcome`, `compare` deleted),
+[DL-0024] (the byte-comparison layer deleted, and the gerber/drill gap that follows).
+Earlier: [DL-0020] (no structural gerber reduction), [DL-0021] (SVG method).

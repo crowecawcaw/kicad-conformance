@@ -1,53 +1,52 @@
-# Test-case format — authoring spec
+# Test-case format — how to write a case
 
-This is the contract for what a test case *is* on disk. It is the most important doc for
-goal #1 (documentation) and goal #3 (AI-agent readability): the format is designed so a
-directory listing reads like a coverage map and each case is a self-contained worked
-example. Architecture context is in [`DESIGN.md`](DESIGN.md); rationale in
+A case is **one input file, one recorded correct answer**. This document is the contract
+for what that looks like on disk. Architecture context is in [`DESIGN.md`](DESIGN.md);
+what actually gets compared is in [`VALIDATION.md`](VALIDATION.md); rationale is in
 [`DECISIONS.md`](DECISIONS.md).
 
 ---
 
-## 1. The format decision: tiny per-case manifest, not filename-only
+## 1. The shape of a case
 
-The OpenJobDescription prior art encodes the entire expectation in the filename
-(`.invalid`) plus an optional inline `expected:` block, with no side-car manifest. That
-works there because **every case is the same operation** — validate one template, or run
-one job. It does not work here, and we deliberately diverge:
+```
+suites/board-parse/happy/0002-populated-board/
+├── case.toml                    # what to run, and what the answer should be
+├── board.kicad_pcb              # the input
+└── expected/
+    └── 10.0.5/                  # keyed by KiCad version
+        └── model.json           # the recorded correct answer
+```
 
-- KiCad operations are **diverse** (`parse-pcb`, `drc`, `export-gerbers`, `netlist`, …).
-  A filename can't say *which verb* to run.
-- Some outputs are **multi-file** (gerbers = one file per layer + a job file). A single
-  `.golden` sibling can't hold them.
-- Goldens are **per KiCad version**. Filename encoding can't express a version axis.
-- The owner explicitly wants **one input fixture to drive multiple operation-checks**.
+`case.toml` for that case, in full:
 
-So a case is a **directory with a tiny `case.toml` manifest** ([DL-0003]). We keep the
-manifest as small as openjd's implicit convention allows — the common single-check case
-is ~4 lines — and we **keep the openjd virtues** by encoding suite, polarity, and
-concept in the *directory path and slug*. TOML (not YAML) is chosen for comment support,
-whitespace-insensitivity, and consistency with the surrounding ecosystem
-(Cargo/pcb manifests are TOML). See [DL-0003].
+```toml
+concept = "A populated two-layer board: one SMD resistor, one through-hole capacitor, a track, a via."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
 
-Two case shapes, both first-class:
+[[check]]
+op       = "model"
+expected = "model.json"
+```
 
-- **Single-concept case (the default, and the norm for every verb suite).** One fixture,
-  one check, one behavior. The directory slug names the behavior; the manifest is a few
-  lines. Verb suites (`drc/`, `gerber/`, …) contain **only** single-verb cases, so their
-  directory listing stays a true coverage map for that verb.
-- **Multi-operation case (the exception) lives in a dedicated `integration/` suite
-  ([DL-0017]).** One fixture, several `[[check]]` entries across different verbs — used
-  when the *point being documented* is that one real board yields consistent DRC + fab
-  outputs. It does **not** live under any one verb's suite (that would hide, e.g., a DRC
-  check inside `board-parse/…` from someone browsing `drc/`). Instead:
-  1. multi-verb cases go under `suites/integration/`, keeping each verb suite pure; and
-  2. the runner emits a **generated per-verb coverage index** (`--coverage-proxy`,
-     [`DESIGN.md`](DESIGN.md) §7a) that lists **every** `[[check]]` by its `op` regardless
-     of which directory it lives in — so a `drc` check inside an `integration/` case still
-     shows up under `drc` in the coverage map.
+Six lines. One input, one output, one check. That is the default and the norm.
 
-  The directory tree remains "listing = coverage map" *per verb suite*, and the generated
-  index restores full cross-suite coverage visibility for the multi-op exception.
+**What an expected file is.** The **recorded correct answer** for one check: the output
+the reference tool (`kicad-cli`) produced when the case was written, generated once and
+then frozen in the repo. Other test frameworks call this a *snapshot*, a *baseline*, or a
+*golden file*. It is never hand-written — a hand-written answer records a human's belief
+about KiCad, a generated one records KiCad's behaviour, and only the second is a
+conformance reference. It lives under `expected/<kicad-version>/` because "correct" is
+defined by a specific KiCad release; when the pinned version changes, the answers are
+regenerated and the diff is reviewed. See [`VALIDATION.md`](VALIDATION.md) §2.
+
+**What `model.json` is.** One normalized JSON document describing everything the tool
+understood about the input: for a board, its counts, holes, footprint placement and net
+connectivity; for a schematic, its components and nets. The runner builds it by invoking
+several `kicad-cli` exports and merging them — the case author never sees the
+intermediate files. Full schema, with real examples, in [`VALIDATION.md`](VALIDATION.md)
+§4.
 
 ---
 
@@ -55,412 +54,312 @@ Two case shapes, both first-class:
 
 ```
 suites/<suite>/<happy|failure>/<NNNN-slug>/
-├── case.toml                 # required: the manifest
-├── <fixture files>           # required: the input(s), smallest that shows the concept
-└── golden/                   # only for cases with a golden-file/golden-dir/structured compare
-    ├── 10.0.5/               # per KiCad version (regenerated, oracle-authored)
-    │   └── <artifacts>
-    └── 11.0.0/               # added when KiCad 11 ships; fixtures unchanged
-        └── <artifacts>
+├── case.toml                 # required
+├── <input file(s)>           # required: the smallest artifact showing the concept
+└── expected/                 # only for checks that have a recorded answer
+    ├── 10.0.5/
+    │   └── <answer files>
+    └── 11.0.0/               # added when KiCad 11 ships; the input never changes
+        └── <answer files>
 ```
 
-Axes (mirroring openjd's three orthogonal axes, re-mapped to KiCad):
+Three axes:
 
-1. **`<suite>`** — the operation family = adapter verb group. One of:
-   `schematic-parse`, `board-parse`, `erc`, `drc`, `gerber`, `drill`, `netlist`,
-   `symbol-lib`, `footprint-lib` (and `step`/`bom` if ratified). This is what a reader
-   looking for "how does DRC behave" browses to. Each verb suite holds **only single-verb
-   cases**. Multi-verb cases live in the separate **`integration/`** suite ([DL-0017]);
-   their per-verb coverage is recovered from the runner's generated coverage index, not
-   from the directory tree.
-2. **`<happy|failure>`** — polarity. `happy/` = must succeed / must match golden;
-   `failure/` = the tool must reject the input. A directory listing self-partitions into
-   "must accept" and "must reject" at a glance.
-3. **KiCad version** — lives *inside* the case under `golden/<version>/`, not as a
-   top-level directory, because fixtures are shared across versions; only goldens differ.
+1. **`<suite>`** — the family the *input* belongs to: `schematic-parse`, `board-parse`,
+   `symbol-lib`, `footprint-lib`; plus the two findings families `drc` and `erc`; plus
+   `netlist` for cases about the netlist interchange format itself. `gerber/` and
+   `drill/` exist but are **empty** — a documented coverage gap
+   ([`VALIDATION.md`](VALIDATION.md) §7).
+2. **`<happy|failure>`** — polarity. `happy/` = the tool must accept the input and produce
+   the recorded answer; `failure/` = the tool must reject it. A listing self-partitions
+   into "must accept" and "must reject".
+3. **KiCad version** — inside the case, under `expected/<version>/`. Inputs are shared
+   across versions; only the answers differ.
 
-The large real-world **`corpus/`** (gitignored, pinned by `manifest.toml`) is a separate
-tree used only for the scheduled coverage sweep and broad regression — it is *not* part
-of `suites/` and is not hand-authored. See [`DESIGN.md`](DESIGN.md) §7 and [DL-0009].
+There is **no `integration/` suite**. It existed to hold cases where one input drove many
+verbs; the `model` verb *is* "one input, many projections", so the case simply lives in
+its input's own suite ([DL-0022], superseding [DL-0017]).
+
+The large real-world **`corpus/`** (gitignored) is a separate tree for the scheduled
+coverage sweep — not part of `suites/`, never hand-authored.
 
 ---
 
-## 3. Naming conventions (the directory listing IS the index)
+## 3. Naming — the directory listing is the index
 
 ```
 <NNNN>-<slug>/
 ```
 
-- **`<NNNN>`** — a 4-digit ordinal, unique within `<suite>/<polarity>/`, zero-padded so
-  listings sort stably. It is a stable handle, not a spec-section number (KiCad formats
-  have no stable section numbering the way OpenJD's schema does; the `doc =` field in the
-  manifest carries the format-doc citation instead).
-- **`<slug>`** — a hyphenated phrase that reads as a sentence fragment describing the one
-  behavior. `failure/` slugs name the defect.
-
-The slug should let a human read the behavior without opening the case:
+`<NNNN>` is a 4-digit ordinal, unique within `<suite>/<polarity>/`, zero-padded so
+listings sort stably. `<slug>` is a hyphenated phrase describing the one behaviour;
+`failure/` slugs name the defect.
 
 ```
-suites/board-parse/happy/0002-minimal-two-layer-board/
+suites/board-parse/happy/0001-minimal-two-layer-board/
+suites/board-parse/happy/0002-populated-board/
 suites/board-parse/failure/0001-unterminated-sexpr/
-suites/board-parse/failure/0002-unknown-layer-count/
 suites/schematic-parse/happy/0001-empty-root-sheet/
-suites/schematic-parse/failure/0003-missing-uuid-on-symbol/
+suites/schematic-parse/failure/0002-missing-uuid-on-symbol/
 suites/drc/happy/0004-clearance-violation-reported/
-suites/netlist/happy/0002-two-nets-one-shared-pin/
 ```
 
 Reading `suites/board-parse/failure/` top to bottom is a checklist of the board parser's
-rejection behavior. This is the docs-as-tests property, carried by the path instead of
-the filename.
+rejection behaviour.
 
 ---
 
 ## 4. `case.toml` schema
 
-### 4.1 Top-level (case) fields
+### 4.1 Case fields
 
 | Field | Req | Type | Meaning |
 |---|---|---|---|
-| `concept` | **yes** | string | One sentence: the single behavior this case documents. Shown in reports and reads as the case's headline. |
-| `doc` | recommended | string | Format-doc / behavior citation, e.g. `"sexpr-pcb#layers"` or `"cli:pcb-drc"`. Ties the case to documentation. |
-| `input` | yes* | string | The fixture path, relative to the case dir. Use `inputs` for multi-file input (a `.pretty` dir, a multi-sheet schematic). Exactly one of `input`/`inputs`. |
-| `inputs` | yes* | array\<string\> | Multi-file input (e.g. every `.kicad_sch` of a multi-sheet schematic, or the members of a `.pretty` dir). |
-| `root` | cond | string | **Required when `inputs` is a multi-sheet schematic** for a `netlist` check: names which entry of `inputs` is the **root sheet** handed to `sch export netlist`. The remaining `inputs` are subsheets; the adapter reproduces their relative on-disk layout in scratch so child-sheet resolution works. With a single `input`, that file is the root and `root` is omitted. |
-| `tags` | no | array\<string\> | Free-form labels for filtering (`["zones", "regression"]`). |
-| `min_kicad` | no | string | Skip (counted) below this oracle version, for behavior that doesn't exist in older KiCad. |
-| `skip_reason` | no | string | If present, the case is skipped-and-counted with this reason (e.g. an irreducibly nondeterministic fixture). |
-| `known_divergence` | no | table | Declares a known, tracked non-conformance of the **reference oracle itself** (e.g. the KiCad 10.0.5 PCB-parse segfault) as a **strict xfail** ([DL-0018](DECISIONS.md), [`DESIGN.md`](DESIGN.md) §3a). Default for every check in the case; a `[[check]]` may override with its own `known_divergence`. See §4.3 below. |
-| `[[check]]` | **yes** | table array | One or more checks (below). Order is preserved in reports. |
+| `concept` | **yes** | string | One sentence: the single behaviour this case documents. It is the case's headline in reports. |
+| `doc` | recommended | string | Format-doc citation, e.g. `"sexpr-pcb"` or `"cli:pcb-drc"`. |
+| `input` | yes\* | string | The input file, relative to the case dir. |
+| `inputs` | yes\* | array\<string\> | Multi-file input (a multi-sheet schematic, the members of a `.pretty` dir). Exactly one of `input`/`inputs`. |
+| `root` | cond | string | Required when `inputs` is a multi-sheet schematic: which entry is the root sheet. |
+| `control` | cond | string | Required for `failure/` cases: a defect-free sibling input that must be accepted, proving the case fails for the right reason ([DL-0013]). |
+| `min_kicad` | no | string | Skip (counted) below this oracle version. |
+| `skip_reason` | no | string | If present the case is skipped and counted, with this reason. |
+| `known_divergence` | no | table | Declares a known, tracked bug **in the reference oracle itself** as a strict xfail (§4.3, [DL-0018]). |
+| `[[check]]` | **yes** | table array | One or more checks. |
 
 ### 4.2 `[[check]]` fields
 
 | Field | Req | Type | Meaning |
 |---|---|---|---|
-| `op` | **yes** | string | The adapter verb: `parse-sch`, `parse-pcb`, `parse-sym`, `parse-fp`, `upgrade`, `erc`, `drc`, `netlist`, `export-gerbers`, `export-drill`, `export-pos`, `bom`, `version`. |
-| `expect` | **yes** | `"ok"` \| `"error"` | Exit-code polarity. `ok` = exit 0; `error` = non-zero. |
-| `error_contains` | no | string | (only `expect="error"`) substring that must appear on **stderr**. |
-| `error_contains_any` | no | array\<string\> | (only `expect="error"`) at least one substring must appear on stderr (wording escape hatch). |
-| `compare` | no | `"exit"` \| `"structured"` \| `"golden-file"` \| `"golden-dir"` \| `"image"` | Comparison mode ([`DESIGN.md`](DESIGN.md) §3, [`VALIDATION.md`](VALIDATION.md) §5.2 for `"image"`, the L3 SVG mode). Defaults to `"exit"` (polarity only). |
-| `golden` | cond | string | (required for `golden-file`/`golden-dir`/`structured`/`image`) artifact name resolved under `golden/<version>/`. A file for `golden-file`, a directory for `golden-dir`. For `structured` it names the stored **canonical reduction** (e.g. `drc.reduced.json`, or the net→node map) that `--regenerate` produced from the oracle — **not** the raw KiCad report; the runner reduces the adapter's output the same way and compares by membership ([`DESIGN.md`](DESIGN.md) §3b, [DL-0014]). For `image` it names the stored **reference SVG**, normalized the same way (`<title>`/`<desc>` stripped) before the byte-exact compare ([`VALIDATION.md`](VALIDATION.md) §4/§5.2). |
-| `control` | cond | string / table | (required for `failure` cases) the **positive control**: a defect-free sibling fixture (path) or an inline patch that removes the injected defect. The runner re-runs the same check against it and requires exit 0 — proving the case can actually fail ([`DESIGN.md`](DESIGN.md) §3a, [DL-0013]). |
-| `format` | no | string | Verb-specific output format override (e.g. a non-default netlist format). |
-| `args` | no | array\<string\> | Extra verb-specific flags passed through to the adapter, for cases exercising a specific option. Use sparingly; document why in `concept`. |
-| `name` | no | string | Short label when a case has several checks, so reports name each. |
-| `known_divergence` | no | table | Per-check override of the case-level `known_divergence` (same schema, §4.3). |
+| `op` | **yes** | string | What to run: `model`, `render`, `drc`, `erc`, `netlist`, `pos`, `ipcd356`, `stats`, `parse-pcb`, `parse-sch`, `parse-sym`, `parse-fp`, `version`. |
+| `expected` | cond | string | The recorded-answer file, resolved under `expected/<version>/`. Required for every `op` that has a recorded answer; omitted for `parse-*` (exit-only) checks. |
+| `outcome` | no | `"ok"` \| `"error"` | Must the tool accept or reject the input. **Defaults to the directory polarity** — `happy/` → `"ok"`, `failure/` → `"error"` — so happy cases never write it. Stating it is allowed; stating something that contradicts the directory is an authoring error the runner rejects. |
+| `error_contains` | no | string | (`outcome = "error"` only) substring that must appear on **stderr**. |
+| `error_contains_any` | no | array\<string\> | (`outcome = "error"` only) at least one substring must appear on stderr — the wording escape hatch for a second implementation. |
+| `format` | no | string | Output-format override for the verb, e.g. `format = "kicadxml"` on a `netlist`/`model` check of a schematic. |
+| `args` | no | array\<string\> | Extra flags for the verb, e.g. `args = ["--layers", "F.Cu"]` on a board `render`. Use sparingly; say why in `concept`. |
+| `name` | no | string | Short label when a case has more than one check, so reports can name each. |
+| `control` | no | string | Per-check override of the case-level `control`. |
+| `known_divergence` | no | table | Per-check override of the case-level marker (§4.3). |
+
+**There is no `compare` field.** The `op` decides how the answer is compared: `model`,
+`drc`, `erc`, `netlist`, `pos`, `ipcd356` and `stats` compare a normalized JSON document;
+`render` compares the SVG byte-exact after `<title>`/`<desc>` normalization; `parse-*`
+compares nothing but the exit code. A separate field would only have let a case declare a
+comparison its verb cannot perform ([DL-0023]).
+
+**There is no `golden` field.** It is `expected` — same thing, a name that needs no prior
+knowledge ([DL-0023]).
 
 **Rules the runner enforces:**
 
 - Exactly one of `input` / `inputs`.
-- `golden` is required iff `compare` is `golden-file`, `golden-dir`, or `structured`.
-- `error_contains*` is only valid with `expect = "error"`.
-- A `failure` case must contain at least one `expect = "error"` check; a `happy` case
-  must contain no `expect = "error"` check. (Polarity and directory must agree — this
-  catches a miscategorized case.)
-- If any `[[check]]` needs a golden, `golden/<version>/` must exist for the pinned
-  version, or the case is reported as **needs-regenerate**, not passed.
-- **A `CRASH` is never a pass.** The runner classifies each invocation as `OK` /
-  `REJECT` / `CRASH` ([`DESIGN.md`](DESIGN.md) §3a, [DL-0013]). Termination by signal, or
-  exit code `> 128` (128 + signal; on Windows, a fatal-exception status), is a `CRASH` —
-  reported as its own verdict and counted as a **failure of the case**, whether the case
-  is `happy` or `failure`. `expect = "error"` is satisfied **only** by a `REJECT` (a
-  bounded, graceful non-zero exit), never by a crash. Detection is by signal / `>128`
-  semantics, portable across Windows-native and Docker-Linux — the literal `139` is never
-  hard-coded.
-- **Every `failure` case must carry a positive control.** The runner runs the control
-  (defect-free sibling / inline patch, via the `control` field) through the same check and
-  requires exit 0. If the control does not flip to `OK`, the case is reported as
-  **not-evidence**, never passed — "a test that can't fail is not evidence." This is how a
-  schematic failure case (whose stderr is the undiscriminating `Failed to load schematic`)
-  proves the *specific* defect is what triggered the rejection.
-- **A declared `known_divergence` never changes the OK/REJECT/CRASH verdict itself** —
-  see §4.3 — it only reinterprets an already-computed, already-bad verdict that matches
-  the declaration, and only after any positive control has already passed.
+- `expected` is required for every op **except** the exit-only ones — `parse-*`,
+  `version`, `export-gerbers`, `export-drill` — and must not be set for those. (The two
+  fab-export verbs are exit-only because no comparator for their output exists:
+  [`VALIDATION.md`](VALIDATION.md) §7.)
+- A `failure/` case has at least one `outcome = "error"` check (usually by default) and a
+  `control`; a `happy/` case has none.
+- If a check needs an expected file, `expected/<pinned version>/<name>` must exist or the
+  case is reported **needs-regenerate**, never passed.
+- **A crash is never a pass.** Each invocation is classified `OK` / `REJECT` / `CRASH`
+  (termination by signal, or exit code > 128, detected portably — never a hard-coded
+  139). `outcome = "error"` is satisfied only by a `REJECT` ([DL-0013],
+  [`DESIGN.md`](DESIGN.md) §3a).
+- **Every failure case must be falsifiable.** The runner runs the `control` input through
+  the same check and requires it to reach `OK`. If it doesn't, the case is reported
+  **not-evidence**, never passed.
 
-### 4.3 `known_divergence` sub-schema (strict xfail, [DL-0018])
+### 4.3 `known_divergence` — strict xfail ([DL-0018])
 
-A `known_divergence` table — at case level (`[known_divergence]`, default for every
-check) or check level (`known_divergence = { ... }`, overrides the case default for that
-one check) — declares that the **reference oracle itself** is known to diverge from the
-behavior the case otherwise asserts, and that this is tracked, not silently tolerated:
+Unchanged by this revision. A case (or one check) may declare that the **reference oracle
+itself** is known to diverge from the behaviour the case asserts:
 
 | Field | Req | Type | Meaning |
 |---|---|---|---|
-| `reason` | **yes** | string | One line: why the oracle diverges (what actually happens instead of the desired behavior). Cite `docs/DIVERGENCES.md` for the full writeup. |
-| `kind` | **yes** | string | The category of divergence. Currently used: `"crash"` (the oracle segfaults/is signaled instead of a graceful rejection). Other kinds (e.g. `"reject-expected-accept"`) are reserved for future use as they come up. |
-| `tracking` | no | string | An upstream issue URL/id, or a placeholder like `"TODO: file upstream"` until one exists. |
+| `reason` | **yes** | string | One line: what actually happens instead. Cite `docs/DIVERGENCES.md`. |
+| `kind` | **yes** | string | The category — currently `"crash"`. |
+| `tracking` | no | string | Upstream issue URL/id, or `"TODO: file upstream"`. |
 
-**Semantics (strict xfail) — a layer on top of the OK/REJECT/CRASH verdict, never a
-replacement for it:**
+If the actual verdict matches the declared `kind`, the check scores **`XFAIL`** and the
+build stays green. If the check instead comes back clean — the oracle got fixed — that is
+an **`XPASS`**, which **fails the build** until a human retires the marker and updates the
+ledger. A bad verdict that is *not* the declared kind is an ordinary `FAIL`/`CRASH`.
 
-- If the check's actual verdict matches the declared `kind` (e.g. the runner classifies
-  the invocation as `CRASH` and `kind = "crash"`), the check is scored **`XFAIL`**
-  ("known divergence") — not a failure; the build stays green.
-- If the same check instead reaches its normally-desired outcome (a clean `OK`/graceful
-  `REJECT` — the oracle got fixed), that is an **`XPASS`**, and XPASS **fails the build**
-  with a message pointing at `docs/DIVERGENCES.md`: a strict xfail must not be allowed to
-  rot, so this forces the ledger and the `known_divergence` marker to be updated by hand
-  rather than silently going stale.
-- A check whose verdict is bad but does **not** match the declared `kind` (some other,
-  undeclared failure) is reported as an ordinary `FAIL`/`CRASH` — the marker only covers
-  the specific divergence it names.
+---
 
-Worked snippet (the shape used by `board-parse/failure/0001-unterminated-sexpr`, where
-`kicad-cli` 10.0.5 prints the correct `Expecting …` message and then segfaults instead of
-rejecting cleanly):
+## 5. Three fully-worked examples
+
+### 5.1 A board, validated by its model (the default shape)
+
+`suites/board-parse/happy/0002-populated-board/case.toml`:
 
 ```toml
-concept = "A board whose first token is malformed is rejected with a parse-position error."
+concept = "A populated two-layer board: one SMD resistor, one through-hole capacitor, a track, a via."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+
+[[check]]
+op       = "model"
+expected = "model.json"
+```
+
+On disk:
+
+```
+suites/board-parse/happy/0002-populated-board/
+├── case.toml
+├── board.kicad_pcb
+└── expected/
+    └── 10.0.5/
+        └── model.json
+```
+
+**What the runner does.** Copies `board.kicad_pcb` to a scratch directory (KiCad writes
+side-effect files next to a board it merely reads), asks the adapter for the `model`
+projection — which internally runs `pcb export stats`, `pcb export pos` and
+`pcb export ipcd356` and merges them — and compares the resulting JSON to
+`expected/10.0.5/model.json`. Exit must be 0.
+
+**What the recorded answer looks like** (abridged; the verbatim file is in
+[`VALIDATION.md`](VALIDATION.md) §4.3):
+
+```json
+{
+  "counts": { "footprints": {"smd": 1, "tht": 1, "total": 2, "unspecified": 0}, … },
+  "drill_holes": [ {"count": 1, "source": "Via", "x_size": "0.4000 mm", …}, … ],
+  "has_outline": true,
+  "kind": "board",
+  "min_track_width": "0.2500 mm",
+  "nets": { "GND": ["C1.1", "R1.2"], "NET-1": ["C1.2", "R1.1"] },
+  "placement": { "R1": {"x": "20.000000", "y": "-20.000000", "rotation": "90.000000", "side": "top", …}, … }
+}
+```
+
+Move a pad to another net, rotate a footprint, delete a track — each is a one- or
+two-line diff in this file.
+
+**Why there is no separate `parse-pcb` check here.** A model that matches already proves
+the file parsed; asserting "it loaded" beside "it loaded into exactly this" is noise.
+`parse-*` checks are for `failure/` cases.
+
+### 5.2 A malformed board, rejected (a failure case)
+
+`suites/board-parse/failure/0001-unterminated-sexpr/case.toml`:
+
+```toml
+concept = "A board whose (version ...) form is unterminated is rejected with a parse-position error."
 doc     = "sexpr-intro"
 input   = "board.kicad_pcb"
-control = "control.kicad_pcb"
+control = "control.kicad_pcb"     # the same board with the paren restored -> must be accepted
 
+# KNOWN ORACLE DIVERGENCE (DL-0018, docs/DIVERGENCES.md): kicad-cli 10.0.5 prints the
+# correct "Expecting" message and then segfaults instead of exiting gracefully. Today's
+# CRASH scores XFAIL; if a future KiCad rejects this cleanly the check XPASSes and fails
+# the build until the ledger and this marker are updated.
 [known_divergence]
 kind     = "crash"
-reason   = "kicad-cli 10.0.5 segfaults after printing the correct 'Expecting' message instead of exiting gracefully -- see docs/DIVERGENCES.md."
+reason   = "kicad-cli 10.0.5 segfaults (SIGSEGV) after printing the correct 'Expecting' parse-position message on this truncated board -- see docs/DIVERGENCES.md."
 tracking = "TODO: file upstream"
 
 [[check]]
 op             = "parse-pcb"
-expect         = "error"          # the DESIRED behavior -- unchanged by the marker above
-error_contains = "Expecting"
+outcome        = "error"
+error_contains = "Expecting"      # e.g. "Expecting ')' ... line 3, offset 2."
 ```
 
-The case still asserts the behavior we actually want (a graceful `Expecting …` rejection);
-`known_divergence` only records that *today's* oracle can't deliver it, so the suite stays
-honest (the assertion is unchanged) and the build stays green (the known-bad verdict is
-scored `XFAIL`, not `FAIL`/`CRASH`).
+No `expected/` directory: a failure case asserts only that the input is rejected, and
+that the rejection mentions the right thing. Two files sit beside the manifest — the
+malformed `board.kicad_pcb` and the well-formed `control.kicad_pcb` — because a test that
+cannot fail is not evidence: the runner requires the control to be **accepted** through
+the same check.
 
----
+`outcome = "error"` is written out here even though `failure/` already implies it, because
+in a failure case the polarity *is* the point.
 
-## 5. Fully-worked examples
+**Schematic failure cases differ.** KiCad's schematic loader collapses every defect —
+unterminated, truncated, unknown token, missing `(version)` — to the same
+`Failed to load schematic`, with no position. So a schematic failure case pins that coarse
+message and leans entirely on the control to prove *which* defect fired. The PCB loader
+does surface a position, so a PCB case may assert the real `Expecting` substring.
 
-These are illustrations written verbatim as they would appear on disk. **They are not
-files in the repo yet** — they document the format.
+### 5.3 A drawing, validated by its render (an opt-in projection)
 
-### 5.1 Happy path — schematic parse
-
-`suites/schematic-parse/happy/0001-empty-root-sheet/case.toml`:
+Use a single projection when that projection **is** the concept — here, the actual drawn
+copper, which the model does not capture (it records placement and connectivity, not
+geometry).
 
 ```toml
-concept = "An empty root schematic sheet (title block only, no symbols) parses and canonicalizes."
-doc     = "sexpr-schematic"
-
-[[check]]
-op      = "parse-sch"
-expect  = "ok"
-compare = "golden-file"
-golden  = "canonical.kicad_sch"   # KiCad's `sch upgrade --force` output, normalized
-```
-
-`suites/schematic-parse/happy/0001-empty-root-sheet/sheet.kicad_sch` (the fixture — a
-minimal but real schematic):
-
-```
-(kicad_sch
-  (version 20250114)
-  (generator "eeschema")
-  (generator_version "10.0.5")
-  (uuid "6f3a1c2e-0000-4000-8000-000000000001")
-  (paper "A4")
-  (lib_symbols)
-  (sheet_instances
-    (path "/" (page "1"))
-  )
-)
-```
-
-On disk, alongside those two files:
-`suites/schematic-parse/happy/0001-empty-root-sheet/golden/10.0.5/canonical.kicad_sch`
-— produced by `python -m runner --regenerate`, with `(generator_version …)` normalized
-per [`DESIGN.md`](DESIGN.md) §4.
-
-**What the runner does:** copies `sheet.kicad_sch` to a scratch dir, runs
-`kicad-cli sch upgrade --force <scratch>`, reads the rewritten file back, normalizes it,
-and asserts byte-equality against the golden. Exit must be 0.
-
-### 5.2 Failure path — malformed s-expression
-
-`suites/schematic-parse/failure/0001-unterminated-sexpr/case.toml`:
-
-```toml
-concept = "A schematic with an unterminated s-expression is rejected by the parser."
-doc     = "sexpr-intro"
-input   = "sheet.kicad_sch"
-control = "control.kicad_sch"   # same sheet with the paren restored → must exit 0
-
-[[check]]
-op             = "parse-sch"
-expect         = "error"
-error_contains = "Failed to load schematic"   # the ONLY message KiCad's sch loader emits
-```
-
-**Why `"Failed to load schematic"` and not `"Expecting"`:** empirically (KiCad 10.0.5)
-`sch upgrade` emits the *same* generic `Failed to load schematic` (exit 3) for **every**
-malformed schematic — unterminated, truncated, unknown token, missing `(version)`. The
-schematic loader **cannot discriminate which defect fired** via stderr, so a schematic
-failure case pins this coarse message and leans on the **positive control** (`control`
-above) to prove that *this* defect — not something incidental — is what triggers the
-rejection. (A PCB parse-failure case is different: the PCB loader surfaces position, so it
-*may* assert the real `Expecting '('` substring — see §5.2b and [`DESIGN.md`](DESIGN.md)
-§2c.)
-
-`suites/schematic-parse/failure/0001-unterminated-sexpr/sheet.kicad_sch` (the fixture —
-note the missing closing paren on `lib_symbols`, which is the entire defect):
-
-```
-(kicad_sch
-  (version 20250114)
-  (generator "eeschema")
-  (uuid "6f3a1c2e-0000-4000-8000-000000000002")
-  (paper "A4")
-  (lib_symbols
-  (sheet_instances
-    (path "/" (page "1"))
-  )
-)
-```
-
-No `golden/` directory — a failure case asserts only that the tool rejects the input.
-For the schematic side stderr cannot say *which* defect fired, so the positive control
-(`control.kicad_sch`, the same sheet with the paren restored → exit 0) is what proves the
-case fails for the right reason. `error_contains` is a loose substring so a second adapter
-with different wording still conforms; use `error_contains_any` if even that is too tight.
-
-### 5.2b Failure path — PCB parse error (the loader *does* surface position)
-
-Unlike schematic, the PCB loader reports the parse position, so a PCB failure case may
-assert the specific substring. `suites/board-parse/failure/0001-unterminated-sexpr/case.toml`:
-
-```toml
-concept = "A board whose first token is malformed is rejected with a parse-position error."
-doc     = "sexpr-intro"
+concept = "The front-copper layer draws the SMD pad, the track and the via."
+doc     = "cli:pcb-export-svg"
 input   = "board.kicad_pcb"
-control = "control.kicad_pcb"          # well-formed board → must exit 0
 
 [[check]]
-op             = "parse-pcb"
-expect         = "error"
-error_contains = "Expecting"           # PCB surfaces e.g. "Expecting '(' … line 2, offset 1."
+name     = "render"
+op       = "render"
+expected = "render-F_Cu.svg"
+args     = ["--layers", "F.Cu"]    # per-case layer selection
 ```
 
-**Crash caveat (observed, 10.0.5).** On this oracle version, `pcb upgrade` on a truncated
-board prints the good `Expecting '('` message and then **segfaults** (exit 139 native
-Windows / `SIGSEGV` Docker Linux). That is a `CRASH`, not a clean `REJECT` — and a
-`CRASH` never satisfies `expect = "error"` ([`DESIGN.md`](DESIGN.md) §3a, [DL-0013]). This
-case therefore documents a **known oracle bug** filed in the divergence/known-issues
-ledger; asserting the real `Expecting` substring means that when a future KiCad rejects
-*cleanly* (a `REJECT`, no crash), the case starts passing without any edit. Until then the
-runner reports it as a crash against KiCad, not a green conformance pass.
+The runner exports the layer to SVG with determinism pinned at the source
+(`--page-size-mode 2`, `--exclude-drawing-sheet`, `--black-and-white`), normalizes the one
+nondeterministic line (`<title>`, which carries the filename and wall-clock date), and
+compares byte-exact. Zero tolerance — KiCad's SVG path geometry is byte-stable
+run-to-run ([`VALIDATION.md`](VALIDATION.md) §6).
 
-### 5.3 One board fixture driving DRC + gerber-export (multi-operation, `integration/` suite)
-
-This is the "single input, multiple outputs" shape the owner asked for. Because it spans
-several verbs it lives in the dedicated **`integration/`** suite ([DL-0017]) — *not* under
-`board-parse/` — so the per-verb suites stay pure; its `drc`/`gerber` checks are recovered
-in the runner's generated per-verb coverage index ([`DESIGN.md`](DESIGN.md) §7a).
-
-`suites/integration/happy/0007-board-with-clearance-and-fab-output/case.toml`:
+In the repo this check rides on the same case as §5.1 rather than duplicating the board
+fixture into a second directory:
 
 ```toml
-concept = "A small routed two-layer board: DRC is clean and gerber output is stable."
+concept = "A populated two-layer board: one SMD resistor, one through-hole capacitor, a track, a via."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
-tags    = ["integration", "fab"]
 
-# 1) The board must load and re-save canonically.
 [[check]]
-name    = "parse"
-op      = "parse-pcb"
-expect  = "ok"
-compare = "golden-file"
-golden  = "canonical.kicad_pcb"
+name     = "model"
+op       = "model"
+expected = "model.json"
 
-# 2) DRC must report the exact same violation set as KiCad (here: none).
 [[check]]
-name    = "drc"
-op      = "drc"
-expect  = "ok"
-compare = "structured"                 # semantic reduction of the DRC JSON
-golden  = "drc.reduced.json"           # the stored CANONICAL REDUCTION, not raw KiCad JSON
-
-# 3) Gerber export must match the normalized golden file set (per-layer + job file).
-#    The layer set is PINNED so the golden-dir membership is deterministic (see DESIGN §2b).
-[[check]]
-name    = "gerbers"
-op      = "export-gerbers"
-expect  = "ok"
-compare = "golden-dir"
-golden  = "gerbers/"                    # RS-274X files, G04 headers + .gbrjob date normalized
-args    = ["--layers", "F.Cu,B.Cu,Edge.Cuts", "--no-protel-ext"]
+name     = "render"
+op       = "render"
+expected = "render-F_Cu.svg"
+args     = ["--layers", "F.Cu"]
 ```
 
-On-disk tree for this one case:
-
-```
-suites/integration/happy/0007-board-with-clearance-and-fab-output/
-├── case.toml
-├── board.kicad_pcb
-└── golden/
-    └── 10.0.5/
-        ├── canonical.kicad_pcb
-        ├── drc.reduced.json           # canonical reduction (the structured golden)
-        └── gerbers/                   # membership fixed by the pinned --layers set:
-            ├── board-F_Cu.gbr         #   F.Cu    (KiCad ext via --no-protel-ext)
-            ├── board-B_Cu.gbr         #   B.Cu
-            ├── board-Edge_Cuts.gbr    #   Edge.Cuts
-            └── board-job.gbrjob       #   JSON job file (CreationDate normalized, DESIGN §4)
-```
-
-Without the pinned `--layers`, a default export of this 2-layer board would emit **seven**
-files (adding `F_Courtyard`/`B_Courtyard`/`Margin`, and Protel `.gtl/.gbl/.gm1`
-extensions) — membership would depend on board state and the golden would churn. Pinning
-the layer set makes the golden-dir contents an explicit, stable case parameter.
-
-One fixture, three goldens, three verbs — no fixture duplication. If KiCad 11 changes
-the canonical form or gerber header, `--regenerate` adds a sibling `golden/11.0.0/`
-without touching `board.kicad_pcb`.
+**The rule about second checks.** Adding a check is right when it documents a genuinely
+different concept about the *same* input (here: what the board *means* vs. what it
+*draws*). Copying the input into a second case directory to assert a second projection is
+wrong — that is fixture duplication, and it is what the `model` verb exists to prevent.
 
 ---
 
-## 6. Where each behavior fires (parse-time vs run-time)
-
-Decide early where a rule triggers, so the case lands in the right suite and asserts the
-right stage (openjd's `.invalid` vs `.invalid.test` distinction):
+## 6. Where a behaviour fires — parse-time vs rule-time
 
 - **Parse/load-time** failures (malformed s-expr, unknown token, bad layer count) →
-  `schematic-parse` / `board-parse` `failure/`, verb `parse-*`, `expect = "error"`.
-- **Rule-time** findings (a clearance violation, an unconnected net) are *not* failures —
-  the tool exits 0 and *reports* them. These are `drc`/`erc` `happy/` cases with
-  `compare = "structured"`; the violation is data in the golden, asserted by membership.
-  Do **not** pass `--exit-code-violations`.
+  `schematic-parse` / `board-parse` `failure/`, `op = "parse-*"`, rejected.
+- **Rule-time** findings (a clearance violation, an unconnected net) are **not** failures:
+  the tool exits 0 and *reports* them. Those are `drc`/`erc` `happy/` cases whose expected
+  file is the finding set. Never pass `--exit-code-violations`.
 
 ---
 
 ## 7. Contributor checklist
 
-- [ ] Chosen the right **suite** (operation family) and **polarity** (`happy`/`failure`).
-      **Single-verb → its verb suite; multi-verb → `integration/`** ([DL-0017]).
-- [ ] Created `suites/<suite>/<polarity>/<NNNN>-<slug>/` with the next free ordinal.
-- [ ] Fixture is the **smallest** artifact that demonstrates **exactly one** concept.
-- [ ] `case.toml` has a one-sentence `concept` and a `doc` citation.
-- [ ] Each `[[check]]` names the correct `op`, `expect`, and `compare`.
-- [ ] Multi-sheet netlist input: set `root =` to the root sheet inside `inputs`.
-- [ ] Gerber/golden-dir check: **pinned the layer set** (`args = ["--layers", …,
-      "--no-protel-ext"]`) so golden-dir membership is deterministic.
-- [ ] Polarity agrees with the directory (`failure/` ⇒ at least one `expect="error"`;
-      `happy/` ⇒ none).
-- [ ] For rich-output checks: ran `python -m runner --regenerate <case>` **inside the
-      `kicad/kicad:10.0.5` Docker image** (LF/platform-canonical goldens, [DL-0016]),
-      **inspected the diff**, and committed `golden/<version>/…`.
-- [ ] `structured` check: committed the **canonical reduction** (`*.reduced.json` / net
-      map), not the raw KiCad report.
+- [ ] Right **suite** (the input's family) and **polarity** (`happy`/`failure`).
+- [ ] `suites/<suite>/<polarity>/<NNNN>-<slug>/` with the next free ordinal.
+- [ ] The input is the **smallest** artifact that shows **exactly one** concept, and is
+      reproducible from the CLI without the GUI ([DL-0011]).
+- [ ] One-sentence `concept`, plus a `doc` citation.
+- [ ] Default to **one `model` check**. A second check only for a genuinely different
+      concept about the same input; a second *case* only for a different input.
+- [ ] Generated the expected file with `python -m runner --regenerate <case>` **inside the
+      `kicad/kicad:10.0.5` Docker image** (LF / platform-canonical, [DL-0016]), **read the
+      diff**, and committed `expected/10.0.5/…`.
 - [ ] Ran `python -m runner <case>` → passes.
-- [ ] For a failure case: added a **positive control** (`control =`) and confirmed the
-      case fails for the **right reason** — `error_contains` present *and* removing the
-      defect makes the same check exit 0. A test that can't fail is not evidence.
-- [ ] Confirmed the failure is a **graceful rejection, not a `CRASH`** — the runner did
-      not report a signal / exit `>128`; if KiCad crashes on your fixture, that is a known
-      oracle bug for the ledger, not a passing conformance case ([DL-0013]).
-- [ ] For a new normalizer: proved it **load-bearing** (determinism test goes red when
-      the normalizer is disabled).
+- [ ] **Broke the input and watched it go red.** Move a pad to another net, rotate a
+      footprint, delete a track — confirm the diff points at the change. A test that
+      cannot fail is not evidence.
+- [ ] Failure case: added the `control` input, confirmed the defect-free variant is
+      accepted, and asserted `error_contains`.
+- [ ] Failure case: confirmed the rejection is **graceful, not a crash** — a crash is
+      never a pass; it is a ledger entry ([DL-0013], `docs/DIVERGENCES.md`).
