@@ -4,6 +4,10 @@
 Each entry: the verb name, the kicad-cli subcommand(s) it maps to, and a short mapping
 note (matches the DESIGN §2 table). This is *documentation-as-data* — the adapter and
 the coverage report both read it instead of each keeping their own copy.
+
+DL-0022/DL-0023/DL-0024 retired `upgrade`/`bom` and the four `export-svg-*` verbs
+(collapsed into one `render`, dispatching on the input suffix); `export-pos`/
+`export-stats`/`export-ipcd356` lost their `export-` prefix; `model` is new.
 """
 from __future__ import annotations
 
@@ -14,83 +18,63 @@ VERB_TABLE: dict[str, dict[str, str]] = {
     },
     "parse-sch": {
         "cli": "sch upgrade --force",
-        "note": "loads + canonicalizes; exit polarity is what `parse-*` cares about",
+        "note": "loads + canonicalizes on a scratch copy; exit polarity only (DL-0024)",
     },
     "parse-pcb": {
         "cli": "pcb upgrade --force",
-        "note": "loads + canonicalizes; exit polarity is what `parse-*` cares about",
+        "note": "loads + canonicalizes on a scratch copy; exit polarity only (DL-0024)",
     },
     "parse-sym": {
         "cli": "sym upgrade --force -o <out>",
-        "note": "library-file upgrade",
+        "note": "library-file upgrade; exit polarity only",
     },
     "parse-fp": {
         "cli": "fp upgrade --force -o <out> <in .pretty dir>",
-        "note": "footprint LIBRARY (.pretty dir) upgrade, never a lone .kicad_mod",
+        "note": "footprint LIBRARY (.pretty dir) upgrade, never a lone .kicad_mod; exit polarity only",
     },
-    "upgrade": {
-        "cli": "(same subcommand as the matching parse-*, golden-compared)",
-        "note": "canonical re-save, compared byte-exact after normalization",
+    "model": {
+        "cli": "composes pcb export stats+pos+ipcd356 (board) or sch export netlist (schematic)",
+        "note": "one merged model.json (VALIDATION §4); the default check for a happy board/schematic case",
     },
     "erc": {
         "cli": "sch erc --format json --severity-all -o <out>/erc.json",
-        "note": "structured violation set",
+        "note": "normalized violation set",
     },
     "drc": {
         "cli": "pcb drc --format json --units mm --severity-all -o <out>/drc.json",
-        "note": "structured violation set",
+        "note": "normalized violation set",
     },
     "netlist": {
-        "cli": "sch export netlist --format kicadsexpr -o <out>/netlist.net",
-        "note": "structured net -> node membership",
+        "cli": "sch export netlist --format kicadsexpr|kicadxml -o <out>/netlist.net",
+        "note": "net -> node membership (opt-in projection, VALIDATION §5)",
+    },
+    "pos": {
+        "cli": "pcb export pos --format csv --side both --units mm -o <out>/pos.csv",
+        "note": "placement rows (opt-in projection); printed-quantum tolerance, VALIDATION §4.1/§5",
+    },
+    "stats": {
+        "cli": "pcb export stats --format json -o <out>/stats.json",
+        "note": "inventory report (opt-in projection): drop metadata + computed float geometry, VALIDATION §4.1",
+    },
+    "ipcd356": {
+        "cli": "pcb export ipcd356 -o <out>/board.d356",
+        "note": "board net->pad membership graph (opt-in projection), VALIDATION §4.1/§5",
+    },
+    "render": {
+        "cli": "pcb|sch|sym|fp export svg (dispatches on input suffix; --layers from args for pcb)",
+        "note": "normalized-SVG byte-exact, VALIDATION §6",
     },
     "export-gerbers": {
         "cli": "pcb export gerbers --layers <pinned> --no-protel-ext -o <out>/",
-        "note": "golden-dir; layer set is a per-case parameter (DESIGN §2b)",
+        "note": "exit only -- no comparator exists (VALIDATION §7.1, DL-0024)",
     },
     "export-drill": {
         "cli": "pcb export drill --generate-report --report-path <r> -o <out>/",
-        "note": "golden-dir (Excellon + report)",
-    },
-    "export-pos": {
-        "cli": "pcb export pos --format csv --side both --units mm -o <out>/pos.csv",
-        "note": "L2-reducible (structured, printed-quantum tolerance, VALIDATION §3.4); "
-                "the older golden-file compare mode remains available for KiCad-regression",
-    },
-    "export-stats": {
-        "cli": "pcb export stats --format json -o <out>/stats.json",
-        "note": "structured (VALIDATION §3.3): drop metadata, field/string compare",
-    },
-    "export-ipcd356": {
-        "cli": "pcb export ipcd356 -o <out>/board.d356",
-        "note": "structured (VALIDATION §3.5): board net->pad membership graph",
-    },
-    "export-svg-pcb": {
-        "cli": "pcb export svg --layers <L> --page-size-mode 2 --exclude-drawing-sheet "
-               "--black-and-white -o <out>/render.svg",
-        "note": "image (L3, VALIDATION §4): normalized-SVG byte-exact; <L> is a per-case "
-                "`args` parameter like the gerber layer set (DESIGN §2b)",
-    },
-    "export-svg-sch": {
-        "cli": "sch export svg --no-background-color -o <out>/ (writes <stem>.svg)",
-        "note": "image (L3)",
-    },
-    "export-svg-sym": {
-        "cli": "sym export svg --black-and-white -o <out>/ (writes <sym>.svg)",
-        "note": "image (L3) -- deferred case-authoring to M5 (library SVG); verb implemented now",
-    },
-    "export-svg-fp": {
-        "cli": "fp export svg --black-and-white -o <out>/ (writes <fp>.svg; input is a "
-               ".pretty dir, never a lone .kicad_mod)",
-        "note": "image (L3) -- deferred case-authoring to M5 (library SVG); verb implemented now",
+        "note": "exit only -- no comparator exists (VALIDATION §7.2, DL-0024)",
     },
     "export-step": {
         "cli": "pcb export step",
         "note": "DEFERRED (DL-0012) -- reserved, unused",
-    },
-    "bom": {
-        "cli": "sch export bom -o <out>/bom.csv",
-        "note": "golden-file",
     },
 }
 

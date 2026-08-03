@@ -1,0 +1,14 @@
+concept = "A populated two-layer board: one SMD resistor, one through-hole capacitor, a track, a via."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+
+[[check]]
+name     = "model"
+op       = "model"
+expected = "model.json"
+
+[[check]]
+name     = "render"
+op       = "render"
+expected = "render-F_Cu.svg"
+args     = ["--layers", "F.Cu"]

@@ -1,0 +1,78 @@
+{
+  "counts": {
+    "footprints": {
+      "smd": 1,
+      "tht": 1,
+      "total": 2,
+      "unspecified": 0
+    },
+    "pads": {
+      "castellated": 0,
+      "connector": 0,
+      "npth": 0,
+      "press_fit": 0,
+      "smd": 2,
+      "through_hole": 2
+    },
+    "vias": {
+      "blind": 0,
+      "buried": 0,
+      "micro": 0,
+      "through": 1
+    }
+  },
+  "drill_holes": [
+    {
+      "count": 1,
+      "plated": true,
+      "shape": "Round",
+      "source": "Via",
+      "start_layer": "F.Cu",
+      "stop_layer": "B.Cu",
+      "x_size": "0.4000 mm",
+      "y_size": "0.4000 mm"
+    },
+    {
+      "count": 2,
+      "plated": true,
+      "shape": "Round",
+      "source": "Pad",
+      "start_layer": "F.Cu",
+      "stop_layer": "B.Cu",
+      "x_size": "0.8000 mm",
+      "y_size": "0.8000 mm"
+    }
+  ],
+  "has_outline": true,
+  "kind": "board",
+  "min_drill_diameter": "0.4000 mm",
+  "min_track_width": "0.2500 mm",
+  "nets": {
+    "GND": [
+      "C1.1",
+      "R1.2"
+    ],
+    "NET-1": [
+      "C1.2",
+      "R1.1"
+    ]
+  },
+  "placement": {
+    "C1": {
+      "package": "C_Disc_D3.0mm_W1.6mm_P2.50mm",
+      "rotation": "180.000000",
+      "side": "bottom",
+      "value": "100n",
+      "x": "40.000000",
+      "y": "-30.000000"
+    },
+    "R1": {
+      "package": "R_0805_2012Metric",
+      "rotation": "90.000000",
+      "side": "top",
+      "value": "1k",
+      "x": "20.000000",
+      "y": "-20.000000"
+    }
+  }
+}

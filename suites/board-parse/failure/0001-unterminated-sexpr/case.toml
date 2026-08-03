@@ -15,5 +15,5 @@ tracking = "TODO: file upstream"
 
 [[check]]
 op             = "parse-pcb"
-expect         = "error"
+outcome        = "error"
 error_contains = "Expecting"           # PCB surfaces e.g. "Expecting ')' ... line 3, offset 2."

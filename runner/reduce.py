@@ -1,15 +1,18 @@
-"""Canonical reductions for `compare = "structured"` checks (DESIGN.md §3b, DL-0014).
+"""Canonical reductions for the JSON-comparison ops (`model`, `drc`, `erc`, `netlist`,
+`pos`, `ipcd356`, `stats` — VALIDATION.md §3/§4/§5).
 
 For DRC/ERC and netlist, a byte compare is meaningless: formatting, ordering, and
 internal IDs (UUIDs, net codes) carry no semantic weight. Each function here reduces
-the raw kicad-cli output (parsed JSON for DRC/ERC, parsed `kicadsexpr` netlist text) to
-a small, content-sorted, JSON-serializable structure. `--regenerate` writes exactly this
-reduced structure as the golden (never the raw report) — see DL-0014 — and at compare
-time the adapter's output is reduced the same way and checked for equality.
+the raw kicad-cli output (parsed JSON for DRC/ERC, parsed `kicadsexpr`/`kicadxml`
+netlist text, `stats.json`, `pos.csv`, `board.d356`) to a small, content-sorted,
+JSON-serializable structure. `--regenerate` writes exactly this reduced structure as the
+expected file (never the raw report — DL-0014) — and at compare time the adapter's
+output is reduced the same way and checked for equality.
 
-This module also carries the L2 reductions VALIDATION.md §3 adds: `reduce_stats`
-(§3.3), `reduce_pos` (§3.4), `reduce_ipcd356` (§3.5), and `reduce_netlist_kicadxml`
-(§3.1's cross-format extension of the existing `reduce_netlist`).
+`runner/model.py`'s `build_board_model`/`build_schematic_model` compose these same
+functions into the single `model` document (VALIDATION.md §4); the functions here also
+back the standalone opt-in projections (`pos`, `ipcd356`, `stats`, `netlist` — §5),
+emitted un-merged.
 """
 from __future__ import annotations
 
@@ -76,19 +79,20 @@ def reduce_drc(raw: dict) -> dict:
 reduce_erc = reduce_drc
 
 
-def reduce_netlist(text: str) -> dict[str, list[list[str]]]:
-    """`sch export netlist --format kicadsexpr` -> `{net-name: sorted [[ref, pin], ...]}`.
+def reduce_netlist(text: str) -> dict[str, list[str]]:
+    """`sch export netlist --format kicadsexpr` -> `{net-name: sorted ["REFDES.PIN", ...]}`
+    (VALIDATION.md §4.2) -- the identical member shape the board model's `nets` uses
+    (`"REFDES.PAD"`), so the two are directly comparable.
 
     Ignores net `code` (an arbitrary sequence number), `class`, `pinfunction`/`pintype`
     (derived from the library, not the connectivity), and the netlist's own
     `(design (source ...) (date ...) (tool ...))` header, which embeds an absolute path
-    and a wall-clock date (DESIGN §3b) — this is why netlist is always `structured`,
-    never `golden-file`.
+    and a wall-clock date.
     """
     forms = sexpr.parse_all(text)
     root = forms[0]  # ['export', ['version', 'E'], ['design', ...], ...]
     nets_form = sexpr.find_one(root, "nets")
-    result: dict[str, list[list[str]]] = {}
+    result: dict[str, list[str]] = {}
     if nets_form is None:
         return result
     for net in sexpr.find_all(nets_form, "net"):
@@ -100,18 +104,18 @@ def reduce_netlist(text: str) -> dict[str, list[list[str]]]:
             pin_form = sexpr.find_one(node, "pin")
             ref = ref_form[1] if ref_form else ""
             pin = pin_form[1] if pin_form else ""
-            members.append([ref, pin])
-        members.sort()
-        result[name] = members
+            members.append(f"{ref}.{pin}")
+        result[name] = sorted(members)
     return result
 
 
-def reduce_netlist_kicadxml(text: str) -> dict[str, list[list[str]]]:
+def reduce_netlist_kicadxml(text: str) -> dict[str, list[str]]:
     """`sch export netlist --format kicadxml` -> the IDENTICAL `{net-name: sorted
-    [[ref, pin], ...]}` shape `reduce_netlist` produces from `kicadsexpr` (VALIDATION.md
-    §3.1). This is the cross-format-fairness proof: the net->node graph is a property of
-    the schematic's *connectivity*, not of which interchange serialization carried it, so
-    a second adapter may emit either format and be judged on the identical reduced graph.
+    ["REFDES.PIN", ...]}` shape `reduce_netlist` produces from `kicadsexpr`
+    (VALIDATION.md §4.2). This is the cross-format-fairness proof: the net->node graph is
+    a property of the schematic's *connectivity*, not of which interchange serialization
+    carried it, so a second adapter may emit either format and be judged on the identical
+    reduced graph.
 
     Drops the same metadata `reduce_netlist` drops (net `code`, `class`,
     `pinfunction`/`pintype`, and the `<design>` header's absolute path/date/tool) --
@@ -120,17 +124,16 @@ def reduce_netlist_kicadxml(text: str) -> dict[str, list[list[str]]]:
     """
     root = ET.fromstring(text)
     nets_el = root.find("nets")
-    result: dict[str, list[list[str]]] = {}
+    result: dict[str, list[str]] = {}
     if nets_el is None:
         return result
     for net_el in nets_el.findall("net"):
         name = net_el.get("name", "")
         members = [
-            [node_el.get("ref", ""), node_el.get("pin", "")]
+            f'{node_el.get("ref", "")}.{node_el.get("pin", "")}'
             for node_el in net_el.findall("node")
         ]
-        members.sort()
-        result[name] = members
+        result[name] = sorted(members)
     return result
 
 
@@ -138,24 +141,53 @@ def reduce_netlist_kicadxml(text: str) -> dict[str, list[list[str]]]:
 
 
 def reduce_stats(raw: dict) -> dict:
-    """`pcb export stats --format json` -> canonical reduction.
+    """`pcb export stats --format json` -> canonical reduction (VALIDATION.md §4.1).
 
     Drops the entire `metadata` object: `date` is wall-clock noise (confirmed the ONLY
     field that differs run-to-run), `generator` is the kicad-cli app-version string (not
-    the compatibility key DL-0005 keeps), and `project`/`board_name` leak the adapter's
-    scratch-copy filename. Keeps `board`/`pads`/`vias`/`components` verbatim -- every
-    value is already a KiCad-printed fixed-precision string (`"0.2500 mm"`), so plain
-    dict/string equality *is* the printed-quantum tolerance (DESIGN §3d), no float
-    parsing needed. `drill_holes` is content-sorted (key = the full JSON-serialized
-    entry) so hole ordering never matters.
+    the compatibility key), and `project`/`board_name` leak the adapter's scratch-copy
+    filename.
+
+    From `board`, keeps only the three **echoed input values** (`has_outline`,
+    `min_track_width`, `min_drill_diameter`) and drops the **computed float geometry**
+    (`area`, `front_copper_area`, `back_copper_area`, `front_footprint_area`,
+    `back_footprint_area`, `front_component_density`, `back_component_density`,
+    `min_track_clearance`, `width`, `height`) -- VALIDATION.md §4.1's explicit rule: keep
+    counts and echoed input values, drop computed geometry that two conformant
+    implementations could legitimately round differently.
+
+    `components` -> `footprints`: KiCad's own key is `components` (a board's placed
+    footprints), and each of `tht`/`smd`/`unspecified`/`total` is itself a
+    `{front, back, total}` object -- the model keeps only the aggregate `.total` (the
+    front/back split is redundant with `placement`'s per-footprint `side`).
+
+    `pads`/`vias` are kept verbatim -- every value is already a KiCad-printed
+    fixed-precision string or integer count, so plain dict/string equality *is* the
+    printed-quantum tolerance, no float parsing needed. `drill_holes` is content-sorted
+    (key = the full JSON-serialized entry) so hole ordering never matters.
     """
+    board = raw.get("board", {})
+    components = raw.get("components", {})
     drill_holes = raw.get("drill_holes", [])
     drill_holes_sorted = sorted(drill_holes, key=lambda h: json.dumps(h, sort_keys=True))
+
+    def _total(key: str) -> int:
+        return components.get(key, {}).get("total", 0)
+
     return {
-        "board": raw.get("board", {}),
+        "board": {
+            "has_outline": board.get("has_outline"),
+            "min_track_width": board.get("min_track_width"),
+            "min_drill_diameter": board.get("min_drill_diameter"),
+        },
         "pads": raw.get("pads", {}),
         "vias": raw.get("vias", {}),
-        "components": raw.get("components", {}),
+        "footprints": {
+            "tht": _total("tht"),
+            "smd": _total("smd"),
+            "unspecified": _total("unspecified"),
+            "total": _total("total"),
+        },
         "drill_holes": drill_holes_sorted,
     }
 

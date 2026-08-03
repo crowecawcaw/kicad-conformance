@@ -31,38 +31,25 @@ class DeterminismOutcome:
 
 
 def _raw_snapshot(check: Check, case: Case, out_dir: Path):
-    """The pre-normalization content, in the same shape `_normalized_*` would
+    """The pre-normalization content, in the same shape `_normalized_snapshot` would
     consume, so a raw/normalized pair is a fair apples-to-apples comparison."""
     artifact = _engine._resolve_artifact(check, case, out_dir)
-    if check.compare == "golden-dir":
-        return {
-            f.relative_to(artifact).as_posix(): f.read_bytes()
-            for f in sorted(artifact.rglob("*"))
-            if f.is_file()
-        }
-    if check.compare in ("golden-file", "image"):
+    if check.op == "render":
         return artifact.read_bytes()
-    if check.compare == "structured":
-        if check.op in ("drc", "erc"):
-            return json.loads(artifact.read_text(encoding="utf-8"))
-        if check.op in ("netlist", "export-pos", "export-ipcd356"):
-            return artifact.read_text(encoding="utf-8")
-        if check.op == "export-stats":
-            return json.loads(artifact.read_text(encoding="utf-8"))
-    raise ValueError(f"no raw snapshot for compare={check.compare!r} op={check.op!r}")
+    if check.op in ("drc", "erc", "stats", "model"):
+        return json.loads(artifact.read_text(encoding="utf-8"))
+    if check.op in ("netlist", "pos", "ipcd356"):
+        return artifact.read_text(encoding="utf-8")
+    raise ValueError(f"no raw snapshot for op={check.op!r}")
 
 
 def _normalized_snapshot(check: Check, case: Case, out_dir: Path):
     artifact = _engine._resolve_artifact(check, case, out_dir)
-    if check.compare == "golden-dir":
-        return _engine._normalized_dir_tree(artifact)
-    if check.compare == "golden-file":
-        return _engine._normalized_file_bytes(artifact)
-    if check.compare == "structured":
-        return _engine._reduce_structured(check, artifact)
-    if check.compare == "image":
+    if check.op == "render":
         return normalize.normalize_svg(artifact.read_bytes())
-    raise ValueError(f"no normalized snapshot for compare={check.compare!r}")
+    if check.op in _engine.JSON_OPS:
+        return _engine._reduce_json(check, artifact)
+    raise ValueError(f"no normalized snapshot for op={check.op!r}")
 
 
 def check_determinism(adapter: Adapter, case_dir: Path, tmp_root: Path) -> list[DeterminismOutcome]:
@@ -71,8 +58,8 @@ def check_determinism(adapter: Adapter, case_dir: Path, tmp_root: Path) -> list[
     if case.skip_reason:
         return outcomes
     for i, check in enumerate(case.checks):
-        if check.compare not in ("golden-file", "golden-dir", "structured", "image"):
-            continue
+        if check.expected is None:
+            continue  # exit-only op -- nothing rich to compare twice
         if not adapter.supports(check.op):
             continue
         label = check.label(i)

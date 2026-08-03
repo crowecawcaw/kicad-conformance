@@ -27,9 +27,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--regenerate", action="store_true",
-        help="write golden/<detected-version>/... from the current adapter's output "
+        help="write expected/<detected-version>/... from the current adapter's output "
              "instead of comparing against it (run inside the Docker Linux image so "
-             "committed goldens stay LF/platform-canonical, DL-0016)",
+             "committed expected files stay LF/platform-canonical, DL-0016)",
     )
     p.add_argument(
         "--adapter", metavar="PATH", default=None,
@@ -149,7 +149,7 @@ def run_determinism_mode(adapter: Adapter, case_dirs: list[Path]) -> int:
                 if not o.ok:
                     any_fail = True
     if not any_ran:
-        print("(no golden-file/golden-dir/structured checks found under the given paths)")
+        print("(no checks with a recorded expected file found under the given paths)")
     print("\nDETERMINISM: " + ("FAIL" if any_fail else "PASS"))
     return 1 if any_fail else 0
 

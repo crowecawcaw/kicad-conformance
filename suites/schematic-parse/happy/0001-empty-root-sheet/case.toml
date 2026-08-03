@@ -1,17 +1,7 @@
-concept = "An empty root schematic sheet (title block only, no symbols) parses and canonicalizes -- and renders to an (empty) sheet SVG (L3, VALIDATION.md §4)."
+concept = "An empty root schematic sheet (title block only, no symbols) parses into an empty-but-well-formed model."
 doc     = "sexpr-schematic"
 input   = "sheet.kicad_sch"
 
 [[check]]
-name    = "parse"
-op      = "parse-sch"
-expect  = "ok"
-compare = "golden-file"
-golden  = "canonical.kicad_sch"   # KiCad's `sch upgrade --force` output, normalized
-
-[[check]]
-name    = "svg"
-op      = "export-svg-sch"
-expect  = "ok"
-compare = "image"                # (a) normalized-SVG exact for KiCad-vs-KiCad
-golden  = "sheet.svg"             # reference SVG, per KiCad version
+op       = "model"
+expected = "model.json"

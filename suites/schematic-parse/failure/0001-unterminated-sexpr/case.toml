@@ -5,5 +5,5 @@ control = "control.kicad_sch"   # same sheet with the paren restored -> must exi
 
 [[check]]
 op             = "parse-sch"
-expect         = "error"
+outcome        = "error"
 error_contains = "Failed to load schematic"   # the ONLY message KiCad's sch loader emits

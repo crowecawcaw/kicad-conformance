@@ -1,9 +1,7 @@
-concept = "A minimal two-layer board (no footprints, standard layer table) parses and canonicalizes cleanly."
+concept = "A minimal two-layer board (no footprints, standard layer table) parses into a mostly-empty but well-formed model."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 
 [[check]]
-op      = "parse-pcb"
-expect  = "ok"
-compare = "golden-file"
-golden  = "canonical.kicad_pcb"
+op       = "model"
+expected = "model.json"

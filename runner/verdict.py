@@ -3,7 +3,7 @@
 A malformed input can make the oracle *crash* rather than reject cleanly (observed:
 KiCad 10.0.5 `pcb upgrade` on a truncated board prints a good `Expecting '('` message
 and then segfaults). A naive "non-zero = rejected" rule would silently pass an
-`expect="error"` case on a crash. So termination is classified into three outcomes, and
+`outcome="error"` case on a crash. So termination is classified into three outcomes, and
 a CRASH is never a pass — not for `happy`, not for `failure`.
 
 Detection is portable: never hard-code the literal 139. On POSIX, Python's

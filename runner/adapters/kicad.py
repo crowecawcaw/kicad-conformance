@@ -13,6 +13,8 @@ Invocation (matches DESIGN §2's `<adapter> <verb> --in <path...> --out <dir> [f
 - `--out` is always an explicit path the runner dictates (§2a) — this adapter never
   relies on kicad-cli's derived-filename default.
 - `--root` names which `--in` is the netlist root sheet (only meaningful for `netlist`).
+- `--format` selects the schematic interchange format for `model`/`netlist`
+  (`kicadsexpr`, the default, or `kicadxml`).
 - Trailing unrecognized tokens are forwarded verbatim to kicad-cli (`case.toml`'s
   `args =`, e.g. `--layers F.Cu,B.Cu,Edge.Cuts`).
 - `version` and `capabilities` are meta-verbs answered directly by this script, not by
@@ -44,6 +46,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from runner import model as modelmod  # noqa: E402
 from runner.verbs import IMPLEMENTED_VERBS  # noqa: E402
 
 
@@ -75,10 +78,16 @@ def discover_kicad_cli() -> str:
     sys.exit(127)
 
 
-def run_and_relay(argv: list[str]) -> None:
-    """Run kicad-cli; end this adapter process with matching termination semantics."""
-    proc = subprocess.run(argv)
-    rc = proc.returncode
+def _run_step(argv: list[str]) -> int:
+    """Run kicad-cli and return its raw returncode, without relaying/exiting -- used
+    when several subcommands must run in sequence (`model`) and only the FIRST failure
+    should end this adapter process."""
+    return subprocess.run(argv).returncode
+
+
+def _relay_and_exit(rc: int) -> None:
+    """End this adapter process with termination semantics matching `rc` (see module
+    docstring's "Crash relay")."""
     if rc < 0:
         sig = -rc
         try:
@@ -87,6 +96,11 @@ def run_and_relay(argv: list[str]) -> None:
             pass
         sys.exit(128 + sig)  # fallback; os.kill above should already have ended us
     sys.exit(rc)
+
+
+def run_and_relay(argv: list[str]) -> None:
+    """Run kicad-cli; end this adapter process with matching termination semantics."""
+    _relay_and_exit(_run_step(argv))
 
 
 def parse_argv(argv: list[str]):
@@ -137,16 +151,17 @@ def cmd_capabilities() -> None:
 def _fresh_scratch_dir() -> Path:
     """A scratch dir OUTSIDE `--out` (DESIGN §2a's artifact directory). Read-only verbs
     still copy their input here before invoking kicad-cli -- see `_scratch_copy` --
-    specifically so a scratch input copy is never mistaken for part of a `golden-dir`
-    verb's output (`export-gerbers`/`export-drill` treat their entire `--out` as the
-    artifact set) and never lands inside the tree a golden-dir compare walks."""
+    specifically so a scratch input copy is never mistaken for part of the artifact set
+    `export-gerbers`/`export-drill` treat their entire `--out` directory as (exit-only,
+    but the same isolation habit applies) and never lands inside a tree a comparator
+    might one day walk."""
     return Path(tempfile.mkdtemp(prefix="kicad-adapter-src-"))
 
 
 def _scratch_copy(src: str, scratch_dir: Path) -> Path:
     """Copy a single input file into a scratch dir and return the copy's path.
 
-    This is used for EVERY verb, not just the rewrite-in-place `upgrade` ones: kicad-cli
+    This is used for EVERY verb, not just the rewrite-in-place `parse-*` ones: kicad-cli
     has been observed to write a `.kicad_prl` project-local-settings cache next to a
     board it merely READS (e.g. `pcb drc`) as a side effect. Operating on a scratch copy
     -- never on the committed fixture path under `suites/` -- keeps every such side
@@ -165,10 +180,10 @@ def _scratch_copy_tree(src: str, scratch_dir: Path) -> Path:
     return dest
 
 
-def cmd_upgrade(cli: str, kind: str, ins: list[str], out: str) -> None:
-    """parse-sch / parse-pcb / upgrade: `sch|pcb upgrade --force` rewrites IN PLACE, so
-    copy the fixture to a scratch dir first and upgrade the copy (§2, §2a). The scratch
-    copy IS the artifact the runner reads back, so it lives directly under `--out`."""
+def cmd_parse(cli: str, kind: str, ins: list[str], out: str) -> None:
+    """parse-sch / parse-pcb: `sch|pcb upgrade --force` rewrites IN PLACE, so copy the
+    fixture to a scratch dir first and upgrade the copy (§2, §2a). Exit polarity only
+    (DL-0024) -- the re-emitted bytes are never compared against anything."""
     out_dir = Path(out)
     dest = _scratch_copy(ins[0], out_dir)
     run_and_relay([cli, kind, "upgrade", "--force", str(dest)])
@@ -214,7 +229,7 @@ def cmd_netlist(cli: str, ins: list[str], out: str, root: str | None, fmt: str |
     `sch export netlist` against the root sheet's scratch copy.
 
     `fmt` selects the interchange format (`kicadsexpr`, the default, or `kicadxml` --
-    VALIDATION.md §3.1's cross-format-fairness reader). `-o` always names the same
+    VALIDATION.md §4.2's cross-format-fairness reader). `-o` always names the same
     output file regardless of format: kicad-cli writes exactly the path it's given, not
     a format-derived extension (verified empirically), so `netlist.net` may contain
     either s-expr or XML text."""
@@ -256,7 +271,7 @@ def cmd_export_drill(cli: str, ins: list[str], out: str, extra: list[str]) -> No
     )
 
 
-def cmd_export_pos(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
+def cmd_pos(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
     out_dir = Path(out)
     src = _scratch_copy(ins[0], _fresh_scratch_dir())
     run_and_relay(
@@ -265,15 +280,7 @@ def cmd_export_pos(cli: str, ins: list[str], out: str, extra: list[str]) -> None
     )
 
 
-def cmd_bom(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
-    out_dir = Path(out)
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
-    run_and_relay(
-        [cli, "sch", "export", "bom", "-o", str(out_dir / "bom.csv"), *extra, str(src)]
-    )
-
-
-def cmd_export_stats(cli: str, ins: list[str], out: str) -> None:
+def cmd_stats(cli: str, ins: list[str], out: str) -> None:
     out_dir = Path(out)
     src = _scratch_copy(ins[0], _fresh_scratch_dir())
     run_and_relay(
@@ -282,7 +289,7 @@ def cmd_export_stats(cli: str, ins: list[str], out: str) -> None:
     )
 
 
-def cmd_export_ipcd356(cli: str, ins: list[str], out: str) -> None:
+def cmd_ipcd356(cli: str, ins: list[str], out: str) -> None:
     out_dir = Path(out)
     src = _scratch_copy(ins[0], _fresh_scratch_dir())
     run_and_relay(
@@ -290,54 +297,113 @@ def cmd_export_ipcd356(cli: str, ins: list[str], out: str) -> None:
     )
 
 
-def cmd_export_svg_pcb(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
-    """`extra` (the case's `args =`) carries `--layers <L>` -- the layer set is a
-    per-case parameter, never a fixed list (VALIDATION.md §5.1, mirroring the gerber
-    layer set, DESIGN §2b). The remaining flags are pinned for determinism (VALIDATION
-    §4.3): `--page-size-mode 2` (board-area only, so page size can't drift),
-    `--exclude-drawing-sheet`, `--black-and-white` (removes theme-color dependence)."""
+def cmd_render(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
+    """`render` dispatches on the input's suffix (VALIDATION.md §6, DL-0022): one board
+    layer set, one schematic sheet, one symbol, one footprint library -- all the same
+    verb, all the same normalized-SVG-byte-exact comparison."""
     out_dir = Path(out)
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
-    run_and_relay(
-        [cli, "pcb", "export", "svg", "--page-size-mode", "2",
-         "--exclude-drawing-sheet", "--black-and-white", *extra,
-         "-o", str(out_dir / "render.svg"), str(src)]
-    )
+    input_path = Path(ins[0])
+    suffix = input_path.suffix
+    if suffix == ".kicad_pcb":
+        # `--layers <L>` (from `args =`) is a per-case parameter, never a fixed list
+        # (VALIDATION §6); the rest is pinned for determinism: `--page-size-mode 2`
+        # (board-area only), `--exclude-drawing-sheet`, `--black-and-white`.
+        src = _scratch_copy(ins[0], _fresh_scratch_dir())
+        run_and_relay(
+            [cli, "pcb", "export", "svg", "--page-size-mode", "2",
+             "--exclude-drawing-sheet", "--black-and-white", *extra,
+             "-o", str(out_dir / "render.svg"), str(src)]
+        )
+    elif suffix == ".kicad_sch":
+        # `sch export svg` writes `<out>/<stem>.svg` (a directory `-o`, not a file path).
+        out_dir.mkdir(parents=True, exist_ok=True)
+        src = _scratch_copy(ins[0], _fresh_scratch_dir())
+        run_and_relay(
+            [cli, "sch", "export", "svg", "--no-background-color", *extra,
+             "-o", str(out_dir) + "/", str(src)]
+        )
+    elif suffix == ".kicad_sym":
+        out_dir.mkdir(parents=True, exist_ok=True)
+        src = _scratch_copy(ins[0], _fresh_scratch_dir())
+        run_and_relay(
+            [cli, "sym", "export", "svg", "--black-and-white", *extra,
+             "-o", str(out_dir) + "/", str(src)]
+        )
+    else:
+        # `.pretty` LIBRARY DIRECTORY (never a lone `.kicad_mod`), like `parse-fp`.
+        out_dir.mkdir(parents=True, exist_ok=True)
+        src = _scratch_copy_tree(ins[0], _fresh_scratch_dir())
+        run_and_relay(
+            [cli, "fp", "export", "svg", "--black-and-white", *extra,
+             "-o", str(out_dir) + "/", str(src)]
+        )
 
 
-def cmd_export_svg_sch(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
-    """`sch export svg` writes `<out>/<stem>.svg` (a directory `-o`, not a file path --
-    unlike `export-svg-pcb`); the runner's artifact resolver knows this (engine.py
-    `_resolve_artifact`)."""
+def cmd_model(cli: str, ins: list[str], out: str, fmt: str | None) -> None:
+    """`model` (VALIDATION.md §4, DL-0022) dispatches on the input's suffix and composes
+    the resulting export(s) into one merged `<out>/model.json`, written by THIS adapter
+    (DESIGN §2's "composition happens in the adapter") -- the runner only ever reads the
+    merged document back, never the intermediate `stats.json`/`pos.csv`/`board.d356`/
+    `netlist.net` files.
+
+    A board runs all three exports in sequence and relays the FIRST failure exactly as
+    `run_and_relay` would (crash relay included). A schematic runs one export, in the
+    format `fmt` names (`kicadsexpr` default, or `kicadxml` -- VALIDATION §4.2's
+    cross-format-fairness proof: both formats must compose to the identical model). A
+    `.kicad_sym`/`.pretty` input has no structured kicad-cli export to build a model
+    from (VALIDATION §4.5) -- the runner rejects it with a clear error instead of
+    inventing a projection.
+    """
     out_dir = Path(out)
     out_dir.mkdir(parents=True, exist_ok=True)
+    input_path = Path(ins[0])
+    suffix = input_path.suffix
     src = _scratch_copy(ins[0], _fresh_scratch_dir())
-    run_and_relay(
-        [cli, "sch", "export", "svg", "--no-background-color", *extra,
-         "-o", str(out_dir) + "/", str(src)]
+
+    if suffix == ".kicad_pcb":
+        scratch = _fresh_scratch_dir()
+        stats_path = scratch / "stats.json"
+        pos_path = scratch / "pos.csv"
+        d356_path = scratch / "board.d356"
+        steps = [
+            [cli, "pcb", "export", "stats", "--format", "json", "-o", str(stats_path), str(src)],
+            [cli, "pcb", "export", "pos", "--format", "csv", "--side", "both",
+             "--units", "mm", "-o", str(pos_path), str(src)],
+            [cli, "pcb", "export", "ipcd356", "-o", str(d356_path), str(src)],
+        ]
+        for step in steps:
+            rc = _run_step(step)
+            if rc != 0:
+                _relay_and_exit(rc)
+        stats_json = json.loads(stats_path.read_text(encoding="utf-8"))
+        pos_text = pos_path.read_text(encoding="utf-8")
+        d356_text = d356_path.read_text(encoding="utf-8")
+        model = modelmod.build_board_model(stats_json, pos_text, d356_text)
+    elif suffix == ".kicad_sch":
+        scratch = _fresh_scratch_dir()
+        net_path = scratch / "netlist.net"
+        export_fmt = fmt or "kicadsexpr"
+        rc = _run_step(
+            [cli, "sch", "export", "netlist", "--format", export_fmt,
+             "-o", str(net_path), str(src)]
+        )
+        if rc != 0:
+            _relay_and_exit(rc)
+        netlist_text = net_path.read_text(encoding="utf-8")
+        model = modelmod.build_schematic_model(netlist_text, export_fmt)
+    else:
+        print(
+            f"model: does not apply to {suffix or '(directory)'!r} input -- "
+            f"kicad-cli 10.0.5 offers no structured symbol/footprint export "
+            f"(VALIDATION.md §4.5); use `render` instead",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    (out_dir / "model.json").write_text(
+        json.dumps(model, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
-
-
-def cmd_export_svg_sym(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
-    out_dir = Path(out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
-    run_and_relay(
-        [cli, "sym", "export", "svg", "--black-and-white", *extra,
-         "-o", str(out_dir) + "/", str(src)]
-    )
-
-
-def cmd_export_svg_fp(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
-    """`fp export svg`, like `parse-fp`, takes a `.pretty` LIBRARY DIRECTORY, never a
-    lone `.kicad_mod` (DESIGN §2)."""
-    out_dir = Path(out)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    src = _scratch_copy_tree(ins[0], _fresh_scratch_dir())
-    run_and_relay(
-        [cli, "fp", "export", "svg", "--black-and-white", *extra,
-         "-o", str(out_dir) + "/", str(src)]
-    )
+    sys.exit(0)
 
 
 def main() -> int:
@@ -357,23 +423,16 @@ def main() -> int:
         print(f"{verb}: --in and --out are required", file=sys.stderr)
         return 2
 
-    if verb in ("parse-sch", "upgrade-sch"):
-        cmd_upgrade(cli, "sch", ins, out)
-    elif verb in ("parse-pcb", "upgrade-pcb"):
-        cmd_upgrade(cli, "pcb", ins, out)
-    elif verb == "upgrade":
-        # Dispatch on the input's extension since `upgrade` doesn't otherwise say
-        # which loader to use.
-        ext = Path(ins[0]).suffix
-        kind = {".kicad_sch": "sch", ".kicad_pcb": "pcb"}.get(ext)
-        if kind is None:
-            print(f"upgrade: cannot infer sch/pcb from {ins[0]!r}", file=sys.stderr)
-            return 2
-        cmd_upgrade(cli, kind, ins, out)
+    if verb == "parse-sch":
+        cmd_parse(cli, "sch", ins, out)
+    elif verb == "parse-pcb":
+        cmd_parse(cli, "pcb", ins, out)
     elif verb == "parse-sym":
         cmd_parse_sym(cli, ins, out)
     elif verb == "parse-fp":
         cmd_parse_fp(cli, ins, out)
+    elif verb == "model":
+        cmd_model(cli, ins, out, fmt)
     elif verb == "erc":
         cmd_erc(cli, ins, out)
     elif verb == "drc":
@@ -384,22 +443,14 @@ def main() -> int:
         cmd_export_gerbers(cli, ins, out, extra)
     elif verb == "export-drill":
         cmd_export_drill(cli, ins, out, extra)
-    elif verb == "export-pos":
-        cmd_export_pos(cli, ins, out, extra)
-    elif verb == "bom":
-        cmd_bom(cli, ins, out, extra)
-    elif verb == "export-stats":
-        cmd_export_stats(cli, ins, out)
-    elif verb == "export-ipcd356":
-        cmd_export_ipcd356(cli, ins, out)
-    elif verb == "export-svg-pcb":
-        cmd_export_svg_pcb(cli, ins, out, extra)
-    elif verb == "export-svg-sch":
-        cmd_export_svg_sch(cli, ins, out, extra)
-    elif verb == "export-svg-sym":
-        cmd_export_svg_sym(cli, ins, out, extra)
-    elif verb == "export-svg-fp":
-        cmd_export_svg_fp(cli, ins, out, extra)
+    elif verb == "pos":
+        cmd_pos(cli, ins, out, extra)
+    elif verb == "stats":
+        cmd_stats(cli, ins, out)
+    elif verb == "ipcd356":
+        cmd_ipcd356(cli, ins, out)
+    elif verb == "render":
+        cmd_render(cli, ins, out, extra)
     else:
         print(f"unsupported verb: {verb!r}", file=sys.stderr)
         return 127

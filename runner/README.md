@@ -14,10 +14,11 @@ This file is implementation notes for the runner's own code, not the spec.
 | `adapter.py` | Host-side helper that invokes an adapter executable (default or `--adapter`), pinning `LC_ALL=C.UTF-8`/`TZ=UTC` in its environment (DESIGN §4). |
 | `adapters/kicad.py` | The reference adapter: an executable subprocess wrapping `kicad-cli` per the verb protocol (DESIGN §2). Runnable standalone: `python3 runner/adapters/kicad.py <verb> --in ... --out ...`. |
 | `verdict.py` | The OK/REJECT/CRASH classifier (DESIGN §3a, DL-0013). |
-| `engine.py` | Runs one check, applies the exit/structured/golden-file/golden-dir comparison, and (with `--regenerate`) writes goldens. |
-| `normalize.py` | The per-output-kind normalizers (DESIGN §4). |
-| `reduce.py` | The `structured` canonical reductions for DRC/ERC and netlist (DESIGN §3b, DL-0014). |
-| `sexpr.py` | A minimal S-expression reader (stdlib only) used by `reduce.py` (netlist) and `coverage.py` (top-level section scanning). Not a full KiCad format model. |
+| `engine.py` | Runs one check and applies the comparison its `op` implies (JSON equality for `model`/`drc`/`erc`/`netlist`/`pos`/`ipcd356`/`stats`, normalized-SVG byte-exact for `render`, exit-only for everything else), and (with `--regenerate`) writes `expected/<version>/...`. |
+| `model.py` | The composite `model` verb's schema (DL-0022, VALIDATION.md §4): `build_board_model`/`build_schematic_model` merge `reduce.py`'s raw parsers into the one normalized document per input. |
+| `normalize.py` | The per-output-kind normalizers (DESIGN §4) — today just the SVG `<title>`/`<desc>` strip and CRLF→LF; the rest is retained as reference for the gerber/drill gap (VALIDATION §7). |
+| `reduce.py` | The canonical reductions for the JSON-comparison ops: DRC/ERC, netlist, stats, pos, ipcd356 (DESIGN §3b, DL-0014). Shared by `model.py` and the standalone opt-in projections. |
+| `sexpr.py` | A minimal S-expression reader (stdlib only) used by `reduce.py`/`model.py` (netlist) and `coverage.py` (top-level section scanning). Not a full KiCad format model. |
 | `coverage.py` | The cheap coverage proxy (DESIGN §7a): CLI-surface + format-token bookkeeping, zero KiCad rebuild. |
 | `determinism.py` | The run-twice determinism self-test (DESIGN §4a). |
 | `verbs.py` | The capability-verb table, shared by the adapter's `capabilities` response and the coverage proxy so they can't drift apart. |
@@ -41,7 +42,7 @@ just at kicad-cli's.
 `docs/TEST_CASE_FORMAT.md` §4.2 lists `control` as a **check**-level field, but its own
 worked examples (§5.2, §5.2b) place `control = "..."` at the **case** top level next to
 `input`. `manifest.py` accepts both: a case-level `control` is the default positive
-control for every `expect="error"` check in the case, and a `[[check]]` may set its own
+control for every `outcome="error"` check in the case, and a `[[check]]` may set its own
 `control` to override it. All of this repo's own example cases use the case-level form,
 matching the worked examples.
 
@@ -70,5 +71,5 @@ scripts/run.sh                      # run everything under suites/
 scripts/run.sh suites/drc/          # scope to one suite or case
 scripts/run.sh --determinism-check  # run-twice self-test
 scripts/run.sh --coverage-proxy     # full CLI-surface + format-token report
-scripts/regen.sh                    # regenerate goldens (inspect the diff before committing)
+scripts/regen.sh                    # regenerate expected files (inspect the diff before committing)
 ```

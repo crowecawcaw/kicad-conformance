@@ -17,7 +17,7 @@ from pathlib import Path
 
 # --- CRLF -> LF -----------------------------------------------------------------
 # DL-0016: kicad-cli's native-Windows build writes CRLF; the Docker-Linux build (== CI)
-# writes LF. Goldens are committed LF-canonical, so every text compare normalizes CRLF
+# writes LF. Expected files are committed LF-canonical, so every text compare normalizes CRLF
 # to LF first, whichever platform produced the bytes being compared.
 
 
@@ -28,7 +28,7 @@ def normalize_crlf(data: bytes) -> bytes:
 # --- s-expr (sch/pcb/sym/fp upgrade output) --------------------------------------
 # Observed (KiCad 10.0.5): `(generator_version "10.0")` is the kicad-cli *build's* own
 # stamp, not the file-format compatibility key. It changes on every point release even
-# when the canonical file content is otherwise identical, so it would churn the golden
+# when the canonical file content is otherwise identical, so it would churn the expected file
 # on every kicad-cli patch bump for no semantic reason. We deliberately KEEP
 # `(version YYYYMMDD)` (the real compatibility key, DESIGN §4) and strip only
 # `generator_version`.
@@ -82,7 +82,7 @@ def normalize_gbrjob(data: bytes) -> bytes:
 
 # --- DRC / ERC JSON ---------------------------------------------------------------
 # See runner/reduce.py: for `structured` checks the "normalizer" and the "reduction"
-# are the same step (DL-0014) — the golden stores the reduced form directly, there is
+# are the same step (DL-0014) — the expected file stores the reduced form directly, there is
 # no separate normalize-then-store. Kept out of this module to avoid a false split.
 
 
@@ -122,7 +122,7 @@ _BY_SUFFIX = {
 def normalize_for(path: Path, data: bytes) -> bytes:
     """Pick a normalizer by file suffix. Anything without a specific normalizer above
     (`.net`, `.csv`, `.rpt`, `.pos`, ...) still gets CRLF->LF (DL-0016) — that one
-    applies to every text golden — but no other rewriting: per the honesty rule (§4),
+    applies to every text expected file — but no other rewriting: per the honesty rule (§4),
     we do not invent a normalizer for a kind of drift we have not observed."""
     normalizer = _BY_SUFFIX.get(path.suffix, normalize_crlf)
     return normalizer(data)

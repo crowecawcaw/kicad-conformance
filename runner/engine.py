@@ -1,6 +1,13 @@
 """The runner's core: run every check in a case, apply normalization/reduction, and
 decide a verdict (DESIGN.md §3). This module has no argparse/printing concerns of its
 own -- see runner/cli.py for the CLI and report formatting.
+
+DL-0023/DL-0024: comparison mode is chosen by `op` alone, never by a `compare` field.
+`model`/`drc`/`erc`/`netlist`/`pos`/`ipcd356`/`stats` compare a normalized JSON document
+against `expected/<version>/<name>`; `render` compares normalized SVG bytes; every other
+op (`parse-*`, `version`, `export-gerbers`, `export-drill`) is exit-polarity only. The
+`golden-file`/`golden-dir` byte-comparison modes are deleted (DL-0024) along with the
+s-expr/gerber/drill/bom normalizers and directory-tree comparator that only served them.
 """
 from __future__ import annotations
 
@@ -57,13 +64,14 @@ class CaseResult:
 
 def _resolve_artifact(check: Check, case: Case, out_dir: Path) -> Path:
     """Where the adapter wrote the output the runner dictated (DESIGN §2a). For
-    `export-gerbers`/`export-drill` this is the whole scratch directory (golden-dir);
-    for everything else it is a single file."""
+    `export-gerbers`/`export-drill` this is the whole scratch directory (exit-only, no
+    comparator reads it -- DL-0024); for everything else it is a single file."""
     op = check.op
-    if op in ("parse-sch", "parse-pcb", "upgrade"):
-        return out_dir / Path(case.inputs[0]).name
+    input_path = Path(case.inputs[0])
+    if op in ("parse-sch", "parse-pcb"):
+        return out_dir / input_path.name
     if op == "parse-sym":
-        return out_dir / (Path(case.inputs[0]).stem + ".kicad_sym")
+        return out_dir / (input_path.stem + ".kicad_sym")
     if op == "parse-fp":
         return out_dir / "upgraded.pretty"
     if op == "erc":
@@ -72,80 +80,54 @@ def _resolve_artifact(check: Check, case: Case, out_dir: Path) -> Path:
         return out_dir / "drc.json"
     if op == "netlist":
         return out_dir / "netlist.net"
-    if op == "export-pos":
+    if op == "pos":
         return out_dir / "pos.csv"
-    if op == "bom":
-        return out_dir / "bom.csv"
-    if op == "export-stats":
+    if op == "stats":
         return out_dir / "stats.json"
-    if op == "export-ipcd356":
+    if op == "ipcd356":
         return out_dir / "board.d356"
-    if op == "export-svg-pcb":
-        return out_dir / "render.svg"
-    if op in ("export-svg-sch", "export-svg-sym", "export-svg-fp"):
-        # These three write kicad-cli's OWN derived filename into the `--out` dir
-        # (`sch|sym|fp export svg -o <out>/` -> `<out>/<input-stem>.svg`), unlike
-        # export-svg-pcb where the adapter dictates the exact file name (VALIDATION §5.1).
-        return out_dir / (Path(case.inputs[0]).stem + ".svg")
+    if op == "model":
+        return out_dir / "model.json"
+    if op == "render":
+        if input_path.suffix == ".kicad_pcb":
+            return out_dir / "render.svg"
+        # sch/sym/fp: kicad-cli writes its OWN derived filename into the `--out` dir
+        # (`sch|sym|fp export svg -o <out>/` -> `<out>/<input-stem>.svg`), unlike a
+        # board render where the adapter dictates the exact file name (VALIDATION §6).
+        return out_dir / (input_path.stem + ".svg")
     if op in ("export-gerbers", "export-drill"):
         return out_dir
     raise ValueError(f"no artifact resolver for op {op!r}")
 
 
-def _reduce_structured(check: Check, artifact: Path) -> object:
-    if check.op in ("drc", "erc"):
-        with open(artifact, encoding="utf-8") as f:
-            raw = json.load(f)
-        return reduce.reduce_drc(raw) if check.op == "drc" else reduce.reduce_erc(raw)
-    if check.op == "netlist":
+# Reduction for each JSON-comparison op (VALIDATION.md §3/§4/§5): given the check and the
+# artifact path the adapter wrote, return the canonical, JSON-serializable structure to
+# compare against the expected file. `model` needs no further reduction -- the adapter
+# already wrote the fully-composed, merged document (DESIGN §2's "composition happens in
+# the adapter").
+def _reduce_json(check: Check, artifact: Path) -> object:
+    op = check.op
+    if op == "model":
+        return json.loads(artifact.read_text(encoding="utf-8"))
+    if op in ("drc", "erc"):
+        raw = json.loads(artifact.read_text(encoding="utf-8"))
+        return reduce.reduce_drc(raw) if op == "drc" else reduce.reduce_erc(raw)
+    if op == "netlist":
         text = artifact.read_text(encoding="utf-8")
-        # VALIDATION.md §3.1: the net->node graph is recoverable from EITHER interchange
-        # format kicad-cli emits; `check.format` (the case's `format = "kicadxml"`, if
-        # set) picks the reader, but both land on the identical reduced shape.
         if check.format == "kicadxml":
             return reduce.reduce_netlist_kicadxml(text)
         return reduce.reduce_netlist(text)
-    if check.op == "export-stats":
-        with open(artifact, encoding="utf-8") as f:
-            raw = json.load(f)
+    if op == "stats":
+        raw = json.loads(artifact.read_text(encoding="utf-8"))
         return reduce.reduce_stats(raw)
-    if check.op == "export-pos":
-        text = artifact.read_text(encoding="utf-8")
-        return reduce.reduce_pos(text)
-    if check.op == "export-ipcd356":
-        text = artifact.read_text(encoding="utf-8")
-        return reduce.reduce_ipcd356(text)
-    raise ValueError(f"no structured reduction for op {check.op!r}")
+    if op == "pos":
+        return reduce.reduce_pos(artifact.read_text(encoding="utf-8"))
+    if op == "ipcd356":
+        return reduce.reduce_ipcd356(artifact.read_text(encoding="utf-8"))
+    raise ValueError(f"no JSON reduction for op {op!r}")
 
 
-def _normalized_file_bytes(path: Path) -> bytes:
-    return normalize.normalize_for(path, path.read_bytes())
-
-
-def _normalized_dir_tree(dir_path: Path) -> dict[str, bytes]:
-    tree = {}
-    for f in sorted(dir_path.rglob("*")):
-        if f.is_file():
-            rel = f.relative_to(dir_path).as_posix()
-            tree[rel] = normalize.normalize_for(f, f.read_bytes())
-    return tree
-
-
-def _write_golden_file(golden_path: Path, data: bytes) -> None:
-    golden_path.parent.mkdir(parents=True, exist_ok=True)
-    golden_path.write_bytes(data)
-
-
-def _write_golden_dir(golden_dir: Path, tree: dict[str, bytes]) -> None:
-    if golden_dir.exists():
-        for f in golden_dir.rglob("*"):
-            if f.is_file():
-                f.unlink()
-    golden_dir.mkdir(parents=True, exist_ok=True)
-    for rel, data in tree.items():
-        dest = golden_dir / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(data)
+JSON_OPS = {"model", "drc", "erc", "netlist", "pos", "ipcd356", "stats"}
 
 
 def _exit_condition(
@@ -154,13 +136,13 @@ def _exit_condition(
     """Apply the `exit` polarity/substring rule (DESIGN §3a). Returns
     (satisfied, status_if_not_satisfied, detail)."""
     verdict = classify(result.returncode)
-    if check.expect == "ok":
+    if check.outcome == "ok":
         if verdict is Verdict.OK:
             return True, "", ""
         if verdict is Verdict.CRASH:
             return False, CRASH, f"{label}: adapter CRASHED (returncode={result.returncode}); a crash is never a pass"
         return False, FAIL, f"{label}: expected ok, got exit {result.returncode}\nstderr: {result.stderr.strip()}"
-    # expect == "error"
+    # outcome == "error"
     if verdict is Verdict.OK:
         return False, FAIL, f"{label}: expected error, tool exited 0"
     if verdict is Verdict.CRASH:
@@ -219,15 +201,15 @@ class Engine:
 
         satisfied, fail_status, detail = _exit_condition(check, result, label)
 
-        # Positive control (DESIGN §3a, DL-0013): every failure-case expect="error"
+        # Positive control (DESIGN §3a, DL-0013): every failure-case outcome="error"
         # check must be shown falsifiable. Run it even when the main check already
         # failed/crashed -- that keeps the control machinery exercised (and visible in
         # the report) on every failure/ case, not just the ones whose main check
         # happens to reject cleanly. It can only make an already-failing check's report
         # richer; it never turns a CRASH/FAIL into a pass.
         control_note = ""
-        control_ok = True  # vacuously true when there's no control to run (expect="ok")
-        if check.expect == "error":
+        control_ok = True  # vacuously true when there's no control to run (outcome="ok")
+        if check.outcome == "error":
             control_ok, control_detail = self._check_control(case, check, label, tmp_root)
             control_note = control_detail
             if satisfied and not control_ok:
@@ -248,13 +230,17 @@ class Engine:
                 detail = f"{detail}\n{control_note}"
             return CheckResult(label, fail_status, detail)
 
-        if check.compare == "exit":
+        if check.expected is None:
             return CheckResult(label, PASS)
 
-        return self._compare_rich_output(case, check, label, out_dir)
+        if check.op in JSON_OPS:
+            return self._compare_json(case, check, label, out_dir)
+        if check.op == "render":
+            return self._compare_render(case, check, label, out_dir)
+        raise ValueError(f"check op {check.op!r} has `expected` set but no comparison is defined")
 
     def _score_known_divergence(self, kd, satisfied: bool, result, label: str, control_note: str) -> Optional[CheckResult]:
-        """Reinterpret an `expect`-vs-actual outcome already declared as a known,
+        """Reinterpret an `outcome`-vs-actual outcome already declared as a known,
         tracked oracle divergence (DL-0018). Returns `None` when the divergence
         declaration doesn't apply to this outcome (e.g. a genuine unrelated failure),
         in which case the caller falls through to ordinary FAIL/CRASH reporting."""
@@ -319,92 +305,49 @@ class Engine:
             )
         return True, f"{label}: positive control {control_spec!r} exited OK, as required (DL-0013)"
 
-    def _compare_rich_output(self, case: Case, check: Check, label: str, out_dir: Path) -> CheckResult:
+    def _compare_json(self, case: Case, check: Check, label: str, out_dir: Path) -> CheckResult:
         artifact = _resolve_artifact(check, case, out_dir)
-        golden_root = case.golden_dir(self.version)
-        golden_path = golden_root / check.golden
+        expected_root = case.expected_dir(self.version)
+        expected_path = expected_root / check.expected
 
-        if check.compare == "structured":
-            try:
-                actual = self._reduce_structured_safe(check, artifact)
-            except FileNotFoundError:
-                return CheckResult(label, FAIL, f"{label}: adapter did not write expected artifact at {artifact}")
-            if self.regenerate:
-                golden_path.parent.mkdir(parents=True, exist_ok=True)
-                golden_path.write_text(json.dumps(actual, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-                return CheckResult(label, REGENERATED, f"{label}: wrote {golden_path}")
-            if not golden_path.exists():
-                return CheckResult(label, NEEDS_REGEN, f"{label}: golden {golden_path} missing -- run --regenerate")
-            expected = json.loads(golden_path.read_text(encoding="utf-8"))
-            if actual == expected:
-                return CheckResult(label, PASS)
-            notes = reduce.describe_structured_mismatch(expected, actual)
-            return CheckResult(label, FAIL, f"{label}: structured mismatch: {'; '.join(notes)}")
-
-        if check.compare == "golden-file":
-            if not artifact.exists():
-                return CheckResult(label, FAIL, f"{label}: adapter did not write expected artifact at {artifact}")
-            actual_bytes = _normalized_file_bytes(artifact)
-            if self.regenerate:
-                _write_golden_file(golden_path, actual_bytes)
-                return CheckResult(label, REGENERATED, f"{label}: wrote {golden_path}")
-            if not golden_path.exists():
-                return CheckResult(label, NEEDS_REGEN, f"{label}: golden {golden_path} missing -- run --regenerate")
-            expected_bytes = normalize.normalize_for(golden_path, golden_path.read_bytes())
-            if actual_bytes == expected_bytes:
-                return CheckResult(label, PASS)
-            return CheckResult(label, FAIL, f"{label}: golden-file mismatch vs {golden_path}")
-
-        if check.compare == "image":
-            # L3 SVG render, mode (a) of VALIDATION.md §4.3/§4.4: KiCad-vs-KiCad is a
-            # normalized-SVG BYTE-EXACT compare, zero tolerance, no rasterizer -- the
-            # cross-impl raster path (mode b, pinned `resvg`) is deferred to M7 (DL-0021).
-            if not artifact.exists():
-                return CheckResult(label, FAIL, f"{label}: adapter did not write expected SVG at {artifact}")
-            actual_bytes = normalize.normalize_svg(artifact.read_bytes())
-            if self.regenerate:
-                _write_golden_file(golden_path, actual_bytes)
-                return CheckResult(label, REGENERATED, f"{label}: wrote {golden_path}")
-            if not golden_path.exists():
-                return CheckResult(label, NEEDS_REGEN, f"{label}: golden {golden_path} missing -- run --regenerate")
-            expected_bytes = normalize.normalize_svg(golden_path.read_bytes())
-            if actual_bytes == expected_bytes:
-                return CheckResult(label, PASS)
-            return CheckResult(label, FAIL, f"{label}: image (SVG) mismatch vs {golden_path} (normalized-SVG byte compare)")
-
-        if check.compare == "golden-dir":
-            if not artifact.is_dir():
-                return CheckResult(label, FAIL, f"{label}: adapter did not write expected directory at {artifact}")
-            actual_tree = _normalized_dir_tree(artifact)
-            if self.regenerate:
-                _write_golden_dir(golden_path, actual_tree)
-                return CheckResult(label, REGENERATED, f"{label}: wrote {golden_path}/ ({len(actual_tree)} files)")
-            if not golden_path.exists():
-                return CheckResult(label, NEEDS_REGEN, f"{label}: golden {golden_path} missing -- run --regenerate")
-            expected_tree = _normalized_dir_tree(golden_path)
-            if actual_tree == expected_tree:
-                return CheckResult(label, PASS)
-            missing = set(expected_tree) - set(actual_tree)
-            extra = set(actual_tree) - set(expected_tree)
-            differing = {
-                k for k in (set(expected_tree) & set(actual_tree))
-                if expected_tree[k] != actual_tree[k]
-            }
-            parts = []
-            if missing:
-                parts.append(f"missing files: {sorted(missing)}")
-            if extra:
-                parts.append(f"unexpected files: {sorted(extra)}")
-            if differing:
-                parts.append(f"differing files: {sorted(differing)}")
-            return CheckResult(label, FAIL, f"{label}: golden-dir mismatch vs {golden_path}: {'; '.join(parts)}")
-
-        raise ValueError(f"unhandled compare mode {check.compare!r}")
-
-    def _reduce_structured_safe(self, check: Check, artifact: Path):
         if not artifact.exists():
-            raise FileNotFoundError(artifact)
-        return _reduce_structured(check, artifact)
+            return CheckResult(label, FAIL, f"{label}: adapter did not write expected artifact at {artifact}")
+        actual = _reduce_json(check, artifact)
+
+        if self.regenerate:
+            expected_path.parent.mkdir(parents=True, exist_ok=True)
+            expected_path.write_text(json.dumps(actual, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            return CheckResult(label, REGENERATED, f"{label}: wrote {expected_path}")
+        if not expected_path.exists():
+            return CheckResult(label, NEEDS_REGEN, f"{label}: expected file {expected_path} missing -- run --regenerate")
+        expected = json.loads(expected_path.read_text(encoding="utf-8"))
+        if actual == expected:
+            return CheckResult(label, PASS)
+        notes = reduce.describe_structured_mismatch(expected, actual)
+        return CheckResult(label, FAIL, f"{label}: mismatch vs {expected_path}: {'; '.join(notes)}")
+
+    def _compare_render(self, case: Case, check: Check, label: str, out_dir: Path) -> CheckResult:
+        # render (VALIDATION.md §6): KiCad-vs-KiCad is a normalized-SVG BYTE-EXACT
+        # compare, zero tolerance, no rasterizer -- the cross-impl raster path (pinned
+        # `resvg`) is deferred to M6 (DL-0021).
+        artifact = _resolve_artifact(check, case, out_dir)
+        expected_root = case.expected_dir(self.version)
+        expected_path = expected_root / check.expected
+
+        if not artifact.exists():
+            return CheckResult(label, FAIL, f"{label}: adapter did not write expected SVG at {artifact}")
+        actual_bytes = normalize.normalize_svg(artifact.read_bytes())
+
+        if self.regenerate:
+            expected_path.parent.mkdir(parents=True, exist_ok=True)
+            expected_path.write_bytes(actual_bytes)
+            return CheckResult(label, REGENERATED, f"{label}: wrote {expected_path}")
+        if not expected_path.exists():
+            return CheckResult(label, NEEDS_REGEN, f"{label}: expected file {expected_path} missing -- run --regenerate")
+        expected_bytes = normalize.normalize_svg(expected_path.read_bytes())
+        if actual_bytes == expected_bytes:
+            return CheckResult(label, PASS)
+        return CheckResult(label, FAIL, f"{label}: render (SVG) mismatch vs {expected_path} (normalized-SVG byte compare)")
 
 
 def make_tmp_root() -> tempfile.TemporaryDirectory:

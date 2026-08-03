@@ -15,6 +15,10 @@ allows a `[[check]]` to override it with its own `control`, so both spellings wo
 `[known_divergence]` table is the default for every check in the case, and a `[[check]]`
 may set its own `known_divergence = { ... }` to override it. See `KnownDivergence` below
 and `runner/engine.py` for the strict-xfail scoring this enables.
+
+DL-0023 renamed the schema: `golden` -> `expected`, `expect` -> `outcome` (optional,
+defaulting from directory polarity), and deleted `compare` entirely -- how a check is
+compared now follows from its `op` alone (`runner/engine.py`).
 """
 from __future__ import annotations
 
@@ -51,11 +55,10 @@ class KnownDivergence:
 @dataclass
 class Check:
     op: str
-    expect: str
+    outcome: str  # "ok" or "error" -- always resolved (defaulted from polarity if unset)
+    expected: Optional[str] = None
     error_contains: Optional[str] = None
     error_contains_any: Optional[list[str]] = None
-    compare: str = "exit"
-    golden: Optional[str] = None
     control: Optional[Union[str, dict]] = None
     format: Optional[str] = None
     args: list[str] = field(default_factory=list)
@@ -73,7 +76,6 @@ class Case:
     doc: Optional[str]
     inputs: list[str]
     root: Optional[str]
-    tags: list[str]
     min_kicad: Optional[str]
     skip_reason: Optional[str]
     control: Optional[Union[str, dict]]
@@ -85,12 +87,20 @@ class Case:
     def input_paths(self) -> list[Path]:
         return [self.path / p for p in self.inputs]
 
-    def golden_dir(self, version: str) -> Path:
-        return self.path / "golden" / version
+    def expected_dir(self, version: str) -> Path:
+        return self.path / "expected" / version
 
 
-_VALID_COMPARE = {"exit", "structured", "golden-file", "golden-dir", "image"}
-_VALID_EXPECT = {"ok", "error"}
+_VALID_OUTCOME = {"ok", "error"}
+
+# Ops with no recorded answer -- exit polarity (+ optional stderr substring) is the
+# whole check (TEST_CASE_FORMAT.md §4.2's "Rules the runner enforces"). Every other op
+# compares a normalized JSON document (`model`/`drc`/`erc`/`netlist`/`pos`/`ipcd356`/
+# `stats`) or normalized SVG bytes (`render`), so `expected` is required for it.
+EXIT_ONLY_OPS = {
+    "parse-sch", "parse-pcb", "parse-sym", "parse-fp",
+    "version", "export-gerbers", "export-drill",
+}
 
 
 def _parse_known_divergence(raw: object, where: str) -> Optional[KnownDivergence]:
@@ -135,6 +145,13 @@ def load_case(case_dir: Path) -> Case:
         )
     inputs = [raw["input"]] if has_input else list(raw["inputs"])
 
+    polarity = _polarity_from_path(case_dir)
+    if polarity is None:
+        raise CaseError(
+            f"{toml_path}: case is not under a happy/ or failure/ directory"
+        )
+    default_outcome = "error" if polarity == "failure" else "ok"
+
     raw_checks = raw.get("check", [])
     if not raw_checks:
         raise CaseError(f"{toml_path}: at least one [[check]] is required")
@@ -143,37 +160,51 @@ def load_case(case_dir: Path) -> Case:
     for i, rc in enumerate(raw_checks):
         if "op" not in rc:
             raise CaseError(f"{toml_path}: check #{i + 1} missing required `op`")
-        expect = rc.get("expect")
-        if expect not in _VALID_EXPECT:
+        op = rc["op"]
+
+        outcome = rc.get("outcome")
+        if outcome is not None:
+            if outcome not in _VALID_OUTCOME:
+                raise CaseError(
+                    f"{toml_path}: check #{i + 1} has invalid `outcome` "
+                    f"(must be 'ok' or 'error'), got {outcome!r}"
+                )
+            if outcome != default_outcome:
+                raise CaseError(
+                    f"{toml_path}: check #{i + 1} sets outcome={outcome!r}, which "
+                    f"contradicts the directory polarity ({polarity!r} implies "
+                    f"outcome={default_outcome!r})"
+                )
+        else:
+            outcome = default_outcome
+
+        expected = rc.get("expected")
+        if op in EXIT_ONLY_OPS:
+            if expected:
+                raise CaseError(
+                    f"{toml_path}: check #{i + 1} op={op!r} is exit-only and must "
+                    f"not set `expected`"
+                )
+        elif not expected:
             raise CaseError(
-                f"{toml_path}: check #{i + 1} has invalid/missing `expect` "
-                f"(must be 'ok' or 'error'), got {expect!r}"
+                f"{toml_path}: check #{i + 1} op={op!r} requires `expected` "
+                f"(the recorded-answer file)"
             )
-        compare = rc.get("compare", "exit")
-        if compare not in _VALID_COMPARE:
-            raise CaseError(
-                f"{toml_path}: check #{i + 1} has invalid `compare` {compare!r}"
-            )
-        golden = rc.get("golden")
-        if compare in ("golden-file", "golden-dir", "structured", "image") and not golden:
-            raise CaseError(
-                f"{toml_path}: check #{i + 1} compare={compare!r} requires `golden`"
-            )
+
         error_contains = rc.get("error_contains")
         error_contains_any = rc.get("error_contains_any")
-        if (error_contains or error_contains_any) and expect != "error":
+        if (error_contains or error_contains_any) and outcome != "error":
             raise CaseError(
                 f"{toml_path}: check #{i + 1} `error_contains*` only valid with "
-                f"expect='error'"
+                f"outcome='error'"
             )
         checks.append(
             Check(
-                op=rc["op"],
-                expect=expect,
+                op=op,
+                outcome=outcome,
+                expected=expected,
                 error_contains=error_contains,
                 error_contains_any=error_contains_any,
-                compare=compare,
-                golden=golden,
                 control=rc.get("control"),
                 format=rc.get("format"),
                 args=list(rc.get("args", [])),
@@ -184,20 +215,14 @@ def load_case(case_dir: Path) -> Case:
             )
         )
 
-    polarity = _polarity_from_path(case_dir)
-    if polarity is None:
-        raise CaseError(
-            f"{toml_path}: case is not under a happy/ or failure/ directory"
-        )
-
-    has_error_check = any(c.expect == "error" for c in checks)
+    has_error_check = any(c.outcome == "error" for c in checks)
     if polarity == "happy" and has_error_check:
         raise CaseError(
-            f"{toml_path}: case is under happy/ but has an expect='error' check"
+            f"{toml_path}: case is under happy/ but has an outcome='error' check"
         )
     if polarity == "failure" and not has_error_check:
         raise CaseError(
-            f"{toml_path}: case is under failure/ but has no expect='error' check"
+            f"{toml_path}: case is under failure/ but has no outcome='error' check"
         )
 
     return Case(
@@ -206,7 +231,6 @@ def load_case(case_dir: Path) -> Case:
         doc=raw.get("doc"),
         inputs=inputs,
         root=raw.get("root"),
-        tags=list(raw.get("tags", [])),
         min_kicad=raw.get("min_kicad"),
         skip_reason=raw.get("skip_reason"),
         control=raw.get("control"),

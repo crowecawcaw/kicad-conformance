@@ -9,7 +9,7 @@ Two tiers:
   (`args =`) show up. Unexercised verbs are the gap list.
 - Format-token coverage: which top-level s-expr sections (e.g. `(net ...)`,
   `(footprint ...)`, `(zone ...)`) and which format `(version YYYYMMDD)` epochs appear
-  across the fixtures + goldens the suite carries.
+  across the fixtures + expected files the suite carries.
 
 This is honestly a proxy (DESIGN §7a): it shows which surfaces are *touched*, not which
 KiCad source lines *run*.
@@ -84,7 +84,7 @@ def build_coverage_report(cases: list[Case]) -> CoverageReport:
             report.exercised_verbs.add(check.op)
             if check.args:
                 report.exercised_flags.setdefault(check.op, set()).update(check.args)
-        # Scan every text file under the case dir (fixtures + goldens) for top-level
+        # Scan every text file under the case dir (fixtures + expected files) for top-level
         # sections and format-version tokens. Best-effort: unreadable/binary files are
         # skipped rather than failing the whole report.
         for path in case.path.rglob("*"):
