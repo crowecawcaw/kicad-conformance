@@ -93,7 +93,10 @@ nondeterminism (timestamps, generator strings, fresh UUIDs, …), then decides p
   normalization** for text (gerbers, drill, upgraded s-expr; a KiCad-regression signal) or
   a **structural reduction** for semantic outputs (DRC/ERC violation sets, netlist net→node
   membership; the cross-adapter conformance signal). Text goldens are stored **LF** and
-  regenerated inside the Linux Docker image so they are platform-canonical.
+  regenerated inside the Linux Docker image so they are platform-canonical. The full
+  **L0–L3 comparator ladder** — exit, KiCad-regression byte goldens, richer L2 semantic
+  projections (stats / placement / board-netlist) and an L3 SVG-render comparator — is
+  specified in [`docs/VALIDATION.md`](docs/VALIDATION.md).
 
 That's the whole model. One input fixture can drive several checks (e.g. one board
 feeding both `drc` and `export-gerbers`). Full details in
@@ -152,6 +155,7 @@ kicad-conformance/
 ├── README.md                  # you are here
 ├── docs/
 │   ├── DESIGN.md              # architecture: model, adapter contract, comparison, coverage
+│   ├── VALIDATION.md          # the L0–L3 comparator ladder (L2 semantic, L3 SVG render)
 │   ├── TEST_CASE_FORMAT.md    # the authoring spec (manifest schema, layout, worked examples)
 │   ├── DECISIONS.md           # numbered decision log (ADR-style, append-only)
 │   ├── DIVERGENCES.md         # checked-in known-divergence ledger (DL-0009/DL-0018)

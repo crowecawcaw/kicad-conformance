@@ -484,3 +484,105 @@ check-level override, mirroring the existing `control` resolution pattern);
 `XFAIL` as non-failing and `XPASS` as failing in the per-case rollup. `docs/DIVERGENCES.md`
 is the checked-in ledger DL-0009 anticipated but had not yet been created; entries there
 must be kept current with the `tracking` field (upstream issue) once filed.
+
+---
+
+## DL-0019 — L2 (semantic extraction) and L3 (vector render) are first-class comparators
+**Status:** accepted (extends [DL-0008]/[DL-0014]/[DL-0015]; full spec in [`VALIDATION.md`](VALIDATION.md))
+
+**Context.** M0 validates a parser by exit polarity — *did it load* (DESIGN §3a) — plus L1
+byte goldens (KiCad-regression) and the embryonic `structured` reductions for DRC/ERC/
+netlist. That does not answer *did it load into the **right model***: a tool can exit 0 and
+still mis-net a pad, drop a via, or mis-rotate a footprint. The owner asked for two richer
+layers, implementation-fair across tools.
+
+**Decision.** Formalize a four-rung **comparator ladder** (VALIDATION.md §1): **L0** exit ·
+**L1** canonical-serialize (KiCad-regression) · **L2** semantic extraction/interchange ·
+**L3** vector render (SVG). L2 and L3 are added as first-class comparators. **L2** derives a
+normalized, structured projection of *meaning* (connectivity, counts, geometry, placement)
+from an interchange export and compares by **membership/field** — implemented by extending
+the existing `structured` mode and `runner/reduce.py` (new `reduce_stats`, `reduce_pos`,
+`reduce_ipcd356`; a `kicadxml` reader for `reduce_netlist`). **L3** exports SVG and compares
+the drawn geometry (new `image` compare mode). One fixture yields many projections, each an
+independent comparator; a projection's cross-impl fairness tracks how much it captures
+*meaning* vs. KiCad's byte-formatting.
+
+**Rationale.** L2/L3 are portable (they measure meaning, not bytes), so they — not L1 — are
+the cross-adapter conformance signal ([DL-0015]), while reusing the whole M0 machinery
+(scratch-copy, explicit `-o`, canonical-reduction goldens [DL-0014], membership compare,
+determinism self-test). Grounded empirically on `kicad-cli` 10.0.5: `pcb export stats`
+(only `metadata.date` nondeterministic), `pcb export pos --format csv` and `pcb export
+ipcd356` (both byte-identical run-to-run), and netlist recoverable from *both* `kicadsexpr`
+and `kicadxml` (cross-format fairness).
+
+**Consequences.** New verbs `export-stats`, `export-ipcd356`, `export-svg-{pcb,sch,sym,fp}`,
+and the promoted `export-pos` (VALIDATION.md §5.1); a new `image` compare mode and an `svg`
+normalizer; new `reduce_*` functions. Goldens gain `*.reduced.json` (L2) and reference SVG/
+PNG (L3) forms. Build order in VALIDATION.md §8 (stats → pos → ipcd356 → svg).
+
+---
+
+## DL-0020 — Gerber geometry is NOT reduced structurally; board copper is covered by stats+pos+ipcd356+SVG
+**Status:** accepted (scopes [DL-0019]; refines [DL-0015])
+
+**Context.** An L2 for the `gerber` suite could be a structural RS-274X reduction (apertures
++ flashes/draws with per-layer coordinates). Whether that is worth building was left as an
+explicit call for VALIDATION.md.
+
+**Decision.** **Do not build a Gerber structural reduction.** Board copper *meaning* is
+instead covered by the composition of **stats** (copper areas, track/via/pad counts, min
+widths), **pos** (placement), **ipcd356** (net→pad connectivity + access-point geometry),
+and **L3-SVG** (the drawn copper geometry). The `gerber` suite keeps its L1 `golden-dir`
+byte compare as a KiCad-version-regression signal only.
+
+**Rationale.** A faithful RS-274X reducer is a second rasterizer's worth of work (aperture
+macros, `%LP` polarity, `G36/G37` regions, arc interpolation, step-and-repeat, `%FS`
+coordinate format), and its cross-impl output is as formatting-sensitive as the byte golden
+it was meant to improve on — two conformant plotters legitimately decompose a pad or track
+differently. The four projections above already localize every copper defect that matters
+(wrong count/net/placement/area), and L3-SVG captures the geometry *fairly* (a raster is
+decomposition-blind).
+
+**Consequences.** **Honest gap:** a bug that corrupts RS-274X output while leaving the
+`.kicad_pcb` model intact (a plotter-only aperture bug) is caught only by the L1 byte golden
+(KiCad-regression, not cross-impl) and by L3-SVG — there is no portable Gerber-*native* L2.
+Acceptable since gerber is a fab-output verb whose cross-impl story [DL-0015] already scopes
+to the semantic subset; a Gerber reducer can be added later if a concrete second-adapter
+need appears.
+
+---
+
+## DL-0021 — SVG L3: hybrid normalized-SVG-exact (KiCad-regr.) + pinned-`resvg` raster (cross-impl); audited tolerance
+**Status:** accepted (implements the L3 rung of [DL-0019])
+
+**Context.** L3 needs a deterministic SVG comparison in CI. Empirically the
+`kicad/kicad:10.0.5` image ships **no SVG rasterizer** (probed: `rsvg-convert`, `resvg`,
+`inkscape`, `cairosvg`, ImageMagick, `dvisvgm`, `pdftocairo` all MISSING; only ghostscript,
+which is PS/PDF-only, and Pillow, which cannot rasterize SVG, are present). Separately,
+KiCad's own `pcb export svg` output is deterministic **except** its `<title>` line
+(filename + wall-clock date); path geometry is byte-stable run-to-run.
+
+**Decision.** A **hybrid**, reconciled with the "no pre-authorized tolerance bands"
+principle: **(a) KiCad-vs-KiCad regression** → normalize the `<title>`/`<desc>` and compare
+the SVG **byte-exact after normalization** (no rasterizer, zero tolerance) — the default L3
+comparator; determinism pinned via `--black-and-white --page-size-mode 2
+--exclude-drawing-sheet` + `LC_ALL=C.UTF-8`/`TZ=UTC`. **(b) Cross-implementation** →
+rasterize both SVGs with a **pinned `resvg`** (exact version, added to the CI image) at fixed
+DPI/white-background, and pixel/SSIM-diff under an **explicit, per-case, documented threshold
+that must be shown load-bearing** (perturb the geometry by one quantum → comparator goes
+red, or the threshold is dead and removed — same rule as a normalizer, DESIGN §4a).
+
+**Rationale.** KiCad's SVG being already-exact (§4.2) means the regression case needs no
+renderer and gets a *stronger, cheaper* exact vector compare with no threshold — the ideal
+for the "no silent band" rule. Rasterization is reserved for the genuinely-different case (a
+clean-room tool's valid-but-differently-structured SVG, which exact-match would over-fit
+like an L1 golden, [DL-0015]). `resvg` is chosen over `rsvg-convert`/Inkscape/cairosvg
+because it is a single static binary with bundled fonts and CPU-deterministic rendering — no
+cairo/pango/fontconfig/system-font variance to make pixels drift across machines; ghostscript
+cannot read SVG at all.
+
+**Consequences.** L3 goldens are the reference **SVG** (mode a, per KiCad version) and/or a
+reference **PNG** (mode b). The `image` compare mode + `svg` normalizer land with L3 (build
+step 4a); pinning `resvg` and the raster/SSIM path land with the second adapter (M7, step
+4b) since KiCad-only conformance never rasterizes. Diff report: textual SVG diff (a) or
+diff-image + %pixels + SSIM (b).

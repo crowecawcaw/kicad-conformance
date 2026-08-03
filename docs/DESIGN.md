@@ -2,6 +2,8 @@
 
 This document defines the architecture. Companion docs:
 [`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md) (how to author a case),
+[`VALIDATION.md`](VALIDATION.md) (the L0–L3 comparator ladder — the L2 semantic-extraction
+and L3 SVG-render comparators that go beyond §3's exit/structured/golden modes, [DL-0019]–[DL-0021]),
 [`DECISIONS.md`](DECISIONS.md) (numbered rationale), [`ROADMAP.md`](ROADMAP.md),
 [`DIVERGENCES.md`](DIVERGENCES.md) (the checked-in known-divergence ledger, [DL-0009]/[DL-0018]).
 
@@ -197,7 +199,11 @@ loaders differ:
 
 ## 3. Comparison model
 
-Every check declares a `compare` mode. Pass/fail is decided per check:
+Every check declares a `compare` mode. Pass/fail is decided per check. The modes below
+(`exit`, `structured`, `golden-file`/`golden-dir`) are the **L0/L1/L2** rungs of the
+comparator ladder; [`VALIDATION.md`](VALIDATION.md) formalizes that ladder and adds the
+richer **L2** interchange projections (stats / pos / ipcd356, extending `structured`) and an
+**L3** SVG-render comparator (a new `image` mode) — [DL-0019]–[DL-0021].
 
 ### 3a. `exit` — success/failure polarity (+ error substring)
 
