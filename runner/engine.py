@@ -76,6 +76,17 @@ def _resolve_artifact(check: Check, case: Case, out_dir: Path) -> Path:
         return out_dir / "pos.csv"
     if op == "bom":
         return out_dir / "bom.csv"
+    if op == "export-stats":
+        return out_dir / "stats.json"
+    if op == "export-ipcd356":
+        return out_dir / "board.d356"
+    if op == "export-svg-pcb":
+        return out_dir / "render.svg"
+    if op in ("export-svg-sch", "export-svg-sym", "export-svg-fp"):
+        # These three write kicad-cli's OWN derived filename into the `--out` dir
+        # (`sch|sym|fp export svg -o <out>/` -> `<out>/<input-stem>.svg`), unlike
+        # export-svg-pcb where the adapter dictates the exact file name (VALIDATION §5.1).
+        return out_dir / (Path(case.inputs[0]).stem + ".svg")
     if op in ("export-gerbers", "export-drill"):
         return out_dir
     raise ValueError(f"no artifact resolver for op {op!r}")
@@ -88,7 +99,22 @@ def _reduce_structured(check: Check, artifact: Path) -> object:
         return reduce.reduce_drc(raw) if check.op == "drc" else reduce.reduce_erc(raw)
     if check.op == "netlist":
         text = artifact.read_text(encoding="utf-8")
+        # VALIDATION.md §3.1: the net->node graph is recoverable from EITHER interchange
+        # format kicad-cli emits; `check.format` (the case's `format = "kicadxml"`, if
+        # set) picks the reader, but both land on the identical reduced shape.
+        if check.format == "kicadxml":
+            return reduce.reduce_netlist_kicadxml(text)
         return reduce.reduce_netlist(text)
+    if check.op == "export-stats":
+        with open(artifact, encoding="utf-8") as f:
+            raw = json.load(f)
+        return reduce.reduce_stats(raw)
+    if check.op == "export-pos":
+        text = artifact.read_text(encoding="utf-8")
+        return reduce.reduce_pos(text)
+    if check.op == "export-ipcd356":
+        text = artifact.read_text(encoding="utf-8")
+        return reduce.reduce_ipcd356(text)
     raise ValueError(f"no structured reduction for op {check.op!r}")
 
 
@@ -328,6 +354,23 @@ class Engine:
             if actual_bytes == expected_bytes:
                 return CheckResult(label, PASS)
             return CheckResult(label, FAIL, f"{label}: golden-file mismatch vs {golden_path}")
+
+        if check.compare == "image":
+            # L3 SVG render, mode (a) of VALIDATION.md §4.3/§4.4: KiCad-vs-KiCad is a
+            # normalized-SVG BYTE-EXACT compare, zero tolerance, no rasterizer -- the
+            # cross-impl raster path (mode b, pinned `resvg`) is deferred to M7 (DL-0021).
+            if not artifact.exists():
+                return CheckResult(label, FAIL, f"{label}: adapter did not write expected SVG at {artifact}")
+            actual_bytes = normalize.normalize_svg(artifact.read_bytes())
+            if self.regenerate:
+                _write_golden_file(golden_path, actual_bytes)
+                return CheckResult(label, REGENERATED, f"{label}: wrote {golden_path}")
+            if not golden_path.exists():
+                return CheckResult(label, NEEDS_REGEN, f"{label}: golden {golden_path} missing -- run --regenerate")
+            expected_bytes = normalize.normalize_svg(golden_path.read_bytes())
+            if actual_bytes == expected_bytes:
+                return CheckResult(label, PASS)
+            return CheckResult(label, FAIL, f"{label}: image (SVG) mismatch vs {golden_path} (normalized-SVG byte compare)")
 
         if check.compare == "golden-dir":
             if not artifact.is_dir():

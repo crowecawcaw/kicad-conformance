@@ -1,0 +1,14 @@
+concept = "A populated two-layer board (one SMD resistor, one through-hole capacitor, a track, a via) reports the correct pad/via/component inventory via `pcb export stats`."
+doc     = "cli:pcb-export-stats"
+
+# Seed-and-upgrade fixture (DL-0011): hand-authored minimal board text, upgraded once
+# via `kicad-cli pcb upgrade --force` inside the Docker Linux image so the committed
+# file is a genuine KiCad artifact. Same board used across the stats/placement/
+# ipcd356/svg L2/L3 cases (VALIDATION.md §8) -- one input, many projections.
+input = "board.kicad_pcb"
+
+[[check]]
+op      = "export-stats"
+expect  = "ok"
+compare = "structured"          # reduce_stats: drop metadata, field/string compare
+golden  = "stats.reduced.json"  # stored canonical reduction, NOT the raw stats json

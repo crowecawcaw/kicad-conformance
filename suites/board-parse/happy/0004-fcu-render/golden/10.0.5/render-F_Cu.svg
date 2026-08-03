@@ -1,0 +1,82 @@
+<?xml version="1.0" standalone="no"?>
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"> 
+<svg
+  xmlns:svg="http://www.w3.org/2000/svg"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+  version="1.1"
+  width="49.9872mm" height="34.9758mm" viewBox="0.0000 0.0000 49.9872 34.9758">
+<title>NORMALIZED</title>
+  <desc>NORMALIZED</desc>
+<g style="fill:#000000; fill-opacity:1.0000;stroke:#000000; stroke-opacity:1.0000;
+stroke-linecap:round; stroke-linejoin:round;"
+ transform="translate(0 0) scale(1 1)">
+<path style="fill:#000000; fill-opacity:1.0000; stroke:none;fill-rule:evenodd;"
+d="M 19.5562,21.4250
+19.4582,21.4055
+19.3751,21.3499
+19.3195,21.2668
+19.3000,21.1687
+19.3000,20.6562
+19.3195,20.5582
+19.3751,20.4751
+19.4582,20.4195
+19.5562,20.4000
+20.4437,20.4000
+20.5418,20.4195
+20.6249,20.4751
+20.6805,20.5582
+20.7000,20.6562
+20.7000,21.1687
+20.6805,21.2668
+20.6249,21.3499
+20.5418,21.4055
+20.4437,21.4250
+Z" /> 
+<path style="fill:#000000; fill-opacity:1.0000; stroke:none;fill-rule:evenodd;"
+d="M 19.5562,19.6000
+19.4582,19.5805
+19.3751,19.5249
+19.3195,19.4418
+19.3000,19.3438
+19.3000,18.8313
+19.3195,18.7332
+19.3751,18.6501
+19.4582,18.5945
+19.5562,18.5750
+20.4437,18.5750
+20.5418,18.5945
+20.6249,18.6501
+20.6805,18.7332
+20.7000,18.8313
+20.7000,19.3438
+20.6805,19.4418
+20.6249,19.5249
+20.5418,19.5805
+20.4437,19.6000
+Z" /> 
+</g>
+<g style="fill:#000000; fill-opacity:1.0000; stroke:none;">
+<circle cx="41.2500" cy="30.0000" r="0.8000" /> 
+<circle cx="38.7500" cy="30.0000" r="0.8000" /> 
+<circle cx="30.0000" cy="20.0000" r="0.3000" /> 
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.2500; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M20.9125 20.0000
+L30.0000 20.0000
+" />
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.0000; stroke:none;">
+<circle cx="30.0000" cy="20.0000" r="0.2000" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.0000; stroke:none;">
+<circle cx="41.2500" cy="30.0000" r="0.4000" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.0000; stroke:none;">
+<circle cx="38.7500" cy="30.0000" r="0.4000" /> 
+</g> 
+</svg>

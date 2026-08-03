@@ -89,7 +89,7 @@ class Case:
         return self.path / "golden" / version
 
 
-_VALID_COMPARE = {"exit", "structured", "golden-file", "golden-dir"}
+_VALID_COMPARE = {"exit", "structured", "golden-file", "golden-dir", "image"}
 _VALID_EXPECT = {"ok", "error"}
 
 
@@ -155,7 +155,7 @@ def load_case(case_dir: Path) -> Case:
                 f"{toml_path}: check #{i + 1} has invalid `compare` {compare!r}"
             )
         golden = rc.get("golden")
-        if compare in ("golden-file", "golden-dir", "structured") and not golden:
+        if compare in ("golden-file", "golden-dir", "structured", "image") and not golden:
             raise CaseError(
                 f"{toml_path}: check #{i + 1} compare={compare!r} requires `golden`"
             )

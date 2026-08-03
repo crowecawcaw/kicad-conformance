@@ -208,10 +208,16 @@ def cmd_drc(cli: str, ins: list[str], out: str) -> None:
     )
 
 
-def cmd_netlist(cli: str, ins: list[str], out: str, root: str | None) -> None:
+def cmd_netlist(cli: str, ins: list[str], out: str, root: str | None, fmt: str | None) -> None:
     """Copies every `--in` (root + subsheets) flat into a scratch dir by basename —
     sufficient for same-directory multi-sheet projects (the common case) — then runs
-    `sch export netlist` against the root sheet's scratch copy."""
+    `sch export netlist` against the root sheet's scratch copy.
+
+    `fmt` selects the interchange format (`kicadsexpr`, the default, or `kicadxml` --
+    VALIDATION.md §3.1's cross-format-fairness reader). `-o` always names the same
+    output file regardless of format: kicad-cli writes exactly the path it's given, not
+    a format-derived extension (verified empirically), so `netlist.net` may contain
+    either s-expr or XML text."""
     out_dir = Path(out)
     scratch = _fresh_scratch_dir()
     root_name = root or Path(ins[0]).name
@@ -224,7 +230,7 @@ def cmd_netlist(cli: str, ins: list[str], out: str, root: str | None) -> None:
     if root_dest is None:
         root_dest = scratch / Path(ins[0]).name
     run_and_relay(
-        [cli, "sch", "export", "netlist", "--format", "kicadsexpr",
+        [cli, "sch", "export", "netlist", "--format", fmt or "kicadsexpr",
          "-o", str(out_dir / "netlist.net"), str(root_dest)]
     )
 
@@ -267,6 +273,73 @@ def cmd_bom(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
     )
 
 
+def cmd_export_stats(cli: str, ins: list[str], out: str) -> None:
+    out_dir = Path(out)
+    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    run_and_relay(
+        [cli, "pcb", "export", "stats", "--format", "json",
+         "-o", str(out_dir / "stats.json"), str(src)]
+    )
+
+
+def cmd_export_ipcd356(cli: str, ins: list[str], out: str) -> None:
+    out_dir = Path(out)
+    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    run_and_relay(
+        [cli, "pcb", "export", "ipcd356", "-o", str(out_dir / "board.d356"), str(src)]
+    )
+
+
+def cmd_export_svg_pcb(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
+    """`extra` (the case's `args =`) carries `--layers <L>` -- the layer set is a
+    per-case parameter, never a fixed list (VALIDATION.md §5.1, mirroring the gerber
+    layer set, DESIGN §2b). The remaining flags are pinned for determinism (VALIDATION
+    §4.3): `--page-size-mode 2` (board-area only, so page size can't drift),
+    `--exclude-drawing-sheet`, `--black-and-white` (removes theme-color dependence)."""
+    out_dir = Path(out)
+    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    run_and_relay(
+        [cli, "pcb", "export", "svg", "--page-size-mode", "2",
+         "--exclude-drawing-sheet", "--black-and-white", *extra,
+         "-o", str(out_dir / "render.svg"), str(src)]
+    )
+
+
+def cmd_export_svg_sch(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
+    """`sch export svg` writes `<out>/<stem>.svg` (a directory `-o`, not a file path --
+    unlike `export-svg-pcb`); the runner's artifact resolver knows this (engine.py
+    `_resolve_artifact`)."""
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    run_and_relay(
+        [cli, "sch", "export", "svg", "--no-background-color", *extra,
+         "-o", str(out_dir) + "/", str(src)]
+    )
+
+
+def cmd_export_svg_sym(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    run_and_relay(
+        [cli, "sym", "export", "svg", "--black-and-white", *extra,
+         "-o", str(out_dir) + "/", str(src)]
+    )
+
+
+def cmd_export_svg_fp(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
+    """`fp export svg`, like `parse-fp`, takes a `.pretty` LIBRARY DIRECTORY, never a
+    lone `.kicad_mod` (DESIGN §2)."""
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    src = _scratch_copy_tree(ins[0], _fresh_scratch_dir())
+    run_and_relay(
+        [cli, "fp", "export", "svg", "--black-and-white", *extra,
+         "-o", str(out_dir) + "/", str(src)]
+    )
+
+
 def main() -> int:
     verb, ins, out, root, fmt, extra = parse_argv(sys.argv[1:])
 
@@ -306,7 +379,7 @@ def main() -> int:
     elif verb == "drc":
         cmd_drc(cli, ins, out)
     elif verb == "netlist":
-        cmd_netlist(cli, ins, out, root)
+        cmd_netlist(cli, ins, out, root, fmt)
     elif verb == "export-gerbers":
         cmd_export_gerbers(cli, ins, out, extra)
     elif verb == "export-drill":
@@ -315,6 +388,18 @@ def main() -> int:
         cmd_export_pos(cli, ins, out, extra)
     elif verb == "bom":
         cmd_bom(cli, ins, out, extra)
+    elif verb == "export-stats":
+        cmd_export_stats(cli, ins, out)
+    elif verb == "export-ipcd356":
+        cmd_export_ipcd356(cli, ins, out)
+    elif verb == "export-svg-pcb":
+        cmd_export_svg_pcb(cli, ins, out, extra)
+    elif verb == "export-svg-sch":
+        cmd_export_svg_sch(cli, ins, out, extra)
+    elif verb == "export-svg-sym":
+        cmd_export_svg_sym(cli, ins, out, extra)
+    elif verb == "export-svg-fp":
+        cmd_export_svg_fp(cli, ins, out, extra)
     else:
         print(f"unsupported verb: {verb!r}", file=sys.stderr)
         return 127

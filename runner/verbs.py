@@ -54,7 +54,35 @@ VERB_TABLE: dict[str, dict[str, str]] = {
     },
     "export-pos": {
         "cli": "pcb export pos --format csv --side both --units mm -o <out>/pos.csv",
-        "note": "golden-file",
+        "note": "L2-reducible (structured, printed-quantum tolerance, VALIDATION §3.4); "
+                "the older golden-file compare mode remains available for KiCad-regression",
+    },
+    "export-stats": {
+        "cli": "pcb export stats --format json -o <out>/stats.json",
+        "note": "structured (VALIDATION §3.3): drop metadata, field/string compare",
+    },
+    "export-ipcd356": {
+        "cli": "pcb export ipcd356 -o <out>/board.d356",
+        "note": "structured (VALIDATION §3.5): board net->pad membership graph",
+    },
+    "export-svg-pcb": {
+        "cli": "pcb export svg --layers <L> --page-size-mode 2 --exclude-drawing-sheet "
+               "--black-and-white -o <out>/render.svg",
+        "note": "image (L3, VALIDATION §4): normalized-SVG byte-exact; <L> is a per-case "
+                "`args` parameter like the gerber layer set (DESIGN §2b)",
+    },
+    "export-svg-sch": {
+        "cli": "sch export svg --no-background-color -o <out>/ (writes <stem>.svg)",
+        "note": "image (L3)",
+    },
+    "export-svg-sym": {
+        "cli": "sym export svg --black-and-white -o <out>/ (writes <sym>.svg)",
+        "note": "image (L3) -- deferred case-authoring to M5 (library SVG); verb implemented now",
+    },
+    "export-svg-fp": {
+        "cli": "fp export svg --black-and-white -o <out>/ (writes <fp>.svg; input is a "
+               ".pretty dir, never a lone .kicad_mod)",
+        "note": "image (L3) -- deferred case-authoring to M5 (library SVG); verb implemented now",
     },
     "export-step": {
         "cli": "pcb export step",

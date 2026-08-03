@@ -1,0 +1,57 @@
+{
+  "board": {
+    "area": "400.00 mm\u00b2",
+    "back_component_density": "0.00",
+    "back_copper_area": "0.00 mm\u00b2",
+    "back_footprint_area": "0.00 mm\u00b2",
+    "back_footprint_density": "0.00",
+    "board_thickness": "1.6000 mm",
+    "front_component_density": "0.00",
+    "front_copper_area": "0.00 mm\u00b2",
+    "front_footprint_area": "0.00 mm\u00b2",
+    "front_footprint_density": "0.00",
+    "has_outline": true,
+    "height": "20.0000 mm",
+    "min_drill_diameter": "2147.4836 mm",
+    "min_track_clearance": "2147.4836 mm",
+    "min_track_width": "2147.4836 mm",
+    "width": "20.0000 mm"
+  },
+  "components": {
+    "smd": {
+      "back": 0,
+      "front": 0,
+      "total": 0
+    },
+    "tht": {
+      "back": 0,
+      "front": 0,
+      "total": 0
+    },
+    "total": {
+      "back": 0,
+      "front": 0,
+      "total": 0
+    },
+    "unspecified": {
+      "back": 0,
+      "front": 0,
+      "total": 0
+    }
+  },
+  "drill_holes": [],
+  "pads": {
+    "castellated": 0,
+    "connector": 0,
+    "npth": 0,
+    "press_fit": 0,
+    "smd": 0,
+    "through_hole": 0
+  },
+  "vias": {
+    "blind": 0,
+    "buried": 0,
+    "micro": 0,
+    "through": 0
+  }
+}

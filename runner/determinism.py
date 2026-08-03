@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from runner import engine as _engine
+from runner import normalize
 from runner.adapter import Adapter
 from runner.manifest import Case, Check, load_case
 
@@ -39,13 +40,15 @@ def _raw_snapshot(check: Check, case: Case, out_dir: Path):
             for f in sorted(artifact.rglob("*"))
             if f.is_file()
         }
-    if check.compare == "golden-file":
+    if check.compare in ("golden-file", "image"):
         return artifact.read_bytes()
     if check.compare == "structured":
         if check.op in ("drc", "erc"):
             return json.loads(artifact.read_text(encoding="utf-8"))
-        if check.op == "netlist":
+        if check.op in ("netlist", "export-pos", "export-ipcd356"):
             return artifact.read_text(encoding="utf-8")
+        if check.op == "export-stats":
+            return json.loads(artifact.read_text(encoding="utf-8"))
     raise ValueError(f"no raw snapshot for compare={check.compare!r} op={check.op!r}")
 
 
@@ -57,6 +60,8 @@ def _normalized_snapshot(check: Check, case: Case, out_dir: Path):
         return _engine._normalized_file_bytes(artifact)
     if check.compare == "structured":
         return _engine._reduce_structured(check, artifact)
+    if check.compare == "image":
+        return normalize.normalize_svg(artifact.read_bytes())
     raise ValueError(f"no normalized snapshot for compare={check.compare!r}")
 
 
@@ -66,7 +71,7 @@ def check_determinism(adapter: Adapter, case_dir: Path, tmp_root: Path) -> list[
     if case.skip_reason:
         return outcomes
     for i, check in enumerate(case.checks):
-        if check.compare not in ("golden-file", "golden-dir", "structured"):
+        if check.compare not in ("golden-file", "golden-dir", "structured", "image"):
             continue
         if not adapter.supports(check.op):
             continue

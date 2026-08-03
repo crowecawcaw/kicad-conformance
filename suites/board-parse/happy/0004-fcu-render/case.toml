@@ -1,0 +1,13 @@
+concept = "The front-copper layer renders to the expected vector geometry (byte-exact after title/desc normalization, VALIDATION.md §4.3 mode (a))."
+doc     = "cli:pcb-export-svg"
+
+# Same seed-and-upgrade board as 0002/0003 (DL-0011): R1's pad + track + via draw real
+# F.Cu geometry so this isn't an empty-layer render.
+input = "board.kicad_pcb"
+
+[[check]]
+op      = "export-svg-pcb"
+expect  = "ok"
+compare = "image"               # (a) normalized-SVG exact for KiCad-vs-KiCad
+golden  = "render-F_Cu.svg"      # reference SVG, per KiCad version
+args    = ["--layers", "F.Cu"]  # per-case layer selection (DESIGN §2b)

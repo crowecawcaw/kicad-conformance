@@ -170,6 +170,7 @@ kicad-conformance/
 │   ├── netlist/{happy,failure}/
 │   ├── symbol-lib/{happy,failure}/
 │   ├── footprint-lib/{happy,failure}/
+│   ├── placement/{happy,failure}/     # L2 `export-pos` reduction (VALIDATION.md §3.4)
 │   └── integration/{happy,failure}/   # multi-verb cases only (per-verb suites stay pure)
 ├── corpus/                    # large real-world projects for coverage sweeps (gitignored)
 │   ├── manifest.toml         #   pinned SHA + SPDX per project (committed)

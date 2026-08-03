@@ -1,4 +1,4 @@
-concept = "A small routed two-layer board: it parses/canonicalizes, DRC is clean, and gerber output is stable -- one input, three checks across three verbs (DL-0017)."
+concept = "A small routed two-layer board: it parses/canonicalizes, DRC is clean, gerber output is stable, and the L2/L3 projections (stats, placement, board net graph, SVG) all agree with the same model -- one input, seven checks across seven verbs (DL-0017, VALIDATION.md §1's 'one fixture, many projections')."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 tags    = ["integration", "fab"]
@@ -28,3 +28,44 @@ expect  = "ok"
 compare = "golden-dir"
 golden  = "gerbers/"                    # RS-274X files, G04 headers + .gbrjob date normalized
 args    = ["--layers", "F.Cu,B.Cu,Edge.Cuts", "--no-protel-ext"]
+
+# 4) Board inventory (L2, VALIDATION.md §3.3) -- same board, another independent
+#    projection. This board has no footprints, so it documents the "empty inventory
+#    is still a correct inventory" edge; suites/board-parse/happy/0002-* covers the
+#    populated-board case with a non-trivial pad/via/component count.
+[[check]]
+name    = "stats"
+op      = "export-stats"
+expect  = "ok"
+compare = "structured"
+golden  = "stats.reduced.json"
+
+# 5) Placement (L2, VALIDATION.md §3.4) -- same board; no footprints here, so this is
+#    the empty-placement edge (suites/placement/happy/0001-* has the interesting case).
+[[check]]
+name    = "pos"
+op      = "export-pos"
+expect  = "ok"
+compare = "structured"
+golden  = "pos.reduced.json"
+
+# 6) Board-side net graph (L2, VALIDATION.md §3.5) -- same board; no pads/nets here
+#    either (suites/board-parse/happy/0003-* has the interesting case).
+[[check]]
+name    = "ipcd356"
+op      = "export-ipcd356"
+expect  = "ok"
+compare = "structured"
+golden  = "board-net.reduced.json"
+
+# 7) F.Cu SVG render (L3, VALIDATION.md §4) -- normalized-SVG byte-exact. This board's
+#    only graphic is on Edge.Cuts, so the F.Cu render is empty geometry (still a valid,
+#    deterministic projection to compare); suites/board-parse/happy/0004-* has the
+#    populated-board render with real copper.
+[[check]]
+name    = "svg-fcu"
+op      = "export-svg-pcb"
+expect  = "ok"
+compare = "image"
+golden  = "render-F_Cu.svg"
+args    = ["--layers", "F.Cu"]

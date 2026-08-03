@@ -1,4 +1,4 @@
-concept = "Two 2-pin parts sharing both endpoints wire up into exactly two nets, one per shared pin."
+concept = "Two 2-pin parts sharing both endpoints wire up into exactly two nets, one per shared pin -- and the same net graph is recoverable from EITHER netlist interchange format (VALIDATION.md §3.1's cross-format fairness: kicadsexpr and kicadxml reduce to the identical structure)."
 doc     = "sexpr-schematic#connectivity"
 
 # Hand-authored fixture (DL-0011): a minimal custom symbol "T2" with two pins at local
@@ -8,7 +8,18 @@ doc     = "sexpr-schematic#connectivity"
 input = "sheet.kicad_sch"
 
 [[check]]
+name    = "netlist-sexpr"
 op      = "netlist"
 expect  = "ok"
 compare = "structured"                  # net -> {(refdes, pin)} membership (DESIGN §3b)
 golden  = "netlist.reduced.json"        # canonical reduction, not the raw kicadsexpr netlist
+
+# Same connectivity, the OTHER interchange format -- proves the reduction measures
+# meaning, not one serialization (VALIDATION.md §3.1).
+[[check]]
+name    = "netlist-xml"
+op      = "netlist"
+expect  = "ok"
+compare = "structured"
+format  = "kicadxml"
+golden  = "netlist-xml.reduced.json"     # same reduced SHAPE as netlist.reduced.json above
