@@ -1,0 +1,49 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [
+    {
+      "description": "Missing connection between items",
+      "items": [
+        {
+          "description": "Pad 1 [NETA] of  on F.Cu",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Pad 1 [NETA] of  on F.Cu",
+          "pos": {
+            "x": 11.5,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "unconnected_items"
+    }
+  ],
+  "violations": [
+    {
+      "description": "Clearance violation (rule 'my-physical-clearance' clearance 3.0000 mm; actual 0.5000 mm)",
+      "items": [
+        {
+          "description": "Pad 1 [NETA] of  on F.Cu",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Pad 1 [NETA] of  on F.Cu",
+          "pos": {
+            "x": 11.5,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "clearance"
+    }
+  ]
+}

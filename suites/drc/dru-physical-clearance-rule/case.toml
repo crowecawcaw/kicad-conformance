@@ -1,0 +1,11 @@
+concept = "A same-stem board.kicad_dru sibling with a custom physical_clearance rule fires between two same-net pads that ordinary clearance exempts entirely, proving physical_clearance is checked in air regardless of net."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
+
+# Both pads share net NETA, 0.5 mm apart edge-to-edge. Ordinary `clearance` never applies
+# between same-net copper, so a plain board (no sibling) or one whose sibling condition
+# excludes pads reports zero violations. board.kicad_dru's `physical_clearance (min 3mm)`
+# constraint is net-agnostic by design (drc_test_provider_physical_clearance.cpp) and
+# fires anyway -- distinct code path from the plain `clearance` constraint exercised by
+# suites/drc/dru-custom-clearance-rule.

@@ -1,0 +1,62 @@
+{
+  "schematic_parity": [
+    {
+      "description": "Extra footprint",
+      "items": [
+        {
+          "description": "Footprint U2",
+          "pos": {
+            "x": 20.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "extra_footprint"
+    },
+    {
+      "description": "TestPad doesn't match footprint given by symbol ()",
+      "items": [
+        {
+          "description": "Footprint U1",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "footprint_symbol_mismatch"
+    },
+    {
+      "description": "Value (U1) doesn't match symbol value ()",
+      "items": [
+        {
+          "description": "Footprint U1",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "footprint_symbol_mismatch"
+    },
+    {
+      "description": "No corresponding pin found in schematic",
+      "items": [
+        {
+          "description": "Pad 1 [Net-1] of U1 on F.Cu",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "net_conflict"
+    }
+  ],
+  "unconnected_items": [],
+  "violations": []
+}

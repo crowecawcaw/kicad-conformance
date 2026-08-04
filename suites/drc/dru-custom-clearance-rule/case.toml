@@ -1,0 +1,9 @@
+concept = "A same-stem board.kicad_dru sibling with a custom clearance rule fires against two pads that comply with the board's default netclass clearance but violate the custom minimum, carrying the rule's own name into the finding."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
+
+# board.kicad_dru is discovered by same-stem convention (TEST_CASE_FORMAT.md §4), never
+# declared here. The two pads below are 1.5 mm apart edge-to-edge, which satisfies the
+# board's implicit default netclass clearance (0.2 mm, no [net_class] block -- same as
+# suites/drc/clearance-violation) but violates the sibling rule's `clearance (min 3mm)`.

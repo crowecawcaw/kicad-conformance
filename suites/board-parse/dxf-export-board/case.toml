@@ -1,0 +1,11 @@
+concept = "A two-pad, one-via, two-track board exports its F.Cu layer to DXF, byte-identical across repeated runs with no normalizer needed."
+doc     = "cli:pcb-export-dxf"
+input   = "board.kicad_pcb"
+extra   = ["dxf"]
+
+# Determinism checked directly for this fixture (DL-0037 verified this generically; this
+# case re-verifies it standalone): ran `pcb export dxf` twice, 2 seconds apart, same
+# output filename both times -- byte-for-byte identical, `cmp` reports zero differing
+# bytes. No timestamp, no embedded filename/path, nothing wall-clock in this plot mode, so
+# unlike pdf.pdf this answer gets no dedicated normalizer (falls through to the generic
+# CRLF->LF pass every unrecognized text suffix already gets, DESIGN.md §4).

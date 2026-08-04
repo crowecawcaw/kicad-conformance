@@ -1,0 +1,10 @@
+concept = "A two-pad, one-track board exports its F.Cu layer to a single-page PDF, byte-reproducible after normalizing only /CreationDate."
+doc     = "cli:pcb-export-pdf"
+input   = "board.kicad_pcb"
+extra   = ["pdf"]
+
+# Determinism checked directly (DL-0037 does this generically; re-verified here for this
+# fixture specifically): ran `pcb export pdf` on this exact board twice, 2 seconds apart,
+# same output filename both times. The only byte difference between the two runs was
+# /CreationDate (D:YYYY:MM:DD:HH:MM:SS) -- no /ModDate, no /ID trailer entry in this plot
+# mode. normalize_pdf handles that one field; nothing else in the file varied.
