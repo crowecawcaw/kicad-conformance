@@ -56,6 +56,29 @@ jobs:
       - name: Determinism self-test (DESIGN §4a)
         run: python3 -m runner --determinism-check suites/
 
+      - name: Asserted-coverage check (DL-0030, docs/ASSERTED_COVERAGE.md)
+        # Gates on the same paths this workflow already filters on (suites/**,
+        # runner/**, adapters/**): a case's perturb/<slug>/ overlay must still load and
+        # move at least one committed answer, or the case is INERT/INVALID-PERTURBATION/
+        # CRASH -- all three fail the build from day one (§3.4). `UNASSERTED-CASE` (a
+        # happy case with no perturbation at all) is only counted, never failed -- see
+        # the ratchet step below.
+        run: python3 -m runner --verify-assertions suites/
+
+      - name: Asserted-coverage ratchet (§3.4 -- UNASSERTED-CASE must not increase)
+        # Adoption is ratcheted, not retroactive (DL-0030): existing cases may stay
+        # unperturbed, but the count recorded in tools/coverage/baseline-unasserted-count.txt
+        # may only go down. Bump that file in the same PR that backfills perturbations;
+        # never raise it to make a new, unperturbed case's addition pass silently.
+        run: |
+          count=$(head -n1 tools/coverage/out/asserted-cases.txt | grep -oE '^[0-9]+')
+          baseline=$(cat tools/coverage/baseline-unasserted-count.txt)
+          echo "UNASSERTED-CASE count: $count (baseline/ratchet ceiling: $baseline)"
+          if [ "$count" -gt "$baseline" ]; then
+            echo "::error::UNASSERTED-CASE count went up ($baseline -> $count) -- a new happy case shipped with no perturb/<slug>/. New cases ship with a perturbation (docs/TEST_CASE_FORMAT.md §11); backfilling an old case lowers the baseline in the same PR."
+            exit 1
+          fi
+
   nightly-tracking:
     name: kicad nightly (10.99, non-gating)
     runs-on: ubuntu-latest

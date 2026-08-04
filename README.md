@@ -215,21 +215,28 @@ and does not exist yet either.
 5. Record the answer with `scripts/run.sh --regenerate <case>` (runs inside the
    `kicad/kicad:10.0.5` Docker image, so it is LF / Linux-canonical), read the diff, and
    commit `expected/10.0.5/…`.
-6. Run `scripts/run.sh <your case>` and confirm it passes — then **break the input**
-   (move a pad to another net, rotate a footprint) and confirm it goes red. For a
-   rejection case, add the positive control and confirm it fails for the *right* reason.
-   A crash is never a pass.
+6. Run `scripts/run.sh <your case>` and confirm it passes — then **commit the
+   perturbation that proves it**: `mkdir perturb/<slug>/`, drop in a copy of the input
+   with one thing changed (move a pad to another net, rotate a footprint), named exactly
+   like the input it replaces. Run `scripts/run.sh --verify-assertions <your case>` and
+   confirm it reports `ASSERTED` (naming which recorded answer moved) — `INERT` means the
+   perturbation didn't change anything the case checks; adjust the perturbation, don't
+   delete the finding. For a rejection case, add the positive control instead (a
+   rejection case must not carry a `perturb/` directory — its control already is this
+   check) and confirm it fails for the *right* reason. A crash is never a pass.
 
 The full contributor checklist is in [`docs/TEST_CASE_FORMAT.md`](docs/TEST_CASE_FORMAT.md).
 
-> **Where step 6 is going.** Breaking the input by hand proves the case is falsifiable
-> *once*, and leaves no artifact — so nothing re-checks it and a case can quietly rot into
-> one that passes whatever KiCad does. [`docs/ASSERTED_COVERAGE.md`](docs/ASSERTED_COVERAGE.md)
-> specifies the fix: commit the broken input as `perturb/<slug>/`, and a new runner mode
-> (`--verify-assertions`) re-runs it every time and requires the case to go red. That is
-> also what turns [`docs/COVERAGE.md`](docs/COVERAGE.md)'s "which lines ran" into "which
-> lines anything asserts" ([DL-0030](docs/DECISIONS.md), [DL-0031](docs/DECISIONS.md)).
-> Designed, not yet implemented — step 6 is still manual today.
+> **What step 6 replaced.** Breaking the input by hand used to prove the case is
+> falsifiable *once*, with no artifact — so nothing re-checked it and a case could
+> quietly rot into one that passes whatever KiCad does. `perturb/<slug>/` +
+> `--verify-assertions` ([`docs/ASSERTED_COVERAGE.md`](docs/ASSERTED_COVERAGE.md),
+> [DL-0030](docs/DECISIONS.md)) makes that a committed, CI-gated artifact instead. It is
+> an alternate runner mode (like `--determinism-check`), gated in CI on the same paths
+> `ci.yml` already filters — not part of the default `scripts/run.sh` run. New cases ship
+> with a perturbation; old ones are backfilled as they're touched (the
+> `UNASSERTED-CASE` ratchet, §3.4). Tier 2 — attributing *which lines* a perturbation's
+> assertion credits ([DL-0031](docs/DECISIONS.md)) — is still design-only.
 
 ## License
 

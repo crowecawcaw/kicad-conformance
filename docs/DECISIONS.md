@@ -719,7 +719,13 @@ DIV-0001 entry, and the eleven `suites/board-parse/rejects-*` manifests.
 
 ## DL-0030 — Asserted coverage: a case's falsifiability is a committed perturbation, checked by the runner
 **Status:** accepted (owner principle, 2026-08-03) — design in
-[`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md); **not yet implemented**
+[`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md); **Tier 1 implemented** (`--verify-assertions`:
+`runner/manifest.py`'s `discover_perturbations`, `runner/engine.py`'s
+`answers_in_assertion_order`/`generate_and_compare_against_committed`, `runner/assertions.py`,
+the `--verify-assertions` flag in `runner/cli.py`, and the CI step). Proven on six
+perturbations spanning a board summary, DRC, ERC, a symbol-library render, a
+gerbers-only byte answer, and a schematic summary, plus one deliberately-inert `(group
+...)` perturbation that correctly reports `INERT` rather than passing.
 
 **Context.** The owner's measurement discipline, in his words: *"Aim to cover all
 meaningful lines and branches. Coverage is what we can assert and verify, not just run."*
@@ -789,16 +795,33 @@ runs the suite twice (normal + `--determinism-check`); this adds roughly half a 
   discovery in `runner/manifest.py`, and a first-difference short-circuit in the answer
   generation path of `runner/engine.py`.
 - `.github/workflows/ci.yml` gains one step in the gating job.
-- `docs/TEST_CASE_FORMAT.md` §11 and `README.md`'s "Contributing a case" step 6 change from
-  "break the input and watch it go red" to "commit the perturbation that proves it."
-- **Adoption is ratcheted, not retroactive.** All 77 existing cases have no perturbation;
-  `UNASSERTED-CASE` is counted and printed, never failed, and CI gates only on the count
-  not increasing. `INERT` and `INVALID-PERTURBATION` are hard failures from day one — they
-  can only appear if someone wrote a perturbation, and a wrong perturbation is worse than
-  none.
+- `docs/TEST_CASE_FORMAT.md` §11 (new) and `README.md`'s "Contributing a case" step 6
+  change from "break the input and watch it go red" to "commit the perturbation that
+  proves it."
+- **Adoption is ratcheted, not retroactive.** All existing cases had no perturbation at
+  the time this landed; `UNASSERTED-CASE` is counted and printed, never failed, and CI
+  gates only on the count not increasing (`tools/coverage/baseline-unasserted-count.txt`,
+  bumped down in the same PR that backfills a case). `INERT` and `INVALID-PERTURBATION`
+  are hard failures from day one — they can only appear if someone wrote a perturbation,
+  and a wrong perturbation is worse than none.
 - `perturb/` fixtures obey every existing fixture rule ([DL-0011], [DL-0016]) and **must
   keep the input's filename** — gerber output embeds it ([DL-0026]), so a renamed
   perturbation would "move the answer" for the wrong reason.
+
+**Implementation note — one deviation from §3.2's illustration, deliberately.** §3.2's
+printed example shows an `ASSERTED` perturbation naming *multiple* moved answers (e.g.
+`summary.json, gerbers/ (2 files)`), but its own prose says generation "stops at the first
+differing answer." Those two are in tension: multiple answers can only be *known* to have
+moved if the run didn't stop at the first one. The implementation takes the prose as
+normative (it is also what §5.2's cost model depends on: "a perturbation that moves the
+summary costs ~3s, about half a board case" only holds if gerbers/drill are never
+generated once summary already differs). `generate_and_compare_against_committed` in
+`runner/engine.py` therefore reports exactly **one** moved answer per `ASSERTED`
+perturbation — the first one checked, in extras-then-summary-then-render-then-gerbers/
+drill order — never the illustrated multi-answer list. This is strictly cheaper and
+matches the measured cost (§5.1/§5.2); the cost of the alternative (reporting every answer
+that *would* differ) is running the full battery on every `ASSERTED` perturbation too,
+which is the one thing §3.2 explicitly rejects paying for.
 
 ---
 

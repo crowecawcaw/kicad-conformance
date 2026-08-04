@@ -28,6 +28,15 @@ class CaseError(Exception):
     """A case.toml violates the schema or its own directory's polarity."""
 
 
+class PerturbationError(CaseError):
+    """A `perturb/` directory violates the overlay contract
+    (docs/ASSERTED_COVERAGE.md §3.1, DL-0030). Raised for the two *case-level* violations
+    (a rejection case carrying `perturb/` at all); a single bad perturbation slug (an
+    overlay filename matching no declared input) is NOT raised here -- it is recorded on
+    the offending `Perturbation.error` instead, so one malformed slug does not stop the
+    rest of the case's (valid) perturbations from being discovered and run."""
+
+
 @dataclass
 class KnownDivergence:
     """A declared, tracked non-conformance of the reference oracle itself (DL-0018).
@@ -228,6 +237,83 @@ def load_case(case_dir: Path) -> Case:
         known_divergence=_parse_known_divergence(raw.get("known_divergence"), str(toml_path)),
         polarity=polarity,
     )
+
+
+@dataclass
+class Perturbation:
+    """One `perturb/<slug>/` directory (docs/ASSERTED_COVERAGE.md §3.1). `overlay` maps a
+    declared input's **filename** to the perturbed file that replaces it for this
+    perturbation's run; an input with no entry in `overlay` is used unchanged (rule 1 --
+    "every other input is used unchanged", the multi-sheet-schematic case).
+
+    `error`, when set, means this slug itself is malformed (rule 2: a file whose name
+    matches none of the case's declared inputs) -- the case-level `perturb/` directory
+    still exists and other slugs in it are unaffected; the runner scores THIS slug
+    `INVALID-PERTURBATION` and does not attempt to run it."""
+
+    slug: str
+    path: Path
+    overlay: dict[str, Path]
+    error: Optional[str] = None
+
+
+def discover_perturbations(case: Case) -> list[Perturbation]:
+    """Discover and validate every `perturb/<slug>/` under `case.path`
+    (docs/ASSERTED_COVERAGE.md §3.1). Returns `[]` when there is no `perturb/` directory
+    at all -- that is the `UNASSERTED-CASE` condition (§3.4), not an error.
+
+    Raises `PerturbationError` for the one case-level violation: a rejection case (one
+    that sets `control`) must not carry a `perturb/` directory at all (rule 5) -- it
+    records no answers, so "the answer changed" is undefined, and its `control` already
+    plays this role. A single malformed *slug* (rule 2) does not raise; it is recorded on
+    that `Perturbation.error` so sibling slugs are unaffected.
+    """
+    perturb_root = case.path / "perturb"
+    if not perturb_root.is_dir():
+        return []
+
+    if case.polarity == "failure":
+        raise PerturbationError(
+            f"{case.path}: this is a rejection case (sets `control`) and must not carry "
+            f"a `perturb/` directory -- it records no answers, so \"the answer changed\" "
+            f"is undefined; its `control` is already a falsifiability check "
+            f"(docs/ASSERTED_COVERAGE.md §3.1 rule 5, DL-0013/DL-0030)"
+        )
+
+    declared_names = {Path(p).name for p in case.inputs}
+    perturbations: list[Perturbation] = []
+    for slug_dir in sorted(p for p in perturb_root.iterdir() if p.is_dir()):
+        overlay: dict[str, Path] = {}
+        unmatched: list[str] = []
+        for f in sorted(slug_dir.iterdir()):
+            if not f.is_file():
+                continue
+            if f.name in declared_names:
+                overlay[f.name] = f
+            else:
+                unmatched.append(f.name)
+
+        if unmatched:
+            perturbations.append(Perturbation(
+                slug=slug_dir.name, path=slug_dir, overlay={},
+                error=(
+                    f"file(s) {sorted(unmatched)} match none of this case's declared "
+                    f"input(s) {sorted(declared_names)} -- an overlay filename that isn't "
+                    f"an input is an authoring error, not a silent no-op "
+                    f"(docs/ASSERTED_COVERAGE.md §3.1 rule 2)"
+                ),
+            ))
+            continue
+
+        if not overlay:
+            perturbations.append(Perturbation(
+                slug=slug_dir.name, path=slug_dir, overlay={},
+                error="perturb/<slug>/ contains no files -- nothing to overlay",
+            ))
+            continue
+
+        perturbations.append(Perturbation(slug=slug_dir.name, path=slug_dir, overlay=overlay))
+    return perturbations
 
 
 def discover_cases(roots: list[Path]) -> list[Path]:

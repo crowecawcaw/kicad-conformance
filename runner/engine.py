@@ -342,6 +342,107 @@ def answers_for_case(case: Case) -> list[Answer]:
     return answers
 
 
+# --- `--verify-assertions` support (docs/ASSERTED_COVERAGE.md §3.2, DL-0030) ----------
+#
+# The pieces above (battery_for/answer_for_extra/normalized_snapshot/dir_snapshot) are
+# reused UNCHANGED here -- no new comparator, no new answer format (§2.2). What's new is
+# running that same generation against a *substituted* input set and comparing the
+# result to the case's committed `expected/<version>/` without ever writing to it.
+
+# Answer generation order for a perturbation run: the case's `extra` answers first (the
+# case exists *because of* them), then the standard battery in its own fixed order
+# (summary, render, gerbers/drill). Generation stops at the first differing answer
+# (§3.2's short-circuit) -- `INERT` is the only outcome that ever pays for the full list.
+def answers_in_assertion_order(case: Case) -> list[Answer]:
+    kind = input_kind(case.input_paths[0])
+    extras = [answer_for_extra(name) for name in case.extra]
+    return extras + list(battery_for(kind))
+
+
+# Answer names whose byte compare is a KiCad self-consistency signal, not a cross-adapter
+# semantic one (DL-0015/DL-0026): in ecosystem mode `gerbers/`/`drill/` report INFO,
+# never FAIL. A perturbation whose *only* moved answer is one of these asserts nothing
+# outside KiCad-regression mode -- §3.2's `[byte-only]` label (vs `[semantic]`).
+BYTE_ONLY_ANSWERS = frozenset({"gerbers", "drill"})
+
+
+def expected_normalized(case: Case, answer: Answer, version: str):
+    """The committed `expected/<version>/...` answer, read and normalized exactly the way
+    `normalized_snapshot` reads a fresh run's artifact -- the other half of "did the
+    committed answer move" (§3.2). Read-only: a perturbation run must NEVER write to
+    `expected/` (DL-0030's "do not change any recorded answer")."""
+    expected_root = case.expected_dir(version)
+    expected_path = expected_root / answer.expected_name
+    if answer.kind == "json":
+        if not expected_path.exists():
+            raise FileNotFoundError(f"{answer.name}: no committed expected file at {expected_path}")
+        return json.loads(expected_path.read_text(encoding="utf-8"))
+    if answer.kind == "svg":
+        if not expected_path.exists():
+            raise FileNotFoundError(f"{answer.name}: no committed expected file at {expected_path}")
+        return normalize.normalize_svg(expected_path.read_bytes())
+    if answer.kind == "file":
+        if not expected_path.exists():
+            raise FileNotFoundError(f"{answer.name}: no committed expected file at {expected_path}")
+        return normalize.normalize_for(expected_path, expected_path.read_bytes())
+    if answer.kind == "dir":
+        if not expected_path.exists():
+            raise FileNotFoundError(f"{answer.name}: no committed expected directory at {expected_path}")
+        return dir_snapshot(expected_path, normalized=True)
+    raise ValueError(f"no expected-normalized reader for answer kind {answer.kind!r}")
+
+
+@dataclass
+class AnswerGenOutcome:
+    """One answer's outcome while generating against a (possibly overlaid) input set.
+    `verdict` is `Verdict.OK`/`REJECT`/`CRASH` from classifying the adapter invocation
+    itself -- this is what stands in for "did the perturbed input still load" (§3.1 rule
+    3), reusing the same classifier a rejection case's positive control uses, rather than
+    a separate load-only probe. `differs` is only meaningful when `verdict is Verdict.OK`
+    and comparison actually ran (`None` if the run stopped before this answer could be
+    compared, e.g. the adapter doesn't support its verb)."""
+
+    name: str
+    verdict: Verdict
+    differs: Optional[bool] = None
+    detail: str = ""
+
+
+def generate_and_compare_against_committed(
+    engine: "Engine", case: Case, answers: list[Answer], input_paths: list[Path], tmp_root: Path,
+    *, label_prefix: str,
+) -> list[AnswerGenOutcome]:
+    """Run `answers` in order against `input_paths` and compare each to the case's
+    *committed* `expected/<version>/` -- never `--regenerate`s, regardless of
+    `engine.regenerate` (a perturbation run must not alter recorded answers). Stops at
+    the first answer whose adapter invocation isn't a clean OK, or whose result differs
+    from committed (§3.2's short-circuit); an answer whose verb the adapter doesn't
+    support is skipped entirely (not reported), matching the happy-case path's SKIP
+    handling."""
+    outcomes: list[AnswerGenOutcome] = []
+    input_path = input_paths[0]
+    for answer in answers:
+        if not engine.adapter.supports(answer.verb):
+            continue
+        out_dir = tmp_root / f"{label_prefix}_{answer.name}"
+        result = engine.adapter.invoke(answer.verb, input_paths, out_dir, root=case.root, fmt=answer.fmt)
+        verdict = classify(result.returncode)
+        if verdict is not Verdict.OK:
+            outcomes.append(AnswerGenOutcome(answer.name, verdict, detail=result.stderr.strip()))
+            return outcomes
+        try:
+            actual = normalized_snapshot(answer, out_dir, input_path)
+            expected = expected_normalized(case, answer, engine.version)
+        except (FileNotFoundError, ValueError, OSError) as e:
+            outcomes.append(AnswerGenOutcome(answer.name, verdict, detail=f"could not compare: {e}"))
+            return outcomes
+        differs = actual != expected
+        outcomes.append(AnswerGenOutcome(answer.name, verdict, differs=differs))
+        if differs:
+            return outcomes  # short-circuit (§3.2)
+    return outcomes
+
+
 # --- Directory-tree comparison (gerbers/, drill/, library render/) ----------------
 
 

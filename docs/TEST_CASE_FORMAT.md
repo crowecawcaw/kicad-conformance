@@ -451,7 +451,79 @@ keys. Everything above it belongs to the case.)
 
 ---
 
-## 11. Contributor checklist
+## 11. `perturb/` — committing the falsifiability check ([DL-0030])
+
+Passing once is not the same as being falsifiable. [`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md)
+turns *"broke the input and watched it go red"* (formerly this section's closing checklist
+item, by hand, with no record) into a committed fixture and a runner mode that re-checks
+it forever: `--verify-assertions`.
+
+```
+suites/board-parse/populated-board/
+├── case.toml
+├── board.kicad_pcb
+├── expected/10.0.5/…
+└── perturb/
+    ├── pad-to-other-net/
+    │   └── board.kicad_pcb        # same board, C1 pad 2 moved to another net
+    └── silk-text-recased/
+        └── board.kicad_pcb        # same board, one silkscreen property recased
+```
+
+**`case.toml` gains no key.** A perturbation is a directory, `perturb/<slug>/`, holding a
+copy of the case's input(s) with something changed:
+
+- **It is an overlay, by filename.** Any file in `perturb/<slug>/` whose name matches a
+  declared `input`/`inputs` entry replaces that input for this perturbation's run; every
+  other declared input is used unchanged (this is what lets a multi-sheet schematic case
+  perturb one sheet without copying every sheet into every slug).
+- **A file whose name matches none of the case's inputs is an error**
+  (`INVALID-PERTURBATION`), not a silent no-op — a misnamed file must be loud.
+- **It must still load.** A happy case's perturbed input must be *accepted* the same way
+  the original is; a perturbation that merely breaks the file scores
+  `INVALID-PERTURBATION`, not `ASSERTED` — that would be a rejection case wearing a
+  disguise, proving nothing about what the recorded answers actually check.
+- **`<slug>` is the only documentation.** A hyphenated phrase naming what changed
+  (`pad-to-other-net`, `via-moved-1mm`) — no description field. `--verify-assertions`
+  prints `diff <input> perturb/<slug>/<input>` on every non-`ASSERTED` outcome, which is
+  the complete statement of what the perturbation does.
+- **A rejection case (sets `control`) must not have a `perturb/` directory.** It records
+  no answers, so "the answer changed" is undefined; its `control` is already this check
+  (§7, [DL-0013]).
+- **Keep the input's filename.** A perturbation is a fixture like any other ([DL-0011],
+  [DL-0016]) and, per §4's gerber-filename rule ([DL-0026]), must be named exactly like
+  the input it replaces.
+
+**Running it:**
+
+```bash
+scripts/run.sh --verify-assertions <case-dir>     # one case
+scripts/run.sh --verify-assertions suites/        # everything with a perturb/
+```
+
+Per perturbation, the runner substitutes the overlay, regenerates the case's answers
+against it, and compares each to the case's **committed** `expected/<version>/` — never
+`--regenerate`s, never writes an expected file. It reports one of four statuses:
+
+| Status | Meaning |
+|---|---|
+| `ASSERTED` | at least one committed answer differs — this perturbation proves the case would notice |
+| `INERT` | every committed answer is byte-identical — the case asserts **nothing** about this change; adjust the perturbation, don't delete the finding |
+| `INVALID-PERTURBATION` | the perturbed input wasn't accepted, an overlay filename matched no input, or a `perturb/` sat on a rejection case |
+| `CRASH` | the oracle was killed by a signal on the perturbed input |
+
+`ASSERTED` is labelled `[semantic]` or `[byte-only]`: `gerbers/`/`drill/` are a
+KiCad-self-consistency signal only ([DL-0015]/[DL-0026]), so a perturbation that moves
+*only* those doesn't assert anything a second implementation is judged on. `INERT`,
+`INVALID-PERTURBATION` and `CRASH` all fail the build — a perturbation is worse than none
+if it's wrong. A happy case with **no** `perturb/` at all is `UNASSERTED-CASE`: counted
+and printed, not failed (the corpus is backfilled gradually, not all at once), but CI
+gates on that count never going up.
+
+This is Tier 1 of [DL-0030]. Tier 2 — attributing *which lines* an assertion credits,
+against the gcov-instrumented image — is [DL-0031] and remains design-only.
+
+## 12. Contributor checklist
 
 - [ ] Right **suite** (the input's family).
 - [ ] `suites/<suite>/<slug>/` — a rejection case's slug conventionally starts
@@ -466,9 +538,11 @@ keys. Everything above it belongs to the case.)
       `kicad/kicad:10.0.5` Docker image**, LF / platform-canonical, [DL-0016]), **read the
       diff**, and committed `expected/10.0.5/…`.
 - [ ] Ran `scripts/run.sh <case>` → passes.
-- [ ] **Broke the input and watched it go red.** Move a pad to another net, rotate a
-      footprint, delete a track — confirm the diff points at the change. A test that
-      cannot fail is not evidence.
+- [ ] **Committed the perturbation that proves it** (§11, [DL-0030]): `perturb/<slug>/`
+      holding a copy of the input with one thing changed (move a pad to another net,
+      rotate a footprint, delete a track), named exactly like the input. Ran
+      `scripts/run.sh --verify-assertions <case>` and confirmed `ASSERTED`, naming the
+      answer that moved. A test that cannot fail is not evidence.
 - [ ] Rejection case: set `control`, confirmed the defect-free variant is accepted, and
       asserted `error_contains`.
 - [ ] Rejection case: confirmed the rejection is **graceful, not a crash** — a crash is
