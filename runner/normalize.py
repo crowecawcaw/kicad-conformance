@@ -108,6 +108,30 @@ def normalize_svg(data: bytes) -> bytes:
     return data
 
 
+# --- PDF (`export-pdf`, DL-0037) --------------------------------------------------
+# Observed (KiCad 10.0.5, `pcb export pdf` / `sch export pdf`, run twice 2s apart, with
+# the adapter's FIXED output filename both times so `/Title` never varies): the ONLY
+# byte difference across the two runs is `/CreationDate (D:YYYY:MM:DD:HH:MM:SS)`. There
+# is no `/ModDate` and no `/ID` trailer entry at all in this plot mode -- checked
+# directly (grepped the raw bytes for both), not assumed. Deliberately NOT run through
+# `normalize_crlf`: PDF is a binary format whose compressed content streams can contain
+# the byte pair `\r\n` incidentally, and a blind CRLF rewrite would corrupt them.
+_PDF_CREATION_DATE_RE = re.compile(rb"/CreationDate \(D:[^)]*\)")
+
+
+def normalize_pdf(data: bytes) -> bytes:
+    return _PDF_CREATION_DATE_RE.sub(b"/CreationDate (NORMALIZED)", data)
+
+
+# --- DXF (`export-dxf`, DL-0037) --------------------------------------------------
+# Observed (KiCad 10.0.5, `pcb export dxf`, run twice 2s apart): BYTE-IDENTICAL. No
+# timestamp, no embedded filename, nothing wall-clock. Per the honesty rule (§4: "an
+# identity normalizer would imply a nondeterminism that does not exist"), this
+# deliberately has NO dedicated normalizer -- `.dxf` isn't in `_BY_SUFFIX` below, so it
+# falls through to the generic CRLF->LF pass every unrecognized text suffix gets, same
+# as `.net`/`.csv`.
+
+
 # --- Dispatch by output kind -------------------------------------------------------
 # Every extension `pcb export gerbers` actually writes for a layer file (DESIGN.md
 # §7.1, DL-0026) -- Protel-style per-layer extensions where KiCad has one (.gtl/.gbl/...),
@@ -134,6 +158,7 @@ _BY_SUFFIX = {
     ".gbrjob": normalize_gbrjob,
     ".drl": normalize_drill,
     ".svg": normalize_svg,
+    ".pdf": normalize_pdf,
 }
 _BY_SUFFIX.update({suffix: normalize_gerber for suffix in _GERBER_LAYER_SUFFIXES})
 

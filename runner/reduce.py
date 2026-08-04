@@ -125,7 +125,7 @@ def _item_sort_key(item: dict) -> tuple:
 
 def _violation_sort_key(v: dict) -> tuple:
     items_key = tuple(sorted((_item_sort_key(i) for i in v.get("items", []))))
-    return (v.get("type", ""), v.get("severity", ""), items_key)
+    return (v.get("type", ""), v.get("severity", ""), v.get("description", ""), items_key)
 
 
 def _reduce_violation_list(raw_list: list) -> list:
@@ -142,6 +142,7 @@ def _reduce_violation_list(raw_list: list) -> list:
             {
                 "type": v.get("type", ""),
                 "severity": v.get("severity", ""),
+                "description": v.get("description", ""),
                 "items": items,
             }
         )
@@ -157,6 +158,21 @@ def reduce_drc(raw: dict) -> dict:
     that is the finding, all of it is run/environment metadata. Sorts violations and
     each violation's `items[]` by *content*, never by UUID (DESIGN §3b: "some
     violation-item UUIDs are minted fresh each run").
+
+    **Keeps each violation's own `description`** (DL-0035 — this used to be dropped,
+    keeping only `type`/`severity`/`items`). Verified this was a real gap, not a
+    theoretical one: a custom `.kicad_dru` rule's own name and measured values live
+    ONLY in this field, e.g. `"Clearance violation (rule 'my-wide-clearance' clearance
+    25.0000 mm; actual 0.8000 mm)"` — a case asserting a specific custom rule fired (as
+    opposed to some other clearance violation) had nothing to match against without it.
+    **Determinism checked, not assumed**: ran the same custom-rule board through `pcb
+    drc` twice and compared every violation's `description` — byte-identical both times,
+    including the printed measured clearance values (fixed input geometry, no
+    accumulation-order float wobble observed). The measured-value concern is real in
+    principle (this is exactly why `stats`' computed float areas are excluded, DESIGN.md
+    §3b.1) but was not observed here across repeat runs on the fixtures tested; if a
+    future case's `description` is ever seen to wobble, exclude that one field for that
+    answer rather than reverting this for everyone.
     """
     return {
         "violations": _reduce_violation_list(raw.get("violations", [])),
@@ -167,7 +183,10 @@ def reduce_drc(raw: dict) -> dict:
 
 def _sheet_violation_sort_key(v: dict) -> tuple:
     items_key = tuple(sorted((_item_sort_key(i) for i in v.get("items", []))))
-    return (v.get("sheet", ""), v.get("type", ""), v.get("severity", ""), items_key)
+    return (
+        v.get("sheet", ""), v.get("type", ""), v.get("severity", ""),
+        v.get("description", ""), items_key,
+    )
 
 
 def reduce_erc(raw: dict) -> dict:
@@ -192,6 +211,12 @@ def reduce_erc(raw: dict) -> dict:
     the only way to tell a root-sheet violation apart from the identical-looking
     violation on an identically-named component in a sub-sheet. Item/violation content
     sorting matches `_reduce_violation_list` (never by UUID, DESIGN §3b).
+
+    **Keeps each violation's own `description`** (DL-0035), the same fix as
+    `reduce_drc`/`_reduce_violation_list` for the identical gap found on audit: ERC's raw
+    JSON carries the same shape (a top-level `description` per violation, e.g. `"Pin not
+    connected"`, distinct from each item's own `description`), and it was being dropped
+    here too.
     """
     flattened = []
     for sheet in raw.get("sheets", []):
@@ -209,6 +234,7 @@ def reduce_erc(raw: dict) -> dict:
                     "sheet": sheet_path,
                     "type": v.get("type", ""),
                     "severity": v.get("severity", ""),
+                    "description": v.get("description", ""),
                     "items": items,
                 }
             )

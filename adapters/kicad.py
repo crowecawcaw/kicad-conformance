@@ -59,8 +59,8 @@ from runner import summary as summarymod  # noqa: E402
 # nobody read), so this is now a plain literal, owned entirely by this adapter.
 IMPLEMENTED_VERBS = (
     "version", "parse-sch", "parse-pcb", "parse-pcb-upgrade", "parse-sym", "parse-fp",
-    "summary", "erc", "drc", "netlist", "pos", "stats", "ipcd356", "render",
-    "export-gerbers", "export-drill",
+    "summary", "erc", "drc", "drc-refill-zones", "drc-parity", "netlist", "pos", "stats",
+    "ipcd356", "render", "export-gerbers", "export-drill", "export-pdf", "export-dxf",
 )
 
 
@@ -194,6 +194,59 @@ def _scratch_copy_tree(src: str, scratch_dir: Path) -> Path:
     return dest
 
 
+# Sibling files a board case may ship alongside `board.kicad_pcb`, recognized by same
+# stem in the SAME source directory (never declared in `case.toml`'s `input`/`inputs` --
+# discovered on disk, exactly like the gerber `%TF.ProjectId` filename convention).
+# `.kicad_dru` (custom DRC rules) and `.kicad_pro` (project settings, incl. per-check
+# severity overrides) are both read by `pcb drc` with NO path flag of their own in
+# 10.0.5 -- same-stem-same-directory is the ONLY way either reaches it. `.kicad_sch` is
+# the same idea for `--schematic-parity` (`cmd_drc_parity`).
+_BOARD_SIBLING_SUFFIXES = (".kicad_dru", ".kicad_pro", ".kicad_sch")
+
+
+def _scratch_copy_board(src: str, scratch_dir: Path) -> Path:
+    """Copy a board input into scratch, THEN copy any recognized same-stem sibling
+    (`_BOARD_SIBLING_SUFFIXES`) found next to it in the source directory, under the
+    scratch copy's own stem -- preserving the name-matching convention every sibling
+    lookup depends on.
+
+    This closes a real, verified gap: `_scratch_copy` (used by every board verb until
+    this change) copies exactly the one named file, so a `.kicad_dru`/`.kicad_pro`/
+    `.kicad_sch` sitting beside a committed `board.kicad_pcb` never reached `kicad-cli` at
+    all -- `drc_rule_parser.cpp` was 0/505 lines for exactly this reason (docs/COVERAGE.md).
+    Verified empirically, not assumed:
+
+    - `.kicad_dru`: adding a same-stem custom rule (`(rule "my-wide-clearance"
+      (constraint clearance (min 25mm)) ...)`) to `board-parse/populated-board`'s board
+      turns 4 DRC violations into 9 -- ZERO effect without this copy in place (confirmed by
+      running `pcb drc` on the same two directories, with and without the sibling
+      present).
+    - `.kicad_pro`: a same-stem `{"board": {"design_settings": {"rule_severities":
+      {"track_dangling": "ignore", ...}}}}` turns 4 violations into 2, even with
+      `--severity-all` passed -- that flag broadens which SEVERITIES are reported, it does
+      not un-ignore a check the project turned off entirely.
+    - `.kicad_sch`: `pcb drc --schematic-parity` with no same-stem schematic present
+      prints "Failed to fetch schematic netlist for parity tests." and exits 0 with an
+      EMPTY `schematic_parity: []` (a silent no-op, not a loud failure); with one present
+      it reports real `missing_footprint`/`extra_footprint` findings.
+
+    Copying all three unconditionally (rather than gating on which verb/extra is
+    running) was verified harmless for every OTHER board answer (`summary`, plain `drc`,
+    `render`, gerbers, drill, `pos`/`stats`/`ipcd356`) -- kicad-cli only consults the
+    sibling that a given check actually uses, so an inert stray file alongside the board
+    changes nothing for those. Rejection-case loaders (`parse-pcb`/`parse-pcb-upgrade`)
+    also use this for consistency -- none of today's `rejects-*` board cases ship a
+    sibling, so this is a no-op for them today, not a behaviour change.
+    """
+    dest = _scratch_copy(src, scratch_dir)
+    src_path = Path(src)
+    for suffix in _BOARD_SIBLING_SUFFIXES:
+        sibling = src_path.with_suffix(suffix)
+        if sibling.exists():
+            shutil.copyfile(sibling, scratch_dir / (dest.stem + suffix))
+    return dest
+
+
 def _scratch_copy_all(ins: list[str], scratch_dir: Path, root: str | None) -> Path:
     """Copy EVERY `--in` (root + subsheets) into ONE scratch dir, preserving filenames --
     sufficient for same-directory multi-sheet projects (the common case) -- and return the
@@ -224,15 +277,21 @@ def _scratch_copy_all(ins: list[str], scratch_dir: Path, root: str | None) -> Pa
     return root_dest
 
 
-def cmd_parse(cli: str, kind: str, ins: list[str], out: str) -> None:
+def cmd_parse(cli: str, kind: str, ins: list[str], out: str, root: str | None = None) -> None:
     """parse-sch: `sch upgrade --force` rewrites IN PLACE, so copy the fixture to a
     scratch dir first and upgrade the copy (§2, §2a). Exit polarity only (DL-0024) --
     the re-emitted bytes are never compared against anything.
 
+    Copies EVERY declared `--in` (root + subsheets), not just the first, via
+    `_scratch_copy_all` -- the same single-vs-all audit `cmd_erc` needed (module
+    docstring): no rejection case ships a multi-sheet `inputs`/`root` today, so this is
+    behaviourally identical to the old single-file copy for every existing case, but
+    there is no reason this verb should be the one exception if one ever does.
+
     `kind == "pcb"` is NOT handled here any more (DL-0029, DECISIONS.md) -- see
     `cmd_parse_pcb`/`cmd_parse_pcb_upgrade` below."""
     out_dir = Path(out)
-    dest = _scratch_copy(ins[0], out_dir)
+    dest = _scratch_copy_all(ins, out_dir, root)
     run_and_relay([cli, kind, "upgrade", "--force", str(dest)])
 
 
@@ -251,7 +310,7 @@ def cmd_parse_pcb(cli: str, ins: list[str], out: str) -> None:
     polarity only, same as before -- the written `stats.json` is discarded, never
     compared against anything."""
     out_dir = Path(out)
-    dest = _scratch_copy(ins[0], _fresh_scratch_dir())
+    dest = _scratch_copy_board(ins[0], _fresh_scratch_dir())
     run_and_relay(
         [cli, "pcb", "export", "stats", "--format", "json",
          "-o", str(out_dir / "stats.json"), str(dest)]
@@ -268,12 +327,20 @@ def cmd_parse_pcb_upgrade(cli: str, ins: list[str], out: str) -> None:
     a case explicitly asking for the old path. Not part of any case's standard battery;
     not advertised as a thing a normal case should reach for."""
     out_dir = Path(out)
-    dest = _scratch_copy(ins[0], out_dir)
+    dest = _scratch_copy_board(ins[0], out_dir)
     run_and_relay([cli, "pcb", "upgrade", "--force", str(dest)])
 
 
 def cmd_parse_sym(cli: str, ins: list[str], out: str) -> None:
+    """`--out` must exist before `sym upgrade --force -o <out>/<stem>.kicad_sym` runs --
+    verified bug (found while authoring `suites/symbol-lib/rejects-unterminated-sexpr`):
+    nothing created `--out` here or upstream, so this verb failed on EVERY input, well-
+    formed or not, whenever its target directory didn't already exist (which the
+    runner's own scratch dirs never do ahead of time) -- exactly why
+    `command_sym_upgrade.cpp::doPerform` sat at 0.00% in docs/COVERAGE.md. One-line fix,
+    matching what `cmd_render`'s `.kicad_sym` branch already does."""
     out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
     src = _scratch_copy(ins[0], _fresh_scratch_dir())
     target = out_dir / (Path(ins[0]).stem + ".kicad_sym")
     run_and_relay([cli, "sym", "upgrade", "--force", "-o", str(target), str(src)])
@@ -281,28 +348,97 @@ def cmd_parse_sym(cli: str, ins: list[str], out: str) -> None:
 
 def cmd_parse_fp(cli: str, ins: list[str], out: str) -> None:
     """fp upgrade takes a `.pretty` DIRECTORY (never a lone `.kicad_mod`) and refuses a
-    pre-existing `-o` path, so the target must be a not-yet-created subdirectory."""
+    pre-existing `-o` path, so the target must be a not-yet-created subdirectory.
+
+    `--out` itself must still exist first -- same verified bug as `cmd_parse_sym` above
+    (found while authoring `suites/footprint-lib/rejects-unterminated-sexpr`): `fp
+    upgrade --force -o <out>/upgraded.pretty` fails with "Directory ... couldn't be
+    created" whenever `--out` doesn't already exist, which is exactly why
+    `command_fp_upgrade.cpp::doPerform` sat at 0.00%. `upgraded.pretty` itself must NOT
+    pre-exist (that's the directory `fp upgrade -o` refuses to overwrite) -- only its
+    PARENT (`--out`) needs to."""
     out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
     src = _scratch_copy_tree(ins[0], _fresh_scratch_dir())
     target = out_dir / "upgraded.pretty"  # must NOT pre-exist
     run_and_relay([cli, "fp", "upgrade", "--force", "-o", str(target), str(src)])
 
 
-def cmd_erc(cli: str, ins: list[str], out: str) -> None:
+def cmd_erc(cli: str, ins: list[str], out: str, root: str | None) -> None:
+    """`sch erc`, DESIGN.md §2. **Copies EVERY declared `--in` (root + subsheets) into
+    ONE scratch dir (`_scratch_copy_all`), not the single-file `_scratch_copy` this used
+    before** -- verified a REAL bug, not a theoretical one: on a two-sheet schematic with
+    U1 (root) and U2 (sub-sheet) tied by a GLOBAL label "SIG", running `sch erc` against
+    a scratch dir holding ONLY the root sheet reports 4 violations INCLUDING A FALSE
+    ONE -- `isolated_pin_label` on the global label, because the sub-sheet's matching pin
+    is invisible to it -- and says nothing about U2's own violations. With both sheets
+    copied, it reports the correct 6: no false isolated-label warning, plus U2's real
+    `endpoint_off_grid`/`lib_symbol_issues` findings. So the single-copy bug does not just
+    miss things silently, it FABRICATES a wrong finding -- same DESIGN.md §9 reasoning as
+    `cmd_netlist`/`cmd_summary`'s sch branch, now applied here too."""
     out_dir = Path(out)
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    root_dest = _scratch_copy_all(ins, _fresh_scratch_dir(), root)
     run_and_relay(
         [cli, "sch", "erc", "--format", "json", "--severity-all",
-         "-o", str(out_dir / "erc.json"), str(src)]
+         "-o", str(out_dir / "erc.json"), str(root_dest)]
     )
 
 
 def cmd_drc(cli: str, ins: list[str], out: str) -> None:
     out_dir = Path(out)
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
     run_and_relay(
         [cli, "pcb", "drc", "--format", "json", "--units", "mm", "--severity-all",
          "-o", str(out_dir / "drc.json"), str(src)]
+    )
+
+
+def cmd_drc_refill_zones(cli: str, ins: list[str], out: str) -> None:
+    """New verb: `drc-refill-zones` -- `pcb drc --refill-zones` (DESIGN.md §2 table).
+    Every committed zone fixture ships a pre-baked `(filled_polygon ...)`, so plain `drc`
+    never invokes `ZONE_FILLER::Fill` at all -- `pcbnew/zone_filler.cpp` is 0/1991 lines
+    in docs/COVERAGE.md, the single largest dead non-GUI subsystem in the whole tree.
+
+    Verified empirically, not just documented: took a board with one rectangular zone
+    whose `filled_polygon` was hand-corrupted to a much smaller, stale rectangle: running
+    `pcb drc --refill-zones --save-board` rewrote the on-disk `filled_polygon` back to
+    the correct full-outline polygon (with the filler's own corner rounding) -- proof the
+    filler genuinely re-runs and recomputes geometry rather than echoing whatever was
+    stored. Determinism verified too: run twice on an uncorrupted zone fixture, the
+    reduced violation set is identical both times (raw JSON differs only in the
+    `date` field `reduce_drc` already drops).
+
+    A distinct verb rather than a flag on plain `drc`, per DL-0025 (no per-case CLI args)
+    -- see the `refill-zones` extra in `runner/engine.py`."""
+    out_dir = Path(out)
+    src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
+    run_and_relay(
+        [cli, "pcb", "drc", "--format", "json", "--units", "mm", "--severity-all",
+         "--refill-zones", "-o", str(out_dir / "refill-zones.json"), str(src)]
+    )
+
+
+def cmd_drc_parity(cli: str, ins: list[str], out: str) -> None:
+    """New verb: `drc-parity` -- `pcb drc --schematic-parity` (DESIGN.md §2 table).
+    `drc_test_provider_schematic_parity.cpp` is 9/198 in docs/COVERAGE.md, essentially
+    unreached: no case ever passed `--schematic-parity` and no board case ever shipped a
+    schematic alongside it.
+
+    Verified: `--schematic-parity` takes NO path flag of its own -- it looks for a
+    schematic with the BOARD's own stem, next to the board (same same-stem-same-directory
+    convention as `.kicad_dru`/`.kicad_pro`, see `_scratch_copy_board`, which this verb
+    reuses so the sibling schematic reaches scratch). Without one present it prints
+    "Failed to fetch schematic netlist for parity tests." and still exits 0 with an EMPTY
+    `schematic_parity: []` -- a silent no-op, not a loud failure, so a case that names its
+    schematic sibling wrong degrades quietly; name it `<board-stem>.kicad_sch`. With one
+    present it reports real `missing_footprint`/`extra_footprint` findings (each carrying
+    the component ref/value in its `description`, e.g. "Missing footprint U1 (T2)" --
+    see `runner/reduce.py`'s restored `description` field, DL-0035)."""
+    out_dir = Path(out)
+    src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
+    run_and_relay(
+        [cli, "pcb", "drc", "--format", "json", "--units", "mm", "--severity-all",
+         "--schematic-parity", "-o", str(out_dir / "parity.json"), str(src)]
     )
 
 
@@ -331,7 +467,7 @@ def cmd_export_gerbers(cli: str, ins: list[str], out: str, extra: list[str]) -> 
     passing `--no-protel-ext` would switch every per-layer extension away from the
     Protel-style ones (`.gtl`/`.gbl`/`.gm1`/...) actually observed."""
     out_dir = Path(out)
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
     run_and_relay(
         [cli, "pcb", "export", "gerbers", *extra, "-o", str(out_dir) + "/", str(src)]
     )
@@ -344,7 +480,7 @@ def cmd_export_drill(cli: str, ins: list[str], out: str, extra: list[str]) -> No
     `--excellon-separate-th`: the verified default writes exactly one file, `<stem>.drl`.
     """
     out_dir = Path(out)
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
     run_and_relay(
         [cli, "pcb", "export", "drill", "-o", str(out_dir) + "/", *extra, str(src)]
     )
@@ -352,7 +488,7 @@ def cmd_export_drill(cli: str, ins: list[str], out: str, extra: list[str]) -> No
 
 def cmd_pos(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
     out_dir = Path(out)
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
     run_and_relay(
         [cli, "pcb", "export", "pos", "--format", "csv", "--side", "both",
          "--units", "mm", "-o", str(out_dir / "pos.csv"), *extra, str(src)]
@@ -361,7 +497,7 @@ def cmd_pos(cli: str, ins: list[str], out: str, extra: list[str]) -> None:
 
 def cmd_stats(cli: str, ins: list[str], out: str) -> None:
     out_dir = Path(out)
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
     run_and_relay(
         [cli, "pcb", "export", "stats", "--format", "json",
          "-o", str(out_dir / "stats.json"), str(src)]
@@ -370,7 +506,7 @@ def cmd_stats(cli: str, ins: list[str], out: str) -> None:
 
 def cmd_ipcd356(cli: str, ins: list[str], out: str) -> None:
     out_dir = Path(out)
-    src = _scratch_copy(ins[0], _fresh_scratch_dir())
+    src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
     run_and_relay(
         [cli, "pcb", "export", "ipcd356", "-o", str(out_dir / "board.d356"), str(src)]
     )
@@ -389,7 +525,7 @@ def cmd_render(cli: str, ins: list[str], out: str, extra: list[str], root: str |
         # board has, and the gerbers already cover every other layer byte-exactly. The
         # rest is pinned for determinism: `--page-size-mode 2` (board-area only),
         # `--exclude-drawing-sheet`, `--black-and-white`.
-        src = _scratch_copy(ins[0], _fresh_scratch_dir())
+        src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
         run_and_relay(
             [cli, "pcb", "export", "svg", "--layers", "F.Cu", "--page-size-mode", "2",
              "--exclude-drawing-sheet", "--black-and-white", *extra,
@@ -424,6 +560,79 @@ def cmd_render(cli: str, ins: list[str], out: str, extra: list[str], root: str |
         )
 
 
+def cmd_export_pdf(cli: str, ins: list[str], out: str, root: str | None) -> None:
+    """New verb: `export-pdf`. `common/plotters/PDF_plotter.cpp` is 0/1433 in
+    docs/COVERAGE.md (plus `pdf_outline_font.cpp` 0/327, `pdf_stroke_font.cpp` 0/298) --
+    entirely unreached, because no `export-pdf` verb or `pdf` extra existed. Dispatches
+    on the input suffix like `render`: a board plots the SAME single fixed layer
+    (`F.Cu`, DESIGN.md §2b) to a single-file PDF (`--mode-single`, verified: with that
+    flag `-o` is a full file path, not a directory); a schematic plots its whole
+    hierarchy (root + every declared subsheet, via `_scratch_copy_all` so a sub-sheet
+    page resolves) to one multi-page PDF -- `sch export pdf`'s `-o` is already a FILE
+    path (verified: unlike `sch export svg`, no directory-vs-file gotcha here).
+
+    Determinism, verified in Docker (run twice, 2s apart, FIXED output filename both
+    times so the embedded `/Title` never varies): the ONLY byte difference across the
+    two runs is `/CreationDate (D:...)` -- kicad-cli 10.0.5's PDF output has no `/ModDate`
+    and no `/ID` trailer entry at all in this plot mode (contrary to the general "PDF is
+    the least diffable format" caution -- that caution is about PDF as a format in
+    general, not falsified, but empirically not everything it warns about is present
+    here). `runner/normalize.py`'s `normalize_pdf` strips exactly that one field, and
+    does NOT also run the generic CRLF->LF pass every other text answer gets -- PDF is
+    binary and a blind CRLF rewrite could corrupt a compressed content stream that
+    happens to contain that byte pair."""
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    input_path = Path(ins[0])
+    suffix = input_path.suffix
+    if suffix == ".kicad_pcb":
+        src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
+        run_and_relay(
+            [cli, "pcb", "export", "pdf", "--layers", "F.Cu", "--mode-single",
+             "--black-and-white", "-o", str(out_dir / "pdf.pdf"), str(src)]
+        )
+    elif suffix == ".kicad_sch":
+        root_dest = _scratch_copy_all(ins, _fresh_scratch_dir(), root)
+        run_and_relay(
+            [cli, "sch", "export", "pdf", "--exclude-drawing-sheet", "--black-and-white",
+             "-o", str(out_dir / "pdf.pdf"), str(root_dest)]
+        )
+    else:
+        print(
+            f"export-pdf: does not apply to {suffix or '(directory)'!r} input",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+
+def cmd_export_dxf(cli: str, ins: list[str], out: str) -> None:
+    """New verb: `export-dxf` -- board-only (kicad-cli has no `sch export dxf`).
+    `common/plotters/DXF_plotter.cpp` is 0/651 in docs/COVERAGE.md, entirely unreached
+    (no `export-dxf` verb or `dxf` extra existed).
+
+    Verified BYTE-IDENTICAL across two runs, 2s apart, same fixture: no creation date,
+    no embedded filename/title, nothing wall-clock at all in kicad-cli 10.0.5's DXF
+    output. Per the honesty rule (DESIGN.md §4: "an identity normalizer would imply a
+    nondeterminism that does not exist"), this gets NO dedicated normalizer -- only the
+    generic CRLF->LF fallback every otherwise-unrecognized text answer already gets from
+    `runner/normalize.py`'s `normalize_for`."""
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    input_path = Path(ins[0])
+    if input_path.suffix != ".kicad_pcb":
+        print(
+            f"export-dxf: does not apply to {input_path.suffix or '(directory)'!r} "
+            f"input -- board-only (kicad-cli has no `sch export dxf`)",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
+    run_and_relay(
+        [cli, "pcb", "export", "dxf", "--layers", "F.Cu", "--mode-single",
+         "--output-units", "mm", "-o", str(out_dir / "dxf.dxf"), str(src)]
+    )
+
+
 def cmd_summary(cli: str, ins: list[str], out: str, root: str | None, fmt: str | None) -> None:
     """`summary` (DESIGN.md §3b, DL-0022, renamed by DL-0028) dispatches on the input's
     suffix and composes the resulting export(s) into one merged `<out>/summary.json`,
@@ -449,7 +658,7 @@ def cmd_summary(cli: str, ins: list[str], out: str, root: str | None, fmt: str |
 
     if suffix == ".kicad_pcb":
         # Boards are always a single file -- no `root`/subsheet concept applies.
-        src = _scratch_copy(ins[0], _fresh_scratch_dir())
+        src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
         scratch = _fresh_scratch_dir()
         stats_path = scratch / "stats.json"
         pos_path = scratch / "pos.csv"
@@ -518,7 +727,7 @@ def main() -> int:
         return 2
 
     if verb == "parse-sch":
-        cmd_parse(cli, "sch", ins, out)
+        cmd_parse(cli, "sch", ins, out, root)
     elif verb == "parse-pcb":
         cmd_parse_pcb(cli, ins, out)
     elif verb == "parse-pcb-upgrade":
@@ -530,15 +739,23 @@ def main() -> int:
     elif verb == "summary":
         cmd_summary(cli, ins, out, root, fmt)
     elif verb == "erc":
-        cmd_erc(cli, ins, out)
+        cmd_erc(cli, ins, out, root)
     elif verb == "drc":
         cmd_drc(cli, ins, out)
+    elif verb == "drc-refill-zones":
+        cmd_drc_refill_zones(cli, ins, out)
+    elif verb == "drc-parity":
+        cmd_drc_parity(cli, ins, out)
     elif verb == "netlist":
         cmd_netlist(cli, ins, out, root, fmt)
     elif verb == "export-gerbers":
         cmd_export_gerbers(cli, ins, out, extra)
     elif verb == "export-drill":
         cmd_export_drill(cli, ins, out, extra)
+    elif verb == "export-pdf":
+        cmd_export_pdf(cli, ins, out, root)
+    elif verb == "export-dxf":
+        cmd_export_dxf(cli, ins, out)
     elif verb == "pos":
         cmd_pos(cli, ins, out, extra)
     elif verb == "stats":

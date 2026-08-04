@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Through hole pad has no hole",
       "items": [
         {
           "description": "PTH pad 1 [Net-1] of ",

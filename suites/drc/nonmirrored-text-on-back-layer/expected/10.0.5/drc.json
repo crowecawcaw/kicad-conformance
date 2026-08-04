@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Non-Mirrored text on back layer",
       "items": [
         {
           "description": "PCB text 'BACK' on B.Silkscreen",

@@ -865,6 +865,324 @@ output is a document with the same status COVERAGE.md has today.
 
 ---
 
+## DL-0032 — `cmd_erc` and the rejection-case loader copy every declared input, not just the first
+**Status:** accepted (2026-08-04)
+
+**Context.** `adapters/kicad.py`'s `cmd_erc` used the single-file `_scratch_copy`, while
+`cmd_netlist`/`cmd_summary`'s schematic branch already used `_scratch_copy_all` (DESIGN.md
+§9's `inputs`/`root` fix). Verified empirically that this was a live bug, not a
+theoretical one: on a two-sheet schematic (root U1 + sub-sheet U2, tied by a GLOBAL label
+`SIG` crossing the sheet boundary), running `sch erc` against a scratch dir holding ONLY
+the root sheet reports **4** violations, including a **false** `isolated_pin_label` on the
+global label (it looks unconnected because the sub-sheet's matching pin never reached
+scratch) and says nothing about U2's own findings. With both sheets copied it reports the
+correct **6**: no false isolated-label warning, plus U2's real `endpoint_off_grid`/
+`lib_symbol_issues`. So the bug does not just under-report — it fabricates a wrong
+finding, which is worse: a case built on the buggy adapter would have shipped green for
+the wrong reason (an ERC case would record the false 4-violation answer as "correct").
+
+Auditing every other verb for the same single-vs-all mistake found two more instances:
+`cmd_parse` (the `parse-sch` rejection-case loader) also used `_scratch_copy` on `ins[0]`
+alone, and `runner/engine.py`'s `_run_failure_case` passed only `case.input_paths[0]` to
+the adapter regardless of how many inputs a case declared — so even a fixed adapter would
+never have seen a rejection case's sub-sheets. No committed rejection case currently
+declares `inputs`/`root` for a multi-sheet schematic, so both fixes are behaviourally
+identical to the old code for every case in the tree today; they close the gap for
+whenever one is authored.
+
+**Decision.** `cmd_erc` and `cmd_parse` (sch) now use `_scratch_copy_all` (accepting
+`--root`), matching `cmd_netlist`/`cmd_summary`. `runner/engine.py`'s `_run_failure_case`
+now passes `case.input_paths` (every declared input) and `root=case.root` to the
+adapter, not `[input_path]`.
+
+**Rationale.** Same reasoning as DESIGN.md §9's original `inputs`/`root` fix: a
+sub-sheet must physically be on disk next to the root's scratch copy or kicad-cli cannot
+resolve the hierarchy, and "cannot resolve" does not reliably mean "errors out" — it can
+mean "silently produces a different, wrong answer," which is the more dangerous failure
+mode for a conformance suite to carry.
+
+**Consequences.** `adapters/kicad.py` (`cmd_erc`, `cmd_parse`), `runner/engine.py`
+(`_run_failure_case`). This unblocks hierarchical-schematic ERC cases (e.g. a
+hierarchical-label mismatch or a bus definition spanning sheets) that need a sub-sheet's
+actual content, not just its existence, to be judged correctly.
+
+---
+
+## DL-0033 — `parse-sym`/`parse-fp` create their `--out` directory before invoking kicad-cli
+**Status:** accepted (2026-08-04)
+
+**Context.** `cmd_parse_sym`/`cmd_parse_fp` ran `sym upgrade --force -o <out>/...`/`fp
+upgrade --force -o <out>/upgraded.pretty` without ever creating `<out>` first (unlike
+`cmd_render`'s `.kicad_sym`/`.pretty` branches, which already do). Verified: this made
+both verbs fail on **every** input, well-formed or not, whenever `--out` didn't already
+exist — which the runner's own scratch dirs never do ahead of time. Two already-authored
+rejection cases (`suites/symbol-lib/rejects-unterminated-sexpr`,
+`suites/footprint-lib/rejects-unterminated-sexpr`) were blocked on exactly this: their
+positive controls could not reach `OK` through the harness, so the runner reported
+`NOT-EVIDENCE` even though the fixture pairs were independently verified correct via
+direct `kicad-cli` calls. This is also the reason `command_sym_upgrade.cpp::doPerform`
+and `command_fp_upgrade.cpp::doPerform` sat at 0.00% in docs/COVERAGE.md — no case had
+ever successfully invoked either verb.
+
+**Decision.** Both functions now call `out_dir.mkdir(parents=True, exist_ok=True)` before
+invoking kicad-cli, identical to what `cmd_render` already does for the same two input
+kinds.
+
+**Rationale.** One-line fix matching an existing, working pattern elsewhere in the same
+file; no reason `parse-sym`/`parse-fp` should be the exception.
+
+**Consequences.** Both previously-blocked rejection cases now genuinely PASS (verified:
+`suites/symbol-lib/rejects-unterminated-sexpr` and
+`suites/footprint-lib/rejects-unterminated-sexpr`, run individually, both `[PASS]`, exit
+0). `command_sym_upgrade.cpp::doPerform`/`command_fp_upgrade.cpp::doPerform` are no
+longer 0%.
+
+---
+
+## DL-0034 — Board verbs copy recognized sibling files (`.kicad_dru`, `.kicad_pro`, `.kicad_sch`) by same-stem convention
+**Status:** accepted (2026-08-04)
+
+**Context.** Every board verb copied only the one named `.kicad_pcb` file into its
+scratch dir (`_scratch_copy`). `pcb drc` in 10.0.5 has **no `--rules`/`--project` flag** —
+verified via `--help` — so a same-stem `.kicad_dru` (custom DRC rules) or `.kicad_pro`
+(project settings, including per-check severity overrides) sitting beside the committed
+fixture never reached `kicad-cli` at all. This is exactly why `drc_rule_parser.cpp` was
+0/505 lines in docs/COVERAGE.md: nothing ever gave `pcb drc` a rule file to parse.
+
+Verified empirically, not assumed, on `board-parse/populated-board`'s board:
+- A same-stem `.kicad_dru` with one custom rule (`clearance (min 25mm)` between any two
+  pads) turns 4 DRC violations into 9 — zero effect without the sibling reaching scratch.
+- A same-stem `.kicad_pro` with `rule_severities: {"track_dangling": "ignore",
+  "via_dangling": "ignore"}` turns 4 violations into 2, **even with `--severity-all`
+  passed** — that flag broadens which severities are reported, it does not un-ignore a
+  check the project disabled entirely.
+- (See [DL-0038] for the third recognized sibling, `.kicad_sch`, and its own verification.)
+
+**Decision.** A new adapter helper, `_scratch_copy_board`, copies the board plus any of
+`.kicad_dru`/`.kicad_pro`/`.kicad_sch` found next to it **in the source directory** (never
+declared in `case.toml`) under the scratch copy's own stem. Every board verb (`drc`,
+`export-gerbers`, `export-drill`, `pos`, `stats`, `ipcd356`, `render`'s `.kicad_pcb`
+branch, `summary`'s `.kicad_pcb` branch, and the `parse-pcb`/`parse-pcb-upgrade` rejection
+loaders) now uses it in place of the single-file `_scratch_copy`.
+
+**Rationale.** Same-stem-same-directory is the *only* way any of these three files can
+reach `kicad-cli` in 10.0.5 (no path flag exists for any of them), so copying is not
+optional plumbing — it is the entire mechanism. Copying all three unconditionally
+(rather than gating on which verb/extra is running) was verified harmless for every
+other board answer: a stray, unused sibling changes nothing for `summary`/plain
+`drc`/`render`/gerbers/drill, and no currently-committed board case ships any of the
+three, so this is a no-op for the whole existing corpus. A manifest field was
+deliberately NOT added for this ([DL-0025]/[DL-0027] removed per-case knobs on
+purpose) — the sibling's mere presence, named by convention, is the whole interface.
+
+**Consequences.** `adapters/kicad.py`'s `_scratch_copy_board`/`_BOARD_SIBLING_SUFFIXES`.
+Unblocks ~12 custom-rule/severity-override DRC cases and the schematic-parity extra
+([DL-0038]). Case authors must name a board's custom rule file `<board-stem>.kicad_dru`,
+its project override file `<board-stem>.kicad_pro`, and its parity schematic
+`<board-stem>.kicad_sch` — same convention `docs/TEST_CASE_FORMAT.md` §4 already
+documents for the board itself.
+
+---
+
+## DL-0035 — `reduce_drc`/`reduce_erc` keep each violation's own `description`
+**Status:** accepted (2026-08-04)
+
+**Context.** `runner/reduce.py`'s `_reduce_violation_list` (backing `reduce_drc`) kept
+only `type`/`severity`/`items` per violation, dropping the violation's own top-level
+`description` — the ONLY field that carries a custom rule's name and measured values,
+e.g. `"Clearance violation (rule 'my-wide-clearance' clearance 25.0000 mm; actual
+0.8000 mm)"`. Without it, a case asserting that a *specific* custom rule fired (as
+opposed to some other clearance violation) had nothing to match against. Auditing
+`reduce_erc` for the same shape found the identical gap — ERC's raw JSON carries the same
+top-level `description` per violation (e.g. `"Pin not connected"`), also dropped.
+
+**Determinism, checked not assumed.** Ran the same custom-rule board through `pcb drc`
+twice and compared every violation's `description`, including the printed measured
+clearance values — byte-identical both times. The measured-value concern is real in
+principle (this is exactly why `stats`' computed float areas are excluded per DESIGN.md
+§3b.1) but was not observed to wobble across repeat runs on the fixtures tested here.
+
+**Decision.** Both `_reduce_violation_list` (DRC) and `reduce_erc`'s flattening loop now
+keep `description`, and both sort keys (`_violation_sort_key`,
+`_sheet_violation_sort_key`) include it so ties on `type`/`severity` alone don't leave
+ordering to chance.
+
+**Rationale.** The alternative — leaving `description` out because it *might* embed
+nondeterministic measured values — was rejected because the actual measured-value risk
+(unlike `stats`' float areas, which are genuinely computed unstably-rounded geometry) was
+checked directly and not observed; excluding a field "just in case" without evidence
+would re-hide the exact information a custom-rule case needs to be evidence of anything.
+
+**Consequences.** `runner/reduce.py`. Every existing committed case with `extra =
+["erc"]`/`["drc"]` needed its `expected/<version>/erc.json`/`drc.json` regenerated (the
+reduction's shape changed, adding one key per violation) — all 52 affected cases (31
+`suites/drc/*`, 19 `suites/erc/*`, plus `board-parse/board-netclasses` and
+`board-parse/zone-keepout-rule-area`) were regenerated as part of this change; each
+diff was verified to be *exactly* the new `description` key and nothing else (no other
+file in any of the 52 cases' `expected/` trees moved), and all 52 re-verified `[PASS]`
+afterward. If a future case's `description` is ever observed to wobble, exclude that one
+field for that answer specifically rather than reverting this for everyone.
+
+---
+
+## DL-0036 — `refill-zones` extra: `pcb drc --refill-zones` as a distinct verb
+**Status:** accepted (2026-08-04)
+
+**Context.** `cmd_drc` hard-codes its flag list with no way to pass `--refill-zones`.
+Every committed zone fixture ships a pre-baked `(filled_polygon ...)`, so plain `drc`
+never invokes `ZONE_FILLER::Fill` — `pcbnew/zone_filler.cpp` is 0/1991 lines in
+docs/COVERAGE.md, the single largest dead non-GUI subsystem in the whole tree.
+
+**Verified, not just documented.** Hand-corrupted a zone's stored `filled_polygon` to a
+much smaller, stale rectangle; running `pcb drc --refill-zones --save-board` rewrote the
+on-disk `filled_polygon` back to the correct full-outline polygon (with the filler's own
+corner rounding) — proof the filler genuinely re-runs and recomputes geometry rather than
+echoing whatever was stored. Determinism verified on a fixture with **zero unconnected
+items** (see [DL-0038]'s caution below about a separate, pre-existing nondeterminism that
+a poorly-chosen fixture can pull in): ran twice, the reduced violation set was identical
+both times.
+
+**Decision.** A new `refill-zones` extra (`TEST_CASE_FORMAT.md` §6) maps to a new adapter
+verb, `drc-refill-zones` (`pcb drc --refill-zones --severity-all --format json`), answer
+file `refill-zones.json`, reduced with the unchanged `reduce_drc`.
+
+**Rationale.** A distinct verb, not a flag threaded through the ordinary `drc` extra —
+[DL-0025] deliberately deleted per-case CLI args (`args =`); reintroducing them for one
+capability would be the same mistake with new paint. A new verb is the sanctioned
+extension point that decision established.
+
+**Consequences.** `adapters/kicad.py` (`cmd_drc_refill_zones`, `IMPLEMENTED_VERBS`),
+`runner/engine.py` (`answer_for_extra`), `runner/manifest.py` (`EXTRA_NAMES`). Unblocks 4
+cases and ~1991 lines per the task brief's estimate. **Caution for future case authors**:
+choose a fixture with an unambiguous DRC result (ideally zero or few unconnected items) —
+see [DL-0038]'s determinism note, which applies to this extra too since both share
+`reduce_drc`'s full `violations`/`unconnected_items`/`schematic_parity` shape.
+
+---
+
+## DL-0037 — `pdf`/`dxf` extras: opt-in PDF and DXF export, one new normalizer, one honest non-normalizer
+**Status:** accepted (2026-08-04)
+
+**Context.** No `export-pdf`/`export-dxf` verb existed. `PDF_plotter.cpp` (0/1433,
+plus `pdf_outline_font.cpp` 0/327, `pdf_stroke_font.cpp` 0/298) and `DXF_plotter.cpp`
+(0/651) were entirely unreached per docs/COVERAGE.md.
+
+**PDF determinism, checked directly rather than assumed flaky.** DESIGN.md §4 warns PDF
+is the least-diffable format (`/CreationDate`, `/ModDate`, a random `/ID`). Ran the same
+board/schematic through `pcb export pdf`/`sch export pdf` twice, 2 seconds apart, with a
+**fixed output filename both times** (so the embedded `/Title` — which embeds the output
+path — never varies): the ONLY byte difference across the two runs, in either the board
+or schematic case, was `/CreationDate (D:YYYY:MM:DD:HH:MM:SS)`. **No `/ModDate` and no
+`/ID` trailer entry appear at all** in kicad-cli 10.0.5's PDF output in this plot mode —
+checked by grepping the raw bytes, not assumed absent. So PDF is NOT irreducibly
+nondeterministic here; one regex normalizer (`normalize_pdf`) suffices, and it does not
+also run the generic CRLF->LF pass (PDF is binary; a blind CRLF rewrite could corrupt a
+compressed content stream that happens to contain that byte pair).
+
+**DXF determinism.** Ran twice, 2 seconds apart: **byte-identical**. No timestamp, no
+embedded filename, nothing wall-clock. Per the honesty rule (DESIGN.md §4), this gets
+**no** dedicated normalizer — `.dxf` is not in `normalize.py`'s `_BY_SUFFIX`, so it falls
+through to the generic CRLF->LF pass every unrecognized text suffix already gets.
+
+**Decision.** New verbs `export-pdf` (dispatches on input suffix like `render`: a board
+plots the same fixed `F.Cu` layer single-file via `--mode-single`; a schematic plots its
+whole hierarchy, root + every declared subsheet via `_scratch_copy_all`, to one
+multi-page PDF) and `export-dxf` (board-only — kicad-cli has no `sch export dxf`). New
+extras `pdf` -> `pdf.pdf`, `dxf` -> `dxf.dxf`. A new `Answer.kind = "file"` (alongside
+`json`/`svg`/`dir`) compares via the generic `normalize.normalize_for` dispatch (by
+artifact suffix) rather than a hardcoded normalizer, since `svg`'s comparator is
+hardcoded to `normalize_svg` and pdf/dxf each need their own (or no) treatment.
+
+**Rationale.** Opt-in extras, not a standard-battery addition — PDF/DXF are page-layout
+projections of information the summary/gerbers/render already cover; recording them
+unconditionally on every board/schematic case would be redundant coverage, not new
+conformance signal, matching DESIGN.md §7.1's `render`-layer-choice reasoning.
+
+**Consequences.** `adapters/kicad.py` (`cmd_export_pdf`, `cmd_export_dxf`,
+`IMPLEMENTED_VERBS`), `runner/normalize.py` (`normalize_pdf`, `_BY_SUFFIX`),
+`runner/engine.py` (`answer_for_extra`, the new `"file"` kind's snapshot/compare paths),
+`runner/manifest.py` (`EXTRA_NAMES`).
+
+---
+
+## DL-0038 — `parity` extra: board+schematic parity via a same-stem `.kicad_sch` sibling
+**Status:** accepted (2026-08-04)
+
+**Context.** No `parity` extra, no verb passing `--schematic-parity`, and no way to
+attach a schematic to a board case. `drc_test_provider_schematic_parity.cpp` was 9/198 in
+docs/COVERAGE.md — essentially unreached.
+
+**Verified: `pcb drc --schematic-parity` takes no path flag of its own.** It looks for a
+schematic with the board's own stem, next to the board — the same same-stem-same-directory
+convention as `.kicad_dru`/`.kicad_pro` ([DL-0034]). Without one present it prints
+`"Failed to fetch schematic netlist for parity tests."` and still **exits 0** with an
+**empty** `schematic_parity: []` — a silent no-op, not a loud failure, so a case that
+misnames its sibling schematic degrades quietly rather than erroring. With one present it
+reports real `missing_footprint`/`extra_footprint` findings, each naming the component in
+its `description` (e.g. `"Missing footprint U1 (T2)"` — see [DL-0035]).
+
+**Decision.** No manifest change. `.kicad_sch` joins `_BOARD_SIBLING_SUFFIXES`
+([DL-0034]) — a board case ships a same-stem schematic on disk, undeclared in
+`case.toml`, exactly like `.kicad_dru`/`.kicad_pro`. A new `parity` extra maps to a new
+verb, `drc-parity` (`pcb drc --schematic-parity`), answer file `parity.json`, reusing
+`reduce_drc` unchanged — its `schematic_parity` key was already wired up and unused,
+waiting for exactly this.
+
+**A genuine, pre-existing KiCad nondeterminism was found while proving this, and it is
+NOT part of the parity feature.** Verified: `pcb drc --severity-all` (no
+`--schematic-parity` at all) on `board-parse/populated-board`'s board — which has four
+mutually-unconnected same-net endpoints (a dangling track, a dangling via, two pads) with
+no unambiguous closest pair — occasionally reports a **different pairing** of
+`unconnected_items` across otherwise-identical runs (e.g. a track pairs with a via in one
+run and with a different pad in another), while `violations`/`schematic_parity` stayed
+identical. Isolated on a fixture with **zero unconnected items**, `parity` was
+deterministic across 20 repeat runs; reused on `populated-board` directly, it failed
+`--determinism-check` roughly 1 run in 5. This is upstream, ambiguous-pairing
+nondeterminism in KiCad's own ratsnest/unconnected-items reporting, orthogonal to
+`--schematic-parity`/`--refill-zones`/this change, and unfixable by any reduction (the
+*membership* of which two items get reported together differs, not merely their order).
+No currently-committed case is affected (no case sets `extra = ["drc"]` on
+`populated-board`), but a future `parity`/`refill-zones`/`drc` case must pick (or verify)
+a fixture without this kind of multi-way unconnected-net ambiguity, or its recorded
+answer will not reliably reproduce. Flagged here rather than silently worked around, per
+the standing "a test that cannot fail is not evidence, and a flaky one is not evidence
+either" rule; candidate for its own `docs/DIVERGENCES.md` entry if/when a case actually
+trips over it.
+
+**Rationale.** Reusing the sibling-file convention ([DL-0034]) instead of a manifest
+field keeps the "no per-case verb knob" rule ([DL-0025]/[DL-0027]) intact: the parity
+schematic is just another file the case ships, the same way a board's own `.kicad_pcb` is.
+
+**Consequences.** `adapters/kicad.py` (`cmd_drc_parity`), `runner/engine.py`
+(`answer_for_extra`), `runner/manifest.py` (`EXTRA_NAMES`), `docs/TEST_CASE_FORMAT.md` §4
+(the sibling-naming convention). Unblocks 6 cases. The ratsnest-pairing nondeterminism
+above needs a human decision on whether/how to record it in `docs/DIVERGENCES.md` —
+flagged, not fixed, here.
+
+---
+
+## DL-0039 — Wire `--reduction-selftest` into CI's gating job, first and fast
+**Status:** accepted (2026-08-04)
+
+**Context.** `runner/reduction_selftest.py`/`python -m runner --reduction-selftest`
+existed (stdlib-only, no Docker or `kicad-cli` needed — it feeds hand-built input directly
+to every `reduce_*`/`build_*_summary` function) but `.github/workflows/ci.yml` never
+invoked it; only the full suite run and `--determinism-check` were wired up.
+
+**Decision.** Add a `Reduction self-test` step to the gating job in `.github/workflows/ci.yml`,
+running `python3 -m runner --reduction-selftest`, placed **before** `Run the conformance
+suite` (it needs no Docker/`kicad-cli` setup its sibling steps do, so it fails fast and
+cheaply if a reduction regresses).
+
+**Rationale.** This is exactly the guard that caught a prior `reduce_erc = reduce_drc`
+aliasing bug (a reduction that always returns the same shape regardless of input) per its
+own module docstring — a check that exists and costs nothing per run should not sit
+unwired.
+
+**Consequences.** `.github/workflows/ci.yml`'s gating job gains one step, ordered first.
+
+---
+
 ## Superseded
 
 Entries below are retired: their mechanism no longer exists in the code, and their

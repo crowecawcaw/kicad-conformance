@@ -150,3 +150,53 @@ revisits. See [DL-0018] and `docs/TEST_CASE_FORMAT.md` §8 for the schema, and
   answer changes) and flip this entry's **Status** to `resolved`, noting the version. If
   instead we decide the suite should assert the value, that is a new case *plus* widening
   `reduce_ipcd356` -- and it must not be done while this entry is open.
+
+---
+
+### DIV-0003 -- `pcb drc`'s `unconnected_items` (ratsnest) can report a different pairing across identical runs when 3+ same-net endpoints are mutually unconnected
+
+- **Status:** open (confirmed KiCad 10.0.5 nondeterminism; **not** pinned by a
+  `known_divergence` marker and **no case is currently affected** -- see below)
+- **Affected cases:** none committed today. Found while proving the `refill-zones`/
+  `parity` extras ([DL-0036]/[DL-0038]): both reuse `reduce_drc`'s full
+  `violations`/`unconnected_items`/`schematic_parity` shape, and a throwaway case built on
+  a copy of `suites/board-parse/populated-board`'s board (reused only because it was
+  convenient, not because the case concept needed it) exposed this.
+- **The defect, empirically isolated:** `board-parse/populated-board`'s board has four
+  mutually-unconnected same-net endpoints (a dangling track, a dangling via, and two
+  pads) with no unambiguous "closest pair." Running `pcb drc --format json --units mm
+  --severity-all` (**no** `--schematic-parity`, **no** `--refill-zones` -- plain `drc`)
+  on the identical bytes, repeatedly, occasionally reports a *different* pairing in
+  `unconnected_items`: e.g. one run pairs the dangling track with a PTH pad, another run
+  pairs the same track with the dangling via instead, while every other field
+  (`violations`, `schematic_parity`, and the OTHER two `unconnected_items` entries) stays
+  identical. Sampled directly (bypassing the adapter/reduction entirely, raw
+  `kicad-cli` JSON): flipped on roughly 1 run in 5-7 across repeated small samples. This
+  is very likely hash-map/set iteration order in KiCad's ratsnest/connectivity code being
+  sensitive to ASLR or allocator state across process starts, not anything
+  environment/adapter-side -- reproduced with plain `kicad-cli` invocations, no Python in
+  the loop.
+- **Why this is not fixable by the reduction.** `runner/reduce.py`'s
+  `_reduce_violation_list` already sorts violations and their items by *content* (never
+  by UUID), which handles *ordering* nondeterminism. This is not an ordering problem --
+  the *membership* of which two items get reported together in one `unconnected_items`
+  entry differs between runs. There is no canonical sort that makes two different
+  pairings compare equal; a reduction cannot repair a report that names a different fact
+  each time.
+- **Why no case is currently affected.** No committed case sets `extra = ["drc"]` (or the
+  new `refill-zones`/`parity`) on a board shaped like this (3+-way mutually-unconnected
+  same-net ambiguity). `suites/drc/unconnected-items` (and every other `suites/drc/*`
+  case) was authored with a single, unambiguous unconnected pair per concept, which was
+  independently confirmed clean across repeat runs while investigating this entry.
+- **Why this is not a strict xfail.** Same reasoning as DIV-0002: no case asserts
+  anything about this board's `unconnected_items`, so there is nothing to pin a
+  `known_divergence` to. This entry exists so the next case author reaches for a fixture
+  with an unambiguous DRC result, and re-runs `--determinism-check` more than once before
+  trusting a green result on anything using `extra = ["drc"]`/`["refill-zones"]`/
+  `["parity"]`.
+- **Upstream action:** not yet filed -- needs a minimal, purpose-built reproducer (a hand
+  written board with exactly 3 mutually-unconnected same-net endpoints) rather than reusing
+  `populated-board`, so the report doesn't drag in unrelated fixture history. **TODO.**
+- **Resolution path:** if a future case ever needs to assert `unconnected_items` on a
+  board with this shape, this entry must be resolved (or the case redesigned to avoid the
+  ambiguity) first -- do not paper over it with a wider tolerance in the reduction.

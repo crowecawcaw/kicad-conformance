@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Board has malformed outline (not a closed shape)",
       "items": [
         {
           "description": "Segment on Edge.Cuts",
@@ -23,6 +24,7 @@
       "type": "invalid_outline"
     },
     {
+      "description": "Board has malformed outline (not a closed shape) (gap 19.9000 mm)",
       "items": [
         {
           "description": "Segment on Edge.Cuts",

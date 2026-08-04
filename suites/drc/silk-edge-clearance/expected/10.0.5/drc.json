@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Silkscreen clipped by board edge",
       "items": [
         {
           "description": "Rectangle on Edge.Cuts",

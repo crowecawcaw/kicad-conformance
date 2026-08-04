@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Annular width (board setup constraints min annular width 0.1000 mm; actual 0.0100 mm)",
       "items": [
         {
           "description": "Via [Net-1] on F.Cu - B.Cu",
@@ -16,6 +17,7 @@
       "type": "annular_width"
     },
     {
+      "description": "Via diameter (board setup constraints min diameter 0.5000 mm; actual 0.3200 mm)",
       "items": [
         {
           "description": "Via [Net-1] on F.Cu - B.Cu",

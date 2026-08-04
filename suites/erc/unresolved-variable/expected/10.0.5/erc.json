@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "Unresolved text variable",
       "items": [
         {
           "description": "Graphic Text '${NO_SUCH_VAR}'",

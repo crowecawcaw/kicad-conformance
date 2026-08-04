@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Footprint has malformed courtyard (not a closed shape)",
       "items": [
         {
           "description": "Footprint <no reference designator>",
@@ -16,6 +17,7 @@
       "type": "malformed_courtyard"
     },
     {
+      "description": "Footprint has malformed courtyard (not a closed shape)",
       "items": [
         {
           "description": "Footprint <no reference designator>",

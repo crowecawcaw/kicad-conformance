@@ -197,6 +197,23 @@ behaviour: what it accepts, and what it rejects.
 > gerber answer. The runner copies the input to its scratch directory under its original
 > name so this stays stable.
 
+**Recognized sibling files, discovered by same stem, never declared in `case.toml`
+([DL-0034]/[DL-0038]).** A board case may drop one or more of these next to its
+`board.kicad_pcb`:
+
+| Sibling | Enables | Read by |
+|---|---|---|
+| `board.kicad_dru` | a custom DRC rule file | `drc`, `refill-zones` |
+| `board.kicad_pro` | project settings, incl. per-check severity overrides | `drc`, `refill-zones`, `parity` |
+| `board.kicad_sch` | a schematic to check board/schematic parity against | `parity` |
+
+`pcb drc` has no `--rules`/`--project`/schematic-path flag in 10.0.5 — same-stem,
+same-directory is the *only* way any of these three reaches it. The adapter copies
+whichever of the three are present alongside the board into scratch automatically; a
+case that wants one just ships it, the same way it ships the board itself. Copying is
+unconditional (not gated on which `extra` a case sets) and was verified harmless for
+every board answer that doesn't consult a given sibling.
+
 ---
 
 ## 5. `case.toml` — every field there is
@@ -257,9 +274,23 @@ Each name adds exactly one more answer, and the name is the filename:
 | `ipcd356` | the IPC-D-356 netlist, including test-point positions | `ipcd356.json` |
 | `netlist` | the netlist interchange file on its own | `netlist.json` |
 | `summary-kicadxml` | rebuilds `summary.json` from KiCad's **XML** netlist instead of its s-expression netlist, and compares it to the **same `summary.json`** — proof the summary measures meaning, not one file format | *(none — reuses `summary.json`)* |
+| `refill-zones` | a DRC run with `--refill-zones` first — the only way to exercise `ZONE_FILLER::Fill`, since every committed zone fixture ships a pre-computed fill ([DL-0036]) | `refill-zones.json` |
+| `parity` | a DRC run with `--schematic-parity` against a same-stem `.kicad_sch` sibling (§4 below) — board/schematic parity findings ([DL-0038]) | `parity.json` |
+| `pdf` | a PDF export (board: fixed `F.Cu` layer, single file; schematic: the whole hierarchy, one multi-page file) ([DL-0037]) | `pdf.pdf` |
+| `dxf` | a DXF export of the board (fixed `F.Cu` layer) — board-only, kicad-cli has no `sch export dxf` ([DL-0037]) | `dxf.dxf` |
 
-That last row is the only entry that adds no file, and it is the reason the list is
-strings rather than a lookup by filename.
+That `summary-kicadxml` row is the only entry that adds no file, and it is the reason the
+list is strings rather than a lookup by filename.
+
+**`refill-zones`/`parity` inherit a nondeterminism risk from plain `drc`, not one they
+introduce.** Both extras record the same three-part shape `drc` does
+(`violations`/`unconnected_items`/`schematic_parity`), and KiCad's own ratsnest/
+unconnected-items reporting has been observed (verified, [DL-0038]) to occasionally
+report a *different pairing* of a board's mutually-unconnected same-net endpoints across
+otherwise-identical runs, when three or more such endpoints exist with no unambiguous
+closest pair. Pick (or verify) a fixture with an unambiguous DRC result — ideally zero or
+few unconnected items — before committing a `refill-zones`/`parity` case, and run
+`--determinism-check` on it more than once before trusting a green result.
 
 **When to reach for an extra.** When the projection *is* the concept the case documents —
 "this board reports zero DRC violations", "this pad's access point is at these

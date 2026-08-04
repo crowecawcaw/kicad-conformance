@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Clearance violation (netclass 'Tight' clearance 0.5000 mm; actual 0.3000 mm)",
       "items": [
         {
           "description": "Track [NET_A] on F.Cu, length 20.0000 mm",
@@ -23,6 +24,7 @@
       "type": "clearance"
     },
     {
+      "description": "Track has unconnected end",
       "items": [
         {
           "description": "Track [NET_A] on F.Cu, length 20.0000 mm",
@@ -36,6 +38,7 @@
       "type": "track_dangling"
     },
     {
+      "description": "Track has unconnected end",
       "items": [
         {
           "description": "Track [NET_B] on F.Cu, length 20.0000 mm",

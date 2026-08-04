@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "PTH inside courtyard",
       "items": [
         {
           "description": "Footprint <no reference designator>",

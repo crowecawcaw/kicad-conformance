@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Hole size out of range (board setup constraints min hole 0.3000 mm; actual 0.0500 mm)",
       "items": [
         {
           "description": "PTH pad 1 [Net-1] of ",

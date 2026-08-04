@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Padstack is questionable (PTH pad hole leaves no copper)",
       "items": [
         {
           "description": "PTH pad 1 [Net-1] of ",

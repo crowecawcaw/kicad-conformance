@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Items not allowed",
       "items": [
         {
           "description": "Track [Net-1] on F.Cu, length 16.0000 mm",
@@ -16,6 +17,7 @@
       "type": "items_not_allowed"
     },
     {
+      "description": "Via is not connected or connected on only one layer",
       "items": [
         {
           "description": "Via [Net-1] on F.Cu - B.Cu",
@@ -29,6 +31,7 @@
       "type": "via_dangling"
     },
     {
+      "description": "Via is not connected or connected on only one layer",
       "items": [
         {
           "description": "Via [Net-1] on F.Cu - B.Cu",

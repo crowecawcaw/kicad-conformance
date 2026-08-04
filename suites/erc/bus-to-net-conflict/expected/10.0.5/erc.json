@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "Invalid connection between bus and net items",
       "items": [
         {
           "description": "Horizontal Bus, length 0.1270 mm",
@@ -22,6 +23,7 @@
       "type": "bus_to_net_conflict"
     },
     {
+      "description": "Label not connected",
       "items": [
         {
           "description": "Label 'A'",

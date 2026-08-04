@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Clearance violation ( clearance 0.2000 mm; actual 0.0500 mm)",
       "items": [
         {
           "description": "Pad 1 [GND] of  on F.Cu",

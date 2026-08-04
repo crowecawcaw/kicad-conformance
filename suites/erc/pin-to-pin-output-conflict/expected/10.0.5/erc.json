@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "The current configuration does not include the symbol library ''",
       "items": [
         {
           "description": "Symbol U1 [P1]",
@@ -15,6 +16,7 @@
       "type": "lib_symbol_issues"
     },
     {
+      "description": "The current configuration does not include the symbol library ''",
       "items": [
         {
           "description": "Symbol U2 [P1]",
@@ -29,6 +31,7 @@
       "type": "lib_symbol_issues"
     },
     {
+      "description": "Pins of type Output and Output are connected",
       "items": [
         {
           "description": "Symbol U1 Pin 1 [1, Output, Line]",

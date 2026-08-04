@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "Label not connected",
       "items": [
         {
           "description": "Label 'NET1'",
@@ -15,6 +16,7 @@
       "type": "label_dangling"
     },
     {
+      "description": "Local and global labels have same name",
       "items": [
         {
           "description": "Global Label 'NET1'",

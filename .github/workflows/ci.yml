@@ -43,6 +43,13 @@ jobs:
           kicad-cli version --format about
           kicad-cli version --format plain
 
+      - name: Reduction self-test (DL-0039)
+        # stdlib-only, no Docker/kicad-cli involved -- feeds every reduce_*/build_*_summary
+        # function hand-built input directly, so it fails fast and cheaply before the
+        # heavier kicad-cli-backed steps below if a reduction regresses (this is the guard
+        # that caught a prior reduce_erc = reduce_drc aliasing bug).
+        run: python3 -m runner --reduction-selftest
+
       - name: Run the conformance suite
         run: python3 -m runner suites/
 

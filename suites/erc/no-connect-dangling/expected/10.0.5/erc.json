@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "Unconnected \"no connection\" flag",
       "items": [
         {
           "description": "No Connect",

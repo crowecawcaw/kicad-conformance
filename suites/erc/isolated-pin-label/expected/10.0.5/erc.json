@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "Label connected to only one pin",
       "items": [
         {
           "description": "Label 'SIG'",
@@ -15,6 +16,7 @@
       "type": "isolated_pin_label"
     },
     {
+      "description": "The current configuration does not include the symbol library ''",
       "items": [
         {
           "description": "Symbol U1 [P1]",

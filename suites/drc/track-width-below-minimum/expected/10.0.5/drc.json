@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Track width (board setup constraints min width 0.2000 mm; actual 0.0500 mm)",
       "items": [
         {
           "description": "Track [Net-1] on F.Cu, length 10.0000 mm",

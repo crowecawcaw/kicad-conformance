@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "Unconnected wire endpoint",
       "items": [
         {
           "description": "Horizontal Wire, length 0.1270 mm",
@@ -15,6 +16,7 @@
       "type": "unconnected_wire_endpoint"
     },
     {
+      "description": "Unconnected wire endpoint",
       "items": [
         {
           "description": "Horizontal Wire, length 0.1270 mm",
@@ -29,6 +31,7 @@
       "type": "unconnected_wire_endpoint"
     },
     {
+      "description": "Wires not connected to anything",
       "items": [
         {
           "description": "Horizontal Wire, length 0.1270 mm",

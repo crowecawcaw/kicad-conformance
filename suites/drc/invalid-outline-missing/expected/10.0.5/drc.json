@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Board has malformed outline (no edges found on Edge.Cuts layer)",
       "items": [
         {
           "description": "PCB",

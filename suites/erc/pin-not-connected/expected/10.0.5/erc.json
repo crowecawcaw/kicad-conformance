@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "The current configuration does not include the symbol library ''",
       "items": [
         {
           "description": "Symbol U1 [P1]",
@@ -15,6 +16,7 @@
       "type": "lib_symbol_issues"
     },
     {
+      "description": "Pin not connected",
       "items": [
         {
           "description": "Symbol U1 Pin 1 [1, Passive, Line]",

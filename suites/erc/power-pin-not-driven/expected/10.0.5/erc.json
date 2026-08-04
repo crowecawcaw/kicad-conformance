@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "The current configuration does not include the symbol library ''",
       "items": [
         {
           "description": "Symbol U1 [PIN_PWRIN]",
@@ -15,6 +16,7 @@
       "type": "lib_symbol_issues"
     },
     {
+      "description": "The current configuration does not include the symbol library ''",
       "items": [
         {
           "description": "Symbol U2 [PIN_PASSIVE]",
@@ -29,6 +31,7 @@
       "type": "lib_symbol_issues"
     },
     {
+      "description": "Input Power pin not driven by any Output Power pins",
       "items": [
         {
           "description": "Symbol U1 Pin 1 [1, Power input, Line]",

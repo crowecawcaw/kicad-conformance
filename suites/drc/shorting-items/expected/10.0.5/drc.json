@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Items shorting two nets (nets GND and Net-1)",
       "items": [
         {
           "description": "Pad 1 [GND] of  on F.Cu",
@@ -23,6 +24,7 @@
       "type": "shorting_items"
     },
     {
+      "description": "Front solder mask aperture bridges items with different nets",
       "items": [
         {
           "description": "Pad 1 [GND] of  on F.Cu",

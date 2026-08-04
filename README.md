@@ -207,7 +207,8 @@ and does not exist yet either.
    prefixed `rejects-`.
 3. Cite the format-doc section in `doc = ` and write a one-line `concept = `.
 4. **Write nothing else.** The input's file type decides which answers get recorded. Add
-   `extra = ["drc"]` (or `erc`, `pos`, `stats`, `ipcd356`, `netlist`) only if the case is
+   `extra = ["drc"]` (or `erc`, `pos`, `stats`, `ipcd356`, `netlist`, `refill-zones`,
+   `parity`, `pdf`, `dxf` — see `docs/TEST_CASE_FORMAT.md` §6) only if the case is
    genuinely *about* that projection; add a second *case* only for a different input. A
    rejection case adds `control = "…"` and `error_contains = "…"` instead — setting
    `control` is what makes it a rejection case, not a directory choice.

@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "The current configuration does not include the footprint library 'probe'",
       "items": [
         {
           "description": "Footprint R1",
@@ -16,6 +17,7 @@
       "type": "lib_footprint_issues"
     },
     {
+      "description": "The current configuration does not include the footprint library 'probe'",
       "items": [
         {
           "description": "Footprint R2",
@@ -29,6 +31,7 @@
       "type": "lib_footprint_issues"
     },
     {
+      "description": "Silkscreen clearance",
       "items": [
         {
           "description": "Reference field of R1",

@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Drilled hole too close to other hole (board setup constraints min 0.2495 mm; actual 0.1000 mm)",
       "items": [
         {
           "description": "PTH pad 1 [GND] of ",
@@ -23,6 +24,7 @@
       "type": "hole_to_hole"
     },
     {
+      "description": "Items shorting two nets (nets Net-1 and GND)",
       "items": [
         {
           "description": "PTH pad 1 [GND] of ",
@@ -43,6 +45,7 @@
       "type": "shorting_items"
     },
     {
+      "description": "Items shorting two nets (nets Net-1 and GND)",
       "items": [
         {
           "description": "PTH pad 1 [GND] of ",
@@ -63,6 +66,7 @@
       "type": "shorting_items"
     },
     {
+      "description": "Front solder mask aperture bridges items with different nets",
       "items": [
         {
           "description": "PTH pad 1 [GND] of ",
@@ -83,6 +87,7 @@
       "type": "solder_mask_bridge"
     },
     {
+      "description": "Rear solder mask aperture bridges items with different nets",
       "items": [
         {
           "description": "PTH pad 1 [GND] of ",

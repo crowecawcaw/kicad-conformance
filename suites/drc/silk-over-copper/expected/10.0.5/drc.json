@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "The current configuration does not include the footprint library 'probe'",
       "items": [
         {
           "description": "Footprint <no reference designator>",
@@ -16,6 +17,7 @@
       "type": "lib_footprint_issues"
     },
     {
+      "description": "Silkscreen clipped by solder mask",
       "items": [
         {
           "description": "Pad 1 [Net-1] of  on F.Cu",

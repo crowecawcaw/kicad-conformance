@@ -112,8 +112,10 @@ verbs cause the relevant cases to be **skipped and counted**, never failed. Core
 | `parse-pcb-upgrade` | `.kicad_pcb` | success/failure only | `pcb upgrade --force` on a scratch copy — retained ONLY so one case (`rejects-unterminated-sexpr`, DIV-0001) can keep deliberately exercising its documented segfault via `known_divergence.probe` ([DL-0029]); no case reaches for this as its default probe |
 | `parse-sym` | `.kicad_sym` | success/failure only | `sym upgrade --force -o <out> <in>` |
 | `parse-fp` | `.pretty` **dir** (never a lone `.kicad_mod`) | success/failure only | `fp upgrade --force -o <dir> <in_dir>` |
-| `erc` | `.kicad_sch` | normalized violation set | `sch erc --format json --severity-all -o <out>/erc.json` |
+| `erc` | `.kicad_sch` (root + subsheets) | normalized violation set | `sch erc --format json --severity-all -o <out>/erc.json` |
 | `drc` | `.kicad_pcb` | normalized violation set | `pcb drc --format json --units mm --severity-all -o <out>/drc.json` |
+| `drc-refill-zones` | `.kicad_pcb` | normalized violation set, zones refilled first | `pcb drc --format json --units mm --severity-all --refill-zones -o <out>/refill-zones.json` ([DL-0036]) |
+| `drc-parity` | `.kicad_pcb` (+ recognized same-stem `.kicad_sch` sibling) | normalized violation set, including `schematic_parity` | `pcb drc --format json --units mm --severity-all --schematic-parity -o <out>/parity.json` ([DL-0038]) |
 | `netlist` | `.kicad_sch` (root + subsheets) | net→node membership | `sch export netlist --format kicadsexpr\|kicadxml -o <out>/netlist.net` |
 | `pos` | `.kicad_pcb` | placement rows | `pcb export pos --format csv --side both --units mm -o <out>/pos.csv` |
 | `ipcd356` | `.kicad_pcb` | board net graph + test-point geometry | `pcb export ipcd356 -o <out>/board.d356` |
@@ -121,6 +123,8 @@ verbs cause the relevant cases to be **skipped and counted**, never failed. Core
 | `render` | any of the four | one SVG per invocation | `pcb\|sch\|sym\|fp export svg` (dispatches on the input suffix) |
 | `export-gerbers` | `.kicad_pcb` | **a directory of gerbers**, compared byte-for-byte after normalization ([DL-0026]) | `pcb export gerbers -o <out>/` — **no `--layers`**, no `--no-protel-ext`: KiCad's own set, which is what a fab receives |
 | `export-drill` | `.kicad_pcb` | **a directory holding one `.drl`**, compared byte-for-byte after normalization ([DL-0026]) | `pcb export drill -o <dir>/` — no map, no report, no `--excellon-separate-th` |
+| `export-pdf` | any of board/sch | one PDF file, byte-compared after normalizing `/CreationDate` | `pcb export pdf --layers F.Cu --mode-single` / `sch export pdf` -o `<out>/pdf.pdf` ([DL-0037]) |
+| `export-dxf` | `.kicad_pcb` only | one DXF file, byte-compared, **no normalizer** (verified byte-identical run-to-run) | `pcb export dxf --layers F.Cu --mode-single -o <out>/dxf.dxf` ([DL-0037]) |
 | `export-step` | `.kicad_pcb` | reserved, unused | `pcb export step` (heavy, least deterministic; see [DL-0012](DECISIONS.md)) |
 
 Notes, load-bearing for correct mapping:
@@ -157,6 +161,25 @@ Notes, load-bearing for correct mapping:
   case; it silently exits 0 and produces a netlist covering only the reachable (root-only)
   portion of the hierarchy, which is the failure mode
   `suites/schematic-parse/hierarchical-sheet/` exists to catch (§9 below).
+- **`erc` needs the same fix, and got it ([DL-0032]).** `sch erc` also resolves a
+  sub-sheet by name relative to the file it's run against, so `cmd_erc` now copies every
+  declared `--in` the same way `cmd_netlist`/`cmd_summary` already did. Verified this was
+  a live bug: with only the root sheet in scratch, a global label crossing a sheet
+  boundary was reported as a FALSE `isolated_pin_label` (its sub-sheet-side pin was
+  invisible) and the sub-sheet's own violations were silently absent — 4 violations
+  instead of the correct 6. A single-copy bug does not just miss things, it can fabricate
+  a wrong finding.
+- **A board case may ship recognized sibling files, discovered by same-stem convention,
+  never declared in `case.toml` ([DL-0034]/[DL-0038]).** `pcb drc` has no `--rules`/
+  `--project`/schematic-path flag in 10.0.5 — same-stem-same-directory is the *only* way
+  a custom `.kicad_dru` (rules), `.kicad_pro` (project settings/severity overrides), or
+  `.kicad_sch` (for `drc-parity`) reaches it. The adapter's `_scratch_copy_board` copies
+  the board plus any of these three found next to it in the source directory, under the
+  scratch copy's own stem, for every board verb. Verified each is load-bearing: a custom
+  `.kicad_dru` clearance rule turned 4 violations into 9; a `.kicad_pro` severity
+  override turned 4 into 2 even with `--severity-all`; a same-stem `.kicad_sch` is what
+  makes `--schematic-parity` report anything instead of silently exiting 0 with an empty
+  result.
 - **`pcb`/`sch upgrade` rewrite in place** (no `--output`), so the adapter copies the
   fixture to a scratch dir first and reads the result back. `fp`/`sym upgrade` are
   library/directory operations with `-o` (`fp upgrade -o` refuses a pre-existing output
@@ -199,8 +222,12 @@ exact path it dictated:
 | `render` (sch/sym/fp) | `-o <out>/` — a **directory**; kicad-cli derives the names (`<stem>.svg`, `<Symbol>_unit<N>.svg`, `<Footprint>.svg`; a hierarchical sheet's non-root pages get `<stem>-<sheetname>.svg`, §6.2) | `<out>/*.svg` |
 | `export-gerbers` | `-o <out>/` — a directory, created if absent. **No `--layers`** | `<out>/*` (all of it, compared as a tree) |
 | `export-drill` | `-o <out>/` — a directory, created if absent. No report, no map | `<out>/*.drl` |
+| `export-pdf` | `-o <out>/pdf.pdf` — a **file** path (`--mode-single` for a board; already a file for `sch export pdf`) | `<out>/pdf.pdf` |
+| `export-dxf` | `-o <out>/dxf.dxf` — a **file** path (`--mode-single`) | `<out>/dxf.dxf` |
+| `drc-refill-zones` | `-o <out>/refill-zones.json` | `<out>/refill-zones.json` |
+| `drc-parity` | `-o <out>/parity.json` | `<out>/parity.json` |
 | `parse-sch`/`parse-pcb` | (no `-o`; rewrites in place) | — (exit only) |
-| `parse-sym`/`parse-fp` | `-o <out>` (path must **not** pre-exist) | — (exit only) |
+| `parse-sym`/`parse-fp` | `-o <out>` (path must **not** pre-exist; `cmd_parse_sym`/`cmd_parse_fp` `mkdir` the parent `--out` dir first — [DL-0033]) | — (exit only) |
 
 **The adapter also copies every input to an isolated scratch dir, not only for the
 in-place `upgrade` verbs.** `kicad-cli` writes a `.kicad_prl` project-local-settings cache
@@ -618,6 +645,8 @@ functions in `runner/normalize.py`:
 | `normalize_gerber` | **G1** `%TF.CreationDate,<ts>*%` → a constant; **G2** the trailing ` date <ts>` in `G04 Created by KiCad (PCBNEW <ver>) date …*` → a constant. |
 | `normalize_gbrjob` | **G3** the JSON key `Header.CreationDate` → a constant (re-serializes the JSON deterministically; both sides of every compare go through the same function, so this stays a content-only comparison). |
 | `normalize_drill` | **D1** the trailing timestamp in `; DRILL file KiCad <ver> date …`; **D2** the value in `; #@! TF.CreationDate,<ts>`. |
+| `normalize_pdf` | `/CreationDate (D:…)`, the ONLY byte difference observed run-to-run (with a fixed output filename) in `pcb export pdf`/`sch export pdf` output ([DL-0037]) — no `/ModDate`, no `/ID` trailer entry exists in this plot mode. Deliberately does **not** also run `normalize_crlf` (PDF is binary; a blind CRLF rewrite could corrupt a compressed content stream). |
+| *(none — `.dxf`)* | `pcb export dxf` was verified **byte-identical** run-to-run; per the honesty rule, no normalizer is registered for it (it gets only the generic CRLF->LF fallback, [DL-0037]). |
 
 Counted one way, that is **seven normalizing rules** (SVG's title+desc pair as one item,
 CRLF as one item, and the five gerber/Excellon date-line rules G1–G3/D1–D2); counted

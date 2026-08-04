@@ -2,6 +2,7 @@
   "schematic_parity": [],
   "unconnected_items": [
     {
+      "description": "Missing connection between items",
       "items": [
         {
           "description": "Pad 1 [Net-1] of  on F.Cu",
@@ -22,6 +23,7 @@
       "type": "unconnected_items"
     },
     {
+      "description": "Missing connection between items",
       "items": [
         {
           "description": "Pad 1 [Net-1] of  on F.Cu",
@@ -44,6 +46,7 @@
   ],
   "violations": [
     {
+      "description": "Item on a disabled copper layer (layer In1.Cu)",
       "items": [
         {
           "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
@@ -57,6 +60,7 @@
       "type": "item_on_disabled_layer"
     },
     {
+      "description": "Track has unconnected end",
       "items": [
         {
           "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",

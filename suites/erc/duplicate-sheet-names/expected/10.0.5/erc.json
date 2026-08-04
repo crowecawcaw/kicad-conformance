@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "Duplicate sheet names within a given sheet",
       "items": [
         {
           "description": "Hierarchical Sheet 'SUB'",

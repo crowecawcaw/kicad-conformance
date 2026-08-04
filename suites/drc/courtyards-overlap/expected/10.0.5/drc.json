@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Courtyards overlap",
       "items": [
         {
           "description": "Footprint <no reference designator>",

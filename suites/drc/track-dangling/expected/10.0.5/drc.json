@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Track has unconnected end",
       "items": [
         {
           "description": "Track [Net-1] on F.Cu, length 10.0000 mm",

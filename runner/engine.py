@@ -117,8 +117,8 @@ class Answer:
 
     name: str
     verb: str
-    expected_name: str  # filename (json/svg) or directory name (dir) under expected/<version>/
-    kind: str  # "json" | "svg" | "dir"
+    expected_name: str  # filename (json/svg/file) or directory name (dir) under expected/<version>/
+    kind: str  # "json" | "svg" | "dir" | "file"
     artifact: Callable[[Path, Path], Path]  # (out_dir, input_path) -> artifact path
     reduce: Optional[Callable[[Path], object]] = None  # "json" only: artifact -> canonical structure
     fmt: Optional[str] = None  # passed as the adapter's --format (summary-kicadxml)
@@ -280,11 +280,56 @@ def answer_for_extra(name: str) -> Answer:
             fmt="kicadxml",
             compare_only=True,
         )
+    if name == "refill-zones":
+        # DL-0036: `pcb drc --refill-zones` -- the only way to reach
+        # `pcbnew/zone_filler.cpp` (0/1991 lines, docs/COVERAGE.md's largest dead
+        # non-GUI subsystem): every committed zone fixture ships a pre-baked
+        # `(filled_polygon ...)`, so plain `drc` never invokes `ZONE_FILLER::Fill`.
+        # A distinct verb (`drc-refill-zones`), not a flag threaded through the
+        # ordinary `drc` extra -- DL-0025 deleted per-case CLI args on purpose.
+        return Answer(
+            "refill-zones", verb="drc-refill-zones", expected_name="refill-zones.json",
+            kind="json", artifact=lambda out, inp: out / "refill-zones.json",
+            reduce=lambda p: reduce.reduce_drc(_json_bytes(p)),
+        )
+    if name == "parity":
+        # DL-0038: `pcb drc --schematic-parity` -- `drc_test_provider_schematic_parity
+        # .cpp` (9/198, docs/COVERAGE.md) was essentially unreached because no case ever
+        # passed the flag or shipped a same-stem schematic. The sibling `.kicad_sch` is
+        # discovered on disk by `adapters/kicad.py`'s `_scratch_copy_board`, not declared
+        # here or in the manifest -- same convention as `.kicad_dru`/`.kicad_pro`. Reuses
+        # `reduce_drc` unchanged: its `schematic_parity` key was already wired up and
+        # unused (dead code waiting for exactly this).
+        return Answer(
+            "parity", verb="drc-parity", expected_name="parity.json", kind="json",
+            artifact=lambda out, inp: out / "parity.json",
+            reduce=lambda p: reduce.reduce_drc(_json_bytes(p)),
+        )
+    if name == "pdf":
+        # DL-0037: PDF_plotter.cpp (0/1433, docs/COVERAGE.md) -- opt-in, not part of any
+        # standard battery (§4 of DESIGN.md flags PDF as the least-diffable format).
+        # kind="file": a plain byte compare after `normalize.normalize_for` (dispatches
+        # on `.pdf` -> `normalize_pdf`, which strips only `/CreationDate` -- verified the
+        # one and only run-to-run difference, see adapters/kicad.py's `cmd_export_pdf`).
+        return Answer(
+            "pdf", verb="export-pdf", expected_name="pdf.pdf", kind="file",
+            artifact=lambda out, inp: out / "pdf.pdf",
+        )
+    if name == "dxf":
+        # DL-0037: DXF_plotter.cpp (0/651, docs/COVERAGE.md) -- board-only, opt-in.
+        # Verified byte-identical run-to-run (no normalizer registered for `.dxf`;
+        # `normalize_for` falls through to the generic CRLF->LF pass, per the honesty
+        # rule -- DESIGN.md §4).
+        return Answer(
+            "dxf", verb="export-dxf", expected_name="dxf.dxf", kind="file",
+            artifact=lambda out, inp: out / "dxf.dxf",
+        )
     raise ValueError(f"unknown extra {name!r}")
 
 
 assert set() == EXTRA_NAMES - {
-    "drc", "erc", "pos", "stats", "ipcd356", "netlist", "summary-kicadxml"
+    "drc", "erc", "pos", "stats", "ipcd356", "netlist", "summary-kicadxml",
+    "refill-zones", "parity", "pdf", "dxf",
 }, "answer_for_extra must handle every name in manifest.EXTRA_NAMES"
 
 
@@ -339,7 +384,7 @@ def raw_snapshot(answer: Answer, out_dir: Path, input_path: Path):
             raise ValueError(
                 f"{answer.name}: artifact at {artifact} is not valid JSON ({e})"
             ) from e
-    if answer.kind == "svg":
+    if answer.kind in ("svg", "file"):
         if not artifact.exists():
             raise FileNotFoundError(f"{answer.name}: no artifact written at {artifact}")
         return artifact.read_bytes()
@@ -354,6 +399,12 @@ def normalized_snapshot(answer: Answer, out_dir: Path, input_path: Path):
         return answer.reduce(artifact)
     if answer.kind == "svg":
         return normalize.normalize_svg(artifact.read_bytes())
+    if answer.kind == "file":
+        # `pdf`/`dxf` (DL-0037): a generic per-suffix normalizer dispatch
+        # (`normalize.normalize_for`), unlike `svg`'s hardcoded `normalize_svg` --
+        # PDF/DXF each need their own (or no) normalizer, chosen by the artifact's own
+        # extension.
+        return normalize.normalize_for(artifact, artifact.read_bytes())
     if answer.kind == "dir":
         return dir_snapshot(artifact, normalized=True)
     raise ValueError(f"no normalized snapshot for answer kind {answer.kind!r}")
@@ -417,6 +468,8 @@ class Engine:
                 results.append(self._compare_json(case, answer, label, out_dir, input_path))
             elif answer.kind == "svg":
                 results.append(self._compare_svg(case, answer, label, out_dir, input_path))
+            elif answer.kind == "file":
+                results.append(self._compare_file(case, answer, label, out_dir, input_path))
             elif answer.kind == "dir":
                 results.append(self._compare_dir(case, answer, label, out_dir, input_path))
             else:
@@ -470,6 +523,30 @@ class Engine:
             return CheckResult(label, PASS)
         return CheckResult(label, FAIL, f"{label}: render (SVG) mismatch vs {expected_path} (normalized-SVG byte compare)")
 
+    def _compare_file(self, case: Case, answer: Answer, label: str, out_dir: Path, input_path: Path) -> CheckResult:
+        # pdf/dxf (DL-0037): a plain byte compare after the generic per-suffix
+        # normalizer (`normalize.normalize_for`), the same shape as `_compare_svg` but
+        # not hardcoded to `normalize_svg` -- PDF/DXF each dispatch to their own (or no)
+        # normalizer by the artifact's extension.
+        artifact = answer.artifact(out_dir, input_path)
+        expected_root = case.expected_dir(self.version)
+        expected_path = expected_root / answer.expected_name
+
+        if not artifact.exists():
+            return CheckResult(label, FAIL, f"{label}: adapter did not write expected artifact at {artifact}")
+        actual_bytes = normalize.normalize_for(artifact, artifact.read_bytes())
+
+        if self.regenerate:
+            expected_path.parent.mkdir(parents=True, exist_ok=True)
+            expected_path.write_bytes(actual_bytes)
+            return CheckResult(label, REGENERATED, f"{label}: wrote {expected_path}")
+        if not expected_path.exists():
+            return CheckResult(label, NEEDS_REGEN, f"{label}: expected file {expected_path} missing -- run --regenerate")
+        expected_bytes = normalize.normalize_for(expected_path, expected_path.read_bytes())
+        if actual_bytes == expected_bytes:
+            return CheckResult(label, PASS)
+        return CheckResult(label, FAIL, f"{label}: {label} mismatch vs {expected_path} (normalized byte compare)")
+
     def _compare_dir(self, case: Case, answer: Answer, label: str, out_dir: Path, input_path: Path) -> CheckResult:
         # gerbers/, drill/, library render/ (DESIGN.md §3d, TEST_CASE_FORMAT.md
         # §2): a directory answer is compared as a whole -- same filenames present, every
@@ -522,7 +599,8 @@ class Engine:
     # --- rejection case: the type's loader, exit + stderr + control -----------------
 
     def _run_failure_case(self, case: Case, tmp_root: Path) -> CaseResult:
-        input_path = case.input_paths[0]
+        input_paths = case.input_paths
+        input_path = input_paths[0]
         kind = input_kind(input_path)
         # DL-0029: `known_divergence.probe`, when set, overrides the derived loader verb
         # -- the sole use is `rejects-unterminated-sexpr` (DIV-0001) pinning itself to the
@@ -536,7 +614,13 @@ class Engine:
             return CaseResult(case=case, skipped=True, skip_reason=f"adapter does not support verb {verb!r}")
 
         out_dir = tmp_root / "main"
-        result = self.adapter.invoke(verb, [input_path], out_dir)
+        # Every declared input, not just the first (DL-0032 audit fix, same class of bug
+        # as `cmd_erc`'s single-copy issue): no rejection case ships a multi-sheet
+        # `inputs`/`root` today, so this is behaviourally identical to the old
+        # single-input call for every existing case, but a future hierarchical rejection
+        # case would otherwise silently lose its sub-sheets here even after the adapter
+        # itself was fixed to copy every `--in` it's given.
+        result = self.adapter.invoke(verb, input_paths, out_dir, root=case.root)
         satisfied, fail_status, detail = self._exit_condition(case, result, label)
 
         # Positive control (DESIGN §3a, DL-0013): every failure case must be shown

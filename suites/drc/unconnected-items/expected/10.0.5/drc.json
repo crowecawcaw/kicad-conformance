@@ -2,6 +2,7 @@
   "schematic_parity": [],
   "unconnected_items": [
     {
+      "description": "Missing connection between items",
       "items": [
         {
           "description": "Pad 1 [Net-1] of  on F.Cu",

@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Isolated copper fill",
       "items": [
         {
           "description": "Zone [Net-2] on F.Cu, priority 0",

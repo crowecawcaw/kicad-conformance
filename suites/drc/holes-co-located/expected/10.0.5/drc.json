@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Drilled holes co-located",
       "items": [
         {
           "description": "PTH pad 1 [GND] of ",
@@ -23,6 +24,7 @@
       "type": "holes_co_located"
     },
     {
+      "description": "Items shorting two nets (nets Net-1 and GND)",
       "items": [
         {
           "description": "PTH pad 1 [GND] of ",
@@ -43,6 +45,7 @@
       "type": "shorting_items"
     },
     {
+      "description": "Items shorting two nets (nets Net-1 and GND)",
       "items": [
         {
           "description": "PTH pad 1 [GND] of ",
@@ -63,6 +66,7 @@
       "type": "shorting_items"
     },
     {
+      "description": "Front solder mask aperture bridges items with different nets",
       "items": [
         {
           "description": "PTH pad 1 [GND] of ",
@@ -83,6 +87,7 @@
       "type": "solder_mask_bridge"
     },
     {
+      "description": "Rear solder mask aperture bridges items with different nets",
       "items": [
         {
           "description": "PTH pad 1 [GND] of ",

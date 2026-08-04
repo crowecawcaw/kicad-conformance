@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Via is not connected or connected on only one layer",
       "items": [
         {
           "description": "Via [Net-1] on F.Cu - B.Cu",

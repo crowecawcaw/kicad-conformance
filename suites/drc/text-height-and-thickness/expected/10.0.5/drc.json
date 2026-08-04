@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Text height out of range (board setup constraints silk text height min height 0.8000 mm; actual 0.2000 mm)",
       "items": [
         {
           "description": "PCB text 'x' on F.Silkscreen",
@@ -16,6 +17,7 @@
       "type": "text_height"
     },
     {
+      "description": "Text thickness out of range (board setup constraints silk text thickness min thickness 0.0800 mm; actual 0.0200 mm)",
       "items": [
         {
           "description": "PCB text 'x' on F.Silkscreen",

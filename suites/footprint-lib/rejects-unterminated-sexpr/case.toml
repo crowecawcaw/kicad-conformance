@@ -1,0 +1,38 @@
+concept = "A .pretty library whose single footprint has an unterminated (version ...) form is rejected, not silently accepted or crashed on."
+doc     = "sexpr-footprint"
+input   = "lib.pretty"
+control = "control.pretty"             # same library, closing paren restored -> must exit 0
+error_contains = "Unable to load library"
+
+# Hand-authored fixture (DL-0011): a minimal one-pad SMD footprint (the same shape as
+# pad-only-footprint/lib.pretty/PadOnly.kicad_mod), with the (version 20260206) form's
+# closing paren deleted so the file never balances. `command_fp_upgrade.cpp::doPerform`
+# is 0.00% of 8 per docs/COVERAGE.md -- the `parse-fp` verb (`fp upgrade --force`, which
+# needs a `.pretty` DIRECTORY, never a lone `.kicad_mod`) is implemented in
+# adapters/kicad.py but no existing footprint-lib case is a rejection case, so it was
+# never invoked. Verified in Docker (kicad/kicad:10.0.5): `fp upgrade --force` on this
+# exact truncated library exits 2 with stderr "Unable to load library" (no crash, no
+# parse position); the control (paren restored) exits 0 with no stderr. Falsifiable: the
+# control directory is accepted and the truncated copy -- identical bytes minus one
+# paren -- is rejected.
+#
+# ADAPTER BUG FOUND WHILE AUTHORING THIS CASE (not fixed here -- out of scope, adapters/
+# is owned by the reference adapter, not by suite authors): `adapters/kicad.py`'s
+# `cmd_parse_fp` never creates `--out` before running `fp upgrade --force -o
+# <out>/upgraded.pretty <src>`, and nothing upstream of it creates that directory either.
+# Regenerating THIS case reproduces it precisely:
+#   parse-fp: positive control 'control.pretty' did not exit OK (verdict=REJECT,
+#   returncode=2) ... stderr: Error: Directory '.../control/upgraded.pretty' couldn't be
+#   created (error 2: No such file or directory)
+# i.e. `parse-fp` currently fails on EVERY input, well-formed or not, whenever its
+# `--out` directory doesn't already exist (which the runner's own scratch dirs don't,
+# for the control path -- see `runner/engine.py::_check_control`). Same root cause as the
+# sibling finding in `suites/symbol-lib/rejects-unterminated-sexpr/case.toml`
+# (`cmd_parse_sym`). This is exactly why `command_fp_upgrade.cpp::doPerform` sits at
+# 0.00% in docs/COVERAGE.md: no case had ever invoked `parse-fp`, so this was never
+# triggered. Until `cmd_parse_fp` adds an `out_dir.mkdir(parents=True, exist_ok=True)`
+# (the same fix `cmd_render`'s `.pretty` branch already applies), THIS case's positive
+# control cannot exit OK through the harness, so the runner reports NOT-EVIDENCE, not
+# PASS -- even though the fixture pair itself is verified correct via direct
+# `kicad-cli fp upgrade --force` calls (see above). Not a defect in this case's concept
+# or fixtures.

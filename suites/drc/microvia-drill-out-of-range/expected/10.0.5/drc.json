@@ -3,6 +3,7 @@
   "unconnected_items": [],
   "violations": [
     {
+      "description": "Micro via hole size out of range (board setup constraints min hole 0.1000 mm; actual 0.0500 mm)",
       "items": [
         {
           "description": "Micro via [Net-1] on F.Cu - B.Cu",

@@ -68,7 +68,19 @@ class KnownDivergence:
 # table (name -> invocation + comparison); kept here, not there, so `manifest.py` never
 # has to import the engine to validate a case.
 EXTRA_NAMES = frozenset(
-    {"drc", "erc", "pos", "stats", "ipcd356", "netlist", "summary-kicadxml"}
+    {
+        "drc", "erc", "pos", "stats", "ipcd356", "netlist", "summary-kicadxml",
+        # DL-0036: refill zones before DRC (`pcb drc --refill-zones`) -- the only way to
+        # reach `pcbnew/zone_filler.cpp`, otherwise dead (docs/COVERAGE.md).
+        "refill-zones",
+        # DL-0038: board/schematic parity (`pcb drc --schematic-parity`) -- needs a
+        # same-stem `.kicad_sch` sibling next to the board (see adapters/kicad.py's
+        # `_scratch_copy_board`); no manifest change needed for the sibling itself.
+        "parity",
+        # DL-0037: PDF/DXF export, opt-in (least-diffable formats; not part of any
+        # standard battery).
+        "pdf", "dxf",
+    }
 )
 
 # Every key `case.toml` is allowed to declare (TEST_CASE_FORMAT.md §5's field table). A

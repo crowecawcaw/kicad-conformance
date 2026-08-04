@@ -1,6 +1,7 @@
 {
   "violations": [
     {
+      "description": "Label not connected",
       "items": [
         {
           "description": "Label 'SIG'",
