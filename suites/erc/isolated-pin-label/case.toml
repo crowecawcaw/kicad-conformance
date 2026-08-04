@@ -1,0 +1,4 @@
+concept = "A label attached to exactly one pin (no other pin on the labeled net) raises isolated_pin_label."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

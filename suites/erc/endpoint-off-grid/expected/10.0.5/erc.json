@@ -1,0 +1,46 @@
+{
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Symbol U1 Pin 1 [1, Passive, Line]",
+          "pos": {
+            "x": 0.13,
+            "y": 0.13
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "endpoint_off_grid"
+    },
+    {
+      "items": [
+        {
+          "description": "Symbol U1 [P1]",
+          "pos": {
+            "x": 0.13,
+            "y": 0.13
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "lib_symbol_issues"
+    },
+    {
+      "items": [
+        {
+          "description": "Symbol U1 Pin 1 [1, Passive, Line]",
+          "pos": {
+            "x": 0.13,
+            "y": 0.13
+          }
+        }
+      ],
+      "severity": "error",
+      "sheet": "/",
+      "type": "pin_not_connected"
+    }
+  ]
+}

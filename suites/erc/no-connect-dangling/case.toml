@@ -1,0 +1,4 @@
+concept = "A no-connect flag placed where nothing else is connected raises no_connect_dangling."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

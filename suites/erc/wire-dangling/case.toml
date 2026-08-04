@@ -1,0 +1,4 @@
+concept = "A wire touching nothing at either end raises both wire_dangling and unconnected_wire_endpoint ERC violations (once per free endpoint)."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

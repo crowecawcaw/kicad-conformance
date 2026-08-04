@@ -1,0 +1,25 @@
+{
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Hierarchical Sheet 'SUB'",
+          "pos": {
+            "x": 0.254,
+            "y": 0.254
+          }
+        },
+        {
+          "description": "Hierarchical Sheet 'SUB'",
+          "pos": {
+            "x": 0.635,
+            "y": 0.254
+          }
+        }
+      ],
+      "severity": "error",
+      "sheet": "/",
+      "type": "duplicate_sheet_names"
+    }
+  ]
+}

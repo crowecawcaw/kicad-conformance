@@ -1,0 +1,29 @@
+{
+  "components": {
+    "U1": {
+      "footprint": "",
+      "part": "P1",
+      "pins": [
+        "1"
+      ],
+      "sheet": "/",
+      "value": "P1"
+    },
+    "U2": {
+      "footprint": "",
+      "part": "P1",
+      "pins": [
+        "1"
+      ],
+      "sheet": "/",
+      "value": "P1"
+    }
+  },
+  "kind": "schematic",
+  "nets": {
+    "Net-(U1-Pad1)": [
+      "U1.1",
+      "U2.1"
+    ]
+  }
+}

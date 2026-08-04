@@ -1,0 +1,53 @@
+{
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Field  Spaced  'v'",
+          "pos": {
+            "x": 0.127,
+            "y": 0.2032
+          }
+        },
+        {
+          "description": "Symbol U1 [P1]",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "field_name_whitespace"
+    },
+    {
+      "items": [
+        {
+          "description": "Symbol U1 [P1]",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "lib_symbol_issues"
+    },
+    {
+      "items": [
+        {
+          "description": "Symbol U1 Pin 1 [1, Passive, Line]",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "error",
+      "sheet": "/",
+      "type": "pin_not_connected"
+    }
+  ]
+}

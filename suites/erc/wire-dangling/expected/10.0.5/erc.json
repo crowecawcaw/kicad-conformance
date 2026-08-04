@@ -1,0 +1,46 @@
+{
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Horizontal Wire, length 0.1270 mm",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "unconnected_wire_endpoint"
+    },
+    {
+      "items": [
+        {
+          "description": "Horizontal Wire, length 0.1270 mm",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "unconnected_wire_endpoint"
+    },
+    {
+      "items": [
+        {
+          "description": "Horizontal Wire, length 0.1270 mm",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "error",
+      "sheet": "/",
+      "type": "wire_dangling"
+    }
+  ]
+}

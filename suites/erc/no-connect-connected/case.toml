@@ -1,0 +1,4 @@
+concept = "A no-connect flag placed at a pin that is also wired to another pin raises no_connect_connected."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

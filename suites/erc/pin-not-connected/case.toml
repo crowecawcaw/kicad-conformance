@@ -1,0 +1,4 @@
+concept = "A pin with nothing wired to it raises a pin_not_connected ERC violation."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

@@ -1,0 +1,4 @@
+concept = "Two input pins wired together, with no output pin anywhere on the net, are not driven."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

@@ -1,0 +1,4 @@
+concept = "A plain (non-bus) label tied directly onto a bus wire raises bus_to_net_conflict."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

@@ -1,0 +1,4 @@
+concept = "Two different labels attached to the same electrical net raise multiple_net_names."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

@@ -1,0 +1,127 @@
+<?xml version="1.0" standalone="no"?>
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"> 
+<svg
+  xmlns:svg="http://www.w3.org/2000/svg"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+  version="1.1"
+  width="297.0022mm" height="210.0072mm" viewBox="0.0000 0.0000 297.0022 210.0072">
+<title>NORMALIZED</title>
+  <desc>NORMALIZED</desc>
+<g style="fill:#000000; fill-opacity:1.0000;stroke:#000000; stroke-opacity:1.0000;
+stroke-linecap:round; stroke-linejoin:round;"
+ transform="translate(0 0) scale(1 1)">
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.1524; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<text x="26.8288" y="26.1258"
+textLength="4.8598" font-size="1.6933" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">NET1</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M24.8028 26.0703
+L24.8028 24.8003
+" />
+<path d="M24.8028 24.8003
+L25.5285 26.0703
+" />
+<path d="M25.5285 26.0703
+L25.5285 24.8003
+" />
+<path d="M26.1333 25.4051
+L26.5567 25.4051
+" />
+<path d="M26.7381 26.0703
+L26.1333 26.0703
+" />
+<path d="M26.1333 26.0703
+L26.1333 24.8003
+" />
+<path d="M26.1333 24.8003
+L26.7381 24.8003
+" />
+<path d="M27.1009 24.8003
+L27.8266 24.8003
+" />
+<path d="M27.4638 26.0703
+L27.4638 24.8003
+" />
+<path d="M28.9152 26.0703
+L28.1895 26.0703
+" />
+<path d="M28.5523 26.0703
+L28.5523 24.8003
+" />
+<path d="M28.5523 24.8003
+L28.4314 24.9818
+" />
+<path d="M28.4314 24.9818
+L28.3104 25.1027
+" />
+<path d="M28.3104 25.1027
+L28.1895 25.1632
+" />
+</g><path style="fill:none; 
+stroke:#000000; stroke-width:0.1524; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;fill:none"
+d="M 25.4000,25.4000
+26.5113,26.6704
+32.5020,26.6704
+32.5020,25.4000
+32.5020,24.1296
+26.5113,24.1296
+Z" /> 
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.1524; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<text x="12.7000" y="12.9857"
+textLength="4.8598" font-size="1.6933" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">NET1</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M10.6740 12.9302
+L10.6740 11.6602
+" />
+<path d="M10.6740 11.6602
+L11.3997 12.9302
+" />
+<path d="M11.3997 12.9302
+L11.3997 11.6602
+" />
+<path d="M12.0045 12.2650
+L12.4279 12.2650
+" />
+<path d="M12.6093 12.9302
+L12.0045 12.9302
+" />
+<path d="M12.0045 12.9302
+L12.0045 11.6602
+" />
+<path d="M12.0045 11.6602
+L12.6093 11.6602
+" />
+<path d="M12.9721 11.6602
+L13.6978 11.6602
+" />
+<path d="M13.3350 12.9302
+L13.3350 11.6602
+" />
+<path d="M14.7864 12.9302
+L14.0607 12.9302
+" />
+<path d="M14.4235 12.9302
+L14.4235 11.6602
+" />
+<path d="M14.4235 11.6602
+L14.3026 11.8417
+" />
+<path d="M14.3026 11.8417
+L14.1816 11.9626
+" />
+<path d="M14.1816 11.9626
+L14.0607 12.0231
+" />
+</g></g> 
+</svg>

@@ -1,0 +1,143 @@
+<?xml version="1.0" standalone="no"?>
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"> 
+<svg
+  xmlns:svg="http://www.w3.org/2000/svg"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+  version="1.1"
+  width="297.0022mm" height="210.0072mm" viewBox="0.0000 0.0000 297.0022 210.0072">
+<title>NORMALIZED</title>
+  <desc>NORMALIZED</desc>
+<g style="fill:#000000; fill-opacity:1.0000;stroke:#000000; stroke-opacity:1.0000;
+stroke-linecap:round; stroke-linejoin:round;"
+ transform="translate(0 0) scale(1 1)">
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.2540; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<rect x="11.730000" y="9.825000" width="2.540000" height="3.810000" rx="0.000000" />
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.1524; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M13.0000 13.0000
+L13.0000 13.0000
+" />
+<text x="13.0000" y="12.6444"
+textLength="1.4127" font-size="1.6933" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">1</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M13.3629 12.4809
+L12.6372 12.4809
+" />
+<path d="M13.0000 12.4809
+L13.0000 11.2109
+" />
+<path d="M13.0000 11.2109
+L12.8791 11.3924
+" />
+<path d="M12.8791 11.3924
+L12.7581 11.5133
+" />
+<path d="M12.7581 11.5133
+L12.6372 11.5738
+" />
+</g><text x="13.0000" y="11.0950"
+textLength="2.7432" font-size="1.6933" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">U1</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M12.0323 9.7695
+L12.0323 10.7976
+" />
+<path d="M12.0323 10.7976
+L12.0928 10.9186
+" />
+<path d="M12.0928 10.9186
+L12.1533 10.9791
+" />
+<path d="M12.1533 10.9791
+L12.2742 11.0395
+" />
+<path d="M12.2742 11.0395
+L12.5161 11.0395
+" />
+<path d="M12.5161 11.0395
+L12.6371 10.9791
+" />
+<path d="M12.6371 10.9791
+L12.6976 10.9186
+" />
+<path d="M12.6976 10.9186
+L12.7580 10.7976
+" />
+<path d="M12.7580 10.7976
+L12.7580 9.7695
+" />
+<path d="M14.0281 11.0395
+L13.3024 11.0395
+" />
+<path d="M13.6652 11.0395
+L13.6652 9.7695
+" />
+<path d="M13.6652 9.7695
+L13.5443 9.9510
+" />
+<path d="M13.5443 9.9510
+L13.4233 10.0719
+" />
+<path d="M13.4233 10.0719
+L13.3024 10.1324
+" />
+</g><text x="13.0000" y="18.7150"
+textLength="2.6827" font-size="1.6933" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">P1</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M12.0626 18.6595
+L12.0626 17.3895
+" />
+<path d="M12.0626 17.3895
+L12.5464 17.3895
+" />
+<path d="M12.5464 17.3895
+L12.6674 17.4500
+" />
+<path d="M12.6674 17.4500
+L12.7279 17.5105
+" />
+<path d="M12.7279 17.5105
+L12.7883 17.6314
+" />
+<path d="M12.7883 17.6314
+L12.7883 17.8129
+" />
+<path d="M12.7883 17.8129
+L12.7279 17.9338
+" />
+<path d="M12.7279 17.9338
+L12.6674 17.9943
+" />
+<path d="M12.6674 17.9943
+L12.5464 18.0548
+" />
+<path d="M12.5464 18.0548
+L12.0626 18.0548
+" />
+<path d="M13.9979 18.6595
+L13.2722 18.6595
+" />
+<path d="M13.6350 18.6595
+L13.6350 17.3895
+" />
+<path d="M13.6350 17.3895
+L13.5141 17.5710
+" />
+<path d="M13.5141 17.5710
+L13.3931 17.6919
+" />
+<path d="M13.3931 17.6919
+L13.2722 17.7524
+" />
+</g></g> 
+</svg>

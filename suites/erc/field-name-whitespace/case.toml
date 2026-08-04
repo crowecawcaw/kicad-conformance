@@ -1,0 +1,4 @@
+concept = "A symbol field name with leading/trailing whitespace raises field_name_whitespace."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

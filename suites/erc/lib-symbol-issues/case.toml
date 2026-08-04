@@ -1,0 +1,4 @@
+concept = "A hand-authored symbol whose library is not in the configuration raises lib_symbol_issues."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

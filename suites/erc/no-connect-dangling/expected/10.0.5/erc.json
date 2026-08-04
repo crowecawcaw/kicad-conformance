@@ -1,0 +1,18 @@
+{
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "No Connect",
+          "pos": {
+            "x": 0.254,
+            "y": 0.254
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "no_connect_dangling"
+    }
+  ]
+}

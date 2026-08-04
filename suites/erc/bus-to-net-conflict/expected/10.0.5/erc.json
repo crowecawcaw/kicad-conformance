@@ -1,0 +1,39 @@
+{
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Horizontal Bus, length 0.1270 mm",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        },
+        {
+          "description": "Label 'A'",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "error",
+      "sheet": "/",
+      "type": "bus_to_net_conflict"
+    },
+    {
+      "items": [
+        {
+          "description": "Label 'A'",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "error",
+      "sheet": "/",
+      "type": "label_dangling"
+    }
+  ]
+}

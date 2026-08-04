@@ -1,0 +1,4 @@
+concept = "A local label with nothing electrically connected to it raises label_dangling."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

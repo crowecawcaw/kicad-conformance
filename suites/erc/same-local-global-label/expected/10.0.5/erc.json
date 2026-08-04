@@ -1,0 +1,39 @@
+{
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Label 'NET1'",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "error",
+      "sheet": "/",
+      "type": "label_dangling"
+    },
+    {
+      "items": [
+        {
+          "description": "Global Label 'NET1'",
+          "pos": {
+            "x": 0.254,
+            "y": 0.254
+          }
+        },
+        {
+          "description": "Label 'NET1'",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "same_local_global_label"
+    }
+  ]
+}

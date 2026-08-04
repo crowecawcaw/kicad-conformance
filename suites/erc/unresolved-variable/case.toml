@@ -1,0 +1,4 @@
+concept = "A text field referencing an undefined text variable raises unresolved_variable."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

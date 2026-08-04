@@ -1,0 +1,4 @@
+concept = "A 2-unit symbol with only one unit placed on the sheet raises missing_unit for the unplaced unit."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

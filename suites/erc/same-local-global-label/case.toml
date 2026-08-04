@@ -1,0 +1,4 @@
+concept = "A local label and a global label sharing the same name raise same_local_global_label."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

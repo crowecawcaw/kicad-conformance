@@ -1,0 +1,4 @@
+concept = "Two output pins driving the same net raise a pin_to_pin ERC violation."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

@@ -1,0 +1,4 @@
+concept = "Two labels differing only in letter case raise similar_labels."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

@@ -1,0 +1,4 @@
+concept = "A power-input pin wired only to a passive pin, with no power-output pin anywhere on the net, is not driven."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

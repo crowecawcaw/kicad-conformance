@@ -1,0 +1,5 @@
+concept = "Two sibling sheets sharing the same Sheetname raise duplicate_sheet_names."
+doc     = "cli:sch-erc"
+inputs  = ["root.kicad_sch", "sub_a.kicad_sch", "sub_b.kicad_sch"]
+root    = "root.kicad_sch"
+extra   = ["erc"]

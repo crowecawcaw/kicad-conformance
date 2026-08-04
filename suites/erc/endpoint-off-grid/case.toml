@@ -1,0 +1,4 @@
+concept = "A symbol placed off the 1.27 mm connection grid raises endpoint_off_grid."
+doc     = "cli:sch-erc"
+input   = "sheet.kicad_sch"
+extra   = ["erc"]

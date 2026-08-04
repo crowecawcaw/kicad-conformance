@@ -1,0 +1,46 @@
+{
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Symbol U1 [PIN_PWRIN]",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "lib_symbol_issues"
+    },
+    {
+      "items": [
+        {
+          "description": "Symbol U2 [PIN_PASSIVE]",
+          "pos": {
+            "x": 0.254,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "lib_symbol_issues"
+    },
+    {
+      "items": [
+        {
+          "description": "Symbol U1 Pin 1 [1, Power input, Line]",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "error",
+      "sheet": "/",
+      "type": "power_pin_not_driven"
+    }
+  ]
+}

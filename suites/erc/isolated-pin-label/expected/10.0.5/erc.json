@@ -1,0 +1,32 @@
+{
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Label 'SIG'",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "isolated_pin_label"
+    },
+    {
+      "items": [
+        {
+          "description": "Symbol U1 [P1]",
+          "pos": {
+            "x": 0.127,
+            "y": 0.127
+          }
+        }
+      ],
+      "severity": "warning",
+      "sheet": "/",
+      "type": "lib_symbol_issues"
+    }
+  ]
+}
