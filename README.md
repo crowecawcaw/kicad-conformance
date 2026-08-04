@@ -20,7 +20,10 @@ covered yet.
    the dev-docs pages [lag the source](https://dev-docs.kicad.org/en/file-formats/).
    Every test case cites the format-doc section it exercises and states one behavior
    in words, so a directory listing reads like a coverage map and each case is a
-   worked example.
+   worked example. Where the docs are not merely behind but **wrong**, the finding is
+   logged in [`docs/UNDOCUMENTED.md`](docs/UNDOCUMENTED.md) with the command that proves
+   it — the official format pages are stamped 2024-11 and still claim to cover "all
+   versions of KiCad from 6.0", which is no longer true.
 2. **Ecosystem compatibility.** One corpus, many implementations. The coupling to any
    tool is a **thin subprocess adapter** (a handful of capability verbs, files in,
    exit code + captured output out). The same physical test files can validate KiCad,
@@ -173,6 +176,9 @@ kicad-conformance/
 │   ├── TEST_CASE_FORMAT.md    # the authoring spec (manifest schema, layout, worked examples)
 │   ├── DECISIONS.md           # numbered decision log (ADR-style, append-only)
 │   ├── DIVERGENCES.md         # checked-in known-divergence ledger (DL-0009/DL-0018)
+│   ├── COVERAGE.md            # which lines of KiCad the suite executes, measured with gcov
+│   ├── ASSERTED_COVERAGE.md   # ...and which of them anything actually asserts (DL-0030/DL-0031)
+│   ├── UNDOCUMENTED.md        # log of KiCad behaviours missing from, or contradicted by, the official docs
 │   └── ROADMAP.md             # milestones
 ├── suites/                    # the curated, hand-authored corpus (committed)
 │   ├── board-parse/           # .kicad_pcb -- the standard board answers + rejection cases
@@ -214,6 +220,15 @@ and does not exist yet either.
    A crash is never a pass.
 
 The full contributor checklist is in [`docs/TEST_CASE_FORMAT.md`](docs/TEST_CASE_FORMAT.md).
+
+> **Where step 6 is going.** Breaking the input by hand proves the case is falsifiable
+> *once*, and leaves no artifact — so nothing re-checks it and a case can quietly rot into
+> one that passes whatever KiCad does. [`docs/ASSERTED_COVERAGE.md`](docs/ASSERTED_COVERAGE.md)
+> specifies the fix: commit the broken input as `perturb/<slug>/`, and a new runner mode
+> (`--verify-assertions`) re-runs it every time and requires the case to go red. That is
+> also what turns [`docs/COVERAGE.md`](docs/COVERAGE.md)'s "which lines ran" into "which
+> lines anything asserts" ([DL-0030](docs/DECISIONS.md), [DL-0031](docs/DECISIONS.md)).
+> Designed, not yet implemented — step 6 is still manual today.
 
 ## License
 

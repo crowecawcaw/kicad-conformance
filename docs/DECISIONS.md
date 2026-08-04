@@ -717,6 +717,154 @@ DIV-0001 entry, and the eleven `suites/board-parse/rejects-*` manifests.
 
 ---
 
+## DL-0030 — Asserted coverage: a case's falsifiability is a committed perturbation, checked by the runner
+**Status:** accepted (owner principle, 2026-08-03) — design in
+[`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md); **not yet implemented**
+
+**Context.** The owner's measurement discipline, in his words: *"Aim to cover all
+meaningful lines and branches. Coverage is what we can assert and verify, not just run."*
+
+Nothing enforces it. [`COVERAGE.md`](COVERAGE.md) §6.1 concedes the gap outright —
+"covered ≠ tested — gcov proves a line ran, not that anything was asserted about it" — so
+every percentage in that document is an upper bound on something never measured. Worse,
+the one place falsifiability *is* established is
+[`TEST_CASE_FORMAT.md`](TEST_CASE_FORMAT.md) §11's manual step, *"Broke the input and
+watched it go red"*: performed once by the author, recorded nowhere, re-checked never. A
+case can rot into one that passes whatever KiCad does — a normalizer widens, a comparator
+loses a field, an answer is regenerated from an already-wrong run — and the suite stays
+green through all of it. A green suite of inert cases is the failure mode this project
+cares most about ([COVERAGE.md](COVERAGE.md) §7).
+
+Note that **rejection cases have never had this problem**: [DL-0013]'s positive control is
+exactly a falsifiability check, run every time, and a rejection case whose control does not
+flip is reported not-evidence rather than passed. Happy cases had no equivalent.
+
+**Decision.** Define **asserted** operationally, and make the definition executable by
+reusing the machinery that already exists:
+
+> A perturbation `P` of case `C`'s input is **asserted** iff running `C` with `P`
+> substituted for its input, against `C`'s own committed answers, **fails**.
+
+A perturbation is a copy of the case's input with something changed, committed at
+`suites/<suite>/<slug>/perturb/<perturbation-slug>/`, overlaying the case's inputs by
+filename. **`case.toml` gains no key**: the common case stays `concept` + `doc` + `input`,
+and the perturbation's slug plus `diff input perturb/<slug>/input` is its complete
+description. The runner grows one alternate mode, `--verify-assertions`, structurally a
+sibling of `--determinism-check`, scoring each perturbation `ASSERTED` / `INERT` /
+`INVALID-PERTURBATION` / `CRASH`, and counting happy cases that carry none.
+
+**Rationale.**
+- **It formalizes an existing rule rather than inventing one.** The mechanism *is* the
+  contributor checklist's manual step, moved out of a human's memory into the repo, and it
+  extends [DL-0013]'s positive-control principle from rejection cases to every case.
+- **It needs no new comparator, answer format or verdict semantics.** "The case goes red"
+  is what `python -m runner` already computes. That is why the syntax can be a directory
+  and no manifest key.
+- **Mutation on the fixture side is the only affordable side.** Source-level mutation of
+  KiCad is the gold standard and costs ~25 min of rebuild per mutant against a 500k-line
+  tree; it is kept as a targeted tool for settling a disputed subsystem, not a routine
+  measurement ([`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md) §3.5).
+- **Mutating the *answer* instead was considered and rejected**: it tests the comparator,
+  which is a global property, and would pass for every case in the corpus whether or not
+  any KiCad behaviour is observed.
+
+**Three guards that make the check mean what it says.** (1) A perturbation of a happy case
+must still **load** — otherwise "break the file" trivially moves the answer and asserts
+nothing. (2) An overlay filename that matches no declared input is an error, not a silent
+no-op. (3) A rejection case must not carry a `perturb/` directory; its `control` already
+is one.
+
+**When it runs.** Gating in CI on the paths `ci.yml` already filters on, **not** in the
+default `python -m runner suites/`. The default run is the developer inner loop and the
+ecosystem-mode entry point, and a second implementation should not be made to pay for the
+suite's own self-checks. Not scheduled either: the defect is introduced by the commit that
+touches `suites/`, so catching it there names the author and the change instead of handing
+a stranger a bisect. Measured cost on this workstation — 12 board cases run in 1 min 26 s
+(~12 s fixed, ~6.2 s marginal per board case), and a perturbation short-circuits at the
+first differing answer, so the common one costs about half a case. The gating job already
+runs the suite twice (normal + `--determinism-check`); this adds roughly half a pass.
+
+**Consequences.**
+- New: `runner/assertions.py`, a `--verify-assertions` flag in `runner/cli.py`, perturbation
+  discovery in `runner/manifest.py`, and a first-difference short-circuit in the answer
+  generation path of `runner/engine.py`.
+- `.github/workflows/ci.yml` gains one step in the gating job.
+- `docs/TEST_CASE_FORMAT.md` §11 and `README.md`'s "Contributing a case" step 6 change from
+  "break the input and watch it go red" to "commit the perturbation that proves it."
+- **Adoption is ratcheted, not retroactive.** All 77 existing cases have no perturbation;
+  `UNASSERTED-CASE` is counted and printed, never failed, and CI gates only on the count
+  not increasing. `INERT` and `INVALID-PERTURBATION` are hard failures from day one — they
+  can only appear if someone wrote a perturbation, and a wrong perturbation is worse than
+  none.
+- `perturb/` fixtures obey every existing fixture rule ([DL-0011], [DL-0016]) and **must
+  keep the input's filename** — gerber output embeds it ([DL-0026]), so a renamed
+  perturbation would "move the answer" for the wrong reason.
+
+---
+
+## DL-0031 — The asserted-coverage gap report is Tier 2: scheduled, gcov-attributed, and a document not a gate
+**Status:** accepted (2026-08-03) — design in
+[`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md) §4; **not yet implemented**
+
+**Context.** [DL-0030] makes each case falsifiable and re-checks it, but it answers a
+per-case question. The owner's question is a per-*line* one: **which KiCad code does the
+suite execute while asserting nothing about it?** Answering that needs the gcov data
+[`COVERAGE.md`](COVERAGE.md) already produces, joined to [DL-0030]'s per-perturbation
+results.
+
+**Decision.** Split the mechanism in two tiers and keep them on different schedules.
+
+**Tier 1** is [DL-0030]: release-image, no gcov, gating per push.
+
+**Tier 2** is the attribution and the report: run each case *and each of its perturbations*
+under the instrumented image with per-run counter isolation
+(`GCOV_PREFIX`/`GCOV_PREFIX_STRIP`, the one genuinely new piece of tooling), then
+
+```
+credited[C,P] = { L : base[C][L] > 0  and  base[C][L] != pert[C,P][L] }   if P moved an answer
+asserted      = union of credited[C,P];      GAP = executed \ asserted
+```
+
+Emitting `asserted.json`, `asserted-credit.json` and `asserted-gap.md` next to the existing
+`focus.json`. **It runs on the existing scheduled coverage job, never per-PR**, and its
+output is a document with the same status COVERAGE.md has today.
+
+**Rationale.**
+- [DL-0006] already decided that from-source instrumented coverage is scheduled
+  infrastructure, not a per-PR check. That decision applies here unchanged; Tier 2 is the
+  same build, the same job, more analysis.
+- **Requiring `base[C][L] > 0`** keeps `asserted ⊆ executed` true by construction, so the
+  report can never claim more assertion than coverage. A line that runs only under the
+  perturbation is not part of what the recorded answers cover.
+- **Count inequality rather than a 0↔n transition** keeps the signal in loop-heavy parser
+  and plotter code, which is most of what we care about.
+- **`asserted_semantic` is tracked separately from `asserted`** because a line asserted
+  only by a `gerbers/`/`drill/` byte answer is not asserted for any implementation but
+  KiCad ([DL-0015], [DL-0026]). The suite's cross-implementation claim rests on the
+  semantic number, so the report must not blend them.
+- **Credit fan-out is published.** A coarse perturbation (shift the board 1 mm) credits
+  thousands of lines on one moved answer. `asserted-credit.json` records `|credited[C,P]|`
+  per perturbation and the report flags anything above the corpus p90 `low-specificity` —
+  no automatic penalty, just visibility, pushing authors toward surgical perturbations that
+  are also better documentation.
+
+**Consequences.**
+- `tools/coverage/run-suite.sh` gains a `--per-case` bucketing mode; the pooled mode stays,
+  because COVERAGE.md's published numbers depend on it.
+- New `tools/coverage/asserted.py`.
+- [`COVERAGE.md`](COVERAGE.md) §3's table gains two columns **only once real numbers exist**
+  — an empty column reads as zero.
+- The report produces a second, cheaper class of gap than COVERAGE.md §5's: §5 says "write
+  a case that reaches this code"; this says "a case already reaches this code and nothing
+  would notice if it changed," which is usually one perturbation in a case that exists.
+- The honest limits are listed in [`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md) §6 and must
+  travel with any number quoted from this report — in particular that credit is an **upper
+  bound** (a line can be credited coincidentally), that Tier 2's attribution comes from the
+  Debug instrumented binary whose behaviour is known to differ ([COVERAGE.md](COVERAGE.md)
+  §2/§6.4), and that none of this measures whether the recorded answer is *right*.
+
+---
+
 ## Superseded
 
 Entries below are retired: their mechanism no longer exists in the code, and their

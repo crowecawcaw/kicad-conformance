@@ -14,6 +14,13 @@ report collected `2026-08-03T23:43:57Z`.
 
 Every number below states the command that printed it. Nothing here is estimated.
 
+> **Read this document together with [`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md).** This
+> one measures which lines *ran*. That one specifies how the suite proves a line's
+> behaviour is *asserted* — i.e. that a change in it would change a recorded answer — and
+> the gap report that lists the code we execute while asserting nothing about it. §6.1
+> below is the limit it exists to fix; the two asserted columns it adds to §3's table land
+> when it is implemented ([DL-0030], [DL-0031]).
+
 ---
 
 ## 1. Reproducing the measurement
@@ -420,6 +427,12 @@ rather than new fixtures.
 1. **Covered ≠ tested.** gcov records that a line *executed*, not that the suite
    *asserted* anything about its effect. `netlist_exporter_xml.cpp` at 70.3% means the
    XML exporter ran, not that its output is checked field by field.
+   **This is the gap [`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md) closes**: it defines
+   *asserted* as a third state between unexecuted and executed, makes each case's
+   falsifiability a committed artifact the runner re-checks ([DL-0030]), and specifies the
+   per-line gap report — "this KiCad code is executed by the suite and nothing asserts it"
+   — that this section's numbers cannot produce ([DL-0031]). Until that lands, **every
+   percentage in §3 is an upper bound**.
 2. **The global 8.6% is not a quality score** — see §3.
 3. **Bucket percentages are only as good as their directory patterns** — §3a shows three
    of them off by 8-25 percentage points against the question actually being asked.
