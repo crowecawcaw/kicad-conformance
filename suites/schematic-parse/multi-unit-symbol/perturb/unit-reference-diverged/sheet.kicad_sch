@@ -1,0 +1,129 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "10.0.5")
+	(uuid "9c140000-0000-4000-8000-000000000001")
+	(paper "A4")
+	(lib_symbols
+		(symbol "T2U"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(property "Reference" "U"
+				(at 0 -2.54 0)
+				(effects (font (size 1.27 1.27)))
+			)
+			(property "Value" "T2U"
+				(at 0 5.08 0)
+				(effects (font (size 1.27 1.27)))
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(hide yes)
+				(effects (font (size 1.27 1.27)))
+			)
+			(symbol "T2U_0_1"
+				(rectangle
+					(start -1.27 -0.635)
+					(end 1.27 3.175)
+					(stroke (width 0.254) (type default))
+					(fill (type none))
+				)
+			)
+			(symbol "T2U_1_1"
+				(pin passive line
+					(at 0 0 0)
+					(length 0)
+					(name "1" (effects (font (size 1.27 1.27))))
+					(number "1" (effects (font (size 1.27 1.27))))
+				)
+			)
+			(symbol "T2U_2_1"
+				(pin passive line
+					(at 0 0 0)
+					(length 0)
+					(name "2" (effects (font (size 1.27 1.27))))
+					(number "2" (effects (font (size 1.27 1.27))))
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(symbol
+		(lib_id "T2U")
+		(at 100 100 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "9c140000-0000-4000-8000-0000000010u1")
+		(property "Reference" "U1"
+			(at 100 97.46 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "T2U"
+			(at 100 105.08 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" ""
+			(at 100 100 0)
+			(show_name no)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(pin "1" (uuid "9c140000-0000-4000-8000-0000000010a1"))
+		(instances
+			(project ""
+				(path "/"
+					(reference "U1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "T2U")
+		(at 140 100 0)
+		(unit 2)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "9c140000-0000-4000-8000-0000000020u1")
+		(property "Reference" "U2"
+			(at 140 97.46 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "T2U"
+			(at 140 105.08 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" ""
+			(at 140 100 0)
+			(show_name no)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(pin "2" (uuid "9c140000-0000-4000-8000-0000000020a2"))
+		(instances
+			(project ""
+				(path "/"
+					(reference "U2")
+					(unit 2)
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/" (page "1"))
+	)
+)

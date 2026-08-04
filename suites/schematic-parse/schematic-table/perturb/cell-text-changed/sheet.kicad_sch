@@ -1,0 +1,57 @@
+(kicad_sch
+	(version 20260306)
+	(generator "eeschema")
+	(generator_version "10.0")
+	(uuid "e3370000-0000-4000-8000-000000000001")
+	(paper "A4")
+	(lib_symbols)
+	(table
+		(column_count 2)
+		(border
+			(external yes)
+			(header no)
+			(stroke
+				(width 0.254)
+				(type solid)
+			)
+		)
+		(separators
+			(rows no)
+			(cols no)
+		)
+		(column_widths 20 20)
+		(row_heights 10)
+		(cells
+			(table_cell "ZZ"
+				(at 100 80 0)
+				(size 20 10)
+				(margins 0.9525 0.9525 0.9525 0.9525)
+				(span 1 1)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+				(uuid "e3370000-0000-4000-8000-0000000000c1")
+			)
+			(table_cell "B1"
+				(at 120 80 0)
+				(size 20 10)
+				(margins 0.9525 0.9525 0.9525 0.9525)
+				(span 1 1)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+				(uuid "e3370000-0000-4000-8000-0000000000c2")
+			)
+		)
+		(uuid "e3370000-0000-4000-8000-0000000000ta")
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+)

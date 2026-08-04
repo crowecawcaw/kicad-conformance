@@ -1,0 +1,26 @@
+(kicad_sch
+	(version 20260306)
+	(generator "eeschema")
+	(generator_version "10.0")
+	(uuid "e1370000-0000-4000-8000-000000000001")
+	(paper "A4")
+	(lib_symbols)
+	(polyline
+		(pts
+			(xy 100 80) (xy 120 80) (xy 120 110) (xy 100 95) (xy 100 80)
+		)
+		(stroke
+			(width 0.254)
+			(type solid)
+		)
+		(fill
+			(type none)
+		)
+		(uuid "e1370000-0000-4000-8000-0000000000p1")
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+)
