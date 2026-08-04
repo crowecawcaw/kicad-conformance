@@ -1,0 +1,96 @@
+        -:    0:Source:/src/kicad/eeschema/erc/erc_sch_pin_context.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2:* This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3:*
+        -:    4:* Copyright (C) 2009 Jean-Pierre Charras, jp.charras at wanadoo.fr
+        -:    5:* Copyright (C) 2011 Wayne Stambaugh <stambaughw@gmail.com>
+        -:    6:* Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    7:*
+        -:    8:* This program is free software; you can redistribute it and/or
+        -:    9:* modify it under the terms of the GNU General Public License
+        -:   10:* as published by the Free Software Foundation; either version 2
+        -:   11:* of the License, or (at your option) any later version.
+        -:   12:*
+        -:   13:* This program is distributed in the hope that it will be useful,
+        -:   14:* but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15:* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   16:* GNU General Public License for more details.
+        -:   17:*
+        -:   18:* You should have received a copy of the GNU General Public License
+        -:   19:* along with this program; if not, you may find one here:
+        -:   20:* http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   21:* or you may search the http://www.gnu.org website for the version 2 license,
+        -:   22:* or you may write to the Free Software Foundation, Inc.,
+        -:   23:* 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   24:*/
+        -:   25:
+        -:   26:/**
+        -:   27: * @file erc_sch_pin_context.h
+        -:   28: */
+        -:   29:
+        -:   30:#ifndef _ERC_ITEM_CONTEXT_H
+        -:   31:#define _ERC_ITEM_CONTEXT_H
+        -:   32:
+        -:   33:#include <sch_pin.h>
+        -:   34:
+        -:   35:/**
+        -:   36: * A class used to associate a #SCH_PIN with its owning #SCH_SHEET_PATH, in order to handle ERC
+        -:   37: * checks across connected common hierarchical schematics/
+        -:   38: */
+        -:   39:class ERC_SCH_PIN_CONTEXT
+        -:   40:{
+        -:   41:public:
+       16:   42:    ERC_SCH_PIN_CONTEXT() :
+       16:   43:            m_pin( nullptr ),
+       16:   44:            m_sheet(),
+       16:   45:            m_hash( 0 )
+       16:   46:    {}
+        -:   47:
+       15:   48:    ERC_SCH_PIN_CONTEXT( SCH_PIN* pin, const SCH_SHEET_PATH& sheet ) :
+       15:   49:            m_pin( pin ),
+       15:   50:            m_sheet( sheet )
+        -:   51:    {
+       15:   52:        rehash();
+       15:   53:    }
+        -:   54:
+       10:   55:    ERC_SCH_PIN_CONTEXT( const ERC_SCH_PIN_CONTEXT& other ) = default;
+        -:   56:
+        7:   57:    ERC_SCH_PIN_CONTEXT& operator=( const ERC_SCH_PIN_CONTEXT& other ) = default;
+        -:   58:
+       41:   59:    ~ERC_SCH_PIN_CONTEXT() = default;
+        -:   60:
+        -:   61:    /**
+        -:   62:     * Get the SCH_PIN for this context.
+        -:   63:     */
+        -:   64:    SCH_PIN* Pin() const;
+        -:   65:
+        -:   66:    /**
+        -:   67:     * Get the #SCH_SHEET_PATH context for the paired #SCH_PIN.
+        -:   68:     */
+        -:   69:    const SCH_SHEET_PATH& Sheet() const;
+        -:   70:
+        -:   71:    /**
+        -:   72:     * Test two pin contexts for equality based on the deterministic hash.
+        -:   73:     */
+        -:   74:    bool operator==( const ERC_SCH_PIN_CONTEXT& other ) const;
+        -:   75:
+        -:   76:    /**
+        -:   77:     * Provide a deterministic ordering for item contexts based on hash value.
+        -:   78:     */
+        -:   79:    bool operator<( const ERC_SCH_PIN_CONTEXT& other ) const;
+        -:   80:
+        -:   81:protected:
+        -:   82:    /**
+        -:   83:     * Calculate the deterministic hash for this context.
+        -:   84:     */
+        -:   85:    void rehash();
+        -:   86:
+        -:   87:    SCH_PIN*       m_pin;
+        -:   88:    SCH_SHEET_PATH m_sheet;
+        -:   89:    size_t         m_hash;
+        -:   90:};
+        -:   91:
+        -:   92:#endif //_ERC_ITEM_CONTEXT_H

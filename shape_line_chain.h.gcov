@@ -1,0 +1,1025 @@
+        -:    0:Source:/src/kicad/libs/kimath/include/geometry/shape_line_chain.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2013 CERN
+        -:    5: * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
+        -:    6: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    7: *
+        -:    8: * This program is free software; you can redistribute it and/or
+        -:    9: * modify it under the terms of the GNU General Public License
+        -:   10: * as published by the Free Software Foundation; either version 2
+        -:   11: * of the License, or (at your option) any later version.
+        -:   12: *
+        -:   13: * This program is distributed in the hope that it will be useful,
+        -:   14: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   16: * GNU General Public License for more details.
+        -:   17: *
+        -:   18: * You should have received a copy of the GNU General Public License
+        -:   19: * along with this program; if not, you may find one here:
+        -:   20: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   21: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   22: * or you may write to the Free Software Foundation, Inc.,
+        -:   23: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   24: */
+        -:   25:
+        -:   26:#ifndef __SHAPE_LINE_CHAIN
+        -:   27:#define __SHAPE_LINE_CHAIN
+        -:   28:
+        -:   29:
+        -:   30:#include <clipper2/clipper.h>
+        -:   31:#include <geometry/seg.h>
+        -:   32:#include <geometry/shape.h>
+        -:   33:#include <geometry/shape_arc.h>
+        -:   34:#include <geometry/corner_strategy.h>
+        -:   35:#include <math/vector2d.h>
+        -:   36:
+        -:   37:/**
+        -:   38: * Holds information on each point of a SHAPE_LINE_CHAIN that is retrievable
+        -:   39: * after an operation with Clipper2Lib
+        -:   40: */
+        -:   41:struct CLIPPER_Z_VALUE
+        -:   42:{
+        -:   43:    CLIPPER_Z_VALUE()
+        -:   44:    {
+        -:   45:        m_FirstArcIdx = -1;
+        -:   46:        m_SecondArcIdx = -1;
+        -:   47:    }
+        -:   48:
+        -:   49:    CLIPPER_Z_VALUE( const std::pair<ssize_t, ssize_t> aShapeIndices, ssize_t aOffset = 0 )
+        -:   50:    {
+        -:   51:        m_FirstArcIdx = aShapeIndices.first;
+        -:   52:        m_SecondArcIdx = aShapeIndices.second;
+        -:   53:
+        -:   54:        auto offsetVal = [&]( ssize_t& aVal )
+        -:   55:                         {
+        -:   56:                             if( aVal >= 0 )
+        -:   57:                                 aVal += aOffset;
+        -:   58:                         };
+        -:   59:
+        -:   60:        offsetVal( m_FirstArcIdx );
+        -:   61:        offsetVal( m_SecondArcIdx );
+        -:   62:    }
+        -:   63:
+        -:   64:    ssize_t m_FirstArcIdx;
+        -:   65:    ssize_t m_SecondArcIdx;
+        -:   66:};
+        -:   67:
+        -:   68:
+        -:   69:/**
+        -:   70: * Represent a polyline containing arcs as well as line segments: A chain of connected line and/or
+        -:   71: * arc segments.
+        -:   72: *
+        -:   73: * The arc shapes are piecewise approximated for the purpose of boolean operations but are used as
+        -:   74: * arcs when doing collision checks.
+        -:   75: *
+        -:   76: * It is purposely not named "polyline" to avoid confusion with the existing CPolyLine
+        -:   77: * in Pcbnew.
+        -:   78: *
+        -:   79: * @note The SHAPE_LINE_CHAIN class shall not be used for polygons!
+        -:   80: */
+        -:   81:class SHAPE_LINE_CHAIN : public SHAPE_LINE_CHAIN_BASE
+        -:   82:{
+        -:   83:public:
+        -:   84:    typedef std::vector<VECTOR2I>::iterator point_iter;
+        -:   85:    typedef std::vector<VECTOR2I>::const_iterator point_citer;
+        -:   86:
+        -:   87:    /**
+        -:   88:     * Represent an intersection between two line segments
+        -:   89:     */
+        -:   90:    struct INTERSECTION
+        -:   91:    {
+        -:   92:        /// Point of intersection between our and their.
+        -:   93:        VECTOR2I p;
+        -:   94:
+        -:   95:        /// Index of the intersecting corner/segment in the 'our' (== this) line.
+        -:   96:        int index_our;
+        -:   97:
+        -:   98:        /// index of the intersecting corner/segment in the 'their' (Intersect() method
+        -:   99:        /// parameter) line.
+        -:  100:        int index_their;
+        -:  101:
+        -:  102:        /// When true, the corner [index_our] of the 'our' line lies exactly on 'their' line.
+        -:  103:        bool is_corner_our;
+        -:  104:
+        -:  105:        /// When true, the corner [index_their] of the 'their' line lies exactly on 'our' line.
+        -:  106:        /// Note that when both is_corner_our and is_corner_their are set, the line chains touch
+        -:  107:        /// with with corners.
+        -:  108:        bool is_corner_their;
+        -:  109:
+        -:  110:        /// Auxiliary flag to avoid copying intersection info to intersection refining code,
+        -:  111:        /// used by the refining code (e.g. hull handling stuff in the P&S) to reject false
+        -:  112:        /// intersection points.
+        -:  113:        bool valid;
+        -:  114:
+        -:  115:        INTERSECTION() :
+        -:  116:            index_our( -1 ),
+        -:  117:            index_their( -1 ),
+        -:  118:            is_corner_our( false ),
+        -:  119:            is_corner_their( false ),
+        -:  120:            valid( false )
+        -:  121:        {
+        -:  122:        }
+        -:  123:    };
+        -:  124:
+        -:  125:
+        -:  126:    /**
+        -:  127:     * A dynamic state checking if a point lies within polygon with a dynamically built outline (
+        -:  128:     * with each piece of the outline added by AddPolyline ()
+        -:  129:     */
+        -:  130:    class POINT_INSIDE_TRACKER
+        -:  131:    {
+        -:  132:    public:
+        -:  133:        POINT_INSIDE_TRACKER( const VECTOR2I& aPoint );
+        -:  134:
+        -:  135:        void AddPolyline( const SHAPE_LINE_CHAIN& aPolyline );
+        -:  136:        bool IsInside();
+        -:  137:
+        -:  138:    private:
+        -:  139:
+        -:  140:        bool processVertex ( const VECTOR2I& ip, const VECTOR2I& ipNext );
+        -:  141:
+        -:  142:        VECTOR2I m_point;
+        -:  143:        VECTOR2I m_lastPoint;
+        -:  144:        VECTOR2I m_firstPoint;
+        -:  145:        bool m_finished;
+        -:  146:        int m_state;
+        -:  147:        int m_count;
+        -:  148:    };
+        -:  149:
+        -:  150:    typedef std::vector<INTERSECTION> INTERSECTIONS;
+        -:  151:
+        -:  152:
+        -:  153:    /**
+        -:  154:     * Initialize an empty line chain.
+        -:  155:     */
+    #####:  156:    SHAPE_LINE_CHAIN() :
+        -:  157:            SHAPE_LINE_CHAIN_BASE( SH_LINE_CHAIN ),
+    #####:  158:            m_accuracy( 0 ),
+    #####:  159:            m_closed( false ),
+    #####:  160:            m_width( 0 )
+    #####:  161:    {}
+        -:  162:
+    #####:  163:    SHAPE_LINE_CHAIN( const SHAPE_LINE_CHAIN& aShape ) :
+        -:  164:            SHAPE_LINE_CHAIN_BASE( SH_LINE_CHAIN ),
+    #####:  165:            m_points( aShape.m_points ),
+    #####:  166:            m_shapes( aShape.m_shapes ),
+    #####:  167:            m_arcs( aShape.m_arcs ),
+    #####:  168:            m_accuracy( aShape.m_accuracy ),
+    #####:  169:            m_closed( aShape.m_closed ),
+    #####:  170:            m_width( aShape.m_width ),
+    #####:  171:            m_bbox( aShape.m_bbox )
+    #####:  172:    {}
+        -:  173:
+        -:  174:    SHAPE_LINE_CHAIN( const std::vector<int>& aV );
+        -:  175:
+        -:  176:    SHAPE_LINE_CHAIN( const std::vector<VECTOR2I>& aV, bool aClosed = false );
+        -:  177:
+        -:  178:    SHAPE_LINE_CHAIN( const SHAPE_ARC& aArc, bool aClosed = false, std::optional<int> aMaxError = {} );
+        -:  179:
+        -:  180:    SHAPE_LINE_CHAIN( const Clipper2Lib::Path64& aPath,
+        -:  181:                      const std::vector<CLIPPER_Z_VALUE>& aZValueBuffer,
+        -:  182:                      const std::vector<SHAPE_ARC>& aArcBuffer );
+        -:  183:
+    #####:  184:    virtual ~SHAPE_LINE_CHAIN()
+    #####:  185:    {}
+------------------
+SHAPE_LINE_CHAIN::~SHAPE_LINE_CHAIN():
+    #####:  184:    virtual ~SHAPE_LINE_CHAIN()
+    #####:  185:    {}
+------------------
+SHAPE_LINE_CHAIN::~SHAPE_LINE_CHAIN():
+    #####:  184:    virtual ~SHAPE_LINE_CHAIN()
+    #####:  185:    {}
+------------------
+        -:  186:
+        -:  187:    /**
+        -:  188:     * Check if point \a aP lies closer to us than \a aClearance.
+        -:  189:     *
+        -:  190:     * Note: This is overridden as we want to ensure we test collisions with the arcs in this chain
+        -:  191:     * as true arcs rather than segment approximations.
+        -:  192:     *
+        -:  193:     * @param aP the point to check for collisions with
+        -:  194:     * @param aClearance minimum distance that does not qualify as a collision.
+        -:  195:     * @param aActual an optional pointer to an int to store the actual distance in the event
+        -:  196:     *                of a collision.
+        -:  197:     * @return true, when a collision has been found
+        -:  198:     */
+        -:  199:    virtual bool Collide( const VECTOR2I& aP, int aClearance = 0, int* aActual = nullptr,
+        -:  200:                          VECTOR2I* aLocation = nullptr ) const override;
+        -:  201:
+        -:  202:    /**
+        -:  203:     * Check if segment \a aSeg lies closer to us than \a aClearance.
+        -:  204:     *
+        -:  205:     * Note: This is overridden as we want to ensure we test collisions with the arcs in this chain
+        -:  206:     * as true arcs rather than segment approximations.
+        -:  207:     *
+        -:  208:     * @param aSeg the segment to check for collisions with
+        -:  209:     * @param aClearance minimum distance that does not qualify as a collision.
+        -:  210:     * @param aActual an optional pointer to an int to store the actual distance in the event
+        -:  211:     *                of a collision.
+        -:  212:     * @return true, when a collision has been found
+        -:  213:     */
+        -:  214:    virtual bool Collide( const SEG& aSeg, int aClearance = 0, int* aActual = nullptr,
+        -:  215:                          VECTOR2I* aLocation = nullptr ) const override;
+        -:  216:
+        -:  217:    /**
+        -:  218:     * Finds closest points between this and the other line chain. Doesn't test segments or arcs.
+        -:  219:     *
+        -:  220:     * @param aOther the line chain to test against.
+        -:  221:     * @param aPt0 closest point on this line chain (output).
+        -:  222:     * @param aPt1 closest point on the other line chain (output).
+        -:  223:     * @param aDistance distance between points (output).
+        -:  224:     * @return true, if the operation was successful.
+        -:  225:     */
+        -:  226:    bool ClosestPoints( const SHAPE_LINE_CHAIN& aOther, VECTOR2I& aPt0, VECTOR2I& aPt1 ) const;
+        -:  227:
+        -:  228:    static bool ClosestPoints( const point_citer& aMyStart, const point_citer& aMyEnd,
+        -:  229:                               const point_citer& aOtherStart, const point_citer& aOtherEnd,
+        -:  230:                               VECTOR2I& aPt0, VECTOR2I& aPt1, int64_t& aDistSq );
+        -:  231:
+        -:  232:    static bool ClosestSegments( const VECTOR2I& aMyPrevPt, const point_citer& aMyStart,
+        -:  233:                                 const point_citer& aMyEnd, const VECTOR2I& aOtherPrevPt,
+        -:  234:                                 const point_citer& aOtherStart, const point_citer& aOtherEnd,
+        -:  235:                                 VECTOR2I& aPt0, VECTOR2I& aPt1, int64_t& aDistSq );
+        -:  236:
+        -:  237:    /**
+        -:  238:     * Finds closest points between segments of this and the other line chain. Doesn't guarantee
+        -:  239:     * that the points are the absolute closest (use ClosestSegments for that) as there might
+        -:  240:     * be edge cases, but it is much faster.
+        -:  241:     *
+        -:  242:     * @param aOther the line chain to test against.
+        -:  243:     * @param aPt0 closest point on this line chain (output).
+        -:  244:     * @param aPt1 closest point on the other line chain (output).
+        -:  245:     * @param aDistance distance between points (output).
+        -:  246:     * @return true, if the operation was successful.
+        -:  247:     */
+        -:  248:    bool ClosestSegmentsFast( const SHAPE_LINE_CHAIN& aOther, VECTOR2I& aPt0,
+        -:  249:                              VECTOR2I& aPt1 ) const;
+        -:  250:
+        -:  251:    SHAPE_LINE_CHAIN& operator=( const SHAPE_LINE_CHAIN& ) = default;
+        -:  252:
+        -:  253:    // Move assignment operator
+    #####:  254:    SHAPE_LINE_CHAIN& operator=( SHAPE_LINE_CHAIN&& aOther ) noexcept
+        -:  255:    {
+    #####:  256:        if (this != &aOther)
+        -:  257:        {
+    #####:  258:            SHAPE_LINE_CHAIN_BASE::operator=( aOther );
+        -:  259:
+    #####:  260:            m_points = std::move( aOther.m_points );
+    #####:  261:            m_shapes = std::move( aOther.m_shapes );
+    #####:  262:            m_arcs = std::move( aOther.m_arcs );
+        -:  263:
+    #####:  264:            m_accuracy = aOther.m_accuracy;
+    #####:  265:            m_closed = aOther.m_closed;
+    #####:  266:            m_width = aOther.m_width;
+    #####:  267:            m_bbox = aOther.m_bbox;
+        -:  268:        }
+        -:  269:
+    #####:  270:        return *this;
+        -:  271:    }
+        -:  272:
+        -:  273:    SHAPE* Clone() const override;
+        -:  274:
+        -:  275:    /**
+        -:  276:     * Remove all points from the line chain.
+        -:  277:     */
+        -:  278:    void Clear()
+        -:  279:    {
+        -:  280:        m_points.clear();
+        -:  281:        m_arcs.clear();
+        -:  282:        m_shapes.clear();
+        -:  283:        m_closed = false;
+        -:  284:    }
+        -:  285:
+        -:  286:    /**
+        -:  287:     * Mark the line chain as closed (i.e. with a segment connecting the last point with
+        -:  288:     * the first point).
+        -:  289:     *
+        -:  290:     * @param aClosed: whether the line chain is to be closed or not.
+        -:  291:     */
+        -:  292:    void SetClosed( bool aClosed )
+        -:  293:    {
+        -:  294:        m_closed = aClosed;
+        -:  295:        mergeFirstLastPointIfNeeded();
+        -:  296:    }
+        -:  297:
+        -:  298:    /**
+        -:  299:     * @return true when our line is closed.
+        -:  300:     */
+        -:  301:    bool IsClosed() const override
+        -:  302:    {
+        -:  303:        return m_closed;
+        -:  304:    }
+        -:  305:
+        -:  306:    /**
+        -:  307:     * Set the width of all segments in the chain.
+        -:  308:     *
+        -:  309:     * @param aWidth is the width in internal units.
+        -:  310:     */
+        -:  311:    void SetWidth( int aWidth ) override
+        -:  312:    {
+        -:  313:        m_width = aWidth;
+        -:  314:    }
+        -:  315:
+        -:  316:    /**
+        -:  317:     * Get the current width of the segments in the chain.
+        -:  318:     *
+        -:  319:     * @return the width in internal units.
+        -:  320:     */
+        -:  321:    int Width() const
+        -:  322:    {
+        -:  323:        return m_width;
+        -:  324:    }
+        -:  325:
+        -:  326:    /**
+        -:  327:     * Return the number of segments in this line chain.
+        -:  328:     *
+        -:  329:     * @return the number of segments.
+        -:  330:     */
+        -:  331:    int SegmentCount() const
+        -:  332:    {
+        -:  333:        int c = m_points.size() - 1;
+        -:  334:
+        -:  335:        if( m_closed )
+        -:  336:            c++;
+        -:  337:
+        -:  338:        return std::max( 0, c );
+        -:  339:    }
+        -:  340:
+        -:  341:    /**
+        -:  342:     * Return the number of shapes (line segments or arcs) in this line chain.
+        -:  343:     *
+        -:  344:     * This is kind of like SegmentCount() but will only count arcs as 1 segment.
+        -:  345:     *
+        -:  346:     * @return ArcCount() + the number of non-arc segments.
+        -:  347:     */
+        -:  348:    int ShapeCount() const;
+        -:  349:
+        -:  350:
+        -:  351:    /**
+        -:  352:     * Remove the duplicate points from the line chain.
+        -:  353:    */
+        -:  354:    void RemoveDuplicatePoints();
+        -:  355:
+        -:  356:    /**
+        -:  357:     * Simplify the line chain by removing colinear adjacent segments and duplicate vertices.
+        -:  358:     *
+        -:  359:     * @param aTolerance is the maximum tolerance in internal units.  Setting to 0 means that the
+        -:  360:     * points must be exactly co-linear to be removed.
+        -:  361:     */
+        -:  362:    void Simplify( int aTolerance = 0 );
+        -:  363:
+        -:  364:    // legacy function, used by the router. Please do not remove until I'll figure out
+        -:  365:    // the root cause of rounding errors - Tom
+        -:  366:    SHAPE_LINE_CHAIN& Simplify2( bool aRemoveColinear = true );
+        -:  367:
+        -:  368:    /**
+        -:  369:     * Return the number of points (vertices) in this line chain.
+        -:  370:     *
+        -:  371:     * @return the number of points.
+        -:  372:     */
+    #####:  373:    int PointCount() const
+        -:  374:    {
+    #####:  375:        return m_points.size();
+        -:  376:    }
+        -:  377:
+        -:  378:    /**
+        -:  379:     * Return a copy of the aIndex-th segment in the line chain.
+        -:  380:     *
+        -:  381:     * @param aIndex is the index of the segment in the line chain. Negative values are counted
+        -:  382:     *        from the end (i.e. -1 means the last segment in the line chain).
+        -:  383:     * @return a segment at the \a aIndex in the line chain.
+        -:  384:     */
+        -:  385:    SEG Segment( int aIndex ) const;
+        -:  386:
+        -:  387:    /**
+        -:  388:     * Return a constant copy of the \a aIndex segment in the line chain.
+        -:  389:     *
+        -:  390:     * @param aIndex is the index of the segment in the line chain. Negative values are counted
+        -:  391:     *        from the end (i.e. -1 means the last segment in the line chain).
+        -:  392:     * @return a segment at \a aIndex in the line chain.
+        -:  393:     */
+        -:  394:    const SEG CSegment( int aIndex ) const { return Segment( aIndex ); }
+        -:  395:
+        -:  396:    /**
+        -:  397:     * Return the vertex index of the next shape in the chain, or -1 if \a aPointIndex is the
+        -:  398:     * last shape.
+        -:  399:     *
+        -:  400:     * If \a aPointIndex is the start of a segment, this will be ( aPointIndex + 1 ).  If
+        -:  401:     * \a aPointIndex is part of an arc, this will be the index of the start of the next shape after
+        -:  402:     * the arc, in other words, the last point of the arc.
+        -:  403:     *
+        -:  404:     * @param aPointIndex is a vertex in the chain.
+        -:  405:     * @return the vertex index of the start of the next shape after aPoint's shape or -1 if
+        -:  406:     * the end was reached.
+        -:  407:     */
+        -:  408:    int NextShape( int aPointIndex ) const;
+        -:  409:
+        -:  410:    /**
+        -:  411:     * Move a point to a specific location.
+        -:  412:     *
+        -:  413:     * @param aIndex is the index of the point to move.  Negative indexes are from the back.
+        -:  414:     * @param aPos is the new absolute location of the point.
+        -:  415:     */
+        -:  416:    void SetPoint( int aIndex, const VECTOR2I& aPos );
+        -:  417:
+        -:  418:    /**
+        -:  419:     * Return a reference to a given point in the line chain.
+        -:  420:     *
+        -:  421:     * @param aIndex is the index of the point.  Negative indexes are from the back.
+        -:  422:     * @return a const reference to the point.
+        -:  423:     */
+    #####:  424:    const VECTOR2I& CPoint( int aIndex ) const
+        -:  425:    {
+    #####:  426:        if( aIndex < 0 )
+    #####:  427:            aIndex += PointCount();
+    #####:  428:        else if( aIndex >= PointCount() )
+    #####:  429:            aIndex -= PointCount();
+        -:  430:
+    #####:  431:        return m_points[aIndex];
+        -:  432:    }
+        -:  433:
+        -:  434:    const std::vector<VECTOR2I>& CPoints() const { return m_points; }
+        -:  435:
+        -:  436:    /**
+        -:  437:     * Return the last point in the line chain.
+        -:  438:     */
+        -:  439:    const VECTOR2I& CLastPoint() const
+        -:  440:    {
+        -:  441:        return m_points[static_cast<size_t>( PointCount() ) - 1];
+        -:  442:    }
+        -:  443:
+        -:  444:    /**
+        -:  445:     * @return the vector of stored arcs.
+        -:  446:     */
+        -:  447:    const std::vector<SHAPE_ARC>& CArcs() const
+        -:  448:    {
+        -:  449:        return m_arcs;
+        -:  450:    }
+        -:  451:
+        -:  452:    /**
+        -:  453:     * @return the vector of values indicating shape type and location.
+        -:  454:     */
+        -:  455:    const std::vector<std::pair<ssize_t, ssize_t>>& CShapes() const
+        -:  456:    {
+        -:  457:        return m_shapes;
+        -:  458:    }
+        -:  459:
+        -:  460:    /// @copydoc SHAPE::BBox()
+        -:  461:    const BOX2I BBox( int aClearance = 0 ) const override
+        -:  462:    {
+        -:  463:        BOX2I bbox;
+        -:  464:        bbox.Compute( m_points );
+        -:  465:
+        -:  466:        if( aClearance != 0 || m_width != 0 )
+        -:  467:            bbox.Inflate( aClearance + m_width );
+        -:  468:
+        -:  469:        return bbox;
+        -:  470:    }
+        -:  471:
+        -:  472:    void GenerateBBoxCache() const
+        -:  473:    {
+        -:  474:        m_bbox.Compute( m_points );
+        -:  475:
+        -:  476:        if( m_width != 0 )
+        -:  477:            m_bbox.Inflate( m_width );
+        -:  478:    }
+        -:  479:
+        -:  480:    BOX2I* GetCachedBBox() const override
+        -:  481:    {
+        -:  482:        return &m_bbox;
+        -:  483:    }
+        -:  484:
+        -:  485:    /**
+        -:  486:     * Reverse point order in the line chain.
+        -:  487:     *
+        -:  488:     * @return line chain with reversed point order (original A-B-C-D: returned D-C-B-A).
+        -:  489:     */
+        -:  490:    const SHAPE_LINE_CHAIN Reverse() const;
+        -:  491:
+        -:  492:    /**
+        -:  493:     * Remove all arc references in the line chain, resulting in a chain formed
+        -:  494:     * only of straight segments. Any arcs in the chain are removed and only the
+        -:  495:     * piecewise linear approximation remains.
+        -:  496:     */
+        -:  497:    void ClearArcs();
+        -:  498:
+        -:  499:    /**
+        -:  500:     * Return length of the line chain in Euclidean metric.
+        -:  501:     *
+        -:  502:     * @return the length of the line chain.
+        -:  503:     */
+        -:  504:    long long int Length() const;
+        -:  505:
+        -:  506:    /**
+        -:  507:     * Allocate a number of points all at once (for performance).
+        -:  508:     */
+        -:  509:    void ReservePoints( size_t aSize )
+        -:  510:    {
+        -:  511:        m_points.reserve( aSize );
+        -:  512:        m_shapes.reserve( aSize );
+        -:  513:    }
+        -:  514:
+        -:  515:    /**
+        -:  516:     * Append a new point at the end of the line chain.
+        -:  517:     *
+        -:  518:     * @param aX is X coordinate of the new point.
+        -:  519:     * @param aY is Y coordinate of the new point.
+        -:  520:     * @param aAllowDuplication set to true to append the new point even if it is the same as
+        -:  521:     *        the last entered point, false (default) to skip it if it is the same as the last
+        -:  522:     *        entered point.
+        -:  523:     */
+        -:  524:    void Append( int aX, int aY, bool aAllowDuplication = false )
+        -:  525:    {
+        -:  526:        VECTOR2I v( aX, aY );
+        -:  527:        Append( v, aAllowDuplication );
+        -:  528:    }
+        -:  529:
+        -:  530:    /**
+        -:  531:     * Append a new point at the end of the line chain.
+        -:  532:     *
+        -:  533:     * @param aP is the new point.
+        -:  534:     * @param aAllowDuplication set to true to append the new point even it is the same as the
+        -:  535:     *        last entered point or false (default) to skip it if it is the same as the last
+        -:  536:     *        entered point.
+        -:  537:     */
+        -:  538:    void Append( const VECTOR2I& aP, bool aAllowDuplication = false )
+        -:  539:    {
+        -:  540:        if( m_points.size() == 0 )
+        -:  541:            m_bbox = BOX2I( aP, VECTOR2I( 0, 0 ) );
+        -:  542:
+        -:  543:        if( m_points.size() == 0 || aAllowDuplication || CLastPoint() != aP )
+        -:  544:        {
+        -:  545:            m_points.push_back( aP );
+        -:  546:            m_shapes.push_back( SHAPES_ARE_PT );
+        -:  547:            m_bbox.Merge( aP );
+        -:  548:        }
+        -:  549:    }
+        -:  550:
+        -:  551:    /**
+        -:  552:     * Append another line chain at the end.
+        -:  553:     *
+        -:  554:     * @param aOtherLine is the line chain to be appended.
+        -:  555:     */
+        -:  556:    void Append( const SHAPE_LINE_CHAIN& aOtherLine );
+        -:  557:
+        -:  558:    void Append( const SHAPE_ARC& aArc );
+        -:  559:    void Append( const SHAPE_ARC& aArc, int aMaxError );
+        -:  560:
+        -:  561:    void Insert( size_t aVertex, const VECTOR2I& aP );
+        -:  562:
+        -:  563:    void Insert( size_t aVertex, const SHAPE_ARC& aArc );
+        -:  564:    void Insert( size_t aVertex, const SHAPE_ARC& aArc, int aMaxError );
+        -:  565:
+        -:  566:    /**
+        -:  567:     * Replace points with indices in range [start_index, end_index] with a single point \a aP.
+        -:  568:     *
+        -:  569:     * @param aStartIndex is the start of the point range to be replaced (inclusive).
+        -:  570:     * @param aEndIndex is the end of the point range to be replaced (inclusive).
+        -:  571:     * @param aP is the replacement point.
+        -:  572:     */
+        -:  573:    void Replace( int aStartIndex, int aEndIndex, const VECTOR2I& aP );
+        -:  574:
+        -:  575:    /**
+        -:  576:     * Replace points with indices in range [start_index, end_index] with the points from line
+        -:  577:     * chain \a aLine.
+        -:  578:     *
+        -:  579:     * @param aStartIndex is the start of the point range to be replaced (inclusive).
+        -:  580:     * @param aEndIndex is the end of the point range to be replaced (inclusive).
+        -:  581:     * @param aLine is the replacement line chain.
+        -:  582:     */
+        -:  583:    void Replace( int aStartIndex, int aEndIndex, const SHAPE_LINE_CHAIN& aLine );
+        -:  584:
+        -:  585:    /**
+        -:  586:     * Remove the range of points [start_index, end_index] from the line chain.
+        -:  587:     *
+        -:  588:     * @param aStartIndex is the start of the point range to be replaced (inclusive).
+        -:  589:     * @param aEndIndex is the end of the point range to be replaced (inclusive).
+        -:  590:     */
+        -:  591:    void Remove( int aStartIndex, int aEndIndex );
+        -:  592:
+        -:  593:    /**
+        -:  594:     * Remove the aIndex-th point from the line chain.
+        -:  595:     *
+        -:  596:     * @param aIndex is the index of the point to be removed.
+        -:  597:     */
+        -:  598:    void Remove( int aIndex )
+        -:  599:    {
+        -:  600:        Remove( aIndex, aIndex );
+        -:  601:    }
+        -:  602:
+        -:  603:    /**
+        -:  604:     * Remove the shape at the given index from the line chain.
+        -:  605:     *
+        -:  606:     * If the given index is inside an arc, the entire arc will be removed.
+        -:  607:     * Otherwise this is equivalent to Remove( aPointIndex ).
+        -:  608:     *
+        -:  609:     * @param aPointIndex is the index of the point to remove.
+        -:  610:     */
+        -:  611:    void RemoveShape( int aPointIndex );
+        -:  612:
+        -:  613:    /**
+        -:  614:     * Insert the point aP belonging to one of the our segments, splitting the adjacent segment
+        -:  615:     * in two.
+        -:  616:     * @param aP is the point to be inserted.
+        -:  617:     * @param aExact set to skip the split logic when an exact point match exists.
+        -:  618:     * @return index of the newly inserted point (or a negative value if aP does not lie on
+        -:  619:     *         our line).
+        -:  620:     */
+        -:  621:    int Split( const VECTOR2I& aP, bool aExact = false );
+        -:  622:
+        -:  623:    /**
+        -:  624:     * Search for point \a aP.
+        -:  625:     *
+        -:  626:     * @param aP is the point to be looked for.
+        -:  627:     * @return the index of the corresponding point in the line chain or negative when not found.
+        -:  628:     */
+        -:  629:    int Find( const VECTOR2I& aP, int aThreshold = 0 ) const;
+        -:  630:
+        -:  631:    /**
+        -:  632:     * Search for segment containing point \a aP.
+        -:  633:     *
+        -:  634:     * @param aP is the point to be looked for.
+        -:  635:     * @return index of the corresponding segment in the line chain or negative when not found.
+        -:  636:     */
+        -:  637:    int FindSegment( const VECTOR2I& aP, int aThreshold = 1 ) const;
+        -:  638:
+        -:  639:    /**
+        -:  640:     * Return a subset of this line chain containing the [start_index, end_index] range of points.
+        -:  641:     *
+        -:  642:     * @param aStartIndex is the start of the point range to be returned (inclusive).
+        -:  643:     * @param aEndIndex is the end of the point range to be returned (inclusive).
+        -:  644:     * @return the cut line chain.
+        -:  645:     */
+        -:  646:    const SHAPE_LINE_CHAIN Slice( int aStartIndex, int aEndIndex ) const;
+        -:  647:    const SHAPE_LINE_CHAIN Slice( int aStartIndex, int aEndIndex, int aMaxError ) const;
+        -:  648:
+        -:  649:    struct compareOriginDistance
+        -:  650:    {
+        -:  651:        compareOriginDistance( const VECTOR2I& aOrigin ):
+        -:  652:            m_origin( aOrigin )
+        -:  653:        {}
+        -:  654:
+        -:  655:        bool operator()( const INTERSECTION& aA, const INTERSECTION& aB )
+        -:  656:        {
+        -:  657:            return ( m_origin - aA.p ).EuclideanNorm() < ( m_origin - aB.p ).EuclideanNorm();
+        -:  658:        }
+        -:  659:
+        -:  660:        VECTOR2I m_origin;
+        -:  661:    };
+        -:  662:
+        -:  663:    bool Intersects( const SEG& aSeg) const;
+        -:  664:    bool Intersects( const SHAPE_LINE_CHAIN& aChain ) const;
+        -:  665:
+        -:  666:    /**
+        -:  667:     * Find all intersection points between our line chain and the segment \a aSeg.
+        -:  668:     *
+        -:  669:     * @param aSeg is the segment chain to find intersections with.
+        -:  670:     * @param aIp is the reference to a vector to store found intersections. Intersection points
+        -:  671:     *        are sorted with increasing distances from point aSeg.a.
+        -:  672:     * @return the number of intersections found.
+        -:  673:     */
+        -:  674:    int Intersect( const SEG& aSeg, INTERSECTIONS& aIp ) const;
+        -:  675:
+        -:  676:    /**
+        -:  677:     * Find all intersection points between our line chain and the line chain \a aChain.
+        -:  678:     *
+        -:  679:     * @param aChain is the line chain to find intersections with.
+        -:  680:     * @param aIp is reference to a vector to store found intersections. Intersection points are
+        -:  681:     *        sorted with increasing path lengths from the starting point of \a aChain.
+        -:  682:     * @return the number of intersections found.
+        -:  683:     */
+        -:  684:    int Intersect( const SHAPE_LINE_CHAIN& aChain, INTERSECTIONS& aIp,
+        -:  685:                   bool aExcludeColinearAndTouching = false,
+        -:  686:                   BOX2I* aChainBBox = nullptr ) const;
+        -:  687:
+        -:  688:    /**
+        -:  689:     * Compute the walk path length from the beginning of the line chain and the point \a aP
+        -:  690:     * belonging to our line.
+        -:  691:     *
+        -:  692:     * @return the path length in Euclidean metric or -1 if aP does not belong to the line chain.
+        -:  693:     */
+        -:  694:    int PathLength( const VECTOR2I& aP, int aIndex = -1 ) const;
+        -:  695:
+        -:  696:    /**
+        -:  697:     * Check if point \a aP is closer to (or on) an edge or vertex of the line chain.
+        -:  698:     *
+        -:  699:     * @param aP is the point to check.
+        -:  700:     * @param aDist is the distance in internal units.
+        -:  701:     * @return true if the point is equal to or closer than \a aDist to the line chain.
+        -:  702:     */
+        -:  703:    bool CheckClearance( const VECTOR2I& aP, const int aDist) const;
+        -:  704:
+        -:  705:    /**
+        -:  706:     * Check if the line chain is self-intersecting. Only processes line segments (not arcs).
+        -:  707:     *
+        -:  708:     * @return (optional) first found self-intersection point.
+        -:  709:     */
+        -:  710:    const std::optional<INTERSECTION> SelfIntersecting() const;
+        -:  711:
+        -:  712:    /**
+        -:  713:     * Check if the line chain is self-intersecting. Also processes arcs. Might be slower.
+        -:  714:     *
+        -:  715:     * @return (optional) first found self-intersection point.
+        -:  716:     */
+        -:  717:    const std::optional<INTERSECTION> SelfIntersectingWithArcs() const;
+        -:  718:
+        -:  719:    /**
+        -:  720:     * Find the segment nearest the given point.
+        -:  721:     *
+        -:  722:     * @param aP is the point to compare with.
+        -:  723:     * @return the index of the segment closest to the point.
+        -:  724:     */
+        -:  725:    int NearestSegment( const VECTOR2I& aP ) const;
+        -:  726:
+        -:  727:    /**
+        -:  728:     * Find a point on the line chain that is closest to point \a aP.
+        -:  729:     *
+        -:  730:     * @param aP is the point to find.
+        -:  731:     * @param aAllowInternalShapePoints if false will not return points internal to an arc (i.e.
+        -:  732:     *                                  only the arc endpoints are possible candidates)
+        -:  733:     * @return the nearest point.
+        -:  734:     */
+        -:  735:    const VECTOR2I NearestPoint( const VECTOR2I& aP, bool aAllowInternalShapePoints = true ) const;
+        -:  736:
+        -:  737:    /**
+        -:  738:     * Find a point on the line chain that is closest to the line defined by the points of
+        -:  739:     * segment \a aSeg, also returns the distance.
+        -:  740:     *
+        -:  741:     * @param aSeg is the segment defining the line.
+        -:  742:     * @param dist is the reference receiving the distance to the nearest point.
+        -:  743:     * @return the nearest point.
+        -:  744:     */
+        -:  745:    const VECTOR2I NearestPoint( const SEG& aSeg, int& dist ) const;
+        -:  746:
+        -:  747:    /// @copydoc SHAPE::Format()
+        -:  748:    const std::string Format( bool aCplusPlus = true ) const override;
+        -:  749:
+        -:  750:    /// @copydoc SHAPE::Parse()
+        -:  751:    bool Parse( std::stringstream& aStream ) override;
+        -:  752:
+        -:  753:    bool operator!=( const SHAPE_LINE_CHAIN& aRhs ) const
+        -:  754:    {
+        -:  755:        if( PointCount() != aRhs.PointCount() )
+        -:  756:            return true;
+        -:  757:
+        -:  758:        for( int i = 0; i < PointCount(); i++ )
+        -:  759:        {
+        -:  760:            if( CPoint( i ) != aRhs.CPoint( i ) )
+        -:  761:                return true;
+        -:  762:        }
+        -:  763:
+        -:  764:        return false;
+        -:  765:    }
+        -:  766:
+        -:  767:    /**
+        -:  768:     * Compare this line chain with another one.
+        -:  769:     *
+        -:  770:     * @param aOther is the other line chain to compare with.
+        -:  771:     * @param aCyclicalCompare if true, will consider line chains equal even if they start at different points
+        -:  772:     * @param aEpsilon tolerance for point difference
+        -:  773:     *
+        -:  774:     * @return true if both line chains have the same points
+        -:  775:     */
+        -:  776:    bool CompareGeometry( const SHAPE_LINE_CHAIN& aOther, bool aCyclicalCompare = false, int aEpsilon = 0 ) const;
+        -:  777:
+        -:  778:    void Move( const VECTOR2I& aVector ) override
+        -:  779:    {
+        -:  780:        for( auto& pt : m_points )
+        -:  781:            pt += aVector;
+        -:  782:
+        -:  783:        for( auto& arc : m_arcs )
+        -:  784:            arc.Move( aVector );
+        -:  785:
+        -:  786:        m_bbox.Move( aVector );
+        -:  787:    }
+        -:  788:
+        -:  789:    /**
+        -:  790:     * Mirror the line points about y or x (or both).
+        -:  791:     *
+        -:  792:     * @param aRef sets the reference point about which to mirror.
+        -:  793:     * @param aFlipDirection is the direction to mirror.
+        -:  794:     */
+        -:  795:    void Mirror( const VECTOR2I& aRef, FLIP_DIRECTION aFlipDirection );
+        -:  796:
+        -:  797:    /**
+        -:  798:     * Mirror the line points using an given axis.
+        -:  799:     *
+        -:  800:     * @param axis is the axis on which to mirror.
+        -:  801:     */
+        -:  802:    void Mirror( const SEG& axis );
+        -:  803:
+        -:  804:    /**
+        -:  805:     * Rotate all vertices by a given angle.
+        -:  806:     *
+        -:  807:     * @param aCenter is the rotation center.
+        -:  808:     * @param aAngle is the rotation angle.
+        -:  809:     */
+        -:  810:    void Rotate( const EDA_ANGLE& aAngle, const VECTOR2I& aCenter = { 0, 0 } ) override;
+        -:  811:
+        -:  812:    bool IsSolid() const override
+        -:  813:    {
+        -:  814:        return false;
+        -:  815:    }
+        -:  816:
+        -:  817:    const VECTOR2I PointAlong( int aPathLength ) const;
+        -:  818:
+        -:  819:    /**
+        -:  820:     * Return the area of this chain
+        -:  821:     * @param aAbsolute If true, returns a positive value. Otherwise the value depends on the
+        -:  822:     * orientation of the chain
+        -:  823:     */
+        -:  824:    double Area( bool aAbsolute = true ) const;
+        -:  825:
+        -:  826:    /**
+        -:  827:     * Extract parts of this line chain, depending on the starting and ending points.
+        -:  828:     *
+        -:  829:     * @param aStart first split point.
+        -:  830:     * @param aEnd second split point.
+        -:  831:     * @param aPre part before the aStart point.
+        -:  832:     * @param aMid part between aStart and aEnd.
+        -:  833:     * @param aPost part after the aEnd point.
+        -:  834:     */
+        -:  835:    void Split( const VECTOR2I& aStart, const VECTOR2I& aEnd, SHAPE_LINE_CHAIN& aPre,
+        -:  836:                SHAPE_LINE_CHAIN& aMid, SHAPE_LINE_CHAIN& aPost ) const;
+        -:  837:
+        -:  838:    /**
+        -:  839:     * Creates line chains \a aLeft and \a aRight offset to this line chain.
+        -:  840:     *
+        -:  841:     * @param aAmount is the amount to offset.
+        -:  842:     * @param aCornerStrategy is the corner rounding strategy.
+        -:  843:     * @param aMaxError is the max error used for rounding.
+        -:  844:     * @param aLeft left line chain output.
+        -:  845:     * @param aRight right line chain output.
+        -:  846:     * @param aSimplify set to run Simplify on the inflated polygon.
+        -:  847:     */
+        -:  848:    bool OffsetLine( int aAmount, CORNER_STRATEGY aCornerStrategy, int aMaxError,
+        -:  849:                     SHAPE_LINE_CHAIN& aLeft, SHAPE_LINE_CHAIN& aRight,
+        -:  850:                     bool aSimplify = false ) const;
+        -:  851:
+        -:  852:    size_t ArcCount() const
+        -:  853:    {
+        -:  854:        return m_arcs.size();
+        -:  855:    }
+        -:  856:
+        -:  857:    /**
+        -:  858:     * Return the arc index for the given segment index.
+        -:  859:     */
+    #####:  860:    ssize_t ArcIndex( size_t aSegment ) const
+        -:  861:    {
+    #####:  862:        if( IsSharedPt( aSegment ) )
+    #####:  863:            return m_shapes[aSegment].second;
+        -:  864:        else
+    #####:  865:            return m_shapes[aSegment].first;
+        -:  866:    }
+        -:  867:
+    #####:  868:    const SHAPE_ARC& Arc( size_t aArc ) const
+        -:  869:    {
+    #####:  870:        return m_arcs[aArc];
+        -:  871:    }
+        -:  872:
+        -:  873:    /**
+        -:  874:     * Test if a point is shared between multiple shapes
+        -:  875:     * @param aIndex
+        -:  876:     * @return
+        -:  877:    */
+        -:  878:    bool IsSharedPt( size_t aIndex ) const;
+        -:  879:
+        -:  880:    bool IsPtOnArc( size_t aPtIndex ) const;
+        -:  881:
+        -:  882:    bool IsArcSegment( size_t aSegment ) const;
+        -:  883:
+        -:  884:    bool IsArcStart( size_t aIndex ) const;
+        -:  885:
+        -:  886:    bool IsArcEnd( size_t aIndex ) const;
+        -:  887:
+        -:  888:    using SHAPE::Distance;
+        -:  889:
+        -:  890:    int Distance( const VECTOR2I& aP, bool aOutlineOnly ) const
+        -:  891:    {
+        -:  892:        return sqrt( SquaredDistance( aP, aOutlineOnly ) );
+        -:  893:    }
+        -:  894:
+        -:  895:    virtual const VECTOR2I GetPoint( int aIndex ) const override { return CPoint(aIndex); }
+        -:  896:    virtual const SEG GetSegment( int aIndex ) const override { return CSegment(aIndex); }
+        -:  897:    virtual size_t GetPointCount() const override { return PointCount(); }
+        -:  898:    virtual size_t GetSegmentCount() const override { return SegmentCount(); }
+        -:  899:
+        -:  900:    void TransformToPolygon( SHAPE_POLY_SET& aBuffer, int aError,
+        -:  901:                             ERROR_LOC aErrorLoc ) const override;
+        -:  902:
+        -:  903:protected:
+        -:  904:    friend class SHAPE_POLY_SET;
+        -:  905:
+        -:  906:    /**
+        -:  907:     * Convert an arc to only a point chain by removing the arc and references
+        -:  908:     *
+        -:  909:     * @param aArcIndex index of the arc to convert to points
+        -:  910:     */
+        -:  911:    void convertArc( ssize_t aArcIndex );
+        -:  912:
+        -:  913:    /**
+        -:  914:     * Splits an arc into two arcs at aPtIndex. Parameter \p aCoincident controls whether the two
+        -:  915:     * arcs are to be coincident at aPtIndex or whether a short straight segment should be created
+        -:  916:     * instead
+        -:  917:     *
+        -:  918:     * @param aPtIndex index of the point in the chain in which to split the arc
+        -:  919:     * @param aCoincident If true, the end point of the first arc will be coincident with the start
+        -:  920:                          point of the second arc at aPtIndex.
+        -:  921:                          If false, the end point of the first arc will be at aPtIndex-1 and the
+        -:  922:                          start point of the second arc will be at aPtIndex, resulting in a short
+        -:  923:                          straight line segment between aPtIndex-1 and aPtIndex.
+        -:  924:     */
+        -:  925:    void splitArc( ssize_t aPtIndex, bool aCoincident = false );
+        -:  926:
+        -:  927:    void amendArc( size_t aArcIndex, const VECTOR2I& aNewStart, const VECTOR2I& aNewEnd );
+        -:  928:
+        -:  929:    void amendArcStart( size_t aArcIndex, const VECTOR2I& aNewStart )
+        -:  930:    {
+        -:  931:        amendArc( aArcIndex, aNewStart, m_arcs[aArcIndex].GetP1() );
+        -:  932:    }
+        -:  933:
+        -:  934:    void amendArcEnd( size_t aArcIndex, const VECTOR2I& aNewEnd )
+        -:  935:    {
+        -:  936:        amendArc( aArcIndex, m_arcs[aArcIndex].GetP0(), aNewEnd );
+        -:  937:    }
+        -:  938:
+        -:  939:    /**
+        -:  940:     * Return the arc index for the given segment index, looking backwards
+        -:  941:     */
+        -:  942:    ssize_t reversedArcIndex( size_t aSegment ) const
+        -:  943:    {
+        -:  944:        if( IsSharedPt( aSegment ) )
+        -:  945:            return m_shapes[aSegment].first;
+        -:  946:        else
+        -:  947:            return m_shapes[aSegment].second;
+        -:  948:    }
+        -:  949:
+        -:  950:    /**
+        -:  951:     * Create a new Clipper2 path from the SHAPE_LINE_CHAIN in a given orientation
+        -:  952:     */
+        -:  953:    Clipper2Lib::Path64 convertToClipper2( bool aRequiredOrientation,
+        -:  954:            std::vector<CLIPPER_Z_VALUE> &aZValueBuffer,
+        -:  955:            std::vector<SHAPE_ARC> &aArcBuffer ) const;
+        -:  956:
+        -:  957:    /**
+        -:  958:     * Fix indices of this chain to ensure arcs are not split between the end and start indices
+        -:  959:     */
+        -:  960:    void fixIndicesRotation();
+        -:  961:
+        -:  962:    /**
+        -:  963:     * Merge the first and last point if they are the same and this chain is closed.
+        -:  964:     */
+        -:  965:    void mergeFirstLastPointIfNeeded();
+        -:  966:
+        -:  967:private:
+        -:  968:
+        -:  969:    static const ssize_t SHAPE_IS_PT;
+        -:  970:
+        -:  971:    static const std::pair<ssize_t, ssize_t> SHAPES_ARE_PT;
+        -:  972:
+        -:  973:    /// array of vertices
+        -:  974:    std::vector<VECTOR2I> m_points;
+        -:  975:
+        -:  976:    /**
+        -:  977:     * Array of indices that refer to the index of the shape if the point is part of a larger
+        -:  978:     * shape, e.g. arc or spline.
+        -:  979:     * If the value is -1, the point is just a point.
+        -:  980:     *
+        -:  981:     * There can be up to two shapes associated with a single point (e.g. the end point of
+        -:  982:     * one arc might be the start point of another).
+        -:  983:     *
+        -:  984:     * Generally speaking only the first element of the pair will be populated (i.e. with a value
+        -:  985:     * not equal to SHAPE_IS_PT), unless the point is shared between two arc shapes. If the point
+        -:  986:     * is shared, then both the first and second element of the pair should be populated.
+        -:  987:     *
+        -:  988:     * The second element must always be SHAPE_IS_PT if the first element is SHAPE_IS_PT.
+        -:  989:     */
+        -:  990:    std::vector<std::pair<ssize_t, ssize_t>> m_shapes;
+        -:  991:
+        -:  992:    std::vector<SHAPE_ARC> m_arcs;
+        -:  993:
+        -:  994:    // the maxError to use when converting arcs to points
+        -:  995:    int m_accuracy;
+        -:  996:
+        -:  997:    /// is the line chain closed?
+        -:  998:    bool m_closed;
+        -:  999:
+        -: 1000:    /// Width of the segments (for BBox calculations in RTree)
+        -: 1001:    /// TODO Adjust usage of SHAPE_LINE_CHAIN to account for where we need a width and where not
+        -: 1002:    /// Alternatively, we could split the class into a LINE_CHAIN (no width) and SHAPE_LINE_CHAIN
+        -: 1003:    /// that derives from SHAPE as well that does have a width.  Not sure yet on the correct path.
+        -: 1004:    /// TODO Note that we also have SHAPE_SIMPLE which is a closed, filled SHAPE_LINE_CHAIN.
+        -: 1005:    int m_width;
+        -: 1006:
+        -: 1007:    /// cached bounding box
+        -: 1008:    mutable BOX2I m_bbox;
+        -: 1009:};
+        -: 1010:
+        -: 1011:
+        -: 1012:#endif // __SHAPE_LINE_CHAIN

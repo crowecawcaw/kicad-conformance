@@ -1,0 +1,110 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_jobset_run.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_jobset_run.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_jobset_run.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2024 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include "command_jobset_run.h"
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include <kiface_base.h>
+        -:   24:#include <layer_ids.h>
+        -:   25:#include <string_utils.h>
+        -:   26:#include <wx/crt.h>
+        -:   27:#include <jobs/jobset.h>
+        -:   28:#include <jobs/job_registry.h>
+        -:   29:#include <pgm_base.h>
+        -:   30:#include <settings/settings_manager.h>
+        -:   31:
+        -:   32:#include <macros.h>
+        -:   33:#include <wx/filename.h>
+        -:   34:#include <wx/tokenzr.h>
+        -:   35:#include <jobs_runner.h>
+        -:   36:#include <reporter.h>
+        -:   37:
+        -:   38:#define ARG_STOP_ON_ERROR "--stop-on-error"
+        -:   39:#define ARG_JOB_FILE "--file"
+        -:   40:#define ARG_OUTPUT "--output"
+        -:   41:
+     1154:   42:CLI::JOBSET_RUN_COMMAND::JOBSET_RUN_COMMAND() : COMMAND( "run" )
+        -:   43:{
+      577:   44:    addCommonArgs( true, false, IO_TYPE::FILE, IO_TYPE::FILE );
+        -:   45:
+     1154:   46:    m_argParser.add_description( UTF8STDSTR( _( "Runs a jobset file" ) ) );
+        -:   47:
+      577:   48:    m_argParser.add_argument( ARG_STOP_ON_ERROR )
+     1154:   49:            .help( UTF8STDSTR(
+        -:   50:                    _( "Stops processing jobs as they are executed sequentially on the first failure of a job" ) ) )
+      577:   51:            .flag();
+        -:   52:
+      577:   53:    m_argParser.add_argument( ARG_JOB_FILE, "-f" )
+     1154:   54:            .help( UTF8STDSTR( _( "Jobset file to be run" ) ) )
+     1154:   55:            .default_value( std::string( "" ) )
+     1154:   56:            .metavar( "JOB_FILE" );
+        -:   57:
+      577:   58:    m_argParser.add_argument( ARG_OUTPUT )
+     1154:   59:            .help( UTF8STDSTR( _( "Jobset file output to generate, leave blank for all outputs defined in the jobset" ) ) )
+     1154:   60:            .default_value( std::string( "" ) )
+     1154:   61:            .metavar( "OUTPUT" );
+      577:   62:}
+        -:   63:
+        -:   64:
+    #####:   65:int CLI::JOBSET_RUN_COMMAND::doPerform( KIWAY& aKiway )
+        -:   66:{
+    #####:   67:    bool bail = m_argParser.get<bool>( ARG_STOP_ON_ERROR );
+    #####:   68:    wxString jobsFilePath = From_UTF8( m_argParser.get<std::string>( ARG_JOB_FILE ).c_str() );
+    #####:   69:    wxString  projectFile = m_argInput.ToStdString();
+        -:   70:
+    #####:   71:    wxString outputKey = From_UTF8( m_argParser.get<std::string>( ARG_OUTPUT ).c_str() );
+        -:   72:
+    #####:   73:    wxFileName projectFn( projectFile );
+    #####:   74:    projectFn.MakeAbsolute();
+    #####:   75:    projectFile = projectFn.GetFullPath();
+        -:   76:
+    #####:   77:    if( !Pgm().GetSettingsManager().LoadProject( projectFile ) )
+        -:   78:    {
+    #####:   79:        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:   80:    }
+        -:   81:
+    #####:   82:    PROJECT* project = Pgm().GetSettingsManager().GetProject( projectFile );
+        -:   83:
+    #####:   84:    JOBSET jobFile( jobsFilePath.ToStdString() );
+        -:   85:
+    #####:   86:    jobFile.LoadFromFile();
+        -:   87:
+    #####:   88:    JOBS_RUNNER jobsRunner( &aKiway, &jobFile, project, CLI_REPORTER::GetInstance(), nullptr );
+        -:   89:
+    #####:   90:    int return_code = CLI::EXIT_CODES::SUCCESS;
+        -:   91:
+    #####:   92:    if( !outputKey.IsEmpty() )
+        -:   93:    {
+    #####:   94:        JOBSET_DESTINATION* destination = jobFile.FindDestination( outputKey );
+        -:   95:
+    #####:   96:        if( destination == nullptr || !jobsRunner.RunJobsForDestination( destination, bail ) )
+    #####:   97:            return_code = CLI::EXIT_CODES::ERR_JOBS_RUN_FAILED;
+        -:   98:    }
+        -:   99:    else
+        -:  100:    {
+    #####:  101:        if( !jobsRunner.RunJobsAllDestinations( bail ) )
+    #####:  102:            return_code = CLI::EXIT_CODES::ERR_JOBS_RUN_FAILED;
+        -:  103:    }
+        -:  104:
+    #####:  105:    return return_code;
+    #####:  106:}

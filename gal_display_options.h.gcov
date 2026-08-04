@@ -1,0 +1,147 @@
+        -:    0:Source:/src/kicad/include/gal/gal_display_options.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2:* This program source code file is part of KICAD, a free EDA CAD application.
+        -:    3:*
+        -:    4:* Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5:*
+        -:    6:* This program is free software; you can redistribute it and/or
+        -:    7:* modify it under the terms of the GNU General Public License
+        -:    8:* as published by the Free Software Foundation; either version 2
+        -:    9:* of the License, or (at your option) any later version.
+        -:   10:*
+        -:   11:* This program is distributed in the hope that it will be useful,
+        -:   12:* but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13:* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14:* GNU General Public License for more details.
+        -:   15:*
+        -:   16:* You should have received a copy of the GNU General Public License
+        -:   17:* along with this program; if not, you may find one here:
+        -:   18:* http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   19:* or you may search the http://www.gnu.org website for the version 2 license,
+        -:   20:* or you may write to the Free Software Foundation, Inc.,
+        -:   21:* 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   22:*/
+        -:   23:
+        -:   24:#ifndef GAL_DISPLAY_OPTIONS_H__
+        -:   25:#define GAL_DISPLAY_OPTIONS_H__
+        -:   26:
+        -:   27:#include <gal/gal.h>
+        -:   28:#include <dpi_scaling.h>
+        -:   29:#include <core/observable.h>
+        -:   30:
+        -:   31:class COMMON_SETTINGS;
+        -:   32:struct WINDOW_SETTINGS;
+        -:   33:class wxString;
+        -:   34:class wxWindow;
+        -:   35:
+        -:   36:#if defined( _MSC_VER )
+        -:   37:#pragma warning( push )
+        -:   38:#pragma warning( disable : 4275 )
+        -:   39:#endif
+        -:   40:
+        -:   41:namespace KIGFX
+        -:   42:{
+        -:   43:    /**
+        -:   44:     * Type definition of the grid style.
+        -:   45:     */
+        -:   46:    enum class GRID_STYLE
+        -:   47:    {
+        -:   48:        DOTS,       ///< Use dots for the grid
+        -:   49:        LINES,      ///< Use lines for the grid
+        -:   50:        SMALL_CROSS ///< Use small cross instead of dots for the grid
+        -:   51:    };
+        -:   52:
+        -:   53:    enum class GAL_ANTIALIASING_MODE
+        -:   54:    {
+        -:   55:        AA_NONE,
+        -:   56:        AA_FAST,
+        -:   57:        AA_HIGHQUALITY,
+        -:   58:    };
+        -:   59:
+        -:   60:    enum class GRID_SNAPPING
+        -:   61:    {
+        -:   62:        ALWAYS,
+        -:   63:        WITH_GRID,
+        -:   64:        NEVER
+        -:   65:    };
+        -:   66:
+        -:   67:    enum class CROSS_HAIR_MODE : int
+        -:   68:    {
+        -:   69:        SMALL_CROSS,
+        -:   70:        FULLSCREEN_CROSS,
+        -:   71:        FULLSCREEN_DIAGONAL
+        -:   72:    };
+        -:   73:
+        -:   74:    class GAL_DISPLAY_OPTIONS;
+        -:   75:
+        -:   76:    class GAL_API GAL_DISPLAY_OPTIONS_OBSERVER
+        -:   77:    {
+        -:   78:    public:
+        -:   79:        virtual void OnGalDisplayOptionsChanged( const GAL_DISPLAY_OPTIONS& ) = 0;
+        -:   80:
+        -:   81:    protected:
+        -:   82:        // Observer lifetimes aren't handled by base class pointer
+        -:   83:        virtual ~GAL_DISPLAY_OPTIONS_OBSERVER() {}
+        -:   84:    };
+        -:   85:
+        -:   86:    class GAL_API GAL_DISPLAY_OPTIONS : public UTIL::OBSERVABLE<GAL_DISPLAY_OPTIONS_OBSERVER>
+        -:   87:    {
+        -:   88:    public:
+        -:   89:        GAL_DISPLAY_OPTIONS();
+        -:   90:
+    #####:   91:        virtual ~GAL_DISPLAY_OPTIONS()
+    #####:   92:        {}
+------------------
+KIGFX::GAL_DISPLAY_OPTIONS::~GAL_DISPLAY_OPTIONS():
+    #####:   91:        virtual ~GAL_DISPLAY_OPTIONS()
+    #####:   92:        {}
+------------------
+KIGFX::GAL_DISPLAY_OPTIONS::~GAL_DISPLAY_OPTIONS():
+    #####:   91:        virtual ~GAL_DISPLAY_OPTIONS()
+    #####:   92:        {}
+------------------
+        -:   93:
+        -:   94:        GAL_ANTIALIASING_MODE antialiasing_mode;
+        -:   95:
+        -:   96:        ///< The grid style to draw the grid in
+        -:   97:        KIGFX::GRID_STYLE m_gridStyle;
+        -:   98:
+        -:   99:        ///< Snapping options for the grid
+        -:  100:        GRID_SNAPPING m_gridSnapping;
+        -:  101:
+        -:  102:        ///< Thickness to render grid lines/dots
+        -:  103:        double m_gridLineWidth;
+        -:  104:
+        -:  105:        ///< Minimum pixel distance between displayed grid lines
+        -:  106:        double m_gridMinSpacing;
+        -:  107:
+        -:  108:        ///< Whether or not to draw the coordinate system axes
+        -:  109:        bool m_axesEnabled;
+        -:  110:
+        -:  111:        ///< Crosshair drawing mode
+        -:  112:        CROSS_HAIR_MODE m_crossHairMode;
+        -:  113:
+        -:  114:        ///< Force cursor display
+        -:  115:        bool m_forceDisplayCursor;
+        -:  116:
+        -:  117:        ///< The pixel scale factor (>1 for hi-DPI scaled displays)
+        -:  118:        double m_scaleFactor;
+        -:  119:
+        -:  120:        void SetCursorMode( CROSS_HAIR_MODE aMode ) { m_crossHairMode = aMode; }
+        -:  121:
+        -:  122:        CROSS_HAIR_MODE GetCursorMode() const { return m_crossHairMode; }
+        -:  123:
+        -:  124:        void NotifyChanged();
+        -:  125:    };
+        -:  126:
+        -:  127:} // namespace KIGFX
+        -:  128:
+        -:  129:#if defined( _MSC_VER )
+        -:  130:#pragma warning( pop )
+        -:  131:#endif
+        -:  132:
+        -:  133:#endif
+        -:  134:

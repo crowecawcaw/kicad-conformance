@@ -1,0 +1,240 @@
+        -:    0:Source:/src/kicad/include/page_info.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2007-2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+        -:    5: * Copyright (C) 2008-2013 Wayne Stambaugh <stambaughw@gmail.com>
+        -:    6: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    7: *
+        -:    8: * This program is free software; you can redistribute it and/or
+        -:    9: * modify it under the terms of the GNU General Public License
+        -:   10: * as published by the Free Software Foundation; either version 2
+        -:   11: * of the License, or (at your option) any later version.
+        -:   12: *
+        -:   13: * This program is distributed in the hope that it will be useful,
+        -:   14: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   16: * GNU General Public License for more details.
+        -:   17: *
+        -:   18: * You should have received a copy of the GNU General Public License
+        -:   19: * along with this program; if not, you may find one here:
+        -:   20: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   21: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   22: * or you may write to the Free Software Foundation, Inc.,
+        -:   23: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   24: */
+        -:   25:
+        -:   26:#pragma once
+        -:   27:
+        -:   28:#include <map>
+        -:   29:#include <kicommon.h>
+        -:   30:#include <wx/string.h>
+        -:   31:#include <math/vector2d.h>
+        -:   32:
+        -:   33:/// Min and max page sizes for clamping, in mils.
+        -:   34:#define MIN_PAGE_SIZE_MILS          1000
+        -:   35:#define MAX_PAGE_SIZE_PCBNEW_MILS   48000
+        -:   36:#define MAX_PAGE_SIZE_EESCHEMA_MILS 120000
+        -:   37:
+        -:   38:/// Min and max page sizes for clamping, in mm.
+        -:   39:#define MIN_PAGE_SIZE_MM            25.4
+        -:   40:#define MAX_PAGE_SIZE_PCBNEW_MM     48000*.0254
+        -:   41:#define MAX_PAGE_SIZE_EESCHEMA_MM   120000*.0254
+        -:   42:
+        -:   43:class OUTPUTFORMATTER;
+        -:   44:
+        -:   45:/*
+        -:   46: * @brief Standard paper sizes nicknames
+        -:   47: * Do not rename entires as these names are saved to file and parsed back
+        -:   48: */
+        -:   49:enum class PAGE_SIZE_TYPE
+        -:   50:{
+        -:   51:    A5,
+        -:   52:    A4,
+        -:   53:    A3,
+        -:   54:    A2,
+        -:   55:    A1,
+        -:   56:    A0,
+        -:   57:    A,
+        -:   58:    B,
+        -:   59:    C,
+        -:   60:    D,
+        -:   61:    E,
+        -:   62:    GERBER,
+        -:   63:    USLetter,
+        -:   64:    USLegal,
+        -:   65:    USLedger,
+        -:   66:    User
+        -:   67:};
+        -:   68:
+        -:   69:/**
+        -:   70: * Describe the page size and margins of a paper page on which to eventually print or plot.
+        -:   71: *
+        -:   72: * Paper sizes are often described in inches.  Here paper is described in 1/1000th of an
+        -:   73: * inch (mils).  For convenience there are some read only accessors for internal units
+        -:   74: * which is a compile time calculation, not runtime.
+        -:   75: *
+        -:   76: * @author Dick Hollenbeck
+        -:   77: */
+        -:   78:class KICOMMON_API PAGE_INFO
+        -:   79:{
+        -:   80:public:
+        -:   81:    PAGE_INFO( PAGE_SIZE_TYPE aType = PAGE_SIZE_TYPE::A3, bool IsPortrait = false );
+        -:   82:
+        -:   83:    // paper size names which are part of the public API, pass to SetType() or
+        -:   84:    // above constructor.
+        -:   85:
+        -:   86:
+        -:   87:    /**
+        -:   88:     * Set the name of the page type and also the sizes and margins commonly associated with
+        -:   89:     * that type name.
+        -:   90:     *
+        -:   91:     * @param aStandardPageDescriptionName is a wxString constant giving one of:
+        -:   92:     * "A5" "A4" "A3" "A2" "A1" "A0" "A" "B" "C" "D" "E" "GERBER", "USLetter", "USLegal",
+        -:   93:     * "USLedger", or "User".  If "User" then the width and height are custom,
+        -:   94:     * and will be set according to <b>previous</b> calls to
+        -:   95:     * static PAGE_INFO::SetUserWidthMils() and
+        -:   96:     * static PAGE_INFO::SetUserHeightMils();
+        -:   97:     * @param aIsPortrait Set to true to set page orientation to portrait mode.
+        -:   98:     * @return true if @a aStandarePageDescription was a recognized type.
+        -:   99:     */
+        -:  100:    bool                  SetType( PAGE_SIZE_TYPE aPageSize, bool aIsPortrait = false );
+        -:  101:    bool                  SetType( const wxString& aPageSize, bool aIsPortrait = false );
+      118:  102:    const PAGE_SIZE_TYPE& GetType() const { return m_type; }
+        -:  103:    wxString       GetTypeAsString() const;
+        -:  104:
+        -:  105:    const wxString& GetPageFormatDescription() const { return m_description;  }
+        -:  106:
+        -:  107:    /**
+        -:  108:     * @return True if the object has the default page settings which are A3, landscape.
+        -:  109:     */
+        -:  110:    bool IsDefault() const { return m_type == PAGE_SIZE_TYPE::A3 && !m_portrait; }
+        -:  111:
+        -:  112:    /**
+        -:  113:     * @return true if the type is Custom.
+        -:  114:     */
+        -:  115:    bool IsCustom() const;
+        -:  116:
+        -:  117:    /**
+        -:  118:     * Rotate the paper page 90 degrees.
+        -:  119:     *
+        -:  120:     * This PAGE_INFO may either be in portrait or landscape mode.  Use this function to
+        -:  121:     * change from one mode to the other mode.
+        -:  122:     *
+        -:  123:     * @param aIsPortrait if true and not already in portrait mode, will change this
+        -:  124:     *                    PAGE_INFO to portrait mode.  Or if false and not already in
+        -:  125:     *                    landscape mode, will change this PAGE_INFO to landscape mode.
+        -:  126:     */
+        -:  127:    void SetPortrait( bool aIsPortrait );
+        -:  128:    bool IsPortrait() const { return m_portrait; }
+        -:  129:
+        -:  130:    /**
+        -:  131:     * @return ws' style printing orientation (wxPORTRAIT or wxLANDSCAPE).
+        -:  132:     */
+        -:  133:    wxPrintOrientation  GetWxOrientation() const { return IsPortrait() ? wxPORTRAIT : wxLANDSCAPE; }
+        -:  134:
+        -:  135:    /**
+        -:  136:     * @return wxPrintData's style paper id associated with page type name.
+        -:  137:     */
+        -:  138:    wxPaperSize GetPaperId() const { return m_paper_id; }
+        -:  139:
+    #####:  140:    void SetWidthMM(  double aWidthInMM ) { SetWidthMils( aWidthInMM * 1000 / 25.4 ); }
+        -:  141:    void SetWidthMils(  double aWidthInMils );
+        -:  142:    double GetWidthMils() const { return m_size.x; }
+        -:  143:    double GetWidthMM() const { return m_size.x * 25.4 / 1000; }
+        -:  144:
+    #####:  145:    void SetHeightMM( double aHeightInMM ) { SetHeightMils( aHeightInMM * 1000 / 25.4 ); }
+        -:  146:    void SetHeightMils( double aHeightInMils );
+        -:  147:    double GetHeightMils() const { return m_size.y; }
+        -:  148:    double GetHeightMM() const { return m_size.y * 25.4 / 1000; }
+        -:  149:
+        -:  150:    const VECTOR2D& GetSizeMils() const { return m_size; }
+        -:  151:
+        -:  152:    /**
+        -:  153:     * Gets the page width in IU
+        -:  154:     *
+        -:  155:     * @param aIUScale The IU scale, this is most likely always going to be IU_PER_MILS
+        -:  156:     * variable being passed. Note, this constexpr variable changes depending
+        -:  157:     * on application, hence why it is passed.
+        -:  158:     */
+        -:  159:    int GetWidthIU( double aIUScale ) const { return aIUScale * GetWidthMils(); }
+        -:  160:
+        -:  161:    /**
+        -:  162:     * Gets the page height in IU
+        -:  163:     *
+        -:  164:     * @param aIUScale The IU scale, this is most likely always going to be IU_PER_MILS
+        -:  165:     * variable being passed. Note, this constexpr variable changes depending
+        -:  166:     * on application, hence why it is passed.
+        -:  167:     */
+        -:  168:    int GetHeightIU( double aIUScale ) const { return aIUScale * GetHeightMils(); }
+        -:  169:
+        -:  170:    /**
+        -:  171:     * Gets the page size in internal units
+        -:  172:     *
+        -:  173:     * @param aIUScale The IU scale, this is most likely always going to be IU_PER_MILS
+        -:  174:     * variable being passed. Note, this constexpr variable changes depending
+        -:  175:     * on application, hence why it is passed.
+        -:  176:     */
+        -:  177:    const VECTOR2D GetSizeIU( double aIUScale ) const
+        -:  178:    {
+        -:  179:        return VECTOR2D( GetWidthIU( aIUScale ), GetHeightIU( aIUScale ) );
+        -:  180:    }
+        -:  181:
+        -:  182:    /**
+        -:  183:     * Set the width of Custom page in mils for any custom page constructed or made via
+        -:  184:     * SetType() after making this call.
+        -:  185:     */
+        -:  186:    static void SetCustomWidthMils( double aWidthInMils );
+        -:  187:
+        -:  188:    /**
+        -:  189:     * Set the height of Custom page in mils for any custom page constructed or made via
+        -:  190:     * SetType() after making this call.
+        -:  191:     */
+        -:  192:    static void SetCustomHeightMils( double aHeightInMils );
+        -:  193:
+        -:  194:    /**
+        -:  195:     * @return custom paper width in mils.
+        -:  196:     */
+        -:  197:    static double GetCustomWidthMils() { return s_user_width; }
+        -:  198:
+        -:  199:    /**
+        -:  200:     * @return custom paper height in mils.
+        -:  201:     */
+        -:  202:    static double GetCustomHeightMils() { return s_user_height; }
+        -:  203:
+        -:  204:    /**
+        -:  205:     * Output the page class to \a aFormatter in s-expression form.
+        -:  206:     *
+        -:  207:     * @param aFormatter The #OUTPUTFORMATTER object to write to.
+        -:  208:     * @throw IO_ERROR on write error.
+        -:  209:     */
+        -:  210:    void Format( OUTPUTFORMATTER* aFormatter ) const;
+        -:  211:
+        -:  212:    static const std::vector<PAGE_INFO>& GetPageFormatsList();
+        -:  213:
+        -:  214:protected:
+        -:  215:    // only the class implementation(s) may use this constructor
+        -:  216:    PAGE_INFO( const VECTOR2D& aSizeMils, const PAGE_SIZE_TYPE& aType, wxPaperSize aPaperId,
+        -:  217:               const wxString& aDescription = wxEmptyString );
+        -:  218:
+        -:  219:    void    updatePortrait();
+        -:  220:
+        -:  221:private:
+        -:  222:    static std::vector<PAGE_INFO> standardPageSizes;
+        -:  223:
+        -:  224:    // all dimensions here are in mils
+        -:  225:
+        -:  226:    PAGE_SIZE_TYPE m_type;             ///< paper type: A4, A3, etc.
+        -:  227:    VECTOR2D       m_size;             ///< mils
+        -:  228:
+        -:  229:    bool           m_portrait;         ///< true if portrait, false if landscape
+        -:  230:
+        -:  231:    wxPaperSize    m_paper_id;         ///< wx' style paper id.
+        -:  232:    wxString       m_description;      ///< more human friendly description of page size
+        -:  233:
+        -:  234:    static double s_user_height;
+        -:  235:    static double s_user_width;
+        -:  236:};

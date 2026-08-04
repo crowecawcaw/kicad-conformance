@@ -1,0 +1,106 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_export_odb.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_odb.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_odb.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software: you can redistribute it and/or modify it
+        -:    7: * under the terms of the GNU General Public License as published by the
+        -:    8: * Free Software Foundation, either version 3 of the License, or (at your
+        -:    9: * option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful, but
+        -:   12: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   14: * General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License along
+        -:   17: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   18: */
+        -:   19:
+        -:   20:#include "command_pcb_export_odb.h"
+        -:   21:#include <cli/exit_codes.h>
+        -:   22:#include "jobs/job_export_pcb_odb.h"
+        -:   23:#include <kiface_base.h>
+        -:   24:#include <string_utils.h>
+        -:   25:#include <wx/crt.h>
+        -:   26:
+        -:   27:#include <macros.h>
+        -:   28:#include <locale_io.h>
+        -:   29:
+        -:   30:#define ARG_COMPRESS "--compression"
+        -:   31:#define ARG_UNITS "--units"
+        -:   32:
+      577:   33:CLI::PCB_EXPORT_ODB_COMMAND::PCB_EXPORT_ODB_COMMAND() :
+     1154:   34:        PCB_EXPORT_BASE_COMMAND( "odb" )
+        -:   35:{
+      577:   36:    addDrawingSheetArg();
+      577:   37:    addDefineArg();
+        -:   38:
+     1154:   39:    m_argParser.add_description( std::string( "Export the PCB in ODB++ format" ) );
+        -:   40:
+      577:   41:    m_argParser.add_argument( ARG_PRECISION )
+      577:   42:            .help( std::string( "Precision" ) )
+      577:   43:            .scan<'i', int>()
+      577:   44:            .default_value( 2 )
+     1154:   45:            .metavar( "PRECISION" );
+        -:   46:
+      577:   47:    m_argParser.add_argument( ARG_COMPRESS )
+      577:   48:            .default_value( std::string( "zip" ) )
+     1731:   49:            .help( std::string( "Compression mode" ) )
+      577:   50:            .choices( "none", "zip", "tgz" );
+        -:   51:
+      577:   52:    m_argParser.add_argument( ARG_UNITS )
+      577:   53:            .default_value( std::string( "mm" ) )
+     1731:   54:            .help( std::string( "Units" ) )
+      577:   55:            .choices( "mm", "in" );
+        -:   56:
+     1154:   57:    m_argParser.add_argument( ARG_CHECK_ZONES ).help( UTF8STDSTR( _( ARG_CHECK_ZONES_DESC ) ) ).flag();
+        -:   58:
+      577:   59:    addVariantsArg();
+      577:   60:}
+        -:   61:
+        -:   62:
+    #####:   63:int CLI::PCB_EXPORT_ODB_COMMAND::doPerform( KIWAY& aKiway )
+        -:   64:{
+    #####:   65:    std::unique_ptr<JOB_EXPORT_PCB_ODB> job( new JOB_EXPORT_PCB_ODB() );
+        -:   66:
+    #####:   67:    job->m_filename = m_argInput;
+    #####:   68:    job->SetConfiguredOutputPath( m_argOutput );
+    #####:   69:    job->m_drawingSheet = m_argDrawingSheet;
+    #####:   70:    job->SetVarOverrides( m_argDefineVars );
+        -:   71:
+    #####:   72:    if( !m_argVariantNames.empty() )
+    #####:   73:        job->m_variant = m_argVariantNames.front();
+        -:   74:
+    #####:   75:    if( !wxFile::Exists( job->m_filename ) )
+        -:   76:    {
+    #####:   77:        wxFprintf( stderr, _( "Board file does not exist or is not accessible\n" ) );
+    #####:   78:        return EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:   79:    }
+        -:   80:
+    #####:   81:    job->m_precision = m_argParser.get<int>( ARG_PRECISION );
+    #####:   82:    job->m_checkZonesBeforeExport = m_argParser.get<bool>( ARG_CHECK_ZONES );
+        -:   83:
+    #####:   84:    wxString units = From_UTF8( m_argParser.get<std::string>( ARG_UNITS ).c_str() );
+        -:   85:
+    #####:   86:    if( units == "mm" )
+    #####:   87:        job->m_units = JOB_EXPORT_PCB_ODB::ODB_UNITS::MM;
+    #####:   88:    else if( units == "in" )
+    #####:   89:        job->m_units = JOB_EXPORT_PCB_ODB::ODB_UNITS::INCH;
+        -:   90:
+    #####:   91:    wxString compression = From_UTF8( m_argParser.get<std::string>( ARG_COMPRESS ).c_str() ).Lower();
+        -:   92:
+    #####:   93:    if( compression == "zip" )
+    #####:   94:        job->m_compressionMode = JOB_EXPORT_PCB_ODB::ODB_COMPRESSION::ZIP;
+    #####:   95:    else if( compression == "tgz" )
+    #####:   96:        job->m_compressionMode = JOB_EXPORT_PCB_ODB::ODB_COMPRESSION::TGZ;
+    #####:   97:    else if( compression == "none" )
+    #####:   98:        job->m_compressionMode = JOB_EXPORT_PCB_ODB::ODB_COMPRESSION::NONE;
+        -:   99:
+    #####:  100:    LOCALE_IO dummy;
+    #####:  101:    return aKiway.ProcessJob( KIWAY::FACE_PCB, job.get() );
+    #####:  102:}

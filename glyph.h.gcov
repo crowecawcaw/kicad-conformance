@@ -1,0 +1,142 @@
+        -:    0:Source:/src/kicad/include/font/glyph.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KICAD, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2021 Ola Rinta-Koski
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#ifndef GLYPH_H
+        -:   26:#define GLYPH_H
+        -:   27:
+        -:   28:#include <gal/gal.h>
+        -:   29:#include <memory>
+        -:   30:#include <math/box2.h>
+        -:   31:#include <geometry/shape_poly_set.h>
+        -:   32:#include <geometry/eda_angle.h>
+        -:   33:#include <wx/debug.h>
+        -:   34:
+        -:   35:#if defined( _MSC_VER )
+        -:   36:#pragma warning( push )
+        -:   37:#pragma warning( disable : 4275 )
+        -:   38:#endif
+        -:   39:
+        -:   40:namespace KIFONT
+        -:   41:{
+        -:   42:
+        -:   43:
+        -:   44:class GAL_API GLYPH
+        -:   45:{
+        -:   46:public:
+        -:   47:    virtual ~GLYPH()
+        -:   48:    {}
+        -:   49:
+        -:   50:    virtual bool IsOutline() const { return false; }
+        -:   51:    virtual bool IsStroke() const  { return false; }
+        -:   52:
+        -:   53:    virtual BOX2D BoundingBox() = 0;
+        -:   54:
+    #####:   55:    bool IsHover() const { return m_isHover; }
+        -:   56:    void SetIsHover( bool aIsHover ) { m_isHover = aIsHover; }
+        -:   57:
+        -:   58:private:
+        -:   59:    bool m_isHover = false;
+        -:   60:};
+        -:   61:
+        -:   62:
+        -:   63:class GAL_API OUTLINE_GLYPH : public GLYPH, public SHAPE_POLY_SET
+        -:   64:{
+        -:   65:public:
+        -:   66:    OUTLINE_GLYPH() :
+        -:   67:            SHAPE_POLY_SET()
+        -:   68:    {}
+        -:   69:
+        -:   70:    OUTLINE_GLYPH( const OUTLINE_GLYPH& aGlyph ) :
+        -:   71:            SHAPE_POLY_SET( aGlyph )
+        -:   72:    {}
+        -:   73:
+        -:   74:    OUTLINE_GLYPH( const SHAPE_POLY_SET& aPoly ) :
+        -:   75:            SHAPE_POLY_SET( aPoly )
+        -:   76:    {}
+        -:   77:
+        -:   78:    bool IsOutline() const override { return true; }
+        -:   79:
+        -:   80:    BOX2D BoundingBox() override;
+        -:   81:
+        -:   82:    void Triangulate( std::function<void( const VECTOR2I& aPt1,
+        -:   83:                                          const VECTOR2I& aPt2,
+        -:   84:                                          const VECTOR2I& aPt3 )> aCallback ) const;
+        -:   85:
+        -:   86:    void CacheTriangulation( bool aPartition = true, bool aSimplify = false ) override;
+        -:   87:
+        -:   88:    /**
+        -:   89:     * @return a set of triangulated polygons from the glyph.  CacheTriangulation() will use this
+        -:   90:     * data as hint data the next time around.
+        -:   91:     */
+        -:   92:    std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>> GetTriangulationData() const;
+        -:   93:
+        -:   94:    /**
+        -:   95:     * Cache the triangulation for the glyph from a known set of triangle indexes.
+        -:   96:     * (See GetTriangulationData() above for more info.)
+        -:   97:     */
+        -:   98:    void CacheTriangulation( std::vector<std::unique_ptr<SHAPE_POLY_SET::TRIANGULATED_POLYGON>>& aHintData );
+        -:   99:};
+        -:  100:
+        -:  101:
+        -:  102:class GAL_API STROKE_GLYPH : public GLYPH, public std::vector<std::vector<VECTOR2D>>
+        -:  103:{
+        -:  104:public:
+        -:  105:    STROKE_GLYPH()
+        -:  106:    {}
+        -:  107:
+        -:  108:    STROKE_GLYPH( const STROKE_GLYPH& aGlyph );
+        -:  109:
+        -:  110:    bool IsStroke() const override { return true; }
+        -:  111:
+        -:  112:    void AddPoint( const VECTOR2D& aPoint );
+        -:  113:    void RaisePen();
+        -:  114:    void Finalize();
+        -:  115:
+        -:  116:    BOX2D BoundingBox() override { return m_boundingBox; }
+        -:  117:    void SetBoundingBox( const BOX2D& bbox ) { m_boundingBox = bbox; }
+        -:  118:
+        -:  119:    std::unique_ptr<GLYPH> Transform( const VECTOR2D& aGlyphSize,  const VECTOR2I& aOffset,
+        -:  120:                                      double aTilt, const EDA_ANGLE& aAngle, bool aMirror,
+        -:  121:                                      const VECTOR2I& aOrigin  );
+        -:  122:
+        -:  123:    void Move( const VECTOR2I& aOffset );
+        -:  124:
+        -:  125:private:
+        -:  126:    bool  m_penIsDown = false;
+        -:  127:    BOX2D m_boundingBox;
+        -:  128:};
+        -:  129:
+        -:  130:
+        -:  131:
+        -:  132:} // namespace KIFONT
+        -:  133:
+        -:  134:#if defined( _MSC_VER )
+        -:  135:#pragma warning( pop )
+        -:  136:#endif
+        -:  137:
+        -:  138:#endif  // GLYPH_H

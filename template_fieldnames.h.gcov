@@ -1,0 +1,236 @@
+        -:    0:Source:/src/kicad/include/template_fieldnames.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2010 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.TXT for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#pragma once
+        -:   26:
+        -:   27:#include <initializer_list>
+        -:   28:
+        -:   29:#include <wx/string.h>
+        -:   30:
+        -:   31:class OUTPUTFORMATTER;
+        -:   32:class TEMPLATE_FIELDNAMES_LEXER;
+        -:   33:
+        -:   34:
+        -:   35:/**
+        -:   36: * The set of all field indices assuming an array like sequence that a SCH_COMPONENT or
+        -:   37: * LIB_PART can hold.
+        -:   38: *
+        -:   39: * The first fields are fixed fields and are defined by #MANDATORY_FIELDS.  After that come
+        -:   40: * an unlimited number of user defined fields, only some of which have indices defined here.
+        -:   41: *
+        -:   42: * NOTE: this must stay a enum class to prevent developers from trying to use it as an array
+        -:   43: * index.
+        -:   44: */
+        -:   45:enum class FIELD_T : int
+        -:   46:{
+        -:   47:    USER,                   ///< The field ID hasn't been set yet; field is invalid
+        -:   48:    REFERENCE,              ///< Field Reference of part, i.e. "IC21"
+        -:   49:    VALUE,                  ///< Field Value of part, i.e. "3.3K"
+        -:   50:    FOOTPRINT,              ///< Field Name Module PCB, i.e. "16DIP300"
+        -:   51:    DATASHEET,              ///< name of datasheet
+        -:   52:    DESCRIPTION,            ///< Field Description of part, i.e. "1/4W 1% Metal Film Resistor"
+        -:   53:    INTERSHEET_REFS,        ///< Global label cross-reference page numbers
+        -:   54:    SHEET_NAME,
+        -:   55:    SHEET_FILENAME,
+        -:   56:    SHEET_USER
+        -:   57:};
+        -:   58:
+        -:   59:#define MANDATORY_FIELDS { FIELD_T::REFERENCE,        \
+        -:   60:                           FIELD_T::VALUE,            \
+        -:   61:                           FIELD_T::FOOTPRINT,        \
+        -:   62:                           FIELD_T::DATASHEET,        \
+        -:   63:                           FIELD_T::DESCRIPTION }
+        -:   64:
+        -:   65:#define GLOBALLABEL_MANDATORY_FIELDS { FIELD_T::INTERSHEET_REFS }
+        -:   66:
+        -:   67:#define SHEET_MANDATORY_FIELDS { FIELD_T::SHEET_NAME,        \
+        -:   68:                                 FIELD_T::SHEET_FILENAME }
+        -:   69:
+        -:   70:// A helper to call GetDefaultFieldName with or without translation.
+        -:   71:// Translation should be used only to display field names in dialogs
+        -:   72:#define DO_TRANSLATE true
+        -:   73:
+        -:   74:
+        -:   75:/**
+        -:   76: * Return a default symbol field name for a mandatory field type.
+        -:   77: *
+        -:   78: * These field names are not modifiable but template field names are.
+        -:   79: *
+        -:   80: * @param aTranslateForHI If true, return the translated field name,
+        -:   81: * else get the canonical name (defualt). Translation is intended only for dialogs
+        -:   82: */
+        -:   83:wxString GetDefaultFieldName( FIELD_T aFieldId, bool aTranslateForHI );
+        -:   84:wxString GetUserFieldName( int aFieldNdx, bool aTranslateForHI );
+        -:   85:
+        -:   86:
+    #####:   87:inline wxString GetCanonicalFieldName( FIELD_T aFieldType )
+        -:   88:{
+    #####:   89:    return GetDefaultFieldName( aFieldType, !DO_TRANSLATE );
+        -:   90:}
+        -:   91:
+        -:   92:
+        -:   93:/**
+        -:   94: * Test whether two field names should be treated as duplicates for the purposes of field
+        -:   95: * name uniqueness within a given parent (symbol, sheet, or global label).
+        -:   96: *
+        -:   97: * Mandatory field names in the supplied set are matched case-insensitively because the
+        -:   98: * s-expression parser folds case variants onto the canonical mandatory field on load.
+        -:   99: * User-defined field names retain their original case in storage, so two user fields that
+        -:  100: * differ only in case (e.g. "Manufacturer" vs "MANUFACTURER") are considered distinct.
+        -:  101: *
+        -:  102: * Pass MANDATORY_FIELDS for symbol contexts, SHEET_MANDATORY_FIELDS for sheets, or
+        -:  103: * GLOBALLABEL_MANDATORY_FIELDS for global labels.  Each parent has its own canonical
+        -:  104: * folding domain in the parser.
+        -:  105: */
+        -:  106:bool FieldNamesAreDuplicates( const wxString& aLhs, const wxString& aRhs,
+        -:  107:                              std::initializer_list<FIELD_T> aMandatoryFields );
+        -:  108:
+        -:  109:
+        -:  110:/**
+        -:  111: * Convenience overload defaulting to symbol mandatory fields.
+        -:  112: */
+        -:  113:bool FieldNamesAreDuplicates( const wxString& aLhs, const wxString& aRhs );
+        -:  114:
+        -:  115:
+        -:  116:/**
+        -:  117: * Hold a name of a symbol's field, field value, and default visibility.
+        -:  118: *
+        -:  119: * Template fieldnames are wanted field names for use in the symbol property editors.
+        -:  120: */
+        -:  121:struct TEMPLATE_FIELDNAME
+        -:  122:{
+        -:  123:    TEMPLATE_FIELDNAME() :
+        -:  124:            m_Visible( false ),
+        -:  125:            m_URL( false )
+        -:  126:    {
+        -:  127:    }
+        -:  128:
+        -:  129:    TEMPLATE_FIELDNAME( const wxString& aName ) :
+        -:  130:            m_Name( aName ),
+        -:  131:            m_Visible( false ),
+        -:  132:            m_URL( false )
+        -:  133:    {
+        -:  134:    }
+        -:  135:
+        -:  136:    TEMPLATE_FIELDNAME( const TEMPLATE_FIELDNAME& ref )
+        -:  137:    {
+        -:  138:        m_Name = ref.m_Name;
+        -:  139:        m_Visible = ref.m_Visible;
+        -:  140:        m_URL = ref.m_URL;
+        -:  141:    }
+        -:  142:
+        -:  143:    /**
+        -:  144:     * Serialize this object out as text into the given #OUTPUTFORMATTER.
+        -:  145:     */
+        -:  146:    void Format( OUTPUTFORMATTER* out ) const ;
+        -:  147:
+        -:  148:    /**
+        -:  149:     * Fill this object from information in the input stream \a aSpec, which is a
+        -:  150:     * #TEMPLATE_FIELDNAMES_LEXER.
+        -:  151:     *
+        -:  152:     * The entire textual element spec is <br>(field (name _yourfieldname_)(value _yourvalue_)
+        -:  153:     * visible))</br>.  The presence of value is optional, the presence of visible is optional.
+        -:  154:     * When this function is called, the input token stream given by \a aSpec is assumed to be
+        -:  155:     * positioned at the '^' in the following example, i.e. just after the identifying keyword
+        -:  156:     * and before the content specifying stuff.<br>(field ^ (....) )</br>.
+        -:  157:     *
+        -:  158:     * @param aSpec is the input token stream of keywords and symbols.
+        -:  159:     */
+        -:  160:    void Parse( TEMPLATE_FIELDNAMES_LEXER* aSpec );
+        -:  161:
+        -:  162:    wxString    m_Name;         // The field name
+        -:  163:    bool        m_Visible;      // Field defaults to being visible in schematic.
+        -:  164:    bool        m_URL;          // If field should have a browse button
+        -:  165:};
+        -:  166:
+        -:  167:
+        -:  168:class TEMPLATES
+        -:  169:{
+        -:  170:public:
+        -:  171:    TEMPLATES() :
+        -:  172:            m_resolvedDirty( true )
+        -:  173:    { }
+        -:  174:
+        -:  175:    /**
+        -:  176:     * Serialize this object out as text into the given #OUTPUTFORMATTER.
+        -:  177:     */
+        -:  178:    void Format( OUTPUTFORMATTER* out, bool aGlobal ) const ;
+        -:  179:
+        -:  180:    /**
+        -:  181:     * Insert or append a wanted symbol field name into the field names template.
+        -:  182:     *
+        -:  183:     * Should be used for any symbol property editor.  If the name already exists, it
+        -:  184:     * overwrites the same name.
+        -:  185:     *
+        -:  186:     * @param aFieldName is a full description of the wanted field, and it must not match
+        -:  187:     *                   any of the default field names.
+        -:  188:     * @param aGlobal indicates whether to add to the global or project table.
+        -:  189:     */
+        -:  190:    void AddTemplateFieldName( const TEMPLATE_FIELDNAME& aFieldName, bool aGlobal );
+        -:  191:
+        -:  192:    /**
+        -:  193:     * Add a serialized list of template field names.
+        -:  194:     */
+        -:  195:    void AddTemplateFieldNames( const wxString& aSerializedFieldNames );
+        -:  196:
+        -:  197:    /**
+        -:  198:     * Delete the entire contents.
+        -:  199:     */
+        -:  200:    void DeleteAllFieldNameTemplates( bool aGlobal );
+        -:  201:
+        -:  202:    /**
+        -:  203:     * Return a template field name list for read only access.
+        -:  204:     */
+        -:  205:    const std::vector<TEMPLATE_FIELDNAME>& GetTemplateFieldNames();
+        -:  206:
+        -:  207:    /**
+        -:  208:     * Return a specific list (global or project) for read only access.
+        -:  209:     */
+        -:  210:    const std::vector<TEMPLATE_FIELDNAME>& GetTemplateFieldNames( bool aGlobal );
+        -:  211:
+        -:  212:    /**
+        -:  213:     * Search for \a aName in the template field name list.
+        -:  214:     *
+        -:  215:     * @param aName A wxString object containing the field name to search for.
+        -:  216:     * @return the template field name if found; NULL otherwise.
+        -:  217:     */
+        -:  218:    const TEMPLATE_FIELDNAME* GetFieldName( const wxString& aName );
+        -:  219:
+        -:  220:protected:
+        -:  221:    void resolveTemplates();
+        -:  222:
+        -:  223:    void parse( TEMPLATE_FIELDNAMES_LEXER* in, bool aGlobal );
+        -:  224:
+        -:  225:private:
+        -:  226:    std::vector<TEMPLATE_FIELDNAME> m_globals;
+        -:  227:    std::vector<TEMPLATE_FIELDNAME> m_project;
+        -:  228:
+        -:  229:    // Combined list.  Project templates override global ones.
+        -:  230:    std::vector<TEMPLATE_FIELDNAME> m_resolved;
+        -:  231:    bool                            m_resolvedDirty;
+        -:  232:};

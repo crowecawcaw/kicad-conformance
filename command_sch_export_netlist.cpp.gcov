@@ -1,0 +1,108 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_sch_export_netlist.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_sch_export_netlist.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_sch_export_netlist.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include "command_sch_export_netlist.h"
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include "jobs/job_export_sch_netlist.h"
+        -:   24:#include <kiface_base.h>
+        -:   25:#include <layer_ids.h>
+        -:   26:#include <string_utils.h>
+        -:   27:#include <wx/crt.h>
+        -:   28:
+        -:   29:#include <macros.h>
+        -:   30:
+        -:   31:#define ARG_FORMAT "--format"
+        -:   32:
+     1154:   33:CLI::SCH_EXPORT_NETLIST_COMMAND::SCH_EXPORT_NETLIST_COMMAND() : COMMAND( "netlist" )
+        -:   34:{
+     1154:   35:    m_argParser.add_description( UTF8STDSTR( _( "Export a netlist" ) ) );
+      577:   36:    addCommonArgs( true, true, IO_TYPE::FILE, IO_TYPE::FILE );
+      577:   37:    addVariantsArg();
+        -:   38:
+      577:   39:    m_argParser.add_argument( ARG_FORMAT )
+      577:   40:            .default_value( std::string( "kicadsexpr" ) )
+     1154:   41:            .help( UTF8STDSTR( _( "Netlist output format, valid options: kicadsexpr, kicadxml, "
+        -:   42:                                  "cadstar, orcadpcb2, spice, spicemodel, pads, allegro" ) ) )
+     1154:   43:            .metavar( "FORMAT" );
+      577:   44:}
+        -:   45:
+        -:   46:
+       37:   47:int CLI::SCH_EXPORT_NETLIST_COMMAND::doPerform( KIWAY& aKiway )
+        -:   48:{
+       37:   49:    std::unique_ptr<JOB_EXPORT_SCH_NETLIST> netJob =
+       37:   50:            std::make_unique<JOB_EXPORT_SCH_NETLIST>();
+        -:   51:
+       37:   52:    netJob->m_filename = m_argInput;
+       37:   53:    netJob->SetConfiguredOutputPath( m_argOutput );
+       37:   54:    netJob->m_variantNames = m_argVariantNames;
+        -:   55:
+       37:   56:    if( !wxFile::Exists( netJob->m_filename ) )
+        -:   57:    {
+    #####:   58:        wxFprintf( stderr, _( "Schematic file does not exist or is not accessible\n" ) );
+    #####:   59:        return EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:   60:    }
+        -:   61:
+       37:   62:    wxString format = From_UTF8( m_argParser.get<std::string>( ARG_FORMAT ).c_str() );
+       37:   63:    if( format == "kicadsexpr" )
+        -:   64:    {
+       36:   65:        netJob->format = JOB_EXPORT_SCH_NETLIST::FORMAT::KICADSEXPR;
+        -:   66:    }
+        1:   67:    else if( format == "kicadxml" )
+        -:   68:    {
+        1:   69:        netJob->format = JOB_EXPORT_SCH_NETLIST::FORMAT::KICADXML;
+        -:   70:    }
+    #####:   71:    else if( format == "cadstar" )
+        -:   72:    {
+    #####:   73:        netJob->format = JOB_EXPORT_SCH_NETLIST::FORMAT::CADSTAR;
+        -:   74:    }
+    #####:   75:    else if( format == "orcadpcb2" )
+        -:   76:    {
+    #####:   77:        netJob->format = JOB_EXPORT_SCH_NETLIST::FORMAT::ORCADPCB2;
+        -:   78:    }
+    #####:   79:    else if( format == "spice" )
+        -:   80:    {
+    #####:   81:        netJob->format = JOB_EXPORT_SCH_NETLIST::FORMAT::SPICE;
+        -:   82:    }
+    #####:   83:    else if( format == "spicemodel" )
+        -:   84:    {
+    #####:   85:        netJob->format = JOB_EXPORT_SCH_NETLIST::FORMAT::SPICEMODEL;
+        -:   86:    }
+    #####:   87:    else if( format == "pads" )
+        -:   88:    {
+    #####:   89:        netJob->format = JOB_EXPORT_SCH_NETLIST::FORMAT::PADS;
+        -:   90:    }
+    #####:   91:    else if( format == "allegro" )
+        -:   92:    {
+    #####:   93:        netJob->format = JOB_EXPORT_SCH_NETLIST::FORMAT::ALLEGRO;
+        -:   94:    }
+        -:   95:    else
+        -:   96:    {
+    #####:   97:        wxFprintf( stderr, _( "Invalid format\n" ) );
+    #####:   98:        return EXIT_CODES::ERR_ARGS;
+        -:   99:    }
+        -:  100:
+       37:  101:    int exitCode = aKiway.ProcessJob( KIWAY::FACE_SCH, netJob.get() );
+        -:  102:
+       37:  103:    return exitCode;
+       37:  104:}

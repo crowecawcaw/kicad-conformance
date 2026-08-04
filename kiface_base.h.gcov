@@ -1,0 +1,140 @@
+        -:    0:Source:/src/kicad/include/kiface_base.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software; you can redistribute it and/or
+        -:    7: * modify it under the terms of the GNU General Public License
+        -:    8: * as published by the Free Software Foundation; either version 2
+        -:    9: * of the License, or (at your option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful,
+        -:   12: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14: * GNU General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License
+        -:   17: * along with this program; if not, you may find one here:
+        -:   18: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   19: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   20: * or you may write to the Free Software Foundation, Inc.,
+        -:   21: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   22: */
+        -:   23:
+        -:   24:#ifndef KIFACE_BASE_H
+        -:   25:#define KIFACE_BASE_H
+        -:   26:
+        -:   27:#include <kiway.h>
+        -:   28:#include <bin_mod.h>
+        -:   29:#include <tool/action_manager.h>
+        -:   30:
+        -:   31:
+        -:   32:/**
+        -:   33: * A #KIFACE implementation.
+        -:   34: *
+        -:   35: * This has useful for DSOs which implement a #KIFACE.  It is abstract so a few functions
+        -:   36: * must be implemented in derivations.
+        -:   37: */
+        -:   38:class KIFACE_BASE : public KIFACE
+        -:   39:{
+        -:   40:public:
+        -:   41:    /**
+        -:   42:     * Typically #start_common() is called from here.
+        -:   43:     */
+        -:   44:    virtual bool OnKifaceStart( PGM_BASE* aProgram, int aCtlBits, KIWAY* aKiway ) override = 0;
+        -:   45:
+        -:   46:    virtual void OnKifaceEnd() override
+        -:   47:    {
+        -:   48:        // overload this if you want, end_common() may be handy.
+        -:   49:        end_common();
+        -:   50:    }
+        -:   51:
+        -:   52:    virtual  wxWindow* CreateKiWindow( wxWindow* aParent, int aClassId, KIWAY* aKIWAY,
+        -:   53:                                       int aCtlBits = 0 ) override = 0;
+        -:   54:
+        -:   55:    virtual void Reset() override{};
+        -:   56:
+        -:   57:    virtual void* IfaceOrAddress( int aDataId ) override = 0;
+        -:   58:
+        -:   59:    /**
+        -:   60:     * @param aKifaceName should point to a C string in permanent storage which contains the
+        -:   61:     *                    name of the DSO.  Examples: "eeschema", "pcbnew", etc.  This controls
+        -:   62:     *                    the name of the wxConfigBase established in m_bm, so it should be
+        -:   63:     *                    lowercase.
+        -:   64:     * @param aId is the type of DSO ( #FACE_SCH, #FACE_PCB, #FACE_CVPCB, #FACE_GERBVIEW,
+        -:   65:     *            #FACE_PL_EDITOR, #FACE_PCB_CALCULATOR, #FACE_BMP2CMP)
+        -:   66:     */
+        -:   67:    KIFACE_BASE( const char* aKifaceName, KIWAY::FACE_T aId ) :
+        -:   68:        m_start_flags( 0 ),
+        -:   69:        m_id( aId ),
+        -:   70:        m_bm( aKifaceName )
+        -:   71:    {
+        -:   72:    }
+        -:   73:
+        -:   74:    // ~KIFACE_BASE();
+        -:   75:
+        -:   76:protected:
+        -:   77:
+        -:   78:    /// Common things to do for a top program module, during OnKifaceStart().
+        -:   79:    bool start_common( int aCtlBits );
+        -:   80:
+        -:   81:    /// Common things to do for a top program module, during OnKifaceEnd();
+        -:   82:    void end_common();
+        -:   83:
+        -:   84:    // From here down should probably not be in a KIFACE, even though they
+        -:   85:    // are DSO specific, they have nothing to do with KIWAY's use of KIFACE,
+        -:   86:    // so its a questionable choice to put non KIWAY client code in this class.
+        -:   87:
+        -:   88:public:
+        -:   89:
+        -:   90:    const wxString Name()
+        -:   91:    {
+        -:   92:        return wxString::FromUTF8( m_bm.m_name );
+        -:   93:    }
+        -:   94:
+    #####:   95:    APP_SETTINGS_BASE* KifaceSettings() const         { return m_bm.m_config; }
+        -:   96:
+        -:   97:    void InitSettings( APP_SETTINGS_BASE* aSettings ) { m_bm.InitSettings( aSettings ); }
+        -:   98:
+        -:   99:    /**
+        -:  100:     * Return whatever was passed as @a aCtlBits to OnKifaceStart().
+        -:  101:     */
+        -:  102:    int StartFlags() const                            { return m_start_flags; }
+        -:  103:
+        -:  104:    /**
+        -:  105:     * Is this KIFACE running under single_top?
+        -:  106:     */
+        -:  107:    bool IsSingle() const                             { return m_start_flags & KFCTL_STANDALONE; }
+        -:  108:
+        -:  109:    /**
+        -:  110:     * Return just the basename portion of the current help file.
+        -:  111:     */
+        -:  112:    const wxString& GetHelpFileName() const           { return m_bm.m_help_file; }
+        -:  113:
+        -:  114:    /// Only for DSO specific 'non-library' files.
+        -:  115:    /// (The library search path is in the PROJECT class.)
+        -:  116:    SEARCH_STACK&       KifaceSearch()                { return m_bm.m_search; }
+        -:  117:
+        -:  118:    void GetActions( std::vector<TOOL_ACTION*>& aActions ) const override
+        -:  119:    {
+        -:  120:        for( TOOL_ACTION* action : ACTION_MANAGER::GetActionList() )
+        -:  121:            aActions.push_back( action );
+        -:  122:    }
+        -:  123:
+        -:  124:protected:
+        -:  125:    int m_start_flags;      ///< flags provided in OnKifaceStart()
+        -:  126:
+        -:  127:private:
+        -:  128:    KIWAY::FACE_T m_id;
+        -:  129:    BIN_MOD       m_bm;
+        -:  130:};
+        -:  131:
+        -:  132:
+        -:  133:/// Global KIFACE_BASE "get" accessor.
+        -:  134:KIFACE_BASE& Kiface();
+        -:  135:
+        -:  136:#endif // KIFACE_BASE_H

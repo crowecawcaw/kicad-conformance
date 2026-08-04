@@ -1,0 +1,184 @@
+        -:    0:Source:/usr/include/wx-3.2/wx/convauto.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:///////////////////////////////////////////////////////////////////////////////
+        -:    2:// Name:        wx/convauto.h
+        -:    3:// Purpose:     wxConvAuto class declaration
+        -:    4:// Author:      Vadim Zeitlin
+        -:    5:// Created:     2006-04-03
+        -:    6:// Copyright:   (c) 2006 Vadim Zeitlin
+        -:    7:// Licence:     wxWindows licence
+        -:    8:///////////////////////////////////////////////////////////////////////////////
+        -:    9:
+        -:   10:#ifndef _WX_CONVAUTO_H_
+        -:   11:#define _WX_CONVAUTO_H_
+        -:   12:
+        -:   13:#include "wx/strconv.h"
+        -:   14:#include "wx/fontenc.h"
+        -:   15:
+        -:   16:// ----------------------------------------------------------------------------
+        -:   17:// wxConvAuto: uses BOM to automatically detect input encoding
+        -:   18:// ----------------------------------------------------------------------------
+        -:   19:
+        -:   20:// All currently recognized BOM values.
+        -:   21:enum wxBOM
+        -:   22:{
+        -:   23:    wxBOM_Unknown = -1,
+        -:   24:    wxBOM_None,
+        -:   25:    wxBOM_UTF32BE,
+        -:   26:    wxBOM_UTF32LE,
+        -:   27:    wxBOM_UTF16BE,
+        -:   28:    wxBOM_UTF16LE,
+        -:   29:    wxBOM_UTF8
+        -:   30:};
+        -:   31:
+        -:   32:class WXDLLIMPEXP_BASE wxConvAuto : public wxMBConv
+        -:   33:{
+        -:   34:public:
+        -:   35:    // default ctor, the real conversion will be created on demand
+    #####:   36:    wxConvAuto(wxFontEncoding enc = wxFONTENCODING_DEFAULT)
+    #####:   37:    {
+    #####:   38:        Init();
+        -:   39:
+    #####:   40:        m_encDefault = enc;
+    #####:   41:    }
+        -:   42:
+        -:   43:    // copy ctor doesn't initialize anything either as conversion can only be
+        -:   44:    // deduced on first use
+        -:   45:    wxConvAuto(const wxConvAuto& other) : wxMBConv()
+        -:   46:    {
+        -:   47:        Init();
+        -:   48:
+        -:   49:        m_encDefault = other.m_encDefault;
+        -:   50:    }
+        -:   51:
+    #####:   52:    virtual ~wxConvAuto()
+    #####:   53:    {
+    #####:   54:        if ( m_ownsConv )
+    #####:   55:            delete m_conv;
+    #####:   56:    }
+------------------
+wxConvAuto::~wxConvAuto():
+    #####:   52:    virtual ~wxConvAuto()
+        -:   53:    {
+        -:   54:        if ( m_ownsConv )
+        -:   55:            delete m_conv;
+    #####:   56:    }
+------------------
+wxConvAuto::~wxConvAuto():
+    #####:   52:    virtual ~wxConvAuto()
+    #####:   53:    {
+    #####:   54:        if ( m_ownsConv )
+    #####:   55:            delete m_conv;
+    #####:   56:    }
+------------------
+        -:   57:
+        -:   58:    // get/set the fall-back encoding used when the input text doesn't have BOM
+        -:   59:    // and isn't UTF-8
+        -:   60:    //
+        -:   61:    // special values are wxFONTENCODING_MAX meaning not to use any fall back
+        -:   62:    // at all (but just fail to convert in this case) and wxFONTENCODING_SYSTEM
+        -:   63:    // meaning to use the encoding of the system locale
+        -:   64:    static wxFontEncoding GetFallbackEncoding() { return ms_defaultMBEncoding; }
+        -:   65:    static void SetFallbackEncoding(wxFontEncoding enc);
+        -:   66:    static void DisableFallbackEncoding()
+        -:   67:    {
+        -:   68:        SetFallbackEncoding(wxFONTENCODING_MAX);
+        -:   69:    }
+        -:   70:
+        -:   71:
+        -:   72:    // override the base class virtual function(s) to use our m_conv
+        -:   73:    virtual size_t ToWChar(wchar_t *dst, size_t dstLen,
+        -:   74:                           const char *src, size_t srcLen = wxNO_LEN) const wxOVERRIDE;
+        -:   75:
+        -:   76:    virtual size_t FromWChar(char *dst, size_t dstLen,
+        -:   77:                             const wchar_t *src, size_t srcLen = wxNO_LEN) const wxOVERRIDE;
+        -:   78:
+        -:   79:    virtual size_t GetMBNulLen() const wxOVERRIDE { return m_conv->GetMBNulLen(); }
+        -:   80:
+        -:   81:    virtual bool IsUTF8() const wxOVERRIDE { return m_conv && m_conv->IsUTF8(); }
+        -:   82:
+        -:   83:    virtual wxMBConv *Clone() const wxOVERRIDE { return new wxConvAuto(*this); }
+        -:   84:
+        -:   85:    // return the BOM type of this buffer
+        -:   86:    static wxBOM DetectBOM(const char *src, size_t srcLen);
+        -:   87:
+        -:   88:    // return the characters composing the given BOM.
+        -:   89:    static const char* GetBOMChars(wxBOM bomType, size_t* count);
+        -:   90:
+        -:   91:    wxBOM GetBOM() const
+        -:   92:    {
+        -:   93:        return m_bomType;
+        -:   94:    }
+        -:   95:
+        -:   96:    wxFontEncoding GetEncoding() const;
+        -:   97:
+        -:   98:    // Return true if the fall-back encoding is used
+        -:   99:    bool IsUsingFallbackEncoding() const
+        -:  100:    {
+        -:  101:        return m_ownsConv && m_bomType == wxBOM_None;
+        -:  102:    }
+        -:  103:
+        -:  104:private:
+        -:  105:    // common part of all ctors
+    #####:  106:    void Init()
+        -:  107:    {
+        -:  108:        // We don't initialize m_encDefault here as different ctors do it
+        -:  109:        // differently.
+    #####:  110:        m_conv = NULL;
+    #####:  111:        m_bomType = wxBOM_Unknown;
+    #####:  112:        m_ownsConv = false;
+    #####:  113:        m_consumedBOM = false;
+    #####:  114:    }
+        -:  115:
+        -:  116:    // initialize m_conv with the UTF-8 conversion
+        -:  117:    void InitWithUTF8()
+        -:  118:    {
+        -:  119:        m_conv = &wxConvUTF8;
+        -:  120:        m_ownsConv = false;
+        -:  121:    }
+        -:  122:
+        -:  123:    // create the correct conversion object for the given BOM type
+        -:  124:    void InitFromBOM(wxBOM bomType);
+        -:  125:
+        -:  126:    // create the correct conversion object for the BOM present in the
+        -:  127:    // beginning of the buffer
+        -:  128:    //
+        -:  129:    // return false if the buffer is too short to allow us to determine if we
+        -:  130:    // have BOM or not
+        -:  131:    bool InitFromInput(const char *src, size_t len);
+        -:  132:
+        -:  133:    // adjust src and len to skip over the BOM (identified by m_bomType) at the
+        -:  134:    // start of the buffer
+        -:  135:    void SkipBOM(const char **src, size_t *len) const;
+        -:  136:
+        -:  137:
+        -:  138:    // fall-back multibyte encoding to use, may be wxFONTENCODING_SYSTEM or
+        -:  139:    // wxFONTENCODING_MAX but not wxFONTENCODING_DEFAULT
+        -:  140:    static wxFontEncoding ms_defaultMBEncoding;
+        -:  141:
+        -:  142:    // conversion object which we really use, NULL until the first call to
+        -:  143:    // either ToWChar() or FromWChar()
+        -:  144:    wxMBConv *m_conv;
+        -:  145:
+        -:  146:    // the multibyte encoding to use by default if input isn't Unicode
+        -:  147:    wxFontEncoding m_encDefault;
+        -:  148:
+        -:  149:    // our BOM type
+        -:  150:    wxBOM m_bomType;
+        -:  151:
+        -:  152:    // true if we allocated m_conv ourselves, false if we just use an existing
+        -:  153:    // global conversion
+        -:  154:    bool m_ownsConv;
+        -:  155:
+        -:  156:    // true if we already skipped BOM when converting (and not just calculating
+        -:  157:    // the size)
+        -:  158:    bool m_consumedBOM;
+        -:  159:
+        -:  160:
+        -:  161:    wxDECLARE_NO_ASSIGN_CLASS(wxConvAuto);
+        -:  162:};
+        -:  163:
+        -:  164:#endif // _WX_CONVAUTO_H_
+        -:  165:

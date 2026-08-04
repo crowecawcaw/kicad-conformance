@@ -1,0 +1,137 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_import.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_import.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_import.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software: you can redistribute it and/or modify it
+        -:    7: * under the terms of the GNU General Public License as published by the
+        -:    8: * Free Software Foundation, either version 3 of the License, or (at your
+        -:    9: * option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful, but
+        -:   12: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   14: * General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License along
+        -:   17: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   18: */
+        -:   19:
+        -:   20:#include "command_pcb_import.h"
+        -:   21:#include <cli/exit_codes.h>
+        -:   22:#include <jobs/job_pcb_import.h>
+        -:   23:#include <kiface_base.h>
+        -:   24:#include <string_utils.h>
+        -:   25:#include <macros.h>
+        -:   26:#include <wx/crt.h>
+        -:   27:#include <wx/filename.h>
+        -:   28:
+        -:   29:
+        -:   30:#define ARG_FORMAT "--format"
+        -:   31:#define ARG_REPORT_FORMAT "--report-format"
+        -:   32:#define ARG_REPORT_FILE "--report-file"
+        -:   33:
+        -:   34:
+     1154:   35:CLI::PCB_IMPORT_COMMAND::PCB_IMPORT_COMMAND() : COMMAND( "import" )
+        -:   36:{
+      577:   37:    addCommonArgs( true, true, IO_TYPE::FILE, IO_TYPE::FILE );
+        -:   38:
+     1154:   39:    m_argParser.add_description(
+     1154:   40:            UTF8STDSTR( _( "Import a non-KiCad PCB file to KiCad format" ) ) );
+        -:   41:
+      577:   42:    m_argParser.add_argument( ARG_FORMAT )
+      577:   43:            .default_value( std::string( "auto" ) )
+     1154:   44:            .help( UTF8STDSTR( _( "Input format hint: auto, pads, altium, eagle, cadstar, "
+        -:   45:                                  "fabmaster, pcad, solidworks (default: auto)" ) ) )
+     1154:   46:            .metavar( "FORMAT" );
+        -:   47:
+      577:   48:    m_argParser.add_argument( ARG_REPORT_FORMAT )
+      577:   49:            .default_value( std::string( "none" ) )
+     1154:   50:            .help( UTF8STDSTR( _( "Import report format: none, json, text (default: none)" ) ) )
+     1154:   51:            .metavar( "FORMAT" );
+        -:   52:
+      577:   53:    m_argParser.add_argument( ARG_REPORT_FILE )
+      577:   54:            .default_value( std::string( "" ) )
+     1154:   55:            .help( UTF8STDSTR( _( "File path for import report (default: stdout)" ) ) )
+     1154:   56:            .metavar( "FILE" );
+      577:   57:}
+        -:   58:
+        -:   59:
+    #####:   60:int CLI::PCB_IMPORT_COMMAND::doPerform( KIWAY& aKiway )
+        -:   61:{
+    #####:   62:    std::unique_ptr<JOB_PCB_IMPORT> importJob = std::make_unique<JOB_PCB_IMPORT>();
+        -:   63:
+    #####:   64:    importJob->m_inputFile = m_argInput;
+    #####:   65:    importJob->SetConfiguredOutputPath( m_argOutput );
+        -:   66:
+    #####:   67:    wxString format = From_UTF8( m_argParser.get<std::string>( ARG_FORMAT ).c_str() );
+        -:   68:
+    #####:   69:    if( format == wxS( "auto" ) )
+        -:   70:    {
+    #####:   71:        importJob->m_format = JOB_PCB_IMPORT::FORMAT::AUTO;
+        -:   72:    }
+    #####:   73:    else if( format == wxS( "pads" ) )
+        -:   74:    {
+    #####:   75:        importJob->m_format = JOB_PCB_IMPORT::FORMAT::PADS_ASCII;
+        -:   76:    }
+    #####:   77:    else if( format == wxS( "altium" ) )
+        -:   78:    {
+    #####:   79:        importJob->m_format = JOB_PCB_IMPORT::FORMAT::ALTIUM;
+        -:   80:    }
+    #####:   81:    else if( format == wxS( "eagle" ) )
+        -:   82:    {
+    #####:   83:        importJob->m_format = JOB_PCB_IMPORT::FORMAT::EAGLE;
+        -:   84:    }
+    #####:   85:    else if( format == wxS( "cadstar" ) )
+        -:   86:    {
+    #####:   87:        importJob->m_format = JOB_PCB_IMPORT::FORMAT::CADSTAR;
+        -:   88:    }
+    #####:   89:    else if( format == wxS( "fabmaster" ) )
+        -:   90:    {
+    #####:   91:        importJob->m_format = JOB_PCB_IMPORT::FORMAT::FABMASTER;
+        -:   92:    }
+    #####:   93:    else if( format == wxS( "pcad" ) )
+        -:   94:    {
+    #####:   95:        importJob->m_format = JOB_PCB_IMPORT::FORMAT::PCAD;
+        -:   96:    }
+    #####:   97:    else if( format == wxS( "solidworks" ) )
+        -:   98:    {
+    #####:   99:        importJob->m_format = JOB_PCB_IMPORT::FORMAT::SOLIDWORKS;
+        -:  100:    }
+        -:  101:    else
+        -:  102:    {
+    #####:  103:        wxFprintf( stderr, _( "Invalid format: %s\n" ), format );
+    #####:  104:        return EXIT_CODES::ERR_ARGS;
+        -:  105:    }
+        -:  106:
+    #####:  107:    wxString reportFormat = From_UTF8( m_argParser.get<std::string>( ARG_REPORT_FORMAT ).c_str() );
+        -:  108:
+    #####:  109:    if( reportFormat == wxS( "none" ) )
+        -:  110:    {
+    #####:  111:        importJob->m_reportFormat = JOB_PCB_IMPORT::REPORT_FORMAT::NONE;
+        -:  112:    }
+    #####:  113:    else if( reportFormat == wxS( "json" ) )
+        -:  114:    {
+    #####:  115:        importJob->m_reportFormat = JOB_PCB_IMPORT::REPORT_FORMAT::JSON;
+        -:  116:    }
+    #####:  117:    else if( reportFormat == wxS( "text" ) )
+        -:  118:    {
+    #####:  119:        importJob->m_reportFormat = JOB_PCB_IMPORT::REPORT_FORMAT::TEXT;
+        -:  120:    }
+        -:  121:    else
+        -:  122:    {
+    #####:  123:        wxFprintf( stderr, _( "Invalid report format: %s\n" ), reportFormat );
+    #####:  124:        return EXIT_CODES::ERR_ARGS;
+        -:  125:    }
+        -:  126:
+    #####:  127:    wxString reportFile = From_UTF8( m_argParser.get<std::string>( ARG_REPORT_FILE ).c_str() );
+    #####:  128:    importJob->m_reportFile = reportFile;
+        -:  129:
+    #####:  130:    int exitCode = aKiway.ProcessJob( KIWAY::FACE_PCB, importJob.get() );
+        -:  131:
+    #####:  132:    return exitCode;
+    #####:  133:}

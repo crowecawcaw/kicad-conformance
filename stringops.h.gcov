@@ -1,0 +1,208 @@
+        -:    0:Source:/usr/include/wx-3.2/wx/stringops.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:///////////////////////////////////////////////////////////////////////////////
+        -:    2:// Name:        wx/stringops.h
+        -:    3:// Purpose:     implementation of wxString primitive operations
+        -:    4:// Author:      Vaclav Slavik
+        -:    5:// Modified by:
+        -:    6:// Created:     2007-04-16
+        -:    7:// Copyright:   (c) 2007 REA Elektronik GmbH
+        -:    8:// Licence:     wxWindows licence
+        -:    9:///////////////////////////////////////////////////////////////////////////////
+        -:   10:
+        -:   11:#ifndef _WX_WXSTRINGOPS_H__
+        -:   12:#define _WX_WXSTRINGOPS_H__
+        -:   13:
+        -:   14:#include "wx/chartype.h"
+        -:   15:#include "wx/stringimpl.h"
+        -:   16:#include "wx/unichar.h"
+        -:   17:#include "wx/buffer.h"
+        -:   18:
+        -:   19:// This header contains wxStringOperations "namespace" class that implements
+        -:   20:// elementary operations on string data as static methods; wxString methods and
+        -:   21:// iterators are implemented in terms of it. Two implementations are available,
+        -:   22:// one for UTF-8 encoded char* string and one for "raw" wchar_t* strings (or
+        -:   23:// char* in ANSI build).
+        -:   24:
+        -:   25:// FIXME-UTF8: only wchar after we remove ANSI build
+        -:   26:#if wxUSE_UNICODE_WCHAR || !wxUSE_UNICODE
+        -:   27:struct WXDLLIMPEXP_BASE wxStringOperationsWchar
+        -:   28:{
+        -:   29:    // moves the iterator to the next Unicode character
+        -:   30:    template <typename Iterator>
+        -:   31:    static void IncIter(Iterator& i) { ++i; }
+        -:   32:
+        -:   33:    // moves the iterator to the previous Unicode character
+        -:   34:    template <typename Iterator>
+        -:   35:    static void DecIter(Iterator& i) { --i; }
+        -:   36:
+        -:   37:    // moves the iterator by n Unicode characters
+        -:   38:    template <typename Iterator>
+        -:   39:    static Iterator AddToIter(const Iterator& i, ptrdiff_t n)
+        -:   40:        { return i + n; }
+        -:   41:
+        -:   42:    // returns distance of the two iterators in Unicode characters
+        -:   43:    template <typename Iterator>
+        -:   44:    static ptrdiff_t DiffIters(const Iterator& i1, const Iterator& i2)
+        -:   45:        { return i1 - i2; }
+        -:   46:
+        -:   47:#if wxUSE_UNICODE_UTF16
+        -:   48:    // encodes the characters as UTF-16:
+        -:   49:    struct Utf16CharBuffer
+        -:   50:    {
+        -:   51:        // Notice that data is left uninitialized, it is filled by EncodeChar()
+        -:   52:        // which is the only function creating objects of this class.
+        -:   53:
+        -:   54:        wchar_t data[3];
+        -:   55:        operator const wchar_t*() const { return data; }
+        -:   56:    };
+        -:   57:    static Utf16CharBuffer EncodeChar(const wxUniChar& ch);
+        -:   58:    static wxWCharBuffer EncodeNChars(size_t n, const wxUniChar& ch);
+        -:   59:    static bool IsSingleCodeUnitCharacter(const wxUniChar& ch)
+        -:   60:        { return !ch.IsSupplementary(); }
+        -:   61:#else
+        -:   62:    // encodes the character to a form used to represent it in internal
+        -:   63:    // representation
+        -:   64:    struct SingleCharBuffer
+        -:   65:    {
+        -:   66:        wxChar data[2];
+        -:   67:        operator const wxChar*() const { return data; }
+        -:   68:    };
+        -:   69:    static SingleCharBuffer EncodeChar(const wxUniChar& ch)
+        -:   70:    {
+        -:   71:        SingleCharBuffer buf;
+        -:   72:        buf.data[0] = (wxChar)ch;
+        -:   73:        buf.data[1] = 0;
+        -:   74:        return buf;
+        -:   75:    }
+        -:   76:    static wxWxCharBuffer EncodeNChars(size_t n, const wxUniChar& ch);
+    #####:   77:    static bool IsSingleCodeUnitCharacter(const wxUniChar&) { return true; }
+        -:   78:#endif
+        -:   79:
+        -:   80:    static wxUniChar DecodeChar(const wxStringImpl::const_iterator& i)
+        -:   81:        { return *i; }
+        -:   82:};
+        -:   83:#endif // wxUSE_UNICODE_WCHAR || !wxUSE_UNICODE
+        -:   84:
+        -:   85:
+        -:   86:#if wxUSE_UNICODE_UTF8
+        -:   87:struct WXDLLIMPEXP_BASE wxStringOperationsUtf8
+        -:   88:{
+        -:   89:    // checks correctness of UTF-8 sequence
+        -:   90:    static bool IsValidUtf8String(const char *c,
+        -:   91:                                  size_t len = wxStringImpl::npos);
+        -:   92:    static bool IsValidUtf8LeadByte(unsigned char c)
+        -:   93:    {
+        -:   94:        return (c <= 0x7F) || (c >= 0xC2 && c <= 0xF4);
+        -:   95:    }
+        -:   96:
+        -:   97:    // returns offset to skip forward when iterating over UTF-8 sequence
+        -:   98:    static unsigned char GetUTF8IterOffset(unsigned char c);
+        -:   99:
+        -:  100:
+        -:  101:    template<typename Iterator>
+        -:  102:    static void IncIter(Iterator& i)
+        -:  103:    {
+        -:  104:        wxASSERT( IsValidUtf8LeadByte(*i) );
+        -:  105:        i += GetUTF8IterOffset(*i);
+        -:  106:    }
+        -:  107:
+        -:  108:    template<typename Iterator>
+        -:  109:    static void DecIter(Iterator& i)
+        -:  110:    {
+        -:  111:        // Non-lead bytes are all in the 0x80..0xBF range (i.e. 10xxxxxx in
+        -:  112:        // binary), so we just have to go back until we hit a byte that is
+        -:  113:        // either < 0x80 (i.e. 0xxxxxxx in binary) or 0xC0..0xFF (11xxxxxx in
+        -:  114:        // binary; this includes some invalid values, but we can ignore it
+        -:  115:        // here, because we assume valid UTF-8 input for the purpose of
+        -:  116:        // efficient implementation).
+        -:  117:        --i;
+        -:  118:        while ( ((*i) & 0xC0) == 0x80 /* 2 highest bits are '10' */ )
+        -:  119:            --i;
+        -:  120:    }
+        -:  121:
+        -:  122:    template<typename Iterator>
+        -:  123:    static Iterator AddToIter(const Iterator& i, ptrdiff_t n)
+        -:  124:    {
+        -:  125:        Iterator out(i);
+        -:  126:
+        -:  127:        if ( n > 0 )
+        -:  128:        {
+        -:  129:            for ( ptrdiff_t j = 0; j < n; ++j )
+        -:  130:                IncIter(out);
+        -:  131:        }
+        -:  132:        else if ( n < 0 )
+        -:  133:        {
+        -:  134:            for ( ptrdiff_t j = 0; j > n; --j )
+        -:  135:                DecIter(out);
+        -:  136:        }
+        -:  137:
+        -:  138:        return out;
+        -:  139:    }
+        -:  140:
+        -:  141:    template<typename Iterator>
+        -:  142:    static ptrdiff_t DiffIters(Iterator i1, Iterator i2)
+        -:  143:    {
+        -:  144:        ptrdiff_t dist = 0;
+        -:  145:
+        -:  146:        if ( i1 < i2 )
+        -:  147:        {
+        -:  148:            while ( i1 != i2 )
+        -:  149:            {
+        -:  150:                IncIter(i1);
+        -:  151:                dist--;
+        -:  152:            }
+        -:  153:        }
+        -:  154:        else if ( i2 < i1 )
+        -:  155:        {
+        -:  156:            while ( i2 != i1 )
+        -:  157:            {
+        -:  158:                IncIter(i2);
+        -:  159:                dist++;
+        -:  160:            }
+        -:  161:        }
+        -:  162:
+        -:  163:        return dist;
+        -:  164:    }
+        -:  165:
+        -:  166:    static bool IsSingleCodeUnitCharacter(const wxUniChar& ch)
+        -:  167:        { return ch.IsAscii(); }
+        -:  168:
+        -:  169:    // encodes the character as UTF-8:
+        -:  170:    typedef wxUniChar::Utf8CharBuffer Utf8CharBuffer;
+        -:  171:    static Utf8CharBuffer EncodeChar(const wxUniChar& ch)
+        -:  172:        { return ch.AsUTF8(); }
+        -:  173:
+        -:  174:    // returns n copies of ch encoded in UTF-8 string
+        -:  175:    static wxCharBuffer EncodeNChars(size_t n, const wxUniChar& ch);
+        -:  176:
+        -:  177:    // returns the length of UTF-8 encoding of the character with lead byte 'c'
+        -:  178:    static size_t GetUtf8CharLength(char c)
+        -:  179:    {
+        -:  180:        wxASSERT( IsValidUtf8LeadByte(c) );
+        -:  181:        return GetUTF8IterOffset(c);
+        -:  182:    }
+        -:  183:
+        -:  184:    // decodes single UTF-8 character from UTF-8 string
+        -:  185:    static wxUniChar DecodeChar(wxStringImpl::const_iterator i)
+        -:  186:    {
+        -:  187:        if ( (unsigned char)*i < 0x80 )
+        -:  188:            return (int)*i;
+        -:  189:        return DecodeNonAsciiChar(i);
+        -:  190:    }
+        -:  191:
+        -:  192:private:
+        -:  193:    static wxUniChar DecodeNonAsciiChar(wxStringImpl::const_iterator i);
+        -:  194:};
+        -:  195:#endif // wxUSE_UNICODE_UTF8
+        -:  196:
+        -:  197:
+        -:  198:#if wxUSE_UNICODE_UTF8
+        -:  199:typedef wxStringOperationsUtf8 wxStringOperations;
+        -:  200:#else
+        -:  201:typedef wxStringOperationsWchar wxStringOperations;
+        -:  202:#endif
+        -:  203:
+        -:  204:#endif  // _WX_WXSTRINGOPS_H_

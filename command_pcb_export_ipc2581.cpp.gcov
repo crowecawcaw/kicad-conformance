@@ -1,0 +1,162 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_export_ipc2581.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_ipc2581.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_ipc2581.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include "command_pcb_export_ipc2581.h"
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include "jobs/job_export_pcb_ipc2581.h"
+        -:   24:#include <kiface_base.h>
+        -:   25:#include <string_utils.h>
+        -:   26:#include <wx/crt.h>
+        -:   27:
+        -:   28:#include <macros.h>
+        -:   29:#include <wx/tokenzr.h>
+        -:   30:
+        -:   31:#include <locale_io.h>
+        -:   32:
+        -:   33:#define ARG_COMPRESS "--compress"
+        -:   34:
+        -:   35:#define ARG_BOM_COL_INT_ID "--bom-col-int-id"
+        -:   36:#define ARG_BOM_COL_MFG_PN "--bom-col-mfg-pn"
+        -:   37:#define ARG_BOM_COL_MFG "--bom-col-mfg"
+        -:   38:#define ARG_BOM_COL_DIST_PN "--bom-col-dist-pn"
+        -:   39:#define ARG_BOM_COL_DIST "--bom-col-dist"
+        -:   40:#define ARG_BOM_REV "--bom-rev"
+        -:   41:#define ARG_UNITS "--units"
+        -:   42:
+      577:   43:CLI::PCB_EXPORT_IPC2581_COMMAND::PCB_EXPORT_IPC2581_COMMAND() :
+     1154:   44:        PCB_EXPORT_BASE_COMMAND( "ipc2581" )
+        -:   45:{
+      577:   46:    addDrawingSheetArg();
+      577:   47:    addDefineArg();
+        -:   48:
+     1154:   49:    m_argParser.add_description( std::string( "Export the PCB in IPC-2581 format" ) );
+        -:   50:
+      577:   51:    m_argParser.add_argument( ARG_PRECISION )
+      577:   52:            .help( std::string( "Precision" ) )
+      577:   53:            .scan<'i', int>()
+      577:   54:            .default_value( 6 )
+     1154:   55:            .metavar( "PRECISION" );
+        -:   56:
+      577:   57:    m_argParser.add_argument( ARG_COMPRESS )
+     1154:   58:            .help( std::string( "Compress the output" ) )
+      577:   59:            .flag();
+        -:   60:
+      577:   61:    m_argParser.add_argument( ARG_VERSION )
+      577:   62:            .default_value( std::string( "C" ) )
+     1731:   63:            .help( std::string( "IPC-2581 standard version" ) )
+      577:   64:            .choices( "B", "C" );
+        -:   65:
+      577:   66:    m_argParser.add_argument( ARG_UNITS )
+      577:   67:            .default_value( std::string( "mm" ) )
+     1731:   68:            .help( std::string( "Units" ) )
+      577:   69:            .choices( "mm", "in" );
+        -:   70:
+      577:   71:    m_argParser.add_argument( ARG_BOM_COL_INT_ID )
+      577:   72:            .default_value( std::string() )
+      577:   73:            .help( std::string(
+     1154:   74:                    "Name of the part field to use for the Bill of Material Internal Id Column" ) )
+     1154:   75:            .metavar( "FIELD_NAME" );
+        -:   76:
+      577:   77:    m_argParser.add_argument( ARG_BOM_COL_MFG_PN )
+      577:   78:            .default_value( std::string() )
+      577:   79:            .help( std::string( "Name of the part field to use for the Bill of "
+     1154:   80:                                "Material Manufacturer Part Number Column" ) )
+     1154:   81:            .metavar( "FIELD_NAME" );
+        -:   82:
+      577:   83:    m_argParser.add_argument( ARG_BOM_COL_MFG )
+      577:   84:            .default_value( std::string() )
+      577:   85:            .help( std::string( "Name of the part field to use for the Bill of "
+     1154:   86:                                "Material Manufacturer Column" ) )
+     1154:   87:            .metavar( "FIELD_NAME" );
+        -:   88:
+      577:   89:    m_argParser.add_argument( ARG_BOM_COL_DIST_PN )
+      577:   90:            .default_value( std::string() )
+      577:   91:            .help( std::string( "Name of the part field to use for the Bill of "
+     1154:   92:                                "Material Distributor Part Number Column" ) )
+     1154:   93:            .metavar( "FIELD_NAME" );
+        -:   94:
+      577:   95:    m_argParser.add_argument( ARG_BOM_COL_DIST )
+      577:   96:            .default_value( std::string() )
+      577:   97:            .help( std::string( "Name to insert into Bill of "
+     1154:   98:                                "Material Distributor Column" ) )
+     1154:   99:            .metavar( "FIELD_NAME" );
+        -:  100:
+      577:  101:    m_argParser.add_argument( ARG_BOM_REV )
+      577:  102:            .default_value( std::string() )
+      577:  103:            .help( std::string( "BOM revision to use in the output file. "
+     1154:  104:                                "Defaults to schematic revision from the project file" ) )
+     1154:  105:            .metavar( "REVISION" );
+        -:  106:
+      577:  107:    addVariantsArg();
+      577:  108:}
+        -:  109:
+        -:  110:
+    #####:  111:int CLI::PCB_EXPORT_IPC2581_COMMAND::doPerform( KIWAY& aKiway )
+        -:  112:{
+    #####:  113:    std::unique_ptr<JOB_EXPORT_PCB_IPC2581> ipc2581Job( new JOB_EXPORT_PCB_IPC2581() );
+        -:  114:
+    #####:  115:    ipc2581Job->m_filename = m_argInput;
+    #####:  116:    ipc2581Job->SetConfiguredOutputPath( m_argOutput );
+    #####:  117:    ipc2581Job->m_drawingSheet = m_argDrawingSheet;
+    #####:  118:    ipc2581Job->SetVarOverrides( m_argDefineVars );
+        -:  119:
+    #####:  120:    if( !m_argVariantNames.empty() )
+    #####:  121:        ipc2581Job->m_variant = m_argVariantNames.front();
+        -:  122:
+    #####:  123:    if( !wxFile::Exists( ipc2581Job->m_filename ) )
+        -:  124:    {
+    #####:  125:        wxFprintf( stderr, _( "Board file does not exist or is not accessible\n" ) );
+    #####:  126:        return EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:  127:    }
+        -:  128:
+    #####:  129:    ipc2581Job->m_compress = m_argParser.get<bool>( ARG_COMPRESS );
+    #####:  130:    ipc2581Job->m_precision = m_argParser.get<int>( ARG_PRECISION );
+        -:  131:
+    #####:  132:    wxString version = From_UTF8( m_argParser.get<std::string>( ARG_VERSION ).c_str() );
+    #####:  133:    if( version == 'B' )
+    #####:  134:        ipc2581Job->m_version = JOB_EXPORT_PCB_IPC2581::IPC2581_VERSION::B;
+    #####:  135:    else if( version == 'C' )
+    #####:  136:        ipc2581Job->m_version = JOB_EXPORT_PCB_IPC2581::IPC2581_VERSION::C;
+        -:  137:
+    #####:  138:    wxString units = From_UTF8( m_argParser.get<std::string>( ARG_UNITS ).c_str() );
+    #####:  139:    if( units == "mm" )
+    #####:  140:        ipc2581Job->m_units = JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS::MM;
+    #####:  141:    else if( units == "in" )
+    #####:  142:        ipc2581Job->m_units = JOB_EXPORT_PCB_IPC2581::IPC2581_UNITS::INCH;
+        -:  143:
+    #####:  144:    ipc2581Job->m_colInternalId =
+    #####:  145:            From_UTF8( m_argParser.get<std::string>( ARG_BOM_COL_INT_ID ).c_str() );
+    #####:  146:    ipc2581Job->m_colMfgPn =
+    #####:  147:            From_UTF8( m_argParser.get<std::string>( ARG_BOM_COL_MFG_PN ).c_str() );
+    #####:  148:    ipc2581Job->m_colMfg = From_UTF8( m_argParser.get<std::string>( ARG_BOM_COL_MFG ).c_str() );
+    #####:  149:    ipc2581Job->m_colDistPn =
+    #####:  150:            From_UTF8( m_argParser.get<std::string>( ARG_BOM_COL_DIST_PN ).c_str() );
+    #####:  151:    ipc2581Job->m_colDist =
+    #####:  152:            From_UTF8( m_argParser.get<std::string>( ARG_BOM_COL_DIST ).c_str() );
+    #####:  153:    ipc2581Job->m_bomRev =
+    #####:  154:            From_UTF8( m_argParser.get<std::string>( ARG_BOM_REV ).c_str() );
+        -:  155:
+    #####:  156:    LOCALE_IO dummy;
+    #####:  157:    return aKiway.ProcessJob( KIWAY::FACE_PCB, ipc2581Job.get() );
+    #####:  158:}

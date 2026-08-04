@@ -1,0 +1,267 @@
+        -:    0:Source:/src/kicad/eeschema/sch_table.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software; you can redistribute it and/or
+        -:    7: * modify it under the terms of the GNU General Public License
+        -:    8: * as published by the Free Software Foundation; either version 2
+        -:    9: * of the License, or (at your option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful,
+        -:   12: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14: * GNU General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License
+        -:   17: * along with this program; if not, you may find one here:
+        -:   18: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   19: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   20: * or you may write to the Free Software Foundation, Inc.,
+        -:   21: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   22: */
+        -:   23:
+        -:   24:#ifndef SCH_TABLE_H
+        -:   25:#define SCH_TABLE_H
+        -:   26:
+        -:   27:
+        -:   28:#include <sch_tablecell.h>
+        -:   29:#include <sch_item.h>
+        -:   30:#include <algorithm>
+        -:   31:
+        -:   32:
+        -:   33:class SCH_TABLE : public SCH_ITEM
+        -:   34:{
+        -:   35:public:
+        -:   36:    SCH_TABLE( int aLineWidth = 0 );
+        -:   37:
+        -:   38:    SCH_TABLE( const SCH_TABLE& aTable );
+        -:   39:
+        -:   40:    ~SCH_TABLE();
+        -:   41:
+        -:   42:    static inline bool ClassOf( const EDA_ITEM* aItem )
+        -:   43:    {
+        -:   44:        return aItem && SCH_TABLE_T == aItem->Type();
+        -:   45:    }
+        -:   46:
+        -:   47:    virtual wxString GetClass() const override
+        -:   48:    {
+        -:   49:        return wxT( "SCH_TABLE" );
+        -:   50:    }
+        -:   51:
+    #####:   52:    void SetStrokeExternal( bool aDoStroke ) { m_strokeExternal = aDoStroke; }
+        -:   53:    bool StrokeExternal() const              { return m_strokeExternal; }
+        -:   54:
+    #####:   55:    void SetStrokeHeaderSeparator( bool aDoStroke ) { m_StrokeHeaderSeparator = aDoStroke; }
+        -:   56:    bool StrokeHeaderSeparator() const              { return m_StrokeHeaderSeparator; }
+        -:   57:
+    #####:   58:    void SetBorderStroke( const STROKE_PARAMS& aParams ) { m_borderStroke = aParams; }
+        -:   59:    const STROKE_PARAMS& GetBorderStroke() const { return m_borderStroke; }
+        -:   60:
+        -:   61:    void SetBorderWidth( int aWidth ) { m_borderStroke.SetWidth( aWidth ); }
+        -:   62:    int GetBorderWidth() const        { return m_borderStroke.GetWidth(); }
+        -:   63:
+        -:   64:    void SetBorderStyle( const LINE_STYLE aStyle ) { m_borderStroke.SetLineStyle( aStyle ); }
+        -:   65:    LINE_STYLE GetBorderStyle() const
+        -:   66:    {
+        -:   67:        if( m_borderStroke.GetLineStyle() == LINE_STYLE::DEFAULT )
+        -:   68:            return LINE_STYLE::SOLID;
+        -:   69:        else
+        -:   70:            return m_borderStroke.GetLineStyle();
+        -:   71:    }
+        -:   72:
+        -:   73:    void SetBorderColor( const COLOR4D& aColor ) { m_borderStroke.SetColor( aColor ); }
+        -:   74:    COLOR4D GetBorderColor() const               { return m_borderStroke.GetColor(); }
+        -:   75:
+    #####:   76:    void SetSeparatorsStroke( const STROKE_PARAMS& aParams ) { m_separatorsStroke = aParams; }
+        -:   77:    const STROKE_PARAMS& GetSeparatorsStroke() const { return m_separatorsStroke; }
+        -:   78:
+        -:   79:    void SetSeparatorsWidth( int aWidth ) { m_separatorsStroke.SetWidth( aWidth ); }
+        -:   80:    int GetSeparatorsWidth() const        { return m_separatorsStroke.GetWidth(); }
+        -:   81:
+        -:   82:    void SetSeparatorsStyle( const LINE_STYLE aStyle )
+        -:   83:    {
+        -:   84:        m_separatorsStroke.SetLineStyle( aStyle );
+        -:   85:    }
+        -:   86:
+        -:   87:    LINE_STYLE GetSeparatorsStyle() const
+        -:   88:    {
+        -:   89:        if( m_separatorsStroke.GetLineStyle() == LINE_STYLE::DEFAULT )
+        -:   90:            return LINE_STYLE::SOLID;
+        -:   91:        else
+        -:   92:            return m_separatorsStroke.GetLineStyle();
+        -:   93:    }
+        -:   94:
+        -:   95:    void SetSeparatorsColor( const COLOR4D& aColor ) { m_separatorsStroke.SetColor( aColor ); }
+        -:   96:    COLOR4D GetSeparatorsColor() const               { return m_separatorsStroke.GetColor(); }
+        -:   97:
+    #####:   98:    void SetStrokeColumns( bool aDoStroke ) { m_strokeColumns = aDoStroke; }
+        -:   99:    bool StrokeColumns() const              { return m_strokeColumns; }
+        -:  100:
+    #####:  101:    void SetStrokeRows( bool aDoStroke ) { m_strokeRows = aDoStroke; }
+        -:  102:    bool StrokeRows() const              { return m_strokeRows; }
+        -:  103:
+        -:  104:    void RunOnChildren( const std::function<void( SCH_ITEM* )>& aFunction, RECURSE_MODE aMode ) override;
+        -:  105:
+        -:  106:    bool operator<( const SCH_ITEM& aItem ) const override;
+        -:  107:
+        -:  108:    void SetPosition( const VECTOR2I& aPos ) override;
+        -:  109:    VECTOR2I GetPosition() const override;
+        -:  110:    VECTOR2I GetEnd() const;
+        -:  111:    VECTOR2I GetCenter() const;
+        -:  112:
+        -:  113:    // For property manager:
+        -:  114:    void SetPositionX( int x ) { SetPosition( VECTOR2I( x, GetPosition().y ) ); }
+        -:  115:    void SetPositionY( int y ) { SetPosition( VECTOR2I( GetPosition().x, y ) ); }
+        -:  116:    int GetPositionX() const   { return GetPosition().x; }
+        -:  117:    int GetPositionY() const   { return GetPosition().y; }
+        -:  118:
+    #####:  119:    void SetColCount( int aCount ) { m_colCount = aCount; }
+        -:  120:    int GetColCount() const { return m_colCount; }
+        -:  121:
+        -:  122:    int GetRowCount() const
+        -:  123:    {
+        -:  124:        return m_cells.size() / m_colCount;
+        -:  125:    }
+        -:  126:
+    #####:  127:    void SetColWidth( int aCol, int aWidth ) { m_colWidths[aCol] = aWidth; }
+        -:  128:
+        -:  129:    int GetColWidth( int aCol ) const
+        -:  130:    {
+        -:  131:        if( m_colWidths.count( aCol ) )
+        -:  132:            return m_colWidths.at( aCol );
+        -:  133:
+        -:  134:        return 0;
+        -:  135:    }
+        -:  136:
+    #####:  137:    void SetRowHeight( int aRow, int aHeight ) { m_rowHeights[aRow] = aHeight; }
+        -:  138:
+        -:  139:    int GetRowHeight( int aRow ) const
+        -:  140:    {
+        -:  141:        if( m_rowHeights.count( aRow ) )
+        -:  142:            return m_rowHeights.at( aRow );
+        -:  143:
+        -:  144:        return 0;
+        -:  145:    }
+        -:  146:
+    #####:  147:    SCH_TABLECELL* GetCell( int aRow, int aCol ) const
+        -:  148:    {
+    #####:  149:        int idx = aRow * m_colCount + aCol;
+        -:  150:
+    #####:  151:        if( idx < (int) m_cells.size() )
+    #####:  152:            return m_cells[ idx ];
+        -:  153:        else
+    #####:  154:            return nullptr;
+        -:  155:    }
+        -:  156:
+        -:  157:    std::vector<SCH_TABLECELL*> GetCells() const
+        -:  158:    {
+        -:  159:        return m_cells;
+        -:  160:    }
+        -:  161:
+    #####:  162:    void AddCell( SCH_TABLECELL* aCell )
+        -:  163:    {
+    #####:  164:        m_cells.push_back( aCell );
+    #####:  165:        aCell->SetParent( this );
+    #####:  166:    }
+        -:  167:
+        -:  168:    void InsertCell( int aIdx, SCH_TABLECELL* aCell )
+        -:  169:    {
+        -:  170:        m_cells.insert( m_cells.begin() + aIdx, aCell );
+        -:  171:        aCell->SetParent( this );
+        -:  172:    }
+        -:  173:
+        -:  174:    void ClearCells()
+        -:  175:    {
+        -:  176:        for( SCH_TABLECELL* cell : m_cells )
+        -:  177:            delete cell;
+        -:  178:
+        -:  179:        m_cells.clear();
+        -:  180:    }
+        -:  181:
+        -:  182:    void DeleteMarkedCells()
+        -:  183:    {
+        -:  184:        std::erase_if( m_cells,
+        -:  185:                []( SCH_TABLECELL* cell )
+        -:  186:                {
+        -:  187:                    if( cell->GetFlags() & STRUCT_DELETED )
+        -:  188:                    {
+        -:  189:                        delete cell;
+        -:  190:                        return true;
+        -:  191:                    }
+        -:  192:                    return false;
+        -:  193:                } );
+        -:  194:    }
+        -:  195:
+        -:  196:    void Normalize();
+        -:  197:
+        -:  198:    void Move( const VECTOR2I& aMoveVector ) override;
+        -:  199:
+        -:  200:    void MirrorHorizontally( int aCenter ) override;
+        -:  201:    void MirrorVertically( int aCenter ) override;
+        -:  202:    void Rotate( const VECTOR2I& aCenter, bool aRotateCCW ) override;
+        -:  203:
+        -:  204:    const BOX2I GetBoundingBox() const override;
+        -:  205:
+        -:  206:    INSPECT_RESULT Visit( INSPECTOR inspector, void* testData,
+        -:  207:                          const std::vector<KICAD_T>& aScanTypes ) override;
+        -:  208:
+        -:  209:    bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const override
+        -:  210:    {
+        -:  211:        // Symbols are searchable via the child field and pin item text.
+        -:  212:        return false;
+        -:  213:    }
+        -:  214:
+        -:  215:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  216:
+        -:  217:    BITMAPS GetMenuImage() const override;
+        -:  218:
+        -:  219:    std::vector<int> ViewGetLayers() const override;
+        -:  220:
+        -:  221:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  222:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  223:    bool HitTest( const SHAPE_LINE_CHAIN& aPoly, bool aContained ) const override;
+        -:  224:
+        -:  225:    void DrawBorders( const std::function<void( const VECTOR2I& aPt1, const VECTOR2I& aPt2,
+        -:  226:                                                const STROKE_PARAMS& aStroke )>& aCallback ) const;
+        -:  227:
+        -:  228:    void Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& aPlotOpts,
+        -:  229:               int aUnit, int aBodyStyle, const VECTOR2I& aOffset, bool aDimmed ) override;
+        -:  230:
+        -:  231:    EDA_ITEM* Clone() const override
+        -:  232:    {
+        -:  233:        return new SCH_TABLE( *this );
+        -:  234:    }
+        -:  235:
+        -:  236:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:  237:
+        -:  238:    double Similarity( const SCH_ITEM& aOther ) const override;
+        -:  239:
+        -:  240:    bool operator==( const SCH_ITEM& aOther ) const override;
+        -:  241:
+        -:  242:#if defined(DEBUG)
+        -:  243:    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
+        -:  244:#endif
+        -:  245:
+        -:  246:protected:
+        -:  247:    void swapData( SCH_ITEM* aItem ) override;
+        -:  248:
+        -:  249:    bool                        m_strokeExternal;
+        -:  250:    bool                        m_StrokeHeaderSeparator;
+        -:  251:    STROKE_PARAMS               m_borderStroke;
+        -:  252:    bool                        m_strokeRows;
+        -:  253:    bool                        m_strokeColumns;
+        -:  254:    STROKE_PARAMS               m_separatorsStroke;
+        -:  255:
+        -:  256:    int                         m_colCount;
+        -:  257:    std::map<int, int>          m_colWidths;
+        -:  258:    std::map<int, int>          m_rowHeights;
+        -:  259:    std::vector<SCH_TABLECELL*> m_cells;
+        -:  260:};
+        -:  261:
+        -:  262:
+        -:  263:#endif /* SCH_TABLE_H */

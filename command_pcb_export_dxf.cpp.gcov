@@ -1,0 +1,198 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_export_dxf.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_dxf.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_dxf.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include "command_pcb_export_dxf.h"
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include "jobs/job_export_pcb_dxf.h"
+        -:   24:#include <kiface_base.h>
+        -:   25:#include <string_utils.h>
+        -:   26:#include <wx/crt.h>
+        -:   27:
+        -:   28:#include <macros.h>
+        -:   29:
+        -:   30:#define ARG_USE_CONTOURS "--use-contours"
+        -:   31:#define ARG_OUTPUT_UNITS "--output-units"
+        -:   32:#define ARG_USE_DRILL_ORIGIN "--use-drill-origin"
+        -:   33:#define ARG_MODE_SINGLE "--mode-single"
+        -:   34:#define ARG_MODE_MULTI "--mode-multi"
+        -:   35:
+      577:   36:CLI::PCB_EXPORT_DXF_COMMAND::PCB_EXPORT_DXF_COMMAND() :
+     1154:   37:        PCB_EXPORT_BASE_COMMAND( "dxf", IO_TYPE::FILE, IO_TYPE::DIRECTORY )
+        -:   38:{
+     1154:   39:    m_argParser.add_description( UTF8STDSTR( _( "Generate a DXF from a list of layers" ) ) );
+        -:   40:
+      577:   41:    addLayerArg();
+      577:   42:    addCommonLayersArg();
+      577:   43:    addDrawingSheetArg();
+      577:   44:    addDefineArg();
+        -:   45:
+      577:   46:    m_argParser.add_argument( "--erd", ARG_EXCLUDE_REFDES )
+     1154:   47:            .help( UTF8STDSTR( _( "Exclude the reference designator text" ) ) )
+      577:   48:            .flag();
+        -:   49:
+      577:   50:    m_argParser.add_argument( "--ev", ARG_EXCLUDE_VALUE )
+     1154:   51:            .help( UTF8STDSTR( _( "Exclude the value text" ) ) )
+      577:   52:            .flag();
+        -:   53:
+      577:   54:    m_argParser.add_argument( "--sp", ARG_SKETCH_PADS_ON_FAB_LAYERS )
+     1154:   55:            .help( UTF8STDSTR( _( ARG_SKETCH_PADS_ON_FAB_LAYERS_DESC ) ) )
+      577:   56:            .flag();
+        -:   57:
+      577:   58:    m_argParser.add_argument( "--hdnp", ARG_HIDE_DNP_FPS_ON_FAB_LAYERS )
+     1154:   59:            .help( UTF8STDSTR( _( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   60:            .flag();
+        -:   61:
+      577:   62:    m_argParser.add_argument( "--sdnp", ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS )
+     1154:   63:            .help( UTF8STDSTR( _( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   64:            .flag();
+        -:   65:
+      577:   66:    m_argParser.add_argument( "--cdnp", ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS )
+     1154:   67:            .help( UTF8STDSTR( _( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   68:            .flag();
+        -:   69:
+      577:   70:    m_argParser.add_argument( ARG_SUBTRACT_SOLDERMASK )
+     1154:   71:            .help( UTF8STDSTR( _( "Subtract soldermask from silkscreen" ) ) )
+      577:   72:            .flag();
+        -:   73:
+      577:   74:    m_argParser.add_argument( "--uc", ARG_USE_CONTOURS )
+     1154:   75:            .help( UTF8STDSTR( _( "Plot graphic items using their contours" ) ) )
+      577:   76:            .flag();
+        -:   77:
+      577:   78:    m_argParser.add_argument( "--udo", ARG_USE_DRILL_ORIGIN )
+     1154:   79:            .help( UTF8STDSTR( _( "Plot using the drill/place file origin" ) ) )
+      577:   80:            .flag();
+        -:   81:
+      577:   82:    m_argParser.add_argument( "--ibt", ARG_INCLUDE_BORDER_TITLE )
+     1154:   83:            .help( UTF8STDSTR( _( "Include the border and title block" ) ) )
+      577:   84:            .flag();
+        -:   85:
+      577:   86:    m_argParser.add_argument( "--ou", ARG_OUTPUT_UNITS )
+      577:   87:            .default_value( std::string( "in" ) )
+     1154:   88:            .help( UTF8STDSTR( _( "Output units, valid options: mm, in" ) ) )
+     1154:   89:            .metavar( "UNITS" );
+        -:   90:
+      577:   91:    m_argParser.add_argument( ARG_DRILL_SHAPE_OPTION )
+     1154:   92:            .help( UTF8STDSTR( _( ARG_DRILL_SHAPE_OPTION_DESC ) ) )
+      577:   93:            .scan<'i', int>()
+      577:   94:            .default_value( 2 );
+        -:   95:
+      577:   96:    m_argParser.add_argument( ARG_MODE_SINGLE )
+     1154:   97:            .help( UTF8STDSTR(
+        -:   98:                    _( "Generates a single file with the output arg path acting as the complete "
+        -:   99:                       "directory and filename path. COMMON_LAYER_LIST does not function in this "
+        -:  100:                       "mode. Instead LAYER_LIST controls all layers plotted." ) ) )
+      577:  101:            .flag();
+        -:  102:
+      577:  103:    m_argParser.add_argument( ARG_MODE_MULTI )
+     1154:  104:            .help( UTF8STDSTR( _( "Generates one or more files with behavior similar to the KiCad "
+        -:  105:                                  "GUI plotting. The given output path specifies a directory in "
+        -:  106:                                  "which files may be output." ) ) )
+      577:  107:            .flag();
+        -:  108:
+      577:  109:    m_argParser.add_argument( ARG_SCALE )
+     1154:  110:            .help( UTF8STDSTR( _( ARG_SCALE_DESC ) ) )
+      577:  111:            .scan<'g', double>()
+      577:  112:            .default_value( 1.0 )
+     1154:  113:            .metavar( "SCALE" );
+        -:  114:
+      577:  115:    m_argParser.add_argument( ARG_CHECK_ZONES )
+     1154:  116:            .help( UTF8STDSTR( _( ARG_CHECK_ZONES_DESC ) ) )
+      577:  117:            .flag();
+        -:  118:
+      577:  119:    addVariantsArg();
+      577:  120:}
+        -:  121:
+        -:  122:
+    #####:  123:int CLI::PCB_EXPORT_DXF_COMMAND::doPerform( KIWAY& aKiway )
+        -:  124:{
+    #####:  125:    std::unique_ptr<JOB_EXPORT_PCB_DXF> dxfJob( new JOB_EXPORT_PCB_DXF() );
+        -:  126:
+    #####:  127:    dxfJob->m_filename = m_argInput;
+    #####:  128:    dxfJob->SetConfiguredOutputPath( m_argOutput );
+    #####:  129:    dxfJob->m_drawingSheet = m_argDrawingSheet;
+    #####:  130:    dxfJob->m_sketchPadsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_PADS_ON_FAB_LAYERS );
+    #####:  131:    if( dxfJob->m_sketchPadsOnFabLayers )
+    #####:  132:        dxfJob->m_plotPadNumbers = true;
+    #####:  133:    dxfJob->m_hideDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS );
+    #####:  134:    dxfJob->m_sketchDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS );
+    #####:  135:    dxfJob->m_crossoutDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS );
+    #####:  136:    dxfJob->SetVarOverrides( m_argDefineVars );
+        -:  137:
+    #####:  138:    if( !m_argVariantNames.empty() )
+    #####:  139:        dxfJob->m_variant = m_argVariantNames.front();
+        -:  140:
+    #####:  141:    if( !wxFile::Exists( dxfJob->m_filename ) )
+        -:  142:    {
+    #####:  143:        wxFprintf( stderr, _( "Board file does not exist or is not accessible\n" ) );
+    #####:  144:        return EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:  145:    }
+        -:  146:
+    #####:  147:    dxfJob->m_plotFootprintValues = m_argParser.get<bool>( ARG_EXCLUDE_VALUE );
+    #####:  148:    dxfJob->m_plotRefDes = !m_argParser.get<bool>( ARG_EXCLUDE_REFDES );
+    #####:  149:    dxfJob->m_plotGraphicItemsUsingContours = m_argParser.get<bool>( ARG_USE_CONTOURS );
+    #####:  150:    dxfJob->m_polygonMode = m_argParser.get<bool>( ARG_USE_CONTOURS );
+    #####:  151:    dxfJob->m_useDrillOrigin = m_argParser.get<bool>( ARG_USE_DRILL_ORIGIN );
+    #####:  152:    dxfJob->m_plotDrawingSheet = m_argParser.get<bool>( ARG_INCLUDE_BORDER_TITLE );
+    #####:  153:    dxfJob->m_subtractSolderMaskFromSilk = m_argParser.get<bool>( ARG_SUBTRACT_SOLDERMASK );
+    #####:  154:    dxfJob->m_scale = m_argParser.get<double>( ARG_SCALE );
+    #####:  155:    dxfJob->m_checkZonesBeforePlot = m_argParser.get<bool>( ARG_CHECK_ZONES );
+        -:  156:
+    #####:  157:    int drillShape = m_argParser.get<int>( ARG_DRILL_SHAPE_OPTION );
+    #####:  158:    dxfJob->m_drillShapeOption = static_cast<DRILL_MARKS>( drillShape );
+        -:  159:
+    #####:  160:    wxString units = From_UTF8( m_argParser.get<std::string>( ARG_OUTPUT_UNITS ).c_str() );
+        -:  161:
+    #####:  162:    if( units == wxS( "mm" ) )
+        -:  163:    {
+    #####:  164:        dxfJob->m_dxfUnits = JOB_EXPORT_PCB_DXF::DXF_UNITS::MM;
+        -:  165:    }
+    #####:  166:    else if( units == wxS( "in" ) )
+        -:  167:    {
+    #####:  168:        dxfJob->m_dxfUnits = JOB_EXPORT_PCB_DXF::DXF_UNITS::INCH;
+        -:  169:    }
+        -:  170:    else
+        -:  171:    {
+    #####:  172:        wxFprintf( stderr, _( "Invalid units specified\n" ) );
+    #####:  173:        return EXIT_CODES::ERR_ARGS;
+        -:  174:    }
+        -:  175:
+    #####:  176:    dxfJob->m_argLayers = From_UTF8( m_argParser.get<std::string>( ARG_LAYERS ).c_str() );
+    #####:  177:    dxfJob->m_argCommonLayers = From_UTF8( m_argParser.get<std::string>( ARG_COMMON_LAYERS ).c_str() );
+        -:  178:
+    #####:  179:    if( m_argParser.get<bool>( ARG_MODE_MULTI ) )
+    #####:  180:        dxfJob->m_genMode = JOB_EXPORT_PCB_DXF::GEN_MODE::MULTI;
+    #####:  181:    else if( m_argParser.get<bool>( ARG_MODE_SINGLE ) )
+    #####:  182:        dxfJob->m_genMode = JOB_EXPORT_PCB_DXF::GEN_MODE::SINGLE;
+        -:  183:    else
+        -:  184:    {
+    #####:  185:        wxFprintf( stdout, wxT( "\033[33;1m%s\033[0m\n" ),
+    #####:  186:                   _( "This command has deprecated behavior as of KiCad 9.0, the default behavior "
+        -:  187:                      "of this command will change in a future release." ) );
+        -:  188:
+    #####:  189:        wxFprintf( stdout, wxT( "\033[33;1m%s\033[0m\n" ),
+    #####:  190:                   _( "The new behavior will match --mode-multi" ) );
+        -:  191:    }
+        -:  192:
+    #####:  193:    return aKiway.ProcessJob( KIWAY::FACE_PCB, dxfJob.get() );
+    #####:  194:}

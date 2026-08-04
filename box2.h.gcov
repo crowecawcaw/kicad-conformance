@@ -1,0 +1,999 @@
+        -:    0:Source:/src/kicad/libs/kimath/include/math/box2.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2012 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: * Copyright (C) 2013 CERN
+        -:    7: * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
+        -:    8: *
+        -:    9: * This program is free software; you can redistribute it and/or
+        -:   10: * modify it under the terms of the GNU General Public License
+        -:   11: * as published by the Free Software Foundation; either version 2
+        -:   12: * of the License, or (at your option) any later version.
+        -:   13: *
+        -:   14: * This program is distributed in the hope that it will be useful,
+        -:   15: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   16: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   17: * GNU General Public License for more details.
+        -:   18: *
+        -:   19: * You should have received a copy of the GNU General Public License
+        -:   20: * along with this program; if not, you may find one here:
+        -:   21: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   22: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   23: * or you may write to the Free Software Foundation, Inc.,
+        -:   24: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   25: */
+        -:   26:
+        -:   27:#ifndef __BOX2_H
+        -:   28:#define __BOX2_H
+        -:   29:
+        -:   30:#include <algorithm>
+        -:   31:#include <limits>
+        -:   32:#include <optional>
+        -:   33:
+        -:   34:#include <math/vector2d.h>
+        -:   35:#include <geometry/eda_angle.h>
+        -:   36:#include <core/kicad_algo.h>
+        -:   37:#include <trigo.h>
+        -:   38:
+        -:   39:/**
+        -:   40: * A 2D bounding box built on top of an origin point and size vector.
+        -:   41: */
+        -:   42:template <class Vec>
+        -:   43:class BOX2
+        -:   44:{
+        -:   45:public:
+        -:   46:    typedef typename Vec::coord_type               coord_type;
+        -:   47:    typedef typename Vec::extended_type            size_type;
+        -:   48:    typedef typename Vec::extended_type            ecoord_type;
+        -:   49:    typedef VECTOR2<size_type>                     SizeVec;
+        -:   50:    typedef std::numeric_limits<coord_type>        coord_limits;
+        -:   51:
+    #####:   52:    constexpr BOX2() :
+    #####:   53:        m_Pos( 0, 0 ),
+    #####:   54:        m_Size( 0, 0 ),
+    #####:   55:        m_init( false )
+    #####:   56:    {};
+        -:   57:
+        -:   58:    constexpr BOX2( const Vec& aPos, const SizeVec& aSize = SizeVec(0, 0) ) :
+        -:   59:        m_Pos( aPos ),
+        -:   60:        m_Size( aSize ),
+        -:   61:        m_init( true )
+        -:   62:    {
+        -:   63:        // Range check
+        -:   64:        KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.x ) + m_Size.x );
+        -:   65:        KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.y ) + m_Size.y );
+        -:   66:
+        -:   67:        Normalize();
+        -:   68:    }
+        -:   69:
+        -:   70:    static constexpr BOX2<Vec> ByCorners( const Vec& aCorner1, const Vec& aCorner2 )
+        -:   71:    {
+        -:   72:        return BOX2( aCorner1, aCorner2 - aCorner1 );
+        -:   73:    }
+        -:   74:
+        -:   75:    static constexpr BOX2<Vec> ByCenter( const Vec& aCenter, const SizeVec& aSize )
+        -:   76:    {
+        -:   77:        return BOX2( aCenter - aSize / 2, aSize );
+        -:   78:    }
+        -:   79:
+        -:   80:    constexpr void SetMaximum()
+        -:   81:    {
+        -:   82:        if constexpr( std::is_floating_point<coord_type>() )
+        -:   83:        {
+        -:   84:            m_Pos.x = m_Pos.y = coord_limits::lowest() / 2.0;
+        -:   85:            m_Size.x = m_Size.y = coord_limits::max();
+        -:   86:        }
+        -:   87:        else
+        -:   88:        {
+        -:   89:            // We want to be able to invert the box, so don't use lowest()
+        -:   90:            m_Pos.x = m_Pos.y = -coord_limits::max();
+        -:   91:            m_Size.x = m_Size.y = size_type( coord_limits::max() ) + coord_limits::max();
+        -:   92:        }
+        -:   93:
+        -:   94:        m_init = true;
+        -:   95:    }
+        -:   96:
+        -:   97:    constexpr Vec Centre() const
+        -:   98:    {
+        -:   99:        return Vec( KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.x ) + m_Size.x / 2 ),
+        -:  100:                    KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.y ) + m_Size.y / 2 ) );
+        -:  101:    }
+        -:  102:
+        -:  103:    /**
+        -:  104:     * Compute the bounding box from a given list of points.
+        -:  105:     *
+        -:  106:     * @param aPointList is the list points of the object.
+        -:  107:     */
+        -:  108:    template <class Container>
+        -:  109:    void Compute( const Container& aPointList )
+        -:  110:    {
+        -:  111:        Vec vmin, vmax;
+        -:  112:
+        -:  113:        typename Container::const_iterator i;
+        -:  114:
+        -:  115:        if( !aPointList.size() )
+        -:  116:            return;
+        -:  117:
+        -:  118:        vmin = vmax = aPointList[0];
+        -:  119:
+        -:  120:        for( i = aPointList.begin(); i != aPointList.end(); ++i )
+        -:  121:        {
+        -:  122:            Vec p( *i );
+        -:  123:            vmin.x  = std::min( vmin.x, p.x );
+        -:  124:            vmin.y  = std::min( vmin.y, p.y );
+        -:  125:            vmax.x  = std::max( vmax.x, p.x );
+        -:  126:            vmax.y  = std::max( vmax.y, p.y );
+        -:  127:        }
+        -:  128:
+        -:  129:        SetOrigin( vmin );
+        -:  130:        SetSize( vmax - vmin );
+        -:  131:    }
+        -:  132:
+        -:  133:    /**
+        -:  134:     * Move the rectangle by the \a aMoveVector.
+        -:  135:     *
+        -:  136:     * @param aMoveVector is a point that is the value to move this rectangle.
+        -:  137:     */
+        -:  138:    constexpr void Move( const Vec& aMoveVector )
+        -:  139:    {
+        -:  140:        m_Pos += aMoveVector;
+        -:  141:    }
+        -:  142:
+        -:  143:    /**
+        -:  144:     * Ensure that the height and width are positive.
+        -:  145:     */
+        -:  146:    constexpr BOX2<Vec>& Normalize()
+        -:  147:    {
+        -:  148:        if( m_Size.y < 0 )
+        -:  149:        {
+        -:  150:            m_Size.y = -m_Size.y;
+        -:  151:            m_Pos.y = KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.y ) - m_Size.y );
+        -:  152:        }
+        -:  153:
+        -:  154:        if( m_Size.x < 0 )
+        -:  155:        {
+        -:  156:            m_Size.x = -m_Size.x;
+        -:  157:            m_Pos.x = KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.x ) - m_Size.x );
+        -:  158:        }
+        -:  159:
+        -:  160:        return *this;
+        -:  161:    }
+        -:  162:
+        -:  163:    /**
+        -:  164:     * @param aPoint is the point to test.
+        -:  165:     *
+        -:  166:     * @return true if \a aPoint is inside the boundary box. A point on a edge is seen as inside.
+        -:  167:     */
+        -:  168:    constexpr bool Contains( const Vec& aPoint ) const
+        -:  169:    {
+        -:  170:        Vec rel_pos = aPoint - m_Pos;
+        -:  171:        Vec size    = m_Size;
+        -:  172:
+        -:  173:        if( size.x < 0 )
+        -:  174:        {
+        -:  175:            size.x    = -size.x;
+        -:  176:            rel_pos.x += size.x;
+        -:  177:        }
+        -:  178:
+        -:  179:        if( size.y < 0 )
+        -:  180:        {
+        -:  181:            size.y    = -size.y;
+        -:  182:            rel_pos.y += size.y;
+        -:  183:        }
+        -:  184:
+        -:  185:        return ( rel_pos.x >= 0 ) && ( rel_pos.y >= 0 ) && ( rel_pos.y <= size.y) &&
+        -:  186:               ( rel_pos.x <= size.x);
+        -:  187:    }
+        -:  188:
+        -:  189:    /**
+        -:  190:     * @param x is the x coordinate of the point to test.
+        -:  191:     * @param y is the x coordinate of the point to test.
+        -:  192:     * @return true if point is inside the boundary box. A point on a edge is seen as inside.
+        -:  193:     */
+        -:  194:    constexpr bool Contains( coord_type x, coord_type y ) const { return Contains( Vec( x, y ) ); }
+        -:  195:
+        -:  196:    /**
+        -:  197:     * @param aRect is the the area to test.
+        -:  198:     *
+        -:  199:     * @return true if \a aRect is contained. A common edge is seen as contained.
+        -:  200:     */
+        -:  201:    constexpr bool Contains( const BOX2<Vec>& aRect ) const
+        -:  202:    {
+        -:  203:        return Contains( aRect.GetOrigin() ) && Contains( aRect.GetEnd() );
+        -:  204:    }
+        -:  205:
+        -:  206:    constexpr const SizeVec& GetSize() const { return m_Size; }
+        -:  207:    constexpr coord_type GetX() const { return m_Pos.x; }
+        -:  208:    constexpr coord_type GetY() const { return m_Pos.y; }
+        -:  209:
+        -:  210:    constexpr const Vec& GetOrigin() const { return m_Pos; }
+        -:  211:    constexpr const Vec& GetPosition() const { return m_Pos; }
+        -:  212:    constexpr const Vec GetEnd() const { return Vec( GetRight(), GetBottom() ); }
+        -:  213:
+        -:  214:    constexpr size_type GetWidth() const { return m_Size.x; }
+        -:  215:    constexpr size_type GetHeight() const { return m_Size.y; }
+        -:  216:
+        -:  217:    constexpr coord_type GetRight() const
+        -:  218:    {
+        -:  219:        return KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.x ) + m_Size.x );
+        -:  220:    }
+        -:  221:
+        -:  222:    constexpr coord_type GetBottom() const
+        -:  223:    {
+        -:  224:        return KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.y ) + m_Size.y );
+        -:  225:    }
+        -:  226:
+        -:  227:    // Compatibility aliases
+        -:  228:    constexpr coord_type GetLeft() const { return GetX(); }
+        -:  229:    constexpr coord_type GetTop() const { return GetY(); }
+        -:  230:    constexpr const Vec GetCenter() const { return Centre(); }
+        -:  231:
+        -:  232:    /**
+        -:  233:     * @return the width or height, whichever is greater.
+        -:  234:     */
+        -:  235:    constexpr int GetSizeMax() const { return ( m_Size.x > m_Size.y ) ? m_Size.x : m_Size.y; }
+        -:  236:
+        -:  237:    constexpr void SetOrigin( const Vec& pos )
+        -:  238:    {
+        -:  239:        m_Pos = pos;
+        -:  240:        m_init = true;
+        -:  241:    }
+        -:  242:
+        -:  243:    constexpr void SetOrigin( coord_type x, coord_type y )
+        -:  244:    {
+        -:  245:        SetOrigin( Vec( x, y ) );
+        -:  246:    }
+        -:  247:
+        -:  248:    constexpr void SetSize( const SizeVec& size )
+        -:  249:    {
+        -:  250:        m_Size = size;
+        -:  251:        m_init = true;
+        -:  252:    }
+        -:  253:
+        -:  254:    constexpr void SetSize( size_type w, size_type h )
+        -:  255:    {
+        -:  256:        SetSize( SizeVec( w, h ) );
+        -:  257:    }
+        -:  258:
+        -:  259:    constexpr void Offset( coord_type dx, coord_type dy )
+        -:  260:    {
+        -:  261:        m_Pos.x += dx;
+        -:  262:        m_Pos.y += dy;
+        -:  263:    }
+        -:  264:
+        -:  265:    constexpr void Offset( const Vec& offset )
+        -:  266:    {
+        -:  267:        Offset( offset.x, offset.y );
+        -:  268:    }
+        -:  269:
+        -:  270:    constexpr BOX2<Vec> GetWithOffset( const Vec& aMoveVector ) const
+        -:  271:    {
+        -:  272:        BOX2<Vec> ret( *this );
+        -:  273:        ret.Move( aMoveVector );
+        -:  274:        return ret;
+        -:  275:    }
+        -:  276:
+        -:  277:    constexpr void SetX( coord_type val )
+        -:  278:    {
+        -:  279:        SetOrigin( val, m_Pos.y );
+        -:  280:    }
+        -:  281:
+        -:  282:    constexpr void SetY( coord_type val )
+        -:  283:    {
+        -:  284:        SetOrigin( m_Pos.x, val );
+        -:  285:    }
+        -:  286:
+        -:  287:    constexpr void SetWidth( size_type val )
+        -:  288:    {
+        -:  289:        SetSize( val, m_Size.y );
+        -:  290:    }
+        -:  291:
+        -:  292:    constexpr void SetHeight( size_type val )
+        -:  293:    {
+        -:  294:        SetSize( m_Size.x, val );
+        -:  295:    }
+        -:  296:
+        -:  297:    constexpr void SetEnd( coord_type x, coord_type y )
+        -:  298:    {
+        -:  299:        SetEnd( Vec( x, y ) );
+        -:  300:    }
+        -:  301:
+        -:  302:    constexpr void SetEnd( const Vec& pos )
+        -:  303:    {
+        -:  304:        SetSize( SizeVec( pos ) - m_Pos );
+        -:  305:    }
+        -:  306:
+        -:  307:    /**
+        -:  308:     * @return true if the argument rectangle intersects this rectangle.
+        -:  309:     *         (i.e. if the 2 rectangles have at least a common point)
+        -:  310:     */
+        -:  311:    constexpr bool Intersects( const BOX2<Vec>& aRect ) const
+        -:  312:    {
+        -:  313:        // this logic taken from wxWidgets' geometry.cpp file:
+        -:  314:        bool        rc;
+        -:  315:
+        -:  316:        BOX2<Vec>   me( *this );
+        -:  317:        BOX2<Vec>   rect( aRect );
+        -:  318:        me.Normalize();         // ensure size is >= 0
+        -:  319:        rect.Normalize();       // ensure size is >= 0
+        -:  320:
+        -:  321:        // calculate the left common area coordinate:
+        -:  322:        ecoord_type left = std::max( me.m_Pos.x, rect.m_Pos.x );
+        -:  323:
+        -:  324:        // calculate the right common area coordinate:
+        -:  325:        ecoord_type right = std::min( ecoord_type( me.m_Pos.x ) + me.m_Size.x,
+        -:  326:                                      ecoord_type( rect.m_Pos.x ) + rect.m_Size.x );
+        -:  327:
+        -:  328:        // calculate the upper common area coordinate:
+        -:  329:        ecoord_type top = std::max( me.m_Pos.y, rect.m_Pos.y );
+        -:  330:
+        -:  331:        // calculate the lower common area coordinate:
+        -:  332:        ecoord_type bottom = std::min( ecoord_type( me.m_Pos.y ) + me.m_Size.y,
+        -:  333:                                       ecoord_type( rect.m_Pos.y ) + rect.m_Size.y );
+        -:  334:
+        -:  335:        // if a common area exists, it must have a positive (null accepted) size
+        -:  336:        if( left <= right && top <= bottom )
+        -:  337:            rc = true;
+        -:  338:        else
+        -:  339:            rc = false;
+        -:  340:
+        -:  341:        return rc;
+        -:  342:    }
+        -:  343:
+        -:  344:    /**
+        -:  345:     * @return true if this rectangle intersects \a aRect.
+        -:  346:     */
+        -:  347:    constexpr BOX2<Vec> Intersect( const BOX2<Vec>& aRect )
+        -:  348:    {
+        -:  349:        BOX2<Vec> me( *this );
+        -:  350:        BOX2<Vec> rect( aRect );
+        -:  351:        me.Normalize();         // ensure size is >= 0
+        -:  352:        rect.Normalize();       // ensure size is >= 0
+        -:  353:
+        -:  354:        Vec topLeft, bottomRight;
+        -:  355:
+        -:  356:        topLeft.x = std::max( me.m_Pos.x, rect.m_Pos.x );
+        -:  357:
+        -:  358:        bottomRight.x = std::min( size_type( me.m_Pos.x ) + me.m_Size.x,
+        -:  359:                                  size_type( rect.m_Pos.x ) + rect.m_Size.x );
+        -:  360:
+        -:  361:        topLeft.y = std::max( me.m_Pos.y, rect.m_Pos.y );
+        -:  362:
+        -:  363:        bottomRight.y = std::min( size_type( me.m_Pos.y ) + me.m_Size.y,
+        -:  364:                                  size_type( rect.m_Pos.y ) + rect.m_Size.y );
+        -:  365:
+        -:  366:        if( topLeft.x < bottomRight.x && topLeft.y < bottomRight.y )
+        -:  367:            return BOX2<Vec>( topLeft, SizeVec( bottomRight ) - topLeft );
+        -:  368:        else
+        -:  369:            return BOX2<Vec>( Vec( 0, 0 ), SizeVec( 0, 0 ) );
+        -:  370:    }
+        -:  371:
+        -:  372:    /**
+        -:  373:     * @return true if this rectangle intersects a line from \a aPoint1 to \a aPoint2
+        -:  374:     */
+        -:  375:    bool Intersects( const Vec& aPoint1, const Vec& aPoint2 ) const
+        -:  376:    {
+        -:  377:        Vec point2, point4;
+        -:  378:
+        -:  379:        if( Contains( aPoint1 ) || Contains( aPoint2 ) )
+        -:  380:            return true;
+        -:  381:
+        -:  382:        point2.x = GetEnd().x;
+        -:  383:        point2.y = GetOrigin().y;
+        -:  384:        point4.x = GetOrigin().x;
+        -:  385:        point4.y = GetEnd().y;
+        -:  386:
+        -:  387:        //Only need to test 3 sides since a straight line can't enter and exit on same side
+        -:  388:        if( SegmentIntersectsSegment( aPoint1, aPoint2, GetOrigin(), point2 ) )
+        -:  389:            return true;
+        -:  390:
+        -:  391:        if( SegmentIntersectsSegment( aPoint1, aPoint2, point2, GetEnd() ) )
+        -:  392:            return true;
+        -:  393:
+        -:  394:        if( SegmentIntersectsSegment( aPoint1, aPoint2, GetEnd(), point4 ) )
+        -:  395:            return true;
+        -:  396:
+        -:  397:        return false;
+        -:  398:    }
+        -:  399:
+        -:  400:    /**
+        -:  401:     * @return true if this rectangle intersects a rotated rect given by \a aRect and
+        -:  402:     *         \a aRotaiton.
+        -:  403:     */
+        -:  404:    bool Intersects( const BOX2<Vec>& aRect, const EDA_ANGLE& aRotation ) const
+        -:  405:    {
+        -:  406:        if( !m_init )
+        -:  407:            return false;
+        -:  408:
+        -:  409:        EDA_ANGLE rotation = aRotation;
+        -:  410:        rotation.Normalize();
+        -:  411:
+        -:  412:        /*
+        -:  413:         * Most rectangles will be axis aligned.  It is quicker to check for this case and pass
+        -:  414:         * the rect to the simpler intersection test.
+        -:  415:         */
+        -:  416:
+        -:  417:        // Prevent floating point comparison errors
+        -:  418:        static const EDA_ANGLE ROT_EPSILON( 0.000000001, DEGREES_T );
+        -:  419:
+        -:  420:        static const EDA_ANGLE ROT_PARALLEL[]      = { ANGLE_0, ANGLE_180, ANGLE_360 };
+        -:  421:        static const EDA_ANGLE ROT_PERPENDICULAR[] = { ANGLE_0, ANGLE_90,  ANGLE_270 };
+        -:  422:
+        -:  423:        // Test for non-rotated rectangle
+        -:  424:        for( EDA_ANGLE ii : ROT_PARALLEL )
+        -:  425:        {
+        -:  426:            if( std::abs( rotation - ii ) < ROT_EPSILON )
+        -:  427:                return Intersects( aRect );
+        -:  428:        }
+        -:  429:
+        -:  430:        // Test for rectangle rotated by multiple of 90 degrees
+        -:  431:        for( EDA_ANGLE jj : ROT_PERPENDICULAR )
+        -:  432:        {
+        -:  433:            if( std::abs( rotation - jj ) < ROT_EPSILON )
+        -:  434:            {
+        -:  435:                BOX2<Vec> rotRect;
+        -:  436:
+        -:  437:                // Rotate the supplied rect by 90 degrees
+        -:  438:                rotRect.SetOrigin( aRect.Centre() );
+        -:  439:                rotRect.Inflate( aRect.GetHeight(), aRect.GetWidth() );
+        -:  440:                return Intersects( rotRect );
+        -:  441:            }
+        -:  442:        }
+        -:  443:
+        -:  444:        /* There is some non-orthogonal rotation.
+        -:  445:         * There are three cases to test:
+        -:  446:         * A) One point of this rect is inside the rotated rect
+        -:  447:         * B) One point of the rotated rect is inside this rect
+        -:  448:         * C) One of the sides of the rotated rect intersect this
+        -:  449:         */
+        -:  450:
+        -:  451:        VECTOR2I corners[4];
+        -:  452:
+        -:  453:        /* Test A : Any corners exist in rotated rect? */
+        -:  454:        corners[0] = VECTOR2I( GetLeft(), GetTop() );
+        -:  455:        corners[1] = VECTOR2I( GetRight(), GetTop() );
+        -:  456:        corners[2] = VECTOR2I( GetRight(), GetBottom() );
+        -:  457:        corners[3] = VECTOR2I( GetLeft(), GetBottom() );
+        -:  458:
+        -:  459:        VECTOR2I rCentre = aRect.Centre();
+        -:  460:
+        -:  461:        for( int i = 0; i < 4; i++ )
+        -:  462:        {
+        -:  463:            VECTOR2I delta = corners[i] - rCentre;
+        -:  464:            RotatePoint( delta, -rotation );
+        -:  465:            delta += rCentre;
+        -:  466:
+        -:  467:            if( aRect.Contains( delta ) )
+        -:  468:                return true;
+        -:  469:        }
+        -:  470:
+        -:  471:        /* Test B : Any corners of rotated rect exist in this one? */
+        -:  472:        int w = KiCheckedCast<ecoord_type, coord_type>( aRect.GetWidth() / 2 );
+        -:  473:        int h = KiCheckedCast<ecoord_type, coord_type>( aRect.GetHeight() / 2 );
+        -:  474:
+        -:  475:        // Construct corners around center of shape
+        -:  476:        corners[0] = VECTOR2I( -w, -h );
+        -:  477:        corners[1] = VECTOR2I( w, -h );
+        -:  478:        corners[2] = VECTOR2I( w, h );
+        -:  479:        corners[3] = VECTOR2I( -w, h );
+        -:  480:
+        -:  481:        // Rotate and test each corner
+        -:  482:        for( int j = 0; j < 4; j++ )
+        -:  483:        {
+        -:  484:            RotatePoint( corners[j], rotation );
+        -:  485:            corners[j] += rCentre;
+        -:  486:
+        -:  487:            if( Contains( corners[j] ) )
+        -:  488:                return true;
+        -:  489:        }
+        -:  490:
+        -:  491:        /* Test C : Any sides of rotated rect intersect this */
+        -:  492:        if( Intersects( corners[0], corners[1] ) || Intersects( corners[1], corners[2] )
+        -:  493:                || Intersects( corners[2], corners[3] ) || Intersects( corners[3], corners[0] ) )
+        -:  494:        {
+        -:  495:            return true;
+        -:  496:        }
+        -:  497:
+        -:  498:        return false;
+        -:  499:    }
+        -:  500:
+        -:  501:    /**
+        -:  502:     * @return true if this rectangle intersects the circle defined by \a aCenter and \a aRadius.
+        -:  503:     */
+        -:  504:    bool IntersectsCircle( const Vec& aCenter, const int aRadius ) const
+        -:  505:    {
+        -:  506:        if( !m_init )
+        -:  507:            return false;
+        -:  508:
+        -:  509:        Vec closest = NearestPoint( aCenter );
+        -:  510:
+        -:  511:        double dx = static_cast<double>( aCenter.x ) - closest.x;
+        -:  512:        double dy = static_cast<double>( aCenter.y ) - closest.y;
+        -:  513:
+        -:  514:        double r = static_cast<double>( aRadius );
+        -:  515:
+        -:  516:        return ( dx * dx + dy * dy ) <= ( r * r );
+        -:  517:    }
+        -:  518:
+        -:  519:    /**
+        -:  520:     * @return true if this rectangle intersects the edge of a circle defined by \a aCenter
+        -:  521:     *         and \a aRadius.
+        -:  522:     */
+        -:  523:    bool IntersectsCircleEdge( const Vec& aCenter, const int aRadius, const int aWidth ) const
+        -:  524:    {
+        -:  525:        if( !m_init )
+        -:  526:            return false;
+        -:  527:
+        -:  528:        BOX2<Vec> me( *this );
+        -:  529:        me.Normalize(); // ensure size is >= 0
+        -:  530:
+        -:  531:        // Test if the circle intersects at all
+        -:  532:        if( !IntersectsCircle( aCenter, aRadius + aWidth / 2 ) )
+        -:  533:            return false;
+        -:  534:
+        -:  535:        Vec farpt = FarthestPointTo( aCenter );
+        -:  536:        // Farthest point must be further than the inside of the line
+        -:  537:        double fx = (double) farpt.x - aCenter.x;
+        -:  538:        double fy = (double) farpt.y - aCenter.y;
+        -:  539:
+        -:  540:        double r = (double) aRadius - (double) aWidth / 2;
+        -:  541:
+        -:  542:        return ( fx * fx + fy * fy ) > ( r * r );
+        -:  543:    }
+        -:  544:
+        -:  545:    const std::string Format() const
+        -:  546:    {
+        -:  547:        std::stringstream ss;
+        -:  548:
+        -:  549:        ss << "( box corner " << m_Pos.Format() << " w " << m_Size.x << " h " << m_Size.y << " )";
+        -:  550:
+        -:  551:        return ss.str();
+        -:  552:    }
+        -:  553:
+        -:  554:    /**
+        -:  555:     * Inflates the rectangle horizontally by \a dx and vertically by \a dy. If \a dx
+        -:  556:     * and/or \a dy is negative the rectangle is deflated.
+        -:  557:     */
+        -:  558:    constexpr BOX2<Vec>& Inflate( coord_type dx, coord_type dy )
+        -:  559:    {
+        -:  560:        if( m_Size.x >= 0 )
+        -:  561:        {
+        -:  562:            if( m_Size.x < -2 * dx )
+        -:  563:            {
+        -:  564:                // Don't allow deflate to eat more width than we have,
+        -:  565:                m_Pos.x = KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.x ) + m_Size.x / 2 );
+        -:  566:                m_Size.x = 0;
+        -:  567:            }
+        -:  568:            else
+        -:  569:            {
+        -:  570:                // The inflate is valid.
+        -:  571:                m_Pos.x  -= dx;
+        -:  572:                m_Size.x +=  2 * dx;
+        -:  573:            }
+        -:  574:        }
+        -:  575:        else    // size.x < 0:
+        -:  576:        {
+        -:  577:            if( m_Size.x > 2 * dx )
+        -:  578:            {
+        -:  579:                // Don't allow deflate to eat more width than we have,
+        -:  580:                m_Pos.x = KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.x ) - m_Size.x / 2 );
+        -:  581:                m_Size.x = 0;
+        -:  582:            }
+        -:  583:            else
+        -:  584:            {
+        -:  585:                // The inflate is valid.
+        -:  586:                m_Pos.x  += dx;
+        -:  587:                m_Size.x -= 2 * dx; // m_Size.x <0: inflate when dx > 0
+        -:  588:            }
+        -:  589:        }
+        -:  590:
+        -:  591:        if( m_Size.y >= 0 )
+        -:  592:        {
+        -:  593:            if( m_Size.y < -2 * dy )
+        -:  594:            {
+        -:  595:                // Don't allow deflate to eat more height than we have,
+        -:  596:                m_Pos.y = KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.y ) + m_Size.y / 2 );
+        -:  597:                m_Size.y = 0;
+        -:  598:            }
+        -:  599:            else
+        -:  600:            {
+        -:  601:                // The inflate is valid.
+        -:  602:                m_Pos.y  -= dy;
+        -:  603:                m_Size.y += 2 * dy;
+        -:  604:            }
+        -:  605:        }
+        -:  606:        else    // size.y < 0:
+        -:  607:        {
+        -:  608:            if( m_Size.y > 2 * dy )
+        -:  609:            {
+        -:  610:                // Don't allow deflate to eat more height than we have,
+        -:  611:                m_Pos.y = KiCheckedCast<ecoord_type, coord_type>( ecoord_type( m_Pos.y ) - m_Size.y / 2 );
+        -:  612:                m_Size.y = 0;
+        -:  613:            }
+        -:  614:            else
+        -:  615:            {
+        -:  616:                // The inflate is valid.
+        -:  617:                m_Pos.y  += dy;
+        -:  618:                m_Size.y -= 2 * dy; // m_Size.y <0: inflate when dy > 0
+        -:  619:            }
+        -:  620:        }
+        -:  621:
+        -:  622:        return *this;
+        -:  623:    }
+        -:  624:
+        -:  625:    /**
+        -:  626:     * Inflate the rectangle horizontally and vertically by \a aDelta. If \a aDelta
+        -:  627:     * is negative the rectangle is deflated.
+        -:  628:     */
+        -:  629:    constexpr BOX2<Vec>& Inflate( coord_type aDelta )
+        -:  630:    {
+        -:  631:        Inflate( aDelta, aDelta );
+        -:  632:        return *this;
+        -:  633:    }
+        -:  634:
+        -:  635:    /**
+        -:  636:     * Get a new rectangle that is this one, inflated by \a aDx and \a aDy.
+        -:  637:     */
+        -:  638:    constexpr BOX2<Vec> GetInflated( coord_type aDx, coord_type aDy ) const
+        -:  639:    {
+        -:  640:        BOX2<Vec> ret( *this );
+        -:  641:        ret.Inflate( aDx, aDy );
+        -:  642:        return ret;
+        -:  643:    }
+        -:  644:
+        -:  645:    /**
+        -:  646:     * Get a new rectangle that is this one, inflated by \a aDelta.
+        -:  647:     */
+        -:  648:    constexpr BOX2<Vec> GetInflated( coord_type aDelta ) const
+        -:  649:    {
+        -:  650:        return GetInflated( aDelta, aDelta );
+        -:  651:    }
+        -:  652:
+        -:  653:    /**
+        -:  654:     * Modify the position and size of the rectangle in order to contain \a aRect.
+        -:  655:     *
+        -:  656:     * @param aRect is the rectangle to merge with this rectangle.
+        -:  657:     */
+        -:  658:    constexpr BOX2<Vec>& Merge( const BOX2<Vec>& aRect )
+        -:  659:    {
+        -:  660:        if( !m_init )
+        -:  661:        {
+        -:  662:            if( aRect.m_init )
+        -:  663:            {
+        -:  664:                m_Pos  = aRect.GetPosition();
+        -:  665:                m_Size = aRect.GetSize();
+        -:  666:                m_init = true;
+        -:  667:            }
+        -:  668:
+        -:  669:            return *this;
+        -:  670:        }
+        -:  671:
+        -:  672:        Normalize();        // ensure width and height >= 0
+        -:  673:        BOX2<Vec> rect = aRect;
+        -:  674:        rect.Normalize();   // ensure width and height >= 0
+        -:  675:        Vec  end = GetEnd();
+        -:  676:        Vec  rect_end = rect.GetEnd();
+        -:  677:
+        -:  678:        // Change origin and size in order to contain the given rect
+        -:  679:        m_Pos.x = std::min( m_Pos.x, rect.m_Pos.x );
+        -:  680:        m_Pos.y = std::min( m_Pos.y, rect.m_Pos.y );
+        -:  681:        end.x   = std::max( end.x, rect_end.x );
+        -:  682:        end.y   = std::max( end.y, rect_end.y );
+        -:  683:        SetEnd( end );
+        -:  684:        return *this;
+        -:  685:    }
+        -:  686:
+        -:  687:    /**
+        -:  688:     * Modify the position and size of the rectangle in order to contain the given point.
+        -:  689:     *
+        -:  690:     * @param aPoint is the point to merge with the rectangle.
+        -:  691:     */
+        -:  692:    constexpr BOX2<Vec>& Merge( const Vec& aPoint )
+        -:  693:    {
+        -:  694:        if( !m_init )
+        -:  695:        {
+        -:  696:            m_Pos  = aPoint;
+        -:  697:            m_Size = VECTOR2I( 0, 0 );
+        -:  698:            m_init = true;
+        -:  699:            return *this;
+        -:  700:        }
+        -:  701:
+        -:  702:        Normalize();        // ensure width and height >= 0
+        -:  703:
+        -:  704:        Vec end = GetEnd();
+        -:  705:
+        -:  706:        // Change origin and size in order to contain the given rectangle.
+        -:  707:        m_Pos.x = std::min( m_Pos.x, aPoint.x );
+        -:  708:        m_Pos.y = std::min( m_Pos.y, aPoint.y );
+        -:  709:        end.x   = std::max( end.x, aPoint.x );
+        -:  710:        end.y   = std::max( end.y, aPoint.y );
+        -:  711:        SetEnd( end );
+        -:  712:        return *this;
+        -:  713:    }
+        -:  714:
+        -:  715:    /**
+        -:  716:     * Useful to calculate bounding box of rotated items, when rotation is not cardinal.
+        -:  717:     *
+        -:  718:     * @return the bounding box of this, after rotation.
+        -:  719:     */
+        -:  720:    const BOX2<Vec> GetBoundingBoxRotated( const VECTOR2I& aRotCenter,
+        -:  721:                                           const EDA_ANGLE& aAngle ) const
+        -:  722:    {
+        -:  723:        VECTOR2I corners[4];
+        -:  724:
+        -:  725:        // Build the corners list
+        -:  726:        corners[0]   = GetOrigin();
+        -:  727:        corners[2]   = GetEnd();
+        -:  728:        corners[1].x = corners[0].x;
+        -:  729:        corners[1].y = corners[2].y;
+        -:  730:        corners[3].x = corners[2].x;
+        -:  731:        corners[3].y = corners[0].y;
+        -:  732:
+        -:  733:        // Rotate all corners, to find the bounding box
+        -:  734:        for( int ii = 0; ii < 4; ii++ )
+        -:  735:            RotatePoint( corners[ii], aRotCenter, aAngle );
+        -:  736:
+        -:  737:        // Find the corners bounding box
+        -:  738:        VECTOR2I start = corners[0];
+        -:  739:        VECTOR2I end = corners[0];
+        -:  740:
+        -:  741:        for( int ii = 1; ii < 4; ii++ )
+        -:  742:        {
+        -:  743:            start.x = std::min( start.x, corners[ii].x );
+        -:  744:            start.y = std::min( start.y, corners[ii].y );
+        -:  745:            end.x   = std::max( end.x, corners[ii].x );
+        -:  746:            end.y   = std::max( end.y, corners[ii].y );
+        -:  747:        }
+        -:  748:
+        -:  749:        BOX2<Vec> bbox;
+        -:  750:        bbox.SetOrigin( start );
+        -:  751:        bbox.SetEnd( end );
+        -:  752:
+        -:  753:        return bbox;
+        -:  754:    }
+        -:  755:
+        -:  756:    /**
+        -:  757:     * Return the area of the rectangle.
+        -:  758:     *
+        -:  759:     * @return The area of the rectangle.
+        -:  760:     */
+        -:  761:    constexpr ecoord_type GetArea() const
+        -:  762:    {
+        -:  763:        return (ecoord_type) GetWidth() * (ecoord_type) GetHeight();
+        -:  764:    }
+        -:  765:
+        -:  766:    /**
+        -:  767:     * Return the length of the diagonal of the rectangle.
+        -:  768:     *
+        -:  769:     * @return The length of the rectangle diagonal.
+        -:  770:     */
+        -:  771:    ecoord_type Diagonal() const
+        -:  772:    {
+        -:  773:        return m_Size.EuclideanNorm();
+        -:  774:    }
+        -:  775:
+        -:  776:    /**
+        -:  777:     * Return the square of the length of the diagonal of the rectangle.
+        -:  778:     *
+        -:  779:     * When all you need is a comparison, this is faster than Diagonal().
+        -:  780:     */
+        -:  781:    constexpr ecoord_type SquaredDiagonal() const
+        -:  782:    {
+        -:  783:        return m_Size.SquaredEuclideanNorm();
+        -:  784:    }
+        -:  785:
+        -:  786:    constexpr ecoord_type SquaredDistance( const Vec& aP ) const
+        -:  787:    {
+        -:  788:        ecoord_type x2 = m_Pos.x + m_Size.x;
+        -:  789:        ecoord_type y2 = m_Pos.y + m_Size.y;
+        -:  790:        ecoord_type xdiff = std::max( aP.x < m_Pos.x ? m_Pos.x - aP.x : m_Pos.x - x2,
+        -:  791:                                      (ecoord_type) 0 );
+        -:  792:        ecoord_type ydiff = std::max( aP.y < m_Pos.y ? m_Pos.y - aP.y : m_Pos.y - y2,
+        -:  793:                                      (ecoord_type) 0 );
+        -:  794:        return xdiff * xdiff + ydiff * ydiff;
+        -:  795:    }
+        -:  796:
+        -:  797:    ecoord_type Distance( const Vec& aP ) const
+        -:  798:    {
+        -:  799:        return sqrt( SquaredDistance( aP ) );
+        -:  800:    }
+        -:  801:
+        -:  802:    /**
+        -:  803:     * Return the square of the minimum distance between self and box \a aBox
+        -:  804:     *
+        -:  805:     * @param aBox is the other box.
+        -:  806:     * @return The distance squared from \a aBox.
+        -:  807:     */
+        -:  808:    constexpr ecoord_type SquaredDistance( const BOX2<Vec>& aBox ) const
+        -:  809:    {
+        -:  810:        ecoord_type s = 0;
+        -:  811:
+        -:  812:        if( aBox.m_Pos.x + aBox.m_Size.x < m_Pos.x )
+        -:  813:        {
+        -:  814:            ecoord_type d = aBox.m_Pos.x + aBox.m_Size.x - m_Pos.x;
+        -:  815:            s += d * d;
+        -:  816:        }
+        -:  817:        else if( aBox.m_Pos.x > m_Pos.x + m_Size.x )
+        -:  818:        {
+        -:  819:            ecoord_type d = aBox.m_Pos.x - m_Size.x - m_Pos.x;
+        -:  820:            s += d * d;
+        -:  821:        }
+        -:  822:
+        -:  823:        if( aBox.m_Pos.y + aBox.m_Size.y < m_Pos.y )
+        -:  824:        {
+        -:  825:            ecoord_type d = aBox.m_Pos.y + aBox.m_Size.y - m_Pos.y;
+        -:  826:            s += d * d;
+        -:  827:        }
+        -:  828:        else if( aBox.m_Pos.y > m_Pos.y + m_Size.y )
+        -:  829:        {
+        -:  830:            ecoord_type d = aBox.m_Pos.y - m_Size.y - m_Pos.y;
+        -:  831:            s += d * d;
+        -:  832:        }
+        -:  833:
+        -:  834:        return s;
+        -:  835:    }
+        -:  836:
+        -:  837:    /**
+        -:  838:     * Return the minimum distance between self and \a aBox.
+        -:  839:     *
+        -:  840:     * @param aBox is the other box to get the distance from.
+        -:  841:     * @return The distance from \a aBox.
+        -:  842:     */
+        -:  843:    ecoord_type Distance( const BOX2<Vec>& aBox ) const
+        -:  844:    {
+        -:  845:        return sqrt( SquaredDistance( aBox ) );
+        -:  846:    }
+        -:  847:
+        -:  848:    /**
+        -:  849:     * Return the point in this rect that is closest to the provided point
+        -:  850:     */
+        -:  851:    constexpr Vec NearestPoint( const Vec& aPoint ) const
+        -:  852:    {
+        -:  853:        BOX2<Vec> me( *this );
+        -:  854:
+        -:  855:        me.Normalize(); // ensure size is >= 0
+        -:  856:
+        -:  857:        // Determine closest point to the circle centre within this rect
+        -:  858:        const coord_type nx = std::clamp( aPoint.x, me.GetLeft(), me.GetRight() );
+        -:  859:        const coord_type ny = std::clamp( aPoint.y, me.GetTop(), me.GetBottom() );
+        -:  860:
+        -:  861:        return Vec( nx, ny );
+        -:  862:    }
+        -:  863:
+        -:  864:    /**
+        -:  865:     * Return the point in this rect that is farthest from the provided point
+        -:  866:     */
+        -:  867:    constexpr Vec FarthestPointTo( const Vec& aPoint ) const
+        -:  868:    {
+        -:  869:        BOX2<Vec> me( *this );
+        -:  870:
+        -:  871:        me.Normalize(); // ensure size is >= 0
+        -:  872:
+        -:  873:        coord_type fx;
+        -:  874:        coord_type fy;
+        -:  875:
+        -:  876:        Vec center = me.GetCenter();
+        -:  877:
+        -:  878:        if( aPoint.x < center.x )
+        -:  879:            fx = me.GetRight();
+        -:  880:        else
+        -:  881:            fx = me.GetLeft();
+        -:  882:
+        -:  883:        if( aPoint.y < center.y )
+        -:  884:            fy = me.GetBottom();
+        -:  885:        else
+        -:  886:            fy = me.GetTop();
+        -:  887:
+        -:  888:        return Vec( fx, fy );
+        -:  889:    }
+        -:  890:
+        -:  891:    constexpr bool operator==( const BOX2<Vec>& aOther ) const
+        -:  892:    {
+        -:  893:        auto t1 ( *this );
+        -:  894:        auto t2 ( aOther );
+        -:  895:        t1.Normalize();
+        -:  896:        t2.Normalize();
+        -:  897:        return ( t1.m_Pos == t2.m_Pos && t1.m_Size == t2.m_Size );
+        -:  898:    }
+        -:  899:
+        -:  900:    constexpr bool operator!=( const BOX2<Vec>& aOther ) const
+        -:  901:    {
+        -:  902:        auto t1 ( *this );
+        -:  903:        auto t2 ( aOther );
+        -:  904:        t1.Normalize();
+        -:  905:        t2.Normalize();
+        -:  906:        return ( t1.m_Pos != t2.m_Pos || t1.m_Size != t2.m_Size );
+        -:  907:    }
+        -:  908:
+        -:  909:    constexpr bool IsValid() const
+        -:  910:    {
+        -:  911:        return m_init;
+        -:  912:    }
+        -:  913:
+        -:  914:private:
+        -:  915:    Vec     m_Pos;  // Rectangle Origin
+        -:  916:    SizeVec m_Size; // Rectangle Size
+        -:  917:
+        -:  918:    bool m_init;    // Is the rectangle initialized
+        -:  919:};
+        -:  920:
+        -:  921:/* Default specializations */
+        -:  922:typedef BOX2<VECTOR2I>    BOX2I;
+        -:  923:typedef BOX2<VECTOR2D>    BOX2D;
+        -:  924:typedef BOX2<VECTOR2L>    BOX2L;
+        -:  925:
+        -:  926:typedef std::optional<BOX2I> OPT_BOX2I;
+        -:  927:
+        -:  928:
+        -:  929:inline constexpr BOX2I BOX2ISafe( const BOX2D& aInput )
+        -:  930:{
+        -:  931:    constexpr double high = std::numeric_limits<int>::max();
+        -:  932:    constexpr double low = -std::numeric_limits<int>::max();
+        -:  933:
+        -:  934:    int left = (int) std::clamp( aInput.GetLeft(), low, high );
+        -:  935:    int top = (int) std::clamp( aInput.GetTop(), low, high );
+        -:  936:
+        -:  937:    int64_t right = (int64_t) std::clamp( aInput.GetRight(), low, high );
+        -:  938:    int64_t bottom = (int64_t) std::clamp( aInput.GetBottom(), low, high );
+        -:  939:
+        -:  940:    return BOX2I( VECTOR2I( left, top ), VECTOR2L( right - left, bottom - top ) );
+        -:  941:}
+        -:  942:
+        -:  943:
+        -:  944:/**
+        -:  945: * Check if a BOX2 is safe for use with BOX2D
+        -:  946: * (probably BOX2D or BOX2L)
+        -:  947: */
+        -:  948:template <typename Vec>
+        -:  949:inline constexpr bool IsBOX2Safe( const BOX2<Vec>& aInput )
+        -:  950:{
+        -:  951:    constexpr double high = std::numeric_limits<int>::max();
+        -:  952:    constexpr double low = -std::numeric_limits<int>::max();
+        -:  953:
+        -:  954:    return ( aInput.GetLeft() >= low && aInput.GetTop() >= low &&
+        -:  955:             aInput.GetRight() <= high && aInput.GetBottom() <= high );
+        -:  956:}
+        -:  957:
+        -:  958:
+        -:  959:inline constexpr BOX2I BOX2ISafe( const VECTOR2D& aPos, const VECTOR2D& aSize )
+        -:  960:{
+        -:  961:    constexpr double high = std::numeric_limits<int>::max();
+        -:  962:    constexpr double low = -std::numeric_limits<int>::max();
+        -:  963:
+        -:  964:    int left = (int) std::clamp( aPos.x, low, high );
+        -:  965:    int top = (int) std::clamp( aPos.y, low, high );
+        -:  966:
+        -:  967:    int64_t right = (int64_t) std::clamp( aPos.x + aSize.x, low, high );
+        -:  968:    int64_t bottom = (int64_t) std::clamp( aPos.y + aSize.y, low, high );
+        -:  969:
+        -:  970:    return BOX2I( VECTOR2I( left, top ), VECTOR2L( right - left, bottom - top ) );
+        -:  971:}
+        -:  972:
+        -:  973:
+        -:  974:template <typename S, std::enable_if_t<std::is_integral<S>::value, int> = 0>
+        -:  975:inline constexpr BOX2I BOX2ISafe( const VECTOR2I& aPos, const VECTOR2<S>& aSize )
+        -:  976:{
+        -:  977:    constexpr int64_t high = std::numeric_limits<int>::max();
+        -:  978:    constexpr int64_t low = -std::numeric_limits<int>::max();
+        -:  979:
+        -:  980:    int64_t ext_right = int64_t( aPos.x ) + aSize.x;
+        -:  981:    int64_t ext_bottom = int64_t( aPos.y ) + aSize.y;
+        -:  982:
+        -:  983:    int64_t right = std::clamp( ext_right, low, high );
+        -:  984:    int64_t bottom = std::clamp( ext_bottom, low, high );
+        -:  985:
+        -:  986:    return BOX2I( aPos, VECTOR2L( right - aPos.x, bottom - aPos.y ) );
+        -:  987:}
+        -:  988:
+        -:  989:/* KiROUND specialization for double -> int boxes */
+        -:  990:inline constexpr BOX2I KiROUND( const BOX2D& aBoxD )
+        -:  991:{
+        -:  992:    return BOX2I( KiROUND( aBoxD.GetOrigin() ), KiROUND( aBoxD.GetSize() ) );
+        -:  993:}
+        -:  994:
+        -:  995:#endif

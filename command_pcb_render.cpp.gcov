@@ -1,0 +1,602 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_render.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_render.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_render.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright (C) 2024 Alex Shvartzkop <dudesuchamazing@gmail.com>
+        -:    6: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    7: *
+        -:    8: * This program is free software: you can redistribute it and/or modify it
+        -:    9: * under the terms of the GNU General Public License as published by the
+        -:   10: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   11: * option) any later version.
+        -:   12: *
+        -:   13: * This program is distributed in the hope that it will be useful, but
+        -:   14: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   16: * General Public License for more details.
+        -:   17: *
+        -:   18: * You should have received a copy of the GNU General Public License along
+        -:   19: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   20: */
+        -:   21:
+        -:   22:#include "command_pcb_render.h"
+        -:   23:#include <cli/exit_codes.h>
+        -:   24:#include "jobs/job_pcb_render.h"
+        -:   25:#include <kiface_base.h>
+        -:   26:#include <layer_ids.h>
+        -:   27:#include <string_utils.h>
+        -:   28:#include <wx/crt.h>
+        -:   29:#include <magic_enum.hpp>
+        -:   30:
+        -:   31:#include <macros.h>
+        -:   32:#include <wx/tokenzr.h>
+        -:   33:#include "../../3d-viewer/3d_viewer/eda_3d_viewer_settings.h"
+        -:   34:#include <math/vector3.h>
+        -:   35:
+        -:   36:#define ARG_BACKGROUND "--background"
+        -:   37:#define ARG_QUALITY "--quality"
+        -:   38:
+        -:   39:#define ARG_WIDTH "--width"
+        -:   40:#define ARG_WIDTH_SHORT "-w"
+        -:   41:
+        -:   42:#define ARG_HEIGHT "--height"
+        -:   43:#define ARG_HEIGHT_SHORT "-h"
+        -:   44:
+        -:   45:#define ARG_SIDE "--side"
+        -:   46:#define ARG_PRESET "--preset"
+        -:   47:#define ARG_USE_BOARD_STACKUP_COLORS "--use-board-stackup-colors"
+        -:   48:#define ARG_PAN "--pan"
+        -:   49:#define ARG_PIVOT "--pivot"
+        -:   50:#define ARG_ROTATE "--rotate"
+        -:   51:#define ARG_ZOOM "--zoom"
+        -:   52:#define ARG_PERSPECTIVE "--perspective"
+        -:   53:#define ARG_FLOOR "--floor"
+        -:   54:
+        -:   55:#define ARG_LIGHT_TOP "--light-top"
+        -:   56:#define ARG_LIGHT_BOTTOM "--light-bottom"
+        -:   57:#define ARG_LIGHT_SIDE "--light-side"
+        -:   58:#define ARG_LIGHT_CAMERA "--light-camera"
+        -:   59:
+        -:   60:#define ARG_LIGHT_SIDE_ELEVATION "--light-side-elevation"
+        -:   61:
+        -:   62:
+        -:   63:template <typename T>
+     1731:   64:static wxString enumString()
+        -:   65:{
+     1731:   66:    wxString str;
+     5193:   67:    auto     names = magic_enum::enum_names<T>();
+        -:   68:
+    18464:   69:    for( size_t i = 0; i < names.size(); i++ )
+        -:   70:    {
+    15002:   71:        std::string name = { names[i].begin(), names[i].end() };
+        -:   72:
+     7501:   73:        if( i > 0 )
+     5770:   74:            str << ", ";
+        -:   75:
+     7501:   76:        std::transform( name.begin(), name.end(), name.begin(),
+    43852:   77:                        []( unsigned char c )
+        -:   78:                        {
+    43852:   79:                            return std::tolower( c );
+        -:   80:                        } );
+        -:   81:
+     7501:   82:        str << name;
+        -:   83:    }
+        -:   84:
+     1731:   85:    return str;
+    =====:   86:}
+------------------
+wxString enumString<JOB_PCB_RENDER::QUALITY>():
+      577:   64:static wxString enumString()
+        -:   65:{
+      577:   66:    wxString str;
+      577:   67:    auto     names = magic_enum::enum_names<T>();
+        -:   68:
+     5770:   69:    for( size_t i = 0; i < names.size(); i++ )
+        -:   70:    {
+     4616:   71:        std::string name = { names[i].begin(), names[i].end() };
+        -:   72:
+     2308:   73:        if( i > 0 )
+     1731:   74:            str << ", ";
+        -:   75:
+     2308:   76:        std::transform( name.begin(), name.end(), name.begin(),
+        -:   77:                        []( unsigned char c )
+        -:   78:                        {
+        -:   79:                            return std::tolower( c );
+        -:   80:                        } );
+        -:   81:
+     2308:   82:        str << name;
+        -:   83:    }
+        -:   84:
+      577:   85:    return str;
+    =====:   86:}
+------------------
+wxString enumString<JOB_PCB_RENDER::BG_STYLE>():
+      577:   64:static wxString enumString()
+        -:   65:{
+      577:   66:    wxString str;
+      577:   67:    auto     names = magic_enum::enum_names<T>();
+        -:   68:
+     4616:   69:    for( size_t i = 0; i < names.size(); i++ )
+        -:   70:    {
+     3462:   71:        std::string name = { names[i].begin(), names[i].end() };
+        -:   72:
+     1731:   73:        if( i > 0 )
+     1154:   74:            str << ", ";
+        -:   75:
+     1731:   76:        std::transform( name.begin(), name.end(), name.begin(),
+        -:   77:                        []( unsigned char c )
+        -:   78:                        {
+        -:   79:                            return std::tolower( c );
+        -:   80:                        } );
+        -:   81:
+     1731:   82:        str << name;
+        -:   83:    }
+        -:   84:
+      577:   85:    return str;
+    =====:   86:}
+------------------
+wxString enumString<JOB_PCB_RENDER::SIDE>():
+      577:   64:static wxString enumString()
+        -:   65:{
+      577:   66:    wxString str;
+     4039:   67:    auto     names = magic_enum::enum_names<T>();
+        -:   68:
+     8078:   69:    for( size_t i = 0; i < names.size(); i++ )
+        -:   70:    {
+     6924:   71:        std::string name = { names[i].begin(), names[i].end() };
+        -:   72:
+     3462:   73:        if( i > 0 )
+     2885:   74:            str << ", ";
+        -:   75:
+     3462:   76:        std::transform( name.begin(), name.end(), name.begin(),
+        -:   77:                        []( unsigned char c )
+        -:   78:                        {
+        -:   79:                            return std::tolower( c );
+        -:   80:                        } );
+        -:   81:
+     3462:   82:        str << name;
+        -:   83:    }
+        -:   84:
+      577:   85:    return str;
+    =====:   86:}
+------------------
+        -:   87:
+        -:   88:
+        -:   89:template <typename T>
+     1154:   90:static std::vector<std::string> enumChoices()
+        -:   91:{
+     1154:   92:    std::vector<std::string> out;
+        -:   93:
+     6924:   94:    for( auto& strView : magic_enum::enum_names<T>() )
+        -:   95:    {
+    11540:   96:        std::string name = { strView.begin(), strView.end() };
+        -:   97:
+     5770:   98:        std::transform( name.begin(), name.end(), name.begin(),
+    30004:   99:                        []( unsigned char c )
+        -:  100:                        {
+    30004:  101:                            return std::tolower( c );
+        -:  102:                        } );
+        -:  103:
+     5770:  104:        out.emplace_back( name );
+        -:  105:    }
+        -:  106:
+     1154:  107:    return out;
+    =====:  108:}
+------------------
+std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > enumChoices<JOB_PCB_RENDER::QUALITY>():
+      577:   90:static std::vector<std::string> enumChoices()
+        -:   91:{
+      577:   92:    std::vector<std::string> out;
+        -:   93:
+     2885:   94:    for( auto& strView : magic_enum::enum_names<T>() )
+        -:   95:    {
+     4616:   96:        std::string name = { strView.begin(), strView.end() };
+        -:   97:
+     2308:   98:        std::transform( name.begin(), name.end(), name.begin(),
+        -:   99:                        []( unsigned char c )
+        -:  100:                        {
+        -:  101:                            return std::tolower( c );
+        -:  102:                        } );
+        -:  103:
+     2308:  104:        out.emplace_back( name );
+        -:  105:    }
+        -:  106:
+      577:  107:    return out;
+    =====:  108:}
+------------------
+std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > enumChoices<JOB_PCB_RENDER::SIDE>():
+      577:   90:static std::vector<std::string> enumChoices()
+        -:   91:{
+      577:   92:    std::vector<std::string> out;
+        -:   93:
+     4039:   94:    for( auto& strView : magic_enum::enum_names<T>() )
+        -:   95:    {
+     6924:   96:        std::string name = { strView.begin(), strView.end() };
+        -:   97:
+     3462:   98:        std::transform( name.begin(), name.end(), name.begin(),
+        -:   99:                        []( unsigned char c )
+        -:  100:                        {
+        -:  101:                            return std::tolower( c );
+        -:  102:                        } );
+        -:  103:
+     3462:  104:        out.emplace_back( name );
+        -:  105:    }
+        -:  106:
+      577:  107:    return out;
+    =====:  108:}
+------------------
+        -:  109:
+        -:  110:
+        -:  111:template <typename T>
+        -:  112:static std::optional<T> strToEnum( std::string& aInput )
+        -:  113:{
+        -:  114:    return magic_enum::enum_cast<T>( aInput, magic_enum::case_insensitive );
+        -:  115:}
+        -:  116:
+        -:  117:
+        -:  118:template <typename T>
+    #####:  119:static bool getToEnum( const std::string& aInput, T& aOutput )
+        -:  120:{
+        -:  121:    // If not specified, leave at default
+    #####:  122:    if( aInput.empty() )
+    #####:  123:        return true;
+        -:  124:
+    #####:  125:    if( auto opt = magic_enum::enum_cast<T>( aInput, magic_enum::case_insensitive ) )
+        -:  126:    {
+    #####:  127:        aOutput = *opt;
+    #####:  128:        return true;
+        -:  129:    }
+        -:  130:
+    #####:  131:    return false;
+        -:  132:}
+------------------
+bool getToEnum<JOB_PCB_RENDER::BG_STYLE>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, JOB_PCB_RENDER::BG_STYLE&):
+    #####:  119:static bool getToEnum( const std::string& aInput, T& aOutput )
+        -:  120:{
+        -:  121:    // If not specified, leave at default
+    #####:  122:    if( aInput.empty() )
+    #####:  123:        return true;
+        -:  124:
+    #####:  125:    if( auto opt = magic_enum::enum_cast<T>( aInput, magic_enum::case_insensitive ) )
+        -:  126:    {
+    #####:  127:        aOutput = *opt;
+    #####:  128:        return true;
+        -:  129:    }
+        -:  130:
+    #####:  131:    return false;
+        -:  132:}
+------------------
+bool getToEnum<JOB_PCB_RENDER::SIDE>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, JOB_PCB_RENDER::SIDE&):
+    #####:  119:static bool getToEnum( const std::string& aInput, T& aOutput )
+        -:  120:{
+        -:  121:    // If not specified, leave at default
+    #####:  122:    if( aInput.empty() )
+    #####:  123:        return true;
+        -:  124:
+    #####:  125:    if( auto opt = magic_enum::enum_cast<T>( aInput, magic_enum::case_insensitive ) )
+        -:  126:    {
+    #####:  127:        aOutput = *opt;
+    #####:  128:        return true;
+        -:  129:    }
+        -:  130:
+    #####:  131:    return false;
+        -:  132:}
+------------------
+bool getToEnum<JOB_PCB_RENDER::QUALITY>(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, JOB_PCB_RENDER::QUALITY&):
+    #####:  119:static bool getToEnum( const std::string& aInput, T& aOutput )
+        -:  120:{
+        -:  121:    // If not specified, leave at default
+    #####:  122:    if( aInput.empty() )
+    #####:  123:        return true;
+        -:  124:
+    #####:  125:    if( auto opt = magic_enum::enum_cast<T>( aInput, magic_enum::case_insensitive ) )
+        -:  126:    {
+    #####:  127:        aOutput = *opt;
+    #####:  128:        return true;
+        -:  129:    }
+        -:  130:
+    #####:  131:    return false;
+        -:  132:}
+------------------
+        -:  133:
+        -:  134:
+    #####:  135:static bool getToVector3( const std::string& aInput, VECTOR3D& aOutput )
+        -:  136:{
+        -:  137:    // If not specified, leave at default
+    #####:  138:    if( aInput.empty() )
+    #####:  139:        return true;
+        -:  140:
+        -:  141:    // Remove potential quotes
+    #####:  142:    wxString wxStr = From_UTF8( aInput );
+        -:  143:
+    #####:  144:    if( wxStr[0] == '\'' )
+    #####:  145:        wxStr = wxStr.AfterFirst( '\'' );
+        -:  146:
+    #####:  147:    if( wxStr[wxStr.length() - 1] == '\'' )
+    #####:  148:        wxStr = wxStr.BeforeLast( '\'' );
+        -:  149:
+    #####:  150:    wxArrayString arr = wxSplit( wxStr, ',', 0 );
+        -:  151:
+    #####:  152:    if( arr.size() != 3 )
+    #####:  153:        return false;
+        -:  154:
+    #####:  155:    VECTOR3D vec;
+    #####:  156:    bool     success = true;
+    #####:  157:    success &= arr[0].Trim().ToCDouble( &vec.x );
+    #####:  158:    success &= arr[1].Trim().ToCDouble( &vec.y );
+    #####:  159:    success &= arr[2].Trim().ToCDouble( &vec.z );
+        -:  160:
+    #####:  161:    if( !success )
+    #####:  162:        return false;
+        -:  163:
+    #####:  164:    aOutput = vec;
+    #####:  165:    return true;
+    #####:  166:}
+        -:  167:
+        -:  168:
+    #####:  169:static bool getColorOrIntensity( const std::string& aInput, VECTOR3D& aOutput )
+        -:  170:{
+        -:  171:    // If not specified, leave at default
+    #####:  172:    if( aInput.empty() )
+    #####:  173:        return true;
+        -:  174:
+        -:  175:    // Remove potential quotes
+    #####:  176:    wxString wxStr = From_UTF8( aInput );
+        -:  177:
+    #####:  178:    if( wxStr[0] == '\'' )
+    #####:  179:        wxStr = wxStr.AfterFirst( '\'' );
+        -:  180:
+    #####:  181:    if( wxStr[wxStr.length() - 1] == '\'' )
+    #####:  182:        wxStr = wxStr.BeforeLast( '\'' );
+        -:  183:
+    #####:  184:    wxArrayString arr = wxSplit( wxStr, ',', 0 );
+        -:  185:
+    #####:  186:    if( arr.size() == 3 )
+        -:  187:    {
+    #####:  188:        VECTOR3D vec;
+    #####:  189:        bool     success = true;
+    #####:  190:        success &= arr[0].Trim().ToCDouble( &vec.x );
+    #####:  191:        success &= arr[1].Trim().ToCDouble( &vec.y );
+    #####:  192:        success &= arr[2].Trim().ToCDouble( &vec.z );
+        -:  193:
+    #####:  194:        if( !success )
+    #####:  195:            return false;
+        -:  196:
+    #####:  197:        aOutput = vec;
+    #####:  198:        return true;
+        -:  199:    }
+    #####:  200:    else if( arr.size() == 1 )
+        -:  201:    {
+    #####:  202:        double val;
+    #####:  203:        if( arr[0].Trim().ToCDouble( &val ) )
+        -:  204:        {
+    #####:  205:            aOutput = VECTOR3D( val, val, val );
+    #####:  206:            return true;
+        -:  207:        }
+        -:  208:    }
+        -:  209:
+    #####:  210:    return false;
+    #####:  211:}
+        -:  212:
+        -:  213:
+     1154:  214:CLI::PCB_RENDER_COMMAND::PCB_RENDER_COMMAND() : COMMAND( "render" )
+        -:  215:{
+      577:  216:    addCommonArgs( true, true, IO_TYPE::FILE, IO_TYPE::FILE );
+      577:  217:    addDefineArg();
+      577:  218:    addVariantsArg();
+        -:  219:
+     1154:  220:    m_argParser.add_description(
+     1154:  221:            UTF8STDSTR( _( "Renders the PCB in 3D view to PNG or JPEG image" ) ) );
+        -:  222:
+      577:  223:    m_argParser.add_argument( ARG_WIDTH, ARG_WIDTH_SHORT )
+      577:  224:            .default_value( 1600 )
+      577:  225:            .scan<'i', int>()
+      577:  226:            .metavar( "WIDTH" )
+      577:  227:            .help( UTF8STDSTR( _( "Image width" ) ) );
+        -:  228:
+      577:  229:    m_argParser.add_argument( ARG_HEIGHT, ARG_HEIGHT_SHORT )
+      577:  230:            .default_value( 900 )
+      577:  231:            .scan<'i', int>()
+      577:  232:            .metavar( "HEIGHT" )
+      577:  233:            .help( UTF8STDSTR( _( "Image height" ) ) );
+        -:  234:
+      577:  235:    m_argParser.add_argument( ARG_SIDE )
+      577:  236:            .default_value( std::string( "top" ) )
+     1154:  237:            .add_choices( enumChoices<JOB_PCB_RENDER::SIDE>() )
+     1154:  238:            .metavar( "SIDE" )
+      577:  239:            .help( UTF8STDSTR( wxString::Format( _( "Render from side. Options: %s" ),
+        -:  240:                                                 enumString<JOB_PCB_RENDER::SIDE>() ) ) );
+        -:  241:
+      577:  242:    m_argParser.add_argument( ARG_BACKGROUND )
+      577:  243:            .default_value( std::string( "" ) )
+     1154:  244:            .help( UTF8STDSTR( wxString::Format( _( "Image background. Options: %s. Default: "
+        -:  245:                                                    "transparent for PNG, opaque for JPEG" ),
+        -:  246:                                                 enumString<JOB_PCB_RENDER::BG_STYLE>() ) ) )
+     1154:  247:            .metavar( "BG" );
+        -:  248:
+      577:  249:    m_argParser.add_argument( ARG_QUALITY )
+      577:  250:            .default_value( std::string( "basic" ) )
+     1154:  251:            .add_choices( enumChoices<JOB_PCB_RENDER::QUALITY>() )
+     1154:  252:            .metavar( "QUALITY" )
+      577:  253:            .help( UTF8STDSTR( wxString::Format( _( "Render quality. Options: %s" ),
+        -:  254:                                                 enumString<JOB_PCB_RENDER::QUALITY>() ) ) );
+        -:  255:
+      577:  256:    m_argParser.add_argument( ARG_PRESET )
+     1154:  257:            .default_value( std::string( wxString( FOLLOW_PLOT_SETTINGS ) ) )
+     1154:  258:            .metavar( "PRESET" )
+      577:  259:            .help( UTF8STDSTR( wxString::Format( _( "Appearance preset. Options: %s, %s, or user-defined "
+        -:  260:                                                    "preset name" ),
+        -:  261:                                                 FOLLOW_PCB,
+        -:  262:                                                 FOLLOW_PLOT_SETTINGS ) ) );
+        -:  263:
+      577:  264:    m_argParser.add_argument( ARG_USE_BOARD_STACKUP_COLORS )
+      577:  265:            .flag()
+      577:  266:            .help( UTF8STDSTR( _( "Use colors defined in the board stackup instead of those in "
+        -:  267:                                  "the preset" ) ) );
+        -:  268:
+      577:  269:    m_argParser.add_argument( ARG_FLOOR )
+      577:  270:            .flag()
+      577:  271:            .help( UTF8STDSTR( _( "Enables floor, shadows and post-processing, even if disabled in "
+        -:  272:                                  "quality setting" ) ) );
+        -:  273:
+      577:  274:    m_argParser.add_argument( ARG_PERSPECTIVE )
+      577:  275:            .flag()
+      577:  276:            .help( UTF8STDSTR( _( "Use perspective projection instead of orthogonal" ) ) );
+        -:  277:
+      577:  278:    m_argParser.add_argument( ARG_ZOOM )
+      577:  279:            .default_value( 1.0 )
+      577:  280:            .scan<'g', double>()
+      577:  281:            .metavar( "ZOOM" )
+      577:  282:            .help( UTF8STDSTR( _( "Camera zoom" ) ) );
+        -:  283:
+      577:  284:    m_argParser.add_argument( ARG_PAN )
+      577:  285:            .default_value( std::string( "" ) )
+     1154:  286:            .metavar( "VECTOR" )
+      577:  287:            .help( UTF8STDSTR( _( "Pan camera, format 'X,Y,Z' e.g.: '3,0,0'" ) ) );
+        -:  288:
+      577:  289:    m_argParser.add_argument( ARG_PIVOT )
+      577:  290:            .default_value( std::string( "" ) )
+     1154:  291:            .metavar( "PIVOT" )
+      577:  292:            .help( UTF8STDSTR( _( "Set pivot point relative to the board center in centimeters, format 'X,Y,Z' "
+        -:  293:                                  "e.g.: '-10,2,0'" ) ) );
+        -:  294:
+      577:  295:    m_argParser.add_argument( ARG_ROTATE )
+      577:  296:            .default_value( std::string( "" ) )
+     1154:  297:            .metavar( "ANGLES" )
+      577:  298:            .help( UTF8STDSTR(
+        -:  299:                    _( "Rotate board, format 'X,Y,Z' e.g.: '-45,0,45' for isometric view" ) ) );
+        -:  300:
+      577:  301:    m_argParser.add_argument( ARG_LIGHT_TOP )
+      577:  302:            .default_value( std::string( "" ) )
+     1154:  303:            .metavar( "COLOR" )
+      577:  304:            .help( UTF8STDSTR( _( "Top light intensity, format 'R,G,B' or a single number, range: 0-1" ) ) );
+        -:  305:
+      577:  306:    m_argParser.add_argument( ARG_LIGHT_BOTTOM )
+      577:  307:            .default_value( std::string( "" ) )
+     1154:  308:            .metavar( "COLOR" )
+      577:  309:            .help( UTF8STDSTR( _( "Bottom light intensity, format 'R,G,B' or a single number, range: 0-1" ) ) );
+        -:  310:
+      577:  311:    m_argParser.add_argument( ARG_LIGHT_SIDE )
+      577:  312:            .default_value( std::string( "" ) )
+     1154:  313:            .metavar( "COLOR" )
+      577:  314:            .help( UTF8STDSTR( _( "Side lights intensity, format 'R,G,B' or a single number, range: 0-1" ) ) );
+        -:  315:
+      577:  316:    m_argParser.add_argument( ARG_LIGHT_CAMERA )
+      577:  317:            .default_value( std::string( "" ) )
+     1154:  318:            .metavar( "COLOR" )
+      577:  319:            .help( UTF8STDSTR( _( "Camera light intensity, format 'R,G,B' or a single number, range: 0-1" ) ) );
+        -:  320:
+      577:  321:    m_argParser.add_argument( ARG_LIGHT_SIDE_ELEVATION )
+      577:  322:            .default_value( 60 )
+      577:  323:            .scan<'i', int>()
+      577:  324:            .metavar( "ANGLE" )
+      577:  325:            .help( UTF8STDSTR( _( "Side lights elevation angle in degrees, range: 0-90" ) ) );
+      577:  326:}
+        -:  327:
+        -:  328:
+    #####:  329:int CLI::PCB_RENDER_COMMAND::doPerform( KIWAY& aKiway )
+        -:  330:{
+    #####:  331:    std::unique_ptr<JOB_PCB_RENDER> renderJob( new JOB_PCB_RENDER() );
+        -:  332:
+    #####:  333:    renderJob->SetConfiguredOutputPath( m_argOutput );
+    #####:  334:    renderJob->m_filename = m_argInput;
+    #####:  335:    renderJob->SetVarOverrides( m_argDefineVars );
+        -:  336:
+    #####:  337:    if( !m_argVariantNames.empty() )
+    #####:  338:        renderJob->m_variant = m_argVariantNames.front();
+        -:  339:
+    #####:  340:    renderJob->m_appearancePreset = m_argParser.get<std::string>( ARG_PRESET );
+        -:  341:
+    #####:  342:    if( renderJob->m_appearancePreset == std::string(wxString(LEGACY_PRESET_FLAG).ToUTF8().data()) )
+        -:  343:    {
+    #####:  344:        wxFprintf( stderr, _( "Invalid preset\n" ) );
+    #####:  345:        return EXIT_CODES::ERR_ARGS;
+        -:  346:    }
+        -:  347:
+    #####:  348:    renderJob->m_useBoardStackupColors = m_argParser.get<bool>( ARG_USE_BOARD_STACKUP_COLORS );
+        -:  349:
+    #####:  350:    renderJob->m_width = m_argParser.get<int>( ARG_WIDTH );
+    #####:  351:    renderJob->m_height = m_argParser.get<int>( ARG_HEIGHT );
+    #####:  352:    renderJob->m_zoom = m_argParser.get<double>( ARG_ZOOM );
+    #####:  353:    renderJob->m_perspective = m_argParser.get<bool>( ARG_PERSPECTIVE );
+    #####:  354:    renderJob->m_floor = m_argParser.get<bool>( ARG_FLOOR );
+    #####:  355:    renderJob->m_lightSideElevation = m_argParser.get<int>( ARG_LIGHT_SIDE_ELEVATION );
+        -:  356:
+    #####:  357:    getToEnum( m_argParser.get<std::string>( ARG_QUALITY ), renderJob->m_quality );
+    #####:  358:    getToEnum( m_argParser.get<std::string>( ARG_SIDE ), renderJob->m_side );
+        -:  359:
+    #####:  360:    if( !getToEnum( m_argParser.get<std::string>( ARG_BACKGROUND ), renderJob->m_bgStyle ) )
+        -:  361:    {
+    #####:  362:        wxFprintf( stderr, _( "Invalid background\n" ) );
+    #####:  363:        return EXIT_CODES::ERR_ARGS;
+        -:  364:    }
+        -:  365:
+    #####:  366:    if( !getToVector3( m_argParser.get<std::string>( ARG_ROTATE ), renderJob->m_rotation ) )
+        -:  367:    {
+    #####:  368:        wxFprintf( stderr, _( "Invalid rotation format\n" ) );
+    #####:  369:        return EXIT_CODES::ERR_ARGS;
+        -:  370:    }
+        -:  371:
+    #####:  372:    if( !getToVector3( m_argParser.get<std::string>( ARG_PAN ), renderJob->m_pan ) )
+        -:  373:    {
+    #####:  374:        wxFprintf( stderr, _( "Invalid pan format\n" ) );
+    #####:  375:        return EXIT_CODES::ERR_ARGS;
+        -:  376:    }
+        -:  377:
+    #####:  378:    if( !getToVector3( m_argParser.get<std::string>( ARG_PIVOT ), renderJob->m_pivot ) )
+        -:  379:    {
+    #####:  380:        wxFprintf( stderr, _( "Invalid pivot format\n" ) );
+    #####:  381:        return EXIT_CODES::ERR_ARGS;
+        -:  382:    }
+        -:  383:
+    #####:  384:    if( !getColorOrIntensity( m_argParser.get<std::string>( ARG_LIGHT_TOP ),
+    #####:  385:                              renderJob->m_lightTopIntensity ) )
+        -:  386:    {
+    #####:  387:        wxFprintf( stderr, _( "Invalid light top intensity format\n" ) );
+    #####:  388:        return EXIT_CODES::ERR_ARGS;
+        -:  389:    }
+        -:  390:
+    #####:  391:    if( !getColorOrIntensity( m_argParser.get<std::string>( ARG_LIGHT_BOTTOM ),
+    #####:  392:                              renderJob->m_lightBottomIntensity ) )
+        -:  393:    {
+    #####:  394:        wxFprintf( stderr, _( "Invalid light bottom intensity format\n" ) );
+    #####:  395:        return EXIT_CODES::ERR_ARGS;
+        -:  396:    }
+        -:  397:
+    #####:  398:    if( !getColorOrIntensity( m_argParser.get<std::string>( ARG_LIGHT_SIDE ),
+    #####:  399:                              renderJob->m_lightSideIntensity ) )
+        -:  400:    {
+    #####:  401:        wxFprintf( stderr, _( "Invalid light side intensity format\n" ) );
+    #####:  402:        return EXIT_CODES::ERR_ARGS;
+        -:  403:    }
+        -:  404:
+    #####:  405:    if( !getColorOrIntensity( m_argParser.get<std::string>( ARG_LIGHT_CAMERA ),
+    #####:  406:                              renderJob->m_lightCameraIntensity ) )
+        -:  407:    {
+    #####:  408:        wxFprintf( stderr, _( "Invalid light camera intensity format\n" ) );
+    #####:  409:        return EXIT_CODES::ERR_ARGS;
+        -:  410:    }
+        -:  411:
+    #####:  412:    if( m_argOutput.Lower().EndsWith( wxS( ".png" ) ) )
+        -:  413:    {
+    #####:  414:        renderJob->m_format = JOB_PCB_RENDER::FORMAT::PNG;
+        -:  415:    }
+    #####:  416:    else if( m_argOutput.Lower().EndsWith( wxS( ".jpg" ) )
+    #####:  417:             || m_argOutput.Lower().EndsWith( wxS( ".jpeg" ) ) )
+        -:  418:    {
+    #####:  419:        renderJob->m_format = JOB_PCB_RENDER::FORMAT::JPEG;
+        -:  420:    }
+        -:  421:    else
+        -:  422:    {
+    #####:  423:        wxFprintf( stderr, _( "Invalid image format\n" ) );
+    #####:  424:        return EXIT_CODES::ERR_ARGS;
+        -:  425:    }
+        -:  426:
+    #####:  427:    int exitCode = aKiway.ProcessJob( KIWAY::FACE_PCB, renderJob.get() );
+        -:  428:
+    #####:  429:    return exitCode;
+    #####:  430:}

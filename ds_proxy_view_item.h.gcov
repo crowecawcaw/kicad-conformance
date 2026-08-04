@@ -1,0 +1,171 @@
+        -:    0:Source:/src/kicad/include/drawing_sheet/ds_proxy_view_item.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KICAD, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2013 CERN
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: * @author Maciej Suminski <maciej.suminski@cern.ch>
+        -:    7: *
+        -:    8: * This program is free software; you can redistribute it and/or
+        -:    9: * modify it under the terms of the GNU General Public License
+        -:   10: * as published by the Free Software Foundation; either version 2
+        -:   11: * of the License, or (at your option) any later version.
+        -:   12: *
+        -:   13: * This program is distributed in the hope that it will be useful,
+        -:   14: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   16: * GNU General Public License for more details.
+        -:   17: *
+        -:   18: * You should have received a copy of the GNU General Public License
+        -:   19: * along with this program; if not, you may find one here:
+        -:   20: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   21: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   22: * or you may write to the Free Software Foundation, Inc.,
+        -:   23: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   24: */
+        -:   25:
+        -:   26:#ifndef DS_PROXY_VIEW_ITEM_H
+        -:   27:#define DS_PROXY_VIEW_ITEM_H
+        -:   28:
+        -:   29:#include <eda_item.h>
+        -:   30:#include <eda_units.h>
+        -:   31:
+        -:   32:class BOARD;
+        -:   33:class PAGE_INFO;
+        -:   34:class PROJECT;
+        -:   35:class TITLE_BLOCK;
+        -:   36:class DS_DRAW_ITEM_LINE;
+        -:   37:class DS_DRAW_ITEM_RECT;
+        -:   38:class DS_DRAW_ITEM_TEXT;
+        -:   39:class DS_DRAW_ITEM_BITMAP;
+        -:   40:class DS_DRAW_ITEM_LIST;
+        -:   41:
+        -:   42:namespace KIGFX
+        -:   43:{
+        -:   44:class VIEW;
+        -:   45:class GAL;
+        -:   46:}
+        -:   47:
+        -:   48:class DS_PROXY_VIEW_ITEM : public EDA_ITEM
+        -:   49:{
+        -:   50:public:
+        -:   51:    DS_PROXY_VIEW_ITEM( const EDA_IU_SCALE& aIuScale, const PAGE_INFO* aPageInfo,
+        -:   52:                        const PROJECT* aProject, const TITLE_BLOCK* aTitleBlock,
+        -:   53:                        const std::map<wxString, wxString>* aProperties );
+        -:   54:
+        -:   55:    /**
+        -:   56:     * Set the file name displayed in the title block.
+        -:   57:     */
+        -:   58:    void SetFileName( const std::string& aFileName ) { m_fileName = aFileName; }
+        -:   59:
+        -:   60:    /**
+        -:   61:     * Set the sheet name displayed in the title block.
+        -:   62:     */
+        -:   63:    void SetSheetName( const std::string& aSheetName ) { m_sheetName = aSheetName; }
+        -:   64:
+        -:   65:    /**
+        -:   66:     * Set the sheet path displayed in the title block.
+        -:   67:     */
+        -:   68:    void SetSheetPath( const std::string& aSheetPath ) { m_sheetPath = aSheetPath; }
+        -:   69:
+        -:   70:    /**
+        -:   71:     * Change the page number displayed in the title block.
+        -:   72:     */
+        -:   73:    void SetPageNumber( const std::string& aPageNumber ) { m_pageNumber = aPageNumber; }
+        -:   74:
+        -:   75:    /**
+        -:   76:     * Change the sheet-count number displayed in the title block.
+        -:   77:     */
+        -:   78:    void SetSheetCount( int aSheetCount ) { m_sheetCount = aSheetCount; }
+        -:   79:
+        -:   80:    /**
+        -:   81:     * Change if this is first page.
+        -:   82:     *
+        -:   83:     * Title blocks have an option to allow all subsequent pages to not display a title
+        -:   84:     * block.  This needs to be set to false when displaying any page but the first page.
+        -:   85:     */
+        -:   86:    void SetIsFirstPage( bool aIsFirstPage ) { m_isFirstPage = aIsFirstPage; }
+        -:   87:
+        -:   88:    /**
+        -:   89:     * Set the current variant name and description to be shown on the drawing sheet.
+        -:   90:     */
+        -:   91:    void SetVariantName( const std::string& aVariant ) { m_variantName = aVariant; }
+        -:   92:    void SetVariantDesc( const std::string& aVariantDesc ) { m_variantDesc = aVariantDesc; }
+        -:   93:
+        -:   94:    /**
+        -:   95:     * Can be used to override which layer ID is used for drawing sheet item colors
+        -:   96:     * @param aLayerId is the color to use (defaults to LAYER_DRAWINGSHEET if this is not called)
+        -:   97:     */
+        -:   98:    void SetColorLayer( int aLayerId ) { m_colorLayer = aLayerId; }
+        -:   99:
+        -:  100:    /**
+        -:  101:     * Override the layer used to pick the color of the page border (normally LAYER_GRID)
+        -:  102:     *
+        -:  103:     * @param aLayerId is the layer to use
+        -:  104:     */
+        -:  105:    void SetPageBorderColorLayer( int aLayerId ) { m_pageBorderColorLayer = aLayerId; }
+        -:  106:
+       19:  107:    const PAGE_INFO& GetPageInfo() { return *m_pageInfo; }
+       19:  108:    const TITLE_BLOCK& GetTitleBlock() { return *m_titleBlock; }
+        -:  109:
+        -:  110:    /// @copydoc VIEW_ITEM::ViewBBox()
+        -:  111:    const BOX2I ViewBBox() const override;
+        -:  112:
+        -:  113:    /// @copydoc VIEW_ITEM::ViewDraw()
+        -:  114:    void ViewDraw( int aLayer, KIGFX::VIEW* aView ) const override;
+        -:  115:
+        -:  116:    /// @copydoc VIEW_ITEM::ViewGetLayers()
+        -:  117:    std::vector<int> ViewGetLayers() const override;
+        -:  118:
+        -:  119:#if defined(DEBUG)
+        -:  120:    /// @copydoc EDA_ITEM::Show()
+        -:  121:    void Show( int x, std::ostream& st ) const override { }
+        -:  122:#endif
+        -:  123:
+        -:  124:    /**
+        -:  125:     * Get class name.
+        -:  126:     *
+        -:  127:     * @return  string "DS_PROXY_VIEW_ITEM"
+        -:  128:     */
+        -:  129:    virtual wxString GetClass() const override
+        -:  130:    {
+        -:  131:        return wxT( "DS_PROXY_VIEW_ITEM" );
+        -:  132:    }
+        -:  133:
+        -:  134:    bool HitTestDrawingSheetItems( KIGFX::VIEW* aView, const VECTOR2I& aPosition );
+        -:  135:
+        -:  136:protected:
+        -:  137:    void buildDrawList( KIGFX::VIEW* aView, const std::map<wxString, wxString>* aProperties,
+        -:  138:                        DS_DRAW_ITEM_LIST* aDrawList ) const;
+        -:  139:
+        -:  140:protected:
+        -:  141:    const EDA_IU_SCALE& m_iuScale;
+        -:  142:
+        -:  143:    std::string         m_fileName;
+        -:  144:    std::string         m_sheetName;
+        -:  145:    std::string         m_sheetPath;
+        -:  146:    const TITLE_BLOCK*  m_titleBlock;
+        -:  147:    const PAGE_INFO*    m_pageInfo;
+        -:  148:    std::string         m_pageNumber;
+        -:  149:    int                 m_sheetCount;
+        -:  150:    bool                m_isFirstPage;
+        -:  151:    std::string         m_variantName;
+        -:  152:    std::string         m_variantDesc;
+        -:  153:    const PROJECT*      m_project;
+        -:  154:
+        -:  155:    const std::map<wxString, wxString>* m_properties;
+        -:  156:
+        -:  157:    /**
+        -:  158:     * Layer that is used for drawing sheet color (LAYER_DRAWINGSHEET is always used
+        -:  159:     * for visibility).
+        -:  160:     */
+        -:  161:    int                 m_colorLayer;
+        -:  162:
+        -:  163:    /// Layer that is used for page border color
+        -:  164:    int                 m_pageBorderColorLayer;
+        -:  165:};
+        -:  166:
+        -:  167:#endif /* DS_PROXY_VIEW_ITEM_H */

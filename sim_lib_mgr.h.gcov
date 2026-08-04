@@ -1,0 +1,106 @@
+        -:    0:Source:/src/kicad/eeschema/sim/sim_lib_mgr.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mikolaj Wielgus
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 3
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * https://www.gnu.org/licenses/gpl-3.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 3 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#pragma once
+        -:   26:
+        -:   27:#include <map>
+        -:   28:#include <vector>
+        -:   29:
+        -:   30:#include <sim/sim_library.h>
+        -:   31:#include <sim/sim_model.h>
+        -:   32:
+        -:   33:class EMBEDDED_FILES;
+        -:   34:class PROJECT;
+        -:   35:class SCH_SYMBOL;
+        -:   36:
+        -:   37:
+        -:   38:class SIM_LIB_MGR
+        -:   39:{
+        -:   40:public:
+        -:   41:    SIM_LIB_MGR( const PROJECT* aPrj );
+    #####:   42:    virtual ~SIM_LIB_MGR() = default;
+------------------
+SIM_LIB_MGR::~SIM_LIB_MGR():
+    #####:   42:    virtual ~SIM_LIB_MGR() = default;
+------------------
+SIM_LIB_MGR::~SIM_LIB_MGR():
+    #####:   42:    virtual ~SIM_LIB_MGR() = default;
+------------------
+        -:   43:
+        -:   44:    void SetForceFullParse() { m_forceFullParse = true; }
+        -:   45:
+        -:   46:    void Clear();
+        -:   47:
+        -:   48:    void SetFilesStack( std::vector<EMBEDDED_FILES*> aFilesStack )
+        -:   49:    {
+        -:   50:        m_embeddedFilesStack = std::move( aFilesStack );
+        -:   51:    }
+        -:   52:
+        -:   53:    void SetLibrary( const wxString& aLibraryPath, REPORTER& aReporter );
+        -:   54:
+        -:   55:    SIM_MODEL& CreateModel( SIM_MODEL::TYPE aType, const std::vector<SCH_PIN*>& aPins,
+        -:   56:                            REPORTER& aReporter );
+        -:   57:
+        -:   58:    SIM_MODEL& CreateModel( const SIM_MODEL* aBaseModel, const std::vector<SCH_PIN*>& aPins,
+        -:   59:                            REPORTER& aReporter );
+        -:   60:
+        -:   61:    SIM_MODEL& CreateModel( const SIM_MODEL* aBaseModel, const std::vector<SCH_PIN*>& aPins,
+        -:   62:                            const std::vector<SCH_FIELD>& aFields, bool aResolve, int aDepth,
+        -:   63:                            REPORTER& aReporter );
+        -:   64:
+        -:   65:    // TODO: The argument can be made const.
+        -:   66:    // aMergedSimPins is an optional merged Sim.Pins string from all units of a multi-unit symbol.
+        -:   67:    // If provided (non-empty), it will be used instead of the symbol's Sim.Pins field.
+        -:   68:    SIM_LIBRARY::MODEL CreateModel( const SCH_SHEET_PATH* aSheetPath, SCH_SYMBOL& aSymbol,
+        -:   69:                                    bool aResolve, int aDepth, const wxString& aVariantName,
+        -:   70:                                    REPORTER& aReporter, const wxString& aMergedSimPins = wxEmptyString );
+        -:   71:
+        -:   72:    SIM_LIBRARY::MODEL CreateModel( const std::vector<SCH_FIELD>& aFields, bool aResolve, int aDepth,
+        -:   73:                                    const std::vector<SCH_PIN*>& aPins, REPORTER& aReporter );
+        -:   74:
+        -:   75:    SIM_LIBRARY::MODEL CreateModel( const wxString& aLibraryPath, const std::string& aBaseModelName,
+        -:   76:                                    const std::vector<SCH_FIELD>& aFields, bool aResolve, int aDepth,
+        -:   77:                                    const std::vector<SCH_PIN*>& aPins, REPORTER& aReporter );
+        -:   78:
+        -:   79:    void SetModel( int aIndex, std::unique_ptr<SIM_MODEL> aModel );
+        -:   80:
+        -:   81:    std::map<wxString, std::reference_wrapper<const SIM_LIBRARY>> GetLibraries() const;
+        -:   82:    std::vector<std::reference_wrapper<SIM_MODEL>> GetModels() const;
+        -:   83:
+        -:   84:    wxString ResolveLibraryPath( const wxString& aLibraryPath, REPORTER& aReporter );
+        -:   85:    wxString ResolveEmbeddedLibraryPath( const wxString& aLibPath, const wxString& aRelativeLib,
+        -:   86:                                         REPORTER& aReporter );
+        -:   87:
+        -:   88:private:
+        -:   89:    std::vector<EMBEDDED_FILES*>                     m_embeddedFilesStack;  // no ownership
+        -:   90:    const PROJECT*                                   m_project;             // no ownership
+        -:   91:    bool                                             m_forceFullParse;
+        -:   92:    std::map<wxString, std::unique_ptr<SIM_LIBRARY>> m_libraries;
+        -:   93:    std::vector<std::unique_ptr<SIM_MODEL>>          m_models;
+        -:   94:};
+        -:   95:

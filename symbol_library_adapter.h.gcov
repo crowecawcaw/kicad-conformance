@@ -1,0 +1,193 @@
+        -:    0:Source:/src/kicad/eeschema/libraries/symbol_library_adapter.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: * @author Jon Evans <jon@craftyjon.com>
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20: 
+        -:   21:
+        -:   22:#ifndef SYMBOL_LIBRARY_MANAGER_ADAPTER_H
+        -:   23:#define SYMBOL_LIBRARY_MANAGER_ADAPTER_H
+        -:   24:
+        -:   25:#include <future>
+        -:   26:#include <optional>
+        -:   27:#include <lib_id.h>
+        -:   28:#include <core/leak_at_exit.h>
+        -:   29:#include <libraries/library_manager.h>
+        -:   30:#include <sch_io/sch_io.h>
+        -:   31:
+        -:   32:class LIB_SYMBOL;
+        -:   33:class PROJECT;
+        -:   34:
+        -:   35:
+        -:   36:/**
+        -:   37: * A descriptor for a sub-library (supported by database and http libraries)
+        -:   38: */
+        -:   39:struct SUB_LIBRARY
+        -:   40:{
+        -:   41:    wxString nickname;
+        -:   42:    wxString description;
+        -:   43:};
+        -:   44:
+        -:   45:
+        -:   46:/**
+        -:   47: * An interface to the global shared library manager that is schematic-specific
+        -:   48: * and linked to one project in particular.  This is what can return actual concrete
+        -:   49: * schematic library content (symbols).
+        -:   50: */
+        -:   51:class SYMBOL_LIBRARY_ADAPTER : public LIBRARY_MANAGER_ADAPTER
+        -:   52:{
+        -:   53:public:
+        -:   54:    static const char* PropPowerSymsOnly;
+        -:   55:    static const char* PropNonPowerSymsOnly;
+        -:   56:
+        -:   57:public:
+        -:   58:    SYMBOL_LIBRARY_ADAPTER( LIBRARY_MANAGER& aManager );
+        -:   59:
+        -:   60:    LIBRARY_TABLE_TYPE Type() const override { return LIBRARY_TABLE_TYPE::SYMBOL; }
+        -:   61:
+        -:   62:    static wxString GlobalPathEnvVariableName();
+        -:   63:
+        -:   64:    /// Loads or reloads the given library, if it exists
+        -:   65:    std::optional<LIB_STATUS> LoadOne( LIB_DATA* aLib ) override;
+        -:   66:
+        -:   67:    /// Loads or reloads the given library, if it exists
+        -:   68:    std::optional<LIB_STATUS> LoadOne( const wxString& aNickname );
+        -:   69:
+        -:   70:    /// Returns a list of additional (non-mandatory) symbol fields present in the given library
+        -:   71:    std::vector<wxString> GetAvailableExtraFields( const wxString& aNickname );
+        -:   72:
+        -:   73:    bool SupportsSubLibraries( const wxString& aNickname ) const;
+        -:   74:
+        -:   75:    std::vector<SUB_LIBRARY> GetSubLibraries( const wxString& aNickname ) const;
+        -:   76:
+        -:   77:    bool SupportsConfigurationDialog( const wxString& aNickname ) const override;
+        -:   78:
+        -:   79:    void ShowConfigurationDialog( const wxString& aNickname, wxWindow* aParent ) const override;
+        -:   80:
+        -:   81:    enum class SYMBOL_TYPE
+        -:   82:    {
+        -:   83:        ALL_SYMBOLS,
+        -:   84:        POWER_ONLY
+        -:   85:    };
+        -:   86:
+        -:   87:    std::vector<LIB_SYMBOL*> GetSymbols( const wxString& aNickname,
+        -:   88:                                         SYMBOL_TYPE aType = SYMBOL_TYPE::ALL_SYMBOLS );
+        -:   89:
+        -:   90:    std::vector<wxString> GetSymbolNames( const wxString& aNickname,
+        -:   91:                                          SYMBOL_TYPE aType = SYMBOL_TYPE::ALL_SYMBOLS );
+        -:   92:    /**
+        -:   93:     * Load a #LIB_SYMBOL having @a aName from the library given by @a aNickname.
+        -:   94:     *
+        -:   95:     * @param aNickname is a locator for the "library", it is a "name" in #LIB_TABLE_ROW
+        -:   96:     * @param aName is the name of the #LIB_SYMBOL to load.
+        -:   97:     * @return the symbol alias if found or NULL if not found.
+        -:   98:     * @throw IO_ERROR if the library cannot be found or read.  No exception
+        -:   99:     *                 is thrown in the case where \a aNickname cannot be found.
+        -:  100:     */
+        -:  101:    LIB_SYMBOL* LoadSymbol( const wxString& aNickname, const wxString& aName );
+        -:  102:
+    #####:  103:    LIB_SYMBOL* LoadSymbol( const LIB_ID& aLibId )
+        -:  104:    {
+    #####:  105:        return LoadSymbol( aLibId.GetLibNickname(), aLibId.GetLibItemName() );
+        -:  106:    }
+        -:  107:
+        -:  108:    /**
+        -:  109:     * The set of return values from SaveSymbol() below.
+        -:  110:     */
+        -:  111:    enum SAVE_T
+        -:  112:    {
+        -:  113:        SAVE_OK,
+        -:  114:        SAVE_SKIPPED,
+        -:  115:    };
+        -:  116:
+        -:  117:    /**
+        -:  118:     * Write @a aSymbol to an existing library given by @a aNickname.
+        -:  119:     *
+        -:  120:     * If a #LIB_SYMBOL by the same name already exists or there are any conflicting alias
+        -:  121:     * names, the new #LIB_SYMBOL will silently overwrite any existing aliases and/or part
+        -:  122:     * because libraries cannot have duplicate alias names.  It is the responsibility of
+        -:  123:     * the caller to check the library for conflicts before saving.
+        -:  124:     *
+        -:  125:     * @param aNickname is a locator for the "library", it is a "name" in LIB_TABLE_ROW
+        -:  126:     * @param aSymbol is what to store in the library. The library owns the symbol after this
+        -:  127:     *                call.
+        -:  128:     * @param aOverwrite when true means overwrite any existing symbol by the same name,
+        -:  129:     *                   else if false means skip the write and return SAVE_SKIPPED.
+        -:  130:     * @return SAVE_T - SAVE_OK or SAVE_SKIPPED.  If error saving, then IO_ERROR is thrown.
+        -:  131:     * @throw IO_ERROR if there is a problem saving the symbol.
+        -:  132:     */
+        -:  133:    SAVE_T SaveSymbol( const wxString& aNickname, const LIB_SYMBOL* aSymbol,
+        -:  134:                       bool aOverwrite = true );
+        -:  135:
+        -:  136:    /**
+        -:  137:     * Deletes the @a aSymbolName from the library given by @a aNickname.
+        -:  138:     *
+        -:  139:     * @param aNickname is a locator for the "library", it is a "name" in LIB_TABLE_ROW.
+        -:  140:     * @param aSymbolName is the name of a symbol to delete from the specified library.
+        -:  141:     * @throw IO_ERROR if there is a problem finding the footprint or the library, or deleting it.
+        -:  142:     */
+        -:  143:    void DeleteSymbol( const wxString& aNickname, const wxString& aSymbolName );
+        -:  144:
+        -:  145:    /**
+        -:  146:     * Return true if the library given by @a aNickname is writable.
+        -:  147:     *
+        -:  148:     * It is possible that some symbols libraries are read only because of where they are
+        -:  149:     * installed.
+        -:  150:     *
+        -:  151:     * @param aNickname is the library nickname in the symbol library table.
+        -:  152:     * @throw IO_ERROR if no library at @a aNickname exists.
+        -:  153:     */
+        -:  154:    bool IsSymbolLibWritable( const wxString& aNickname );
+        -:  155:
+        -:  156:    int GetModifyHash() const;
+        -:  157:
+        -:  158:    /**
+        -:  159:     * Return the modify hash of a single library if it is currently loaded.
+        -:  160:     *
+        -:  161:     * Unlike GetModifyHash(), which sums the hashes of every loaded library, this reports just the
+        -:  162:     * named library so callers can react to changes in a specific dependency without being disturbed
+        -:  163:     * by unrelated (for example asynchronously loading) libraries.
+        -:  164:     *
+        -:  165:     * @param aNickname is the library nickname in the symbol library table.
+        -:  166:     * @return the library's modify hash, or std::nullopt if it is not loaded.
+        -:  167:     */
+        -:  168:    std::optional<int> GetLibraryModifyHash( const wxString& aNickname ) const;
+        -:  169:
+        -:  170:protected:
+        -:  171:    std::map<wxString, LIB_DATA>& globalLibs() override { return GlobalLibraries.Get(); }
+        -:  172:    std::map<wxString, LIB_DATA>& globalLibs() const override { return GlobalLibraries.Get(); }
+        -:  173:    std::shared_mutex& globalLibsMutex() override { return GlobalLibraryMutex; }
+        -:  174:    std::shared_mutex& globalLibsMutex() const override { return GlobalLibraryMutex; }
+        -:  175:
+        -:  176:    void enumerateLibrary( LIB_DATA* aLib, const wxString& aUri ) override;
+        -:  177:
+        -:  178:    LIBRARY_RESULT<IO_BASE*> createPlugin( const LIBRARY_TABLE_ROW* row ) override;
+        -:  179:
+        -:  180:    IO_BASE* plugin( const LIB_DATA* aRow ) override { return schplugin( aRow ); }
+        -:  181:
+        -:  182:private:
+        -:  183:    static SCH_IO* schplugin( const LIB_DATA* aRow );
+        -:  184:
+        -:  185:    static LEAK_AT_EXIT<std::map<wxString, LIB_DATA>> GlobalLibraries;
+        -:  186:    static std::shared_mutex GlobalLibraryMutex;
+        -:  187:};
+        -:  188:
+        -:  189:#endif //SYMBOL_LIBRARY_MANAGER_ADAPTER_H

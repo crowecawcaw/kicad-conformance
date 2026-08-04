@@ -1,0 +1,92 @@
+        -:    0:Source:/usr/include/boost/ptr_container/clone_allocator.hpp
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1://
+        -:    2:// Boost.Pointer Container
+        -:    3://
+        -:    4://  Copyright Thorsten Ottosen 2003-2005. Use, modification and
+        -:    5://  distribution is subject to the Boost Software License, Version
+        -:    6://  1.0. (See accompanying file LICENSE_1_0.txt or copy at
+        -:    7://  http://www.boost.org/LICENSE_1_0.txt)
+        -:    8://
+        -:    9:// For more information, see http://www.boost.org/libs/ptr_container/
+        -:   10://
+        -:   11:
+        -:   12:#ifndef BOOST_PTR_CONTAINER_CLONE_ALLOCATOR_HPP
+        -:   13:#define BOOST_PTR_CONTAINER_CLONE_ALLOCATOR_HPP
+        -:   14:
+        -:   15:#include <boost/assert.hpp>
+        -:   16:#include <boost/checked_delete.hpp>
+        -:   17:#include <typeinfo>
+        -:   18:
+        -:   19:namespace boost
+        -:   20:{
+        -:   21:    /////////////////////////////////////////////////////////////////////////
+        -:   22:    // Clonable concept 
+        -:   23:    /////////////////////////////////////////////////////////////////////////
+        -:   24:    
+        -:   25:    template< class T >
+        -:   26:    inline T* new_clone( const T& r )
+        -:   27:    {
+        -:   28:        //
+        -:   29:        // @remark: if you get a compile-error here,
+        -:   30:        //          it is most likely because you did not
+        -:   31:        //          define new_clone( const T& ) in the namespace
+        -:   32:        //          of T.
+        -:   33:        //
+        -:   34:        T* res = new T( r );
+        -:   35:        BOOST_ASSERT( typeid(r) == typeid(*res) &&
+        -:   36:                      "Default new_clone() sliced object!" );
+        -:   37:        return res;
+        -:   38:    }
+        -:   39:
+        -:   40:
+        -:   41:    
+        -:   42:    template< class T >
+    #####:   43:    inline void delete_clone( const T* r )
+        -:   44:    {
+    #####:   45:        checked_delete( r );
+    #####:   46:    }
+        -:   47:
+        -:   48:    /////////////////////////////////////////////////////////////////////////
+        -:   49:    // CloneAllocator concept
+        -:   50:    /////////////////////////////////////////////////////////////////////////
+        -:   51:    
+        -:   52:    struct heap_clone_allocator
+        -:   53:    {
+        -:   54:        template< class U >
+        -:   55:        static U* allocate_clone( const U& r )
+        -:   56:        {
+        -:   57:            return new_clone( r );
+        -:   58:        }
+        -:   59:
+        -:   60:        template< class U >
+    #####:   61:        static void deallocate_clone( const U* r )
+        -:   62:        {
+    #####:   63:            delete_clone( r );
+    #####:   64:        }
+        -:   65:
+        -:   66:    };
+        -:   67:
+        -:   68:
+        -:   69:    
+        -:   70:    struct view_clone_allocator
+        -:   71:    {
+        -:   72:        template< class U >
+        -:   73:        static U* allocate_clone( const U& r )
+        -:   74:        {
+        -:   75:            return const_cast<U*>(&r);
+        -:   76:        }
+        -:   77:
+        -:   78:        template< class U >
+        -:   79:        static void deallocate_clone( const U* /*r*/ )
+        -:   80:        {
+        -:   81:            // do nothing
+        -:   82:        }
+        -:   83:    };
+        -:   84:
+        -:   85:} // namespace 'boost'
+        -:   86:
+        -:   87:#endif
+        -:   88:

@@ -1,0 +1,918 @@
+        -:    0:Source:/src/kicad/thirdparty/libpopcnt/libpopcnt.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * libpopcnt.h - C/C++ library for counting the number of 1 bits (bit
+        -:    3: * population count) in an array as quickly as possible using
+        -:    4: * specialized CPU instructions i.e. POPCNT, AVX2, AVX512, NEON.
+        -:    5: *
+        -:    6: * Copyright (c) 2016 - 2024, Kim Walisch
+        -:    7: * Copyright (c) 2016 - 2018, Wojciech Muła
+        -:    8: *
+        -:    9: * All rights reserved.
+        -:   10: *
+        -:   11: * Redistribution and use in source and binary forms, with or without
+        -:   12: * modification, are permitted provided that the following conditions are met:
+        -:   13: *
+        -:   14: * 1. Redistributions of source code must retain the above copyright notice, this
+        -:   15: *    list of conditions and the following disclaimer.
+        -:   16: * 2. Redistributions in binary form must reproduce the above copyright notice,
+        -:   17: *    this list of conditions and the following disclaimer in the documentation
+        -:   18: *    and/or other materials provided with the distribution.
+        -:   19: *
+        -:   20: * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+        -:   21: * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+        -:   22: * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+        -:   23: * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+        -:   24: * ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+        -:   25: * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+        -:   26: * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+        -:   27: * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+        -:   28: * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+        -:   29: * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+        -:   30: */
+        -:   31:
+        -:   32:#ifndef LIBPOPCNT_H
+        -:   33:#define LIBPOPCNT_H
+        -:   34:
+        -:   35:#include <stdint.h>
+        -:   36:
+        -:   37:#ifndef __has_builtin
+        -:   38:  #define __has_builtin(x) 0
+        -:   39:#endif
+        -:   40:
+        -:   41:#ifndef __has_attribute
+        -:   42:  #define __has_attribute(x) 0
+        -:   43:#endif
+        -:   44:
+        -:   45:#ifndef __has_include
+        -:   46:  #define __has_include(x) 0
+        -:   47:#endif
+        -:   48:
+        -:   49:#ifdef __GNUC__
+        -:   50:  #define LIBPOPCNT_GNUC_PREREQ(x, y) \
+        -:   51:      (__GNUC__ > x || (__GNUC__ == x && __GNUC_MINOR__ >= y))
+        -:   52:#else
+        -:   53:  #define LIBPOPCNT_GNUC_PREREQ(x, y) 0
+        -:   54:#endif
+        -:   55:
+        -:   56:#ifdef __clang__
+        -:   57:  #define LIBPOPCNT_CLANG_PREREQ(x, y) \
+        -:   58:      (__clang_major__ > x || (__clang_major__ == x && __clang_minor__ >= y))
+        -:   59:#else
+        -:   60:  #define LIBPOPCNT_CLANG_PREREQ(x, y) 0
+        -:   61:#endif
+        -:   62:
+        -:   63:#if (_MSC_VER < 1900) && \
+        -:   64:    !defined(__cplusplus)
+        -:   65:  #define inline __inline
+        -:   66:#endif
+        -:   67:
+        -:   68:#if (defined(__i386__) || \
+        -:   69:     defined(__x86_64__) || \
+        -:   70:     defined(_M_IX86) || \
+        -:   71:     defined(_M_X64))
+        -:   72:  #define LIBPOPCNT_X86_OR_X64
+        -:   73:#endif
+        -:   74:
+        -:   75:#if LIBPOPCNT_GNUC_PREREQ(4, 2) || \
+        -:   76:    __has_builtin(__builtin_popcount)
+        -:   77:  #define LIBPOPCNT_HAVE_BUILTIN_POPCOUNT
+        -:   78:#endif
+        -:   79:
+        -:   80:#if LIBPOPCNT_GNUC_PREREQ(4, 2) || \
+        -:   81:    LIBPOPCNT_CLANG_PREREQ(3, 0)
+        -:   82:  #define LIBPOPCNT_HAVE_ASM_POPCNT
+        -:   83:#endif
+        -:   84:
+        -:   85:#if defined(LIBPOPCNT_X86_OR_X64) && \
+        -:   86:   (defined(LIBPOPCNT_HAVE_ASM_POPCNT) || \
+        -:   87:    defined(_MSC_VER))
+        -:   88:  #define LIBPOPCNT_HAVE_POPCNT
+        -:   89:#endif
+        -:   90:
+        -:   91:/* GCC compiler */
+        -:   92:#if defined(LIBPOPCNT_X86_OR_X64) && \
+        -:   93:    LIBPOPCNT_GNUC_PREREQ(5, 0)
+        -:   94:  #define LIBPOPCNT_HAVE_AVX2
+        -:   95:#endif
+        -:   96:
+        -:   97:/* GCC compiler */
+        -:   98:#if defined(LIBPOPCNT_X86_OR_X64) && \
+        -:   99:    LIBPOPCNT_GNUC_PREREQ(11, 0)
+        -:  100:  #define LIBPOPCNT_HAVE_AVX512
+        -:  101:#endif
+        -:  102:
+        -:  103:/* Clang (Unix-like OSes) */
+        -:  104:#if defined(LIBPOPCNT_X86_OR_X64) && !defined(_MSC_VER)
+        -:  105:  #if LIBPOPCNT_CLANG_PREREQ(3, 8) && \
+        -:  106:      __has_attribute(target) && \
+        -:  107:      (!defined(__apple_build_version__) || __apple_build_version__ >= 8000000)
+        -:  108:    #define LIBPOPCNT_HAVE_AVX2
+        -:  109:  #endif
+        -:  110:  #if LIBPOPCNT_CLANG_PREREQ(9, 0) && \
+        -:  111:      __has_attribute(target) && \
+        -:  112:      (!defined(__apple_build_version__) || __apple_build_version__ >= 8000000)
+        -:  113:    #define LIBPOPCNT_HAVE_AVX512
+        -:  114:  #endif
+        -:  115:#endif
+        -:  116:
+        -:  117:/* MSVC compatible compilers (Windows) */
+        -:  118:#if defined(LIBPOPCNT_X86_OR_X64) && \
+        -:  119:    defined(_MSC_VER)
+        -:  120:  /*
+        -:  121:   * There is an LLVM/Clang bug on Windows where function targets
+        -:  122:   * for AVX2 and AVX512 fail to compile unless the user compiles
+        -:  123:   * using the options /arch:AVX2 and /arch:AVX512.
+        -:  124:   * All Clang versions <= 18.0 (from 2024) are affected by this bug.
+        -:  125:   * However, I expect this bug will be fixed in near future:
+        -:  126:   * https://github.com/llvm/llvm-project/issues/53520
+        -:  127:   */
+        -:  128:  #if defined(__clang__)
+        -:  129:    #if defined(__AVX2__)
+        -:  130:      #define LIBPOPCNT_HAVE_AVX2
+        -:  131:    #endif
+        -:  132:    #if defined(__AVX512__)
+        -:  133:      #define LIBPOPCNT_HAVE_AVX2
+        -:  134:      #define LIBPOPCNT_HAVE_AVX512
+        -:  135:    #endif
+        -:  136:  /* MSVC 2017 or later does not require
+        -:  137:  * /arch:AVX2 or /arch:AVX512 */
+        -:  138:  #elif _MSC_VER >= 1910
+        -:  139:    #define LIBPOPCNT_HAVE_AVX2
+        -:  140:    #define LIBPOPCNT_HAVE_AVX512
+        -:  141:  #endif
+        -:  142:#endif
+        -:  143:
+        -:  144:/*
+        -:  145: * Only enable CPUID runtime checks if this is really
+        -:  146: * needed. E.g. do not enable if user has compiled
+        -:  147: * using -march=native on a CPU that supports AVX512.
+        -:  148: */
+        -:  149:#if defined(LIBPOPCNT_X86_OR_X64) && \
+        -:  150:   (defined(__cplusplus) || \
+        -:  151:    defined(_MSC_VER) || \
+        -:  152:   (LIBPOPCNT_GNUC_PREREQ(4, 2) || \
+        -:  153:    __has_builtin(__sync_val_compare_and_swap))) && \
+        -:  154:   ((defined(LIBPOPCNT_HAVE_AVX512) && !(defined(__AVX512__) || \
+        -:  155:                                        (defined(__AVX512F__) && \
+        -:  156:                                         defined(__AVX512BW__) && \
+        -:  157:                                         defined(__AVX512VPOPCNTDQ__)))) || \
+        -:  158:    (defined(LIBPOPCNT_HAVE_AVX2) && !defined(__AVX2__)) || \
+        -:  159:    (defined(LIBPOPCNT_HAVE_POPCNT) && !defined(__POPCNT__)))
+        -:  160:  #define LIBPOPCNT_HAVE_CPUID
+        -:  161:#endif
+        -:  162:
+        -:  163:#ifdef __cplusplus
+        -:  164:extern "C" {
+        -:  165:#endif
+        -:  166:
+        -:  167:/*
+        -:  168: * This uses fewer arithmetic operations than any other known
+        -:  169: * implementation on machines with fast multiplication.
+        -:  170: * It uses 12 arithmetic operations, one of which is a multiply.
+        -:  171: * http://en.wikipedia.org/wiki/Hamming_weight#Efficient_implementation
+        -:  172: */
+    #####:  173:static inline uint64_t popcnt64_bitwise(uint64_t x)
+        -:  174:{
+    #####:  175:  uint64_t m1 = 0x5555555555555555ull;
+    #####:  176:  uint64_t m2 = 0x3333333333333333ull;
+    #####:  177:  uint64_t m4 = 0x0F0F0F0F0F0F0F0Full;
+    #####:  178:  uint64_t h01 = 0x0101010101010101ull;
+        -:  179:
+    #####:  180:  x -= (x >> 1) & m1;
+    #####:  181:  x = (x & m2) + ((x >> 2) & m2);
+    #####:  182:  x = (x + (x >> 4)) & m4;
+        -:  183:
+    #####:  184:  return (x * h01) >> 56;
+        -:  185:}
+        -:  186:
+        -:  187:#if defined(LIBPOPCNT_HAVE_ASM_POPCNT) && \
+        -:  188:    defined(__x86_64__)
+        -:  189:
+    #####:  190:static inline uint64_t popcnt64(uint64_t x)
+        -:  191:{
+    #####:  192:  __asm__ ("popcnt %1, %0" : "=r" (x) : "0" (x));
+    #####:  193:  return x;
+        -:  194:}
+        -:  195:
+        -:  196:#elif defined(LIBPOPCNT_HAVE_ASM_POPCNT) && \
+        -:  197:      defined(__i386__)
+        -:  198:
+        -:  199:static inline uint32_t popcnt32(uint32_t x)
+        -:  200:{
+        -:  201:  __asm__ ("popcnt %1, %0" : "=r" (x) : "0" (x));
+        -:  202:  return x;
+        -:  203:}
+        -:  204:
+        -:  205:static inline uint64_t popcnt64(uint64_t x)
+        -:  206:{
+        -:  207:  return popcnt32((uint32_t) x) +
+        -:  208:         popcnt32((uint32_t)(x >> 32));
+        -:  209:}
+        -:  210:
+        -:  211:#elif defined(_MSC_VER) && \
+        -:  212:      defined(_M_X64)
+        -:  213:
+        -:  214:#include <intrin.h>
+        -:  215:
+        -:  216:static inline uint64_t popcnt64(uint64_t x)
+        -:  217:{
+        -:  218:  return __popcnt64(x);
+        -:  219:}
+        -:  220:
+        -:  221:#elif defined(_MSC_VER) && \
+        -:  222:      defined(_M_IX86)
+        -:  223:
+        -:  224:#include <intrin.h>
+        -:  225:
+        -:  226:static inline uint64_t popcnt64(uint64_t x)
+        -:  227:{
+        -:  228:  return __popcnt((uint32_t) x) +
+        -:  229:         __popcnt((uint32_t)(x >> 32));
+        -:  230:}
+        -:  231:
+        -:  232:/* non x86 CPUs */
+        -:  233:#elif defined(LIBPOPCNT_HAVE_BUILTIN_POPCOUNT)
+        -:  234:
+        -:  235:static inline uint64_t popcnt64(uint64_t x)
+        -:  236:{
+        -:  237:  return __builtin_popcountll(x);
+        -:  238:}
+        -:  239:
+        -:  240:/* no hardware POPCNT,
+        -:  241: * use pure integer algorithm */
+        -:  242:#else
+        -:  243:
+        -:  244:static inline uint64_t popcnt64(uint64_t x)
+        -:  245:{
+        -:  246:  return popcnt64_bitwise(x);
+        -:  247:}
+        -:  248:
+        -:  249:#endif
+        -:  250:
+        -:  251:#if defined(LIBPOPCNT_HAVE_CPUID)
+        -:  252:
+        -:  253:#if defined(_MSC_VER)
+        -:  254:  #include <intrin.h>
+        -:  255:  #include <immintrin.h>
+        -:  256:#endif
+        -:  257:
+        -:  258:/* CPUID bits documentation: */
+        -:  259:/* https://en.wikipedia.org/wiki/CPUID */
+        -:  260:
+        -:  261:/* %ebx bit flags */
+        -:  262:#define LIBPOPCNT_BIT_AVX2     (1 << 5)
+        -:  263:#define LIBPOPCNT_BIT_AVX512F  (1 << 16)
+        -:  264:#define LIBPOPCNT_BIT_AVX512BW (1 << 30)
+        -:  265:
+        -:  266:/* %ecx bit flags */
+        -:  267:#define LIBPOPCNT_BIT_AVX512_VPOPCNTDQ (1 << 14)
+        -:  268:#define LIBPOPCNT_BIT_POPCNT           (1 << 23)
+        -:  269:
+        -:  270:/* xgetbv bit flags */
+        -:  271:#define LIBPOPCNT_XSTATE_SSE (1 << 1)
+        -:  272:#define LIBPOPCNT_XSTATE_YMM (1 << 2)
+        -:  273:#define LIBPOPCNT_XSTATE_ZMM (7 << 5)
+        -:  274:
+    #####:  275:static inline void run_cpuid(int eax, int ecx, int* abcd)
+        -:  276:{
+        -:  277:#if defined(_MSC_VER)
+        -:  278:  __cpuidex(abcd, eax, ecx);
+        -:  279:#else
+    #####:  280:  int ebx = 0;
+    #####:  281:  int edx = 0;
+        -:  282:
+        -:  283:  #if defined(__i386__) && \
+        -:  284:      defined(__PIC__)
+        -:  285:    /* In case of PIC under 32-bit EBX cannot be clobbered */
+        -:  286:    __asm__ __volatile__("movl %%ebx, %%edi;"
+        -:  287:                         "cpuid;"
+        -:  288:                         "xchgl %%ebx, %%edi;"
+        -:  289:                         : "+a" (eax),
+        -:  290:                           "=D" (ebx),
+        -:  291:                           "+c" (ecx),
+        -:  292:                           "=d" (edx));
+        -:  293:  #else
+    #####:  294:    __asm__ __volatile__("cpuid"
+        -:  295:                         : "+a" (eax),
+        -:  296:                           "+b" (ebx),
+        -:  297:                           "+c" (ecx),
+        -:  298:                           "=d" (edx));
+        -:  299:  #endif
+        -:  300:
+    #####:  301:  abcd[0] = eax;
+    #####:  302:  abcd[1] = ebx;
+    #####:  303:  abcd[2] = ecx;
+    #####:  304:  abcd[3] = edx;
+        -:  305:#endif
+    #####:  306:}
+        -:  307:
+        -:  308:#if defined(LIBPOPCNT_HAVE_AVX2) || \
+        -:  309:    defined(LIBPOPCNT_HAVE_AVX512)
+        -:  310:
+    #####:  311:static inline uint64_t get_xcr0(void)
+        -:  312:{
+        -:  313:#if defined(_MSC_VER)
+        -:  314:  return _xgetbv(0);
+        -:  315:#else
+    #####:  316:  uint32_t eax;
+    #####:  317:  uint32_t edx;
+        -:  318:
+    #####:  319:  __asm__ __volatile__("xgetbv" : "=a"(eax), "=d"(edx) : "c"(0));
+    #####:  320:  return eax | (((uint64_t) edx) << 32);
+        -:  321:#endif
+        -:  322:}
+        -:  323:
+        -:  324:#endif
+        -:  325:
+    #####:  326:static inline int get_cpuid(void)
+        -:  327:{
+    #####:  328:  int flags = 0;
+    #####:  329:  int abcd[4];
+        -:  330:
+    #####:  331:  run_cpuid(1, 0, abcd);
+        -:  332:
+    #####:  333:  if ((abcd[2] & LIBPOPCNT_BIT_POPCNT) == LIBPOPCNT_BIT_POPCNT)
+    #####:  334:    flags |= LIBPOPCNT_BIT_POPCNT;
+        -:  335:
+        -:  336:#if defined(LIBPOPCNT_HAVE_AVX2) || \
+        -:  337:    defined(LIBPOPCNT_HAVE_AVX512)
+        -:  338:
+    #####:  339:  int osxsave_mask = (1 << 27);
+        -:  340:
+        -:  341:  /* ensure OS supports extended processor state management */
+    #####:  342:  if ((abcd[2] & osxsave_mask) != osxsave_mask)
+    #####:  343:    return 0;
+        -:  344:
+    #####:  345:  uint64_t ymm_mask = LIBPOPCNT_XSTATE_SSE | LIBPOPCNT_XSTATE_YMM;
+    #####:  346:  uint64_t zmm_mask = LIBPOPCNT_XSTATE_SSE | LIBPOPCNT_XSTATE_YMM | LIBPOPCNT_XSTATE_ZMM;
+    #####:  347:  uint64_t xcr0 = get_xcr0();
+        -:  348:
+    #####:  349:  if ((xcr0 & ymm_mask) == ymm_mask)
+        -:  350:  {
+    #####:  351:    run_cpuid(7, 0, abcd);
+        -:  352:
+    #####:  353:    if ((abcd[1] & LIBPOPCNT_BIT_AVX2) == LIBPOPCNT_BIT_AVX2)
+    #####:  354:      flags |= LIBPOPCNT_BIT_AVX2;
+        -:  355:
+    #####:  356:    if ((xcr0 & zmm_mask) == zmm_mask)
+        -:  357:    {
+        -:  358:      /* If all AVX512 features required by our popcnt_avx512() are supported */
+        -:  359:      /* then we add LIBPOPCNT_BIT_AVX512_VPOPCNTDQ to our CPUID flags. */
+    #####:  360:      if ((abcd[1] & LIBPOPCNT_BIT_AVX512F) == LIBPOPCNT_BIT_AVX512F &&
+    #####:  361:          (abcd[1] & LIBPOPCNT_BIT_AVX512BW) == LIBPOPCNT_BIT_AVX512BW &&
+    #####:  362:          (abcd[2] & LIBPOPCNT_BIT_AVX512_VPOPCNTDQ) == LIBPOPCNT_BIT_AVX512_VPOPCNTDQ)
+    #####:  363:        flags |= LIBPOPCNT_BIT_AVX512_VPOPCNTDQ;
+        -:  364:    }
+        -:  365:  }
+        -:  366:
+        -:  367:#endif
+        -:  368:
+    #####:  369:  return flags;
+        -:  370:}
+        -:  371:
+        -:  372:#endif /* cpuid */
+        -:  373:
+        -:  374:#if defined(LIBPOPCNT_HAVE_AVX2) && \
+        -:  375:    __has_include(<immintrin.h>)
+        -:  376:
+        -:  377:#include <immintrin.h>
+        -:  378:
+        -:  379:#if __has_attribute(target)
+        -:  380:  __attribute__ ((target ("avx2")))
+        -:  381:#endif
+    #####:  382:static inline void CSA256(__m256i* h, __m256i* l, __m256i a, __m256i b, __m256i c)
+        -:  383:{
+    #####:  384:  __m256i u = _mm256_xor_si256(a, b);
+    #####:  385:  *h = _mm256_or_si256(_mm256_and_si256(a, b), _mm256_and_si256(u, c));
+    #####:  386:  *l = _mm256_xor_si256(u, c);
+    #####:  387:}
+        -:  388:
+        -:  389:#if __has_attribute(target)
+        -:  390:  __attribute__ ((target ("avx2")))
+        -:  391:#endif
+    #####:  392:static inline __m256i popcnt256(__m256i v)
+        -:  393:{
+    #####:  394:  __m256i lookup1 = _mm256_setr_epi8(
+        -:  395:      4, 5, 5, 6, 5, 6, 6, 7,
+        -:  396:      5, 6, 6, 7, 6, 7, 7, 8,
+        -:  397:      4, 5, 5, 6, 5, 6, 6, 7,
+        -:  398:      5, 6, 6, 7, 6, 7, 7, 8
+        -:  399:  );
+        -:  400:
+    #####:  401:  __m256i lookup2 = _mm256_setr_epi8(
+        -:  402:      4, 3, 3, 2, 3, 2, 2, 1,
+        -:  403:      3, 2, 2, 1, 2, 1, 1, 0,
+        -:  404:      4, 3, 3, 2, 3, 2, 2, 1,
+        -:  405:      3, 2, 2, 1, 2, 1, 1, 0
+        -:  406:  );
+        -:  407:
+    #####:  408:  __m256i low_mask = _mm256_set1_epi8(0x0f);
+    #####:  409:  __m256i lo = _mm256_and_si256(v, low_mask);
+    #####:  410:  __m256i hi = _mm256_and_si256(_mm256_srli_epi16(v, 4), low_mask);
+    #####:  411:  __m256i popcnt1 = _mm256_shuffle_epi8(lookup1, lo);
+    #####:  412:  __m256i popcnt2 = _mm256_shuffle_epi8(lookup2, hi);
+        -:  413:
+    #####:  414:  return _mm256_sad_epu8(popcnt1, popcnt2);
+        -:  415:}
+        -:  416:
+        -:  417:/*
+        -:  418: * AVX2 Harley-Seal popcount (4th iteration).
+        -:  419: * The algorithm is based on the paper "Faster Population Counts
+        -:  420: * using AVX2 Instructions" by Daniel Lemire, Nathan Kurz and
+        -:  421: * Wojciech Mula (23 Nov 2016).
+        -:  422: * @see https://arxiv.org/abs/1611.07612
+        -:  423: */
+        -:  424:#if __has_attribute(target)
+        -:  425:  __attribute__ ((target ("avx2")))
+        -:  426:#endif
+    #####:  427:static inline uint64_t popcnt_avx2(const __m256i* ptr, uint64_t size)
+        -:  428:{
+    #####:  429:  __m256i cnt = _mm256_setzero_si256();
+    #####:  430:  __m256i ones = _mm256_setzero_si256();
+    #####:  431:  __m256i twos = _mm256_setzero_si256();
+    #####:  432:  __m256i fours = _mm256_setzero_si256();
+    #####:  433:  __m256i eights = _mm256_setzero_si256();
+    #####:  434:  __m256i sixteens = _mm256_setzero_si256();
+    #####:  435:  __m256i twosA, twosB, foursA, foursB, eightsA, eightsB;
+        -:  436:
+    #####:  437:  uint64_t i = 0;
+    #####:  438:  uint64_t limit = size - size % 16;
+    #####:  439:  uint64_t* cnt64;
+        -:  440:
+    #####:  441:  for(; i < limit; i += 16)
+        -:  442:  {
+    #####:  443:    CSA256(&twosA, &ones, ones, _mm256_loadu_si256(ptr + i + 0), _mm256_loadu_si256(ptr + i + 1));
+    #####:  444:    CSA256(&twosB, &ones, ones, _mm256_loadu_si256(ptr + i + 2), _mm256_loadu_si256(ptr + i + 3));
+    #####:  445:    CSA256(&foursA, &twos, twos, twosA, twosB);
+    #####:  446:    CSA256(&twosA, &ones, ones, _mm256_loadu_si256(ptr + i + 4), _mm256_loadu_si256(ptr + i + 5));
+    #####:  447:    CSA256(&twosB, &ones, ones, _mm256_loadu_si256(ptr + i + 6), _mm256_loadu_si256(ptr + i + 7));
+    #####:  448:    CSA256(&foursB, &twos, twos, twosA, twosB);
+    #####:  449:    CSA256(&eightsA, &fours, fours, foursA, foursB);
+    #####:  450:    CSA256(&twosA, &ones, ones, _mm256_loadu_si256(ptr + i + 8), _mm256_loadu_si256(ptr + i + 9));
+    #####:  451:    CSA256(&twosB, &ones, ones, _mm256_loadu_si256(ptr + i + 10), _mm256_loadu_si256(ptr + i + 11));
+    #####:  452:    CSA256(&foursA, &twos, twos, twosA, twosB);
+    #####:  453:    CSA256(&twosA, &ones, ones, _mm256_loadu_si256(ptr + i + 12), _mm256_loadu_si256(ptr + i + 13));
+    #####:  454:    CSA256(&twosB, &ones, ones, _mm256_loadu_si256(ptr + i + 14), _mm256_loadu_si256(ptr + i + 15));
+    #####:  455:    CSA256(&foursB, &twos, twos, twosA, twosB);
+    #####:  456:    CSA256(&eightsB, &fours, fours, foursA, foursB);
+    #####:  457:    CSA256(&sixteens, &eights, eights, eightsA, eightsB);
+        -:  458:
+    #####:  459:    cnt = _mm256_add_epi64(cnt, popcnt256(sixteens));
+        -:  460:  }
+        -:  461:
+    #####:  462:  cnt = _mm256_slli_epi64(cnt, 4);
+    #####:  463:  cnt = _mm256_add_epi64(cnt, _mm256_slli_epi64(popcnt256(eights), 3));
+    #####:  464:  cnt = _mm256_add_epi64(cnt, _mm256_slli_epi64(popcnt256(fours), 2));
+    #####:  465:  cnt = _mm256_add_epi64(cnt, _mm256_slli_epi64(popcnt256(twos), 1));
+    #####:  466:  cnt = _mm256_add_epi64(cnt, popcnt256(ones));
+        -:  467:
+    #####:  468:  for(; i < size; i++)
+    #####:  469:    cnt = _mm256_add_epi64(cnt, popcnt256(_mm256_loadu_si256(ptr + i)));
+        -:  470:
+    #####:  471:  cnt64 = (uint64_t*) &cnt;
+        -:  472:
+    #####:  473:  return cnt64[0] +
+    #####:  474:         cnt64[1] +
+    #####:  475:         cnt64[2] +
+    #####:  476:         cnt64[3];
+        -:  477:}
+        -:  478:
+        -:  479:#endif
+        -:  480:
+        -:  481:#if defined(LIBPOPCNT_HAVE_AVX512) && \
+        -:  482:    __has_include(<immintrin.h>)
+        -:  483:
+        -:  484:#include <immintrin.h>
+        -:  485:
+        -:  486:#if __has_attribute(target)
+        -:  487:  __attribute__ ((target ("avx512f,avx512bw,avx512vpopcntdq")))
+        -:  488:#endif
+    #####:  489:static inline uint64_t popcnt_avx512(const uint8_t* ptr8, uint64_t size)
+        -:  490:{
+    #####:  491:    __m512i cnt = _mm512_setzero_si512();
+    #####:  492:    const uint64_t* ptr64 = (const uint64_t*) ptr8;
+    #####:  493:    uint64_t size64 = size / sizeof(uint64_t);
+    #####:  494:    uint64_t i = 0;
+        -:  495:
+    #####:  496:    for (; i + 32 <= size64; i += 32)
+        -:  497:    {
+    #####:  498:      __m512i vec0 = _mm512_loadu_epi64(&ptr64[i + 0]);
+    #####:  499:      __m512i vec1 = _mm512_loadu_epi64(&ptr64[i + 8]);
+    #####:  500:      __m512i vec2 = _mm512_loadu_epi64(&ptr64[i + 16]);
+    #####:  501:      __m512i vec3 = _mm512_loadu_epi64(&ptr64[i + 24]);
+        -:  502:
+    #####:  503:      vec0 = _mm512_popcnt_epi64(vec0);
+    #####:  504:      vec1 = _mm512_popcnt_epi64(vec1);
+    #####:  505:      vec2 = _mm512_popcnt_epi64(vec2);
+    #####:  506:      vec3 = _mm512_popcnt_epi64(vec3);
+        -:  507:
+    #####:  508:      cnt = _mm512_add_epi64(cnt, vec0);
+    #####:  509:      cnt = _mm512_add_epi64(cnt, vec1);
+    #####:  510:      cnt = _mm512_add_epi64(cnt, vec2);
+    #####:  511:      cnt = _mm512_add_epi64(cnt, vec3);
+        -:  512:    }
+        -:  513:
+    #####:  514:    for (; i + 8 <= size64; i += 8)
+        -:  515:    {
+    #####:  516:      __m512i vec = _mm512_loadu_epi64(&ptr64[i]);
+    #####:  517:      vec = _mm512_popcnt_epi64(vec);
+    #####:  518:      cnt = _mm512_add_epi64(cnt, vec);
+        -:  519:    }
+        -:  520:
+    #####:  521:    i *= sizeof(uint64_t);
+        -:  522:
+        -:  523:    /* Process last 63 bytes */
+    #####:  524:    if (i < size)
+        -:  525:    {
+    #####:  526:      __mmask64 mask = (__mmask64) (0xffffffffffffffffull >> (i + 64 - size));
+    #####:  527:      __m512i vec = _mm512_maskz_loadu_epi8(mask, &ptr8[i]);
+    #####:  528:      vec = _mm512_popcnt_epi64(vec);
+    #####:  529:      cnt = _mm512_add_epi64(cnt, vec);
+        -:  530:    }
+        -:  531:
+    #####:  532:    return _mm512_reduce_add_epi64(cnt);
+        -:  533:}
+        -:  534:
+        -:  535:#endif
+        -:  536:
+        -:  537:/* x86 CPUs */
+        -:  538:#if defined(LIBPOPCNT_X86_OR_X64)
+        -:  539:
+        -:  540:/*
+        -:  541: * Count the number of 1 bits in the data array
+        -:  542: * @data: An array
+        -:  543: * @size: Size of data in bytes
+        -:  544: */
+    #####:  545:[[maybe_unused]] static uint64_t popcnt(const void* data, uint64_t size)
+        -:  546:{
+        -:  547:/*
+        -:  548: * CPUID runtime checks are only enabled if this is needed.
+        -:  549: * E.g. CPUID is disabled when a user compiles his
+        -:  550: * code using -march=native on a CPU with AVX512.
+        -:  551: */
+        -:  552:#if defined(LIBPOPCNT_HAVE_CPUID)
+        -:  553:  #if defined(__cplusplus)
+        -:  554:    /* C++11 thread-safe singleton */
+    #####:  555:    static const int cpuid = get_cpuid();
+        -:  556:  #else
+        -:  557:    static int cpuid_ = -1;
+        -:  558:    int cpuid = cpuid_;
+        -:  559:    if (cpuid == -1)
+        -:  560:    {
+        -:  561:      cpuid = get_cpuid();
+        -:  562:
+        -:  563:      #if defined(_MSC_VER)
+        -:  564:        _InterlockedCompareExchange(&cpuid_, cpuid, -1);
+        -:  565:      #else
+        -:  566:        __sync_val_compare_and_swap(&cpuid_, -1, cpuid);
+        -:  567:      #endif
+        -:  568:    }
+        -:  569:  #endif
+        -:  570:#endif
+        -:  571:
+    #####:  572:  const uint8_t* ptr = (const uint8_t*) data;
+    #####:  573:  uint64_t cnt = 0;
+    #####:  574:  uint64_t i = 0;
+        -:  575:
+        -:  576:#if defined(LIBPOPCNT_HAVE_AVX512)
+        -:  577:  #if defined(__AVX512__) || \
+        -:  578:     (defined(__AVX512F__) && \
+        -:  579:      defined(__AVX512BW__) && \
+        -:  580:      defined(__AVX512VPOPCNTDQ__))
+        -:  581:    /* For tiny arrays AVX512 is not worth it */
+        -:  582:    if (i + 40 <= size)
+        -:  583:  #else
+    #####:  584:    if ((cpuid & LIBPOPCNT_BIT_AVX512_VPOPCNTDQ) &&
+    #####:  585:        i + 40 <= size)
+        -:  586:  #endif
+    #####:  587:      return popcnt_avx512(ptr, size);
+        -:  588:#endif
+        -:  589:
+        -:  590:#if defined(LIBPOPCNT_HAVE_AVX2)
+        -:  591:  #if defined(__AVX2__)
+        -:  592:    /* AVX2 requires arrays >= 512 bytes */
+        -:  593:    if (i + 512 <= size)
+        -:  594:  #else
+    #####:  595:    if ((cpuid & LIBPOPCNT_BIT_AVX2) &&
+    #####:  596:        i + 512 <= size)
+        -:  597:  #endif
+        -:  598:    {
+    #####:  599:      const __m256i* ptr256 = (const __m256i*)(ptr + i);
+    #####:  600:      cnt += popcnt_avx2(ptr256, (size - i) / 32);
+    #####:  601:      i = size - size % 32;
+        -:  602:    }
+        -:  603:#endif
+        -:  604:
+        -:  605:#if defined(LIBPOPCNT_HAVE_POPCNT)
+        -:  606:  /*
+        -:  607:   * The user has compiled without -mpopcnt.
+        -:  608:   * Unfortunately the MSVC compiler does not have
+        -:  609:   * a POPCNT macro so we cannot get rid of the
+        -:  610:   * runtime check for MSVC.
+        -:  611:   */
+        -:  612:  #if !defined(__POPCNT__)
+    #####:  613:    if (cpuid & LIBPOPCNT_BIT_POPCNT)
+        -:  614:  #endif
+        -:  615:    {
+    #####:  616:      if (i + 8 <= size)
+        -:  617:      {
+    #####:  618:        uintptr_t rem = ((uintptr_t) &ptr[i]) % 8;
+        -:  619:
+        -:  620:        /* Align &ptr[i] to an 8 byte boundary */
+    #####:  621:        if (rem != 0)
+        -:  622:        {
+    #####:  623:          uint64_t val = 0;
+    #####:  624:          uint64_t bytes = (uint64_t) (8 - rem % 8);
+    #####:  625:          bytes = (bytes <= 7) ? bytes : 7;
+    #####:  626:          for (uint64_t j = 0; j < bytes; j++)
+    #####:  627:            val |= ((uint64_t) ptr[i + j]) << (j * 8);
+    #####:  628:          cnt += popcnt64(val);
+    #####:  629:          i += bytes;
+        -:  630:        }
+        -:  631:      }
+        -:  632:
+    #####:  633:      for (; i + 8 <= size; i += 8)
+    #####:  634:        cnt += popcnt64(*(const uint64_t*)(ptr + i));
+        -:  635:
+    #####:  636:      if (i < size)
+        -:  637:      {
+    #####:  638:        uint64_t val = 0;
+    #####:  639:        uint64_t bytes = (uint64_t) (size - i);
+    #####:  640:        bytes = (bytes <= 7) ? bytes : 7;
+    #####:  641:        for (uint64_t j = 0; j < bytes; j++)
+    #####:  642:          val |= ((uint64_t) ptr[i + j]) << (j * 8);
+    #####:  643:        cnt += popcnt64(val);
+        -:  644:      }
+        -:  645:
+    #####:  646:      return cnt;
+        -:  647:    }
+        -:  648:#endif
+        -:  649:
+        -:  650:/*
+        -:  651: * This code is used for:
+        -:  652: * 1) Compiler does not support POPCNT.
+        -:  653: * 2) x86 CPU does not support POPCNT (cpuid != POPCNT).
+        -:  654: */
+        -:  655:#if !defined(LIBPOPCNT_HAVE_POPCNT) || \
+        -:  656:    !defined(__POPCNT__)
+        -:  657:
+    #####:  658:  if (i + 8 <= size)
+        -:  659:  {
+    #####:  660:    uintptr_t rem = ((uintptr_t) &ptr[i]) % 8;
+        -:  661:
+        -:  662:    /* Align &ptr[i] to an 8 byte boundary */
+    #####:  663:    if (rem != 0)
+        -:  664:    {
+    #####:  665:      uint64_t val = 0;
+    #####:  666:      uint64_t bytes = (uint64_t) (8 - rem % 8);
+    #####:  667:      bytes = (bytes <= 7) ? bytes : 7;
+    #####:  668:      for (uint64_t j = 0; j < bytes; j++)
+    #####:  669:        val |= ((uint64_t) ptr[i + j]) << (j * 8);
+    #####:  670:      cnt += popcnt64_bitwise(val);
+    #####:  671:      i += bytes;
+        -:  672:    }
+        -:  673:  }
+        -:  674:
+    #####:  675:  for (; i + 8 <= size; i += 8)
+    #####:  676:    cnt += popcnt64_bitwise(*(const uint64_t*)(ptr + i));
+        -:  677:
+    #####:  678:  if (i < size)
+        -:  679:  {
+    #####:  680:    uint64_t val = 0;
+    #####:  681:    uint64_t bytes = (uint64_t) (size - i);
+    #####:  682:    bytes = (bytes <= 7) ? bytes : 7;
+    #####:  683:    for (uint64_t j = 0; j < bytes; j++)
+    #####:  684:      val |= ((uint64_t) ptr[i + j]) << (j * 8);
+    #####:  685:    cnt += popcnt64_bitwise(val);
+        -:  686:  }
+        -:  687:
+    #####:  688:  return cnt;
+        -:  689:#endif
+        -:  690:}
+        -:  691:
+        -:  692:/* Compile with e.g. -march=armv8-a+sve to enable ARM SVE */
+        -:  693:#elif defined(__ARM_FEATURE_SVE) && \
+        -:  694:      __has_include(<arm_sve.h>)
+        -:  695:
+        -:  696:#include <arm_sve.h>
+        -:  697:
+        -:  698:/*
+        -:  699: * Count the number of 1 bits in the data array
+        -:  700: * @data: An array
+        -:  701: * @size: Size of data in bytes
+        -:  702: */
+        -:  703:[[maybe_unused]] static inline uint64_t popcnt(const void* data, uint64_t size)
+        -:  704:{
+        -:  705:  uint64_t i = 0;
+        -:  706:  const uint64_t* ptr64 = (const uint64_t*) data;
+        -:  707:  uint64_t size64 = size / sizeof(uint64_t);
+        -:  708:  svuint64_t vcnt = svdup_u64(0);
+        -:  709:
+        -:  710:  for (; i + svcntd() * 4 <= size64; i += svcntd() * 4)
+        -:  711:  {
+        -:  712:    svuint64_t vec0 = svld1_u64(svptrue_b64(), &ptr64[i + svcntd() * 0]);
+        -:  713:    svuint64_t vec1 = svld1_u64(svptrue_b64(), &ptr64[i + svcntd() * 1]);
+        -:  714:    svuint64_t vec2 = svld1_u64(svptrue_b64(), &ptr64[i + svcntd() * 2]);
+        -:  715:    svuint64_t vec3 = svld1_u64(svptrue_b64(), &ptr64[i + svcntd() * 3]);
+        -:  716:
+        -:  717:    vec0 = svcnt_u64_x(svptrue_b64(), vec0);
+        -:  718:    vec1 = svcnt_u64_x(svptrue_b64(), vec1);
+        -:  719:    vec2 = svcnt_u64_x(svptrue_b64(), vec2);
+        -:  720:    vec3 = svcnt_u64_x(svptrue_b64(), vec3);
+        -:  721:
+        -:  722:    vcnt = svadd_u64_x(svptrue_b64(), vcnt, vec0);
+        -:  723:    vcnt = svadd_u64_x(svptrue_b64(), vcnt, vec1);
+        -:  724:    vcnt = svadd_u64_x(svptrue_b64(), vcnt, vec2);
+        -:  725:    vcnt = svadd_u64_x(svptrue_b64(), vcnt, vec3);
+        -:  726:  }
+        -:  727:
+        -:  728:  svbool_t pg = svwhilelt_b64(i, size64);
+        -:  729:
+        -:  730:  while (svptest_any(svptrue_b64(), pg))
+        -:  731:  {
+        -:  732:    svuint64_t vec = svld1_u64(pg, &ptr64[i]);
+        -:  733:    vec = svcnt_u64_z(pg, vec);
+        -:  734:    vcnt = svadd_u64_x(svptrue_b64(), vcnt, vec);
+        -:  735:    i += svcntd();
+        -:  736:    pg = svwhilelt_b64(i, size64);
+        -:  737:  }
+        -:  738:
+        -:  739:  uint64_t cnt = svaddv_u64(svptrue_b64(), vcnt);
+        -:  740:  uint64_t bytes = size % sizeof(uint64_t);
+        -:  741:
+        -:  742:  if (bytes != 0)
+        -:  743:  {
+        -:  744:    i = size - bytes;
+        -:  745:    const uint8_t* ptr8 = (const uint8_t*) data;
+        -:  746:    svbool_t pg8 = svwhilelt_b8(i, size);
+        -:  747:    svuint8_t vec = svld1_u8(pg8, &ptr8[i]);
+        -:  748:    svuint8_t vcnt8 = svcnt_u8_z(pg8, vec);
+        -:  749:    cnt += svaddv_u8(pg8, vcnt8);
+        -:  750:  }
+        -:  751:
+        -:  752:  return cnt;
+        -:  753:}
+        -:  754:
+        -:  755:#elif (defined(__ARM_NEON) || \
+        -:  756:       defined(__aarch64__) || \
+        -:  757:       defined(_M_ARM64)) && \
+        -:  758:      __has_include(<arm_neon.h>)
+        -:  759:
+        -:  760:#include <arm_neon.h>
+        -:  761:
+        -:  762:static inline uint64x2_t vpadalq(uint64x2_t sum, uint8x16_t t)
+        -:  763:{
+        -:  764:  return vpadalq_u32(sum, vpaddlq_u16(vpaddlq_u8(t)));
+        -:  765:}
+        -:  766:
+        -:  767:/*
+        -:  768: * Count the number of 1 bits in the data array
+        -:  769: * @data: An array
+        -:  770: * @size: Size of data in bytes
+        -:  771: */
+        -:  772:[[maybe_unused]] static inline uint64_t popcnt(const void* data, uint64_t size)
+        -:  773:{
+        -:  774:  uint64_t i = 0;
+        -:  775:  uint64_t cnt = 0;
+        -:  776:  uint64_t chunk_size = 64;
+        -:  777:  const uint8_t* ptr = (const uint8_t*) data;
+        -:  778:
+        -:  779:  if (size >= chunk_size)
+        -:  780:  {
+        -:  781:    uint64_t iters = size / chunk_size;
+        -:  782:    uint64x2_t sum = vcombine_u64(vcreate_u64(0), vcreate_u64(0));
+        -:  783:    uint8x16_t zero = vcombine_u8(vcreate_u8(0), vcreate_u8(0));
+        -:  784:
+        -:  785:    do
+        -:  786:    {
+        -:  787:      uint8x16_t t0 = zero;
+        -:  788:      uint8x16_t t1 = zero;
+        -:  789:      uint8x16_t t2 = zero;
+        -:  790:      uint8x16_t t3 = zero;
+        -:  791:
+        -:  792:      /*
+        -:  793:       * After every 31 iterations we need to add the
+        -:  794:       * temporary sums (t0, t1, t2, t3) to the total sum.
+        -:  795:       * We must ensure that the temporary sums <= 255
+        -:  796:       * and 31 * 8 bits = 248 which is OK.
+        -:  797:       */
+        -:  798:      uint64_t limit = (i + 31 < iters) ? i + 31 : iters;
+        -:  799:
+        -:  800:      /* Each iteration processes 64 bytes */
+        -:  801:      for (; i < limit; i++)
+        -:  802:      {
+        -:  803:        uint8x16x4_t input = vld4q_u8(ptr);
+        -:  804:        ptr += chunk_size;
+        -:  805:
+        -:  806:        t0 = vaddq_u8(t0, vcntq_u8(input.val[0]));
+        -:  807:        t1 = vaddq_u8(t1, vcntq_u8(input.val[1]));
+        -:  808:        t2 = vaddq_u8(t2, vcntq_u8(input.val[2]));
+        -:  809:        t3 = vaddq_u8(t3, vcntq_u8(input.val[3]));
+        -:  810:      }
+        -:  811:
+        -:  812:      sum = vpadalq(sum, t0);
+        -:  813:      sum = vpadalq(sum, t1);
+        -:  814:      sum = vpadalq(sum, t2);
+        -:  815:      sum = vpadalq(sum, t3);
+        -:  816:    }
+        -:  817:    while (i < iters);
+        -:  818:
+        -:  819:    i = 0;
+        -:  820:    size %= chunk_size;
+        -:  821:
+        -:  822:    uint64_t tmp[2];
+        -:  823:    vst1q_u64(tmp, sum);
+        -:  824:    cnt += tmp[0];
+        -:  825:    cnt += tmp[1];
+        -:  826:  }
+        -:  827:
+        -:  828:  if (i + 8 <= size)
+        -:  829:  {
+        -:  830:    uintptr_t rem = ((uintptr_t) &ptr[i]) % 8;
+        -:  831:
+        -:  832:    /* Align &ptr[i] to an 8 byte boundary */
+        -:  833:    if (rem != 0)
+        -:  834:    {
+        -:  835:      uint64_t val = 0;
+        -:  836:      uint64_t bytes = (uint64_t) (8 - rem % 8);
+        -:  837:      bytes = (bytes <= 7) ? bytes : 7;
+        -:  838:      for (uint64_t j = 0; j < bytes; j++)
+        -:  839:        val |= ((uint64_t) ptr[i + j]) << (j * 8);
+        -:  840:      cnt += popcnt64(val);
+        -:  841:      i += bytes;
+        -:  842:    }
+        -:  843:  }
+        -:  844:
+        -:  845:  for (; i + 8 <= size; i += 8)
+        -:  846:    cnt += popcnt64(*(const uint64_t*)(ptr + i));
+        -:  847:
+        -:  848:  if (i < size)
+        -:  849:  {
+        -:  850:    uint64_t val = 0;
+        -:  851:    uint64_t bytes = (uint64_t) (size - i);
+        -:  852:    bytes = (bytes <= 7) ? bytes : 7;
+        -:  853:    for (uint64_t j = 0; j < bytes; j++)
+        -:  854:      val |= ((uint64_t) ptr[i + j]) << (j * 8);
+        -:  855:    cnt += popcnt64(val);
+        -:  856:  }
+        -:  857:
+        -:  858:  return cnt;
+        -:  859:}
+        -:  860:
+        -:  861:/* all other CPUs */
+        -:  862:#else
+        -:  863:
+        -:  864:/*
+        -:  865: * Count the number of 1 bits in the data array
+        -:  866: * @data: An array
+        -:  867: * @size: Size of data in bytes
+        -:  868: */
+        -:  869:[[maybe_unused]] static inline uint64_t popcnt(const void* data, uint64_t size)
+        -:  870:{
+        -:  871:  uint64_t i = 0;
+        -:  872:  uint64_t cnt = 0;
+        -:  873:  const uint8_t* ptr = (const uint8_t*) data;
+        -:  874:
+        -:  875:  if (i + 8 <= size)
+        -:  876:  {
+        -:  877:    uintptr_t rem = ((uintptr_t) &ptr[i]) % 8;
+        -:  878:
+        -:  879:    /* Align &ptr[i] to an 8 byte boundary */
+        -:  880:    if (rem != 0)
+        -:  881:    {
+        -:  882:      uint64_t val = 0;
+        -:  883:      uint64_t bytes = (uint64_t) (8 - rem % 8);
+        -:  884:      bytes = (bytes <= 7) ? bytes : 7;
+        -:  885:      for (uint64_t j = 0; j < bytes; j++)
+        -:  886:        val |= ((uint64_t) ptr[i + j]) << (j * 8);
+        -:  887:      cnt += popcnt64(val);
+        -:  888:      i += bytes;
+        -:  889:    }
+        -:  890:  }
+        -:  891:
+        -:  892:  for (; i + 8 <= size; i += 8)
+        -:  893:    cnt += popcnt64(*(const uint64_t*)(ptr + i));
+        -:  894:
+        -:  895:  if (i < size)
+        -:  896:  {
+        -:  897:    uint64_t val = 0;
+        -:  898:    uint64_t bytes = (uint64_t) (size - i);
+        -:  899:    bytes = (bytes <= 7) ? bytes : 7;
+        -:  900:    for (uint64_t j = 0; j < bytes; j++)
+        -:  901:      val |= ((uint64_t) ptr[i + j]) << (j * 8);
+        -:  902:    cnt += popcnt64(val);
+        -:  903:  }
+        -:  904:
+        -:  905:  return cnt;
+        -:  906:}
+        -:  907:
+        -:  908:#endif
+        -:  909:
+        -:  910:#ifdef __cplusplus
+        -:  911:} /* extern "C" */
+        -:  912:#endif
+        -:  913:
+        -:  914:#endif /* LIBPOPCNT_H */

@@ -1,0 +1,180 @@
+        -:    0:Source:/src/kicad/eeschema/sch_textbox.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software; you can redistribute it and/or
+        -:    7: * modify it under the terms of the GNU General Public License
+        -:    8: * as published by the Free Software Foundation; either version 2
+        -:    9: * of the License, or (at your option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful,
+        -:   12: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14: * GNU General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License
+        -:   17: * along with this program; if not, you may find one here:
+        -:   18: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   19: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   20: * or you may write to the Free Software Foundation, Inc.,
+        -:   21: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   22: */
+        -:   23:
+        -:   24:#ifndef SCH_TEXTBOX_H
+        -:   25:#define SCH_TEXTBOX_H
+        -:   26:
+        -:   27:
+        -:   28:#include <eda_text.h>
+        -:   29:#include <sch_shape.h>
+        -:   30:#include <schematic.h>
+        -:   31:
+        -:   32:
+        -:   33:class HTML_MESSAGE_BOX;
+        -:   34:
+        -:   35:class SCH_TEXTBOX : public SCH_SHAPE, public EDA_TEXT
+        -:   36:{
+        -:   37:public:
+        -:   38:    SCH_TEXTBOX( SCH_LAYER_ID aLayer = LAYER_NOTES, int aLineWidth = 0,
+        -:   39:                 FILL_T aFillType = FILL_T::NO_FILL, const wxString& aText = wxEmptyString,
+        -:   40:                 KICAD_T aType = SCH_TEXTBOX_T );
+        -:   41:
+        -:   42:    SCH_TEXTBOX( const SCH_TEXTBOX& aText );
+        -:   43:
+        -:   44:    ~SCH_TEXTBOX() { }
+        -:   45:
+        -:   46:    static bool ClassOf( const EDA_ITEM* aItem )
+        -:   47:    {
+        -:   48:        return aItem && SCH_TEXTBOX_T == aItem->Type();
+        -:   49:    }
+        -:   50:
+        -:   51:    wxString GetClass() const override
+        -:   52:    {
+        -:   53:        return wxT( "SCH_TEXTBOX" );
+        -:   54:    }
+        -:   55:
+        -:   56:    int GetLegacyTextMargin() const;
+        -:   57:
+        -:   58:    /**
+        -:   59:     * Return the minimum height needed to contain the textbox's wrapped text content
+        -:   60:     * plus margins. Width is unconstrained (returns 0) so text freely rewraps.
+        -:   61:     * The constrained axis depends on orientation: y-axis for horizontal, x-axis for vertical.
+        -:   62:     */
+        -:   63:    VECTOR2I GetMinSize() const;
+        -:   64:
+    #####:   65:    void SetMarginLeft( int aLeft )     { m_marginLeft = aLeft; }
+    #####:   66:    void SetMarginTop( int aTop )       { m_marginTop = aTop; }
+    #####:   67:    void SetMarginRight( int aRight )   { m_marginRight = aRight; }
+    #####:   68:    void SetMarginBottom( int aBottom ) { m_marginBottom = aBottom; }
+        -:   69:
+        -:   70:    int GetMarginLeft() const           { return m_marginLeft; }
+        -:   71:    int GetMarginTop() const            { return m_marginTop; }
+        -:   72:    int GetMarginRight() const          { return m_marginRight; }
+        -:   73:    int GetMarginBottom() const         { return m_marginBottom; }
+        -:   74:
+        -:   75:    int GetSchTextSize() const { return GetTextWidth(); }
+        -:   76:    void SetSchTextSize( int aSize ) { SetTextSize( VECTOR2I( aSize, aSize ) ); }
+        -:   77:
+        -:   78:    VECTOR2I GetDrawPos() const override;
+        -:   79:
+        -:   80:    KIFONT::FONT* GetDrawFont( const RENDER_SETTINGS* aSettings ) const override;
+        -:   81:
+        -:   82:    virtual wxString GetShownText( const RENDER_SETTINGS* aSettings, const SCH_SHEET_PATH* aPath,
+        -:   83:                                   bool aAllowExtraText, int aDepth = 0 ) const;
+        -:   84:
+        -:   85:    wxString GetShownText( bool aAllowExtraText, int aDepth = 0 ) const override
+        -:   86:    {
+        -:   87:        SCH_SHEET_PATH* sheetPath = nullptr;
+        -:   88:
+        -:   89:        if( SCHEMATIC* schematic = Schematic() )
+        -:   90:            sheetPath = &schematic->CurrentSheet();
+        -:   91:
+        -:   92:        return GetShownText( nullptr, sheetPath, aAllowExtraText, aDepth );
+        -:   93:    }
+        -:   94:
+        -:   95:    bool HasHypertext() const override;
+        -:   96:    bool HasHoveredHypertext() const override;
+        -:   97:    void DoHypertextAction( EDA_DRAW_FRAME* aFrame, const VECTOR2I& aMousePos ) const override;
+        -:   98:
+        -:   99:    void SetExcludedFromSim( bool aExclude, const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  100:                             const wxString& aVariantName = wxEmptyString ) override
+        -:  101:    {
+        -:  102:        m_excludedFromSim = aExclude;
+        -:  103:    }
+        -:  104:
+        -:  105:    bool GetExcludedFromSim( const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  106:                             const wxString& aVariantName = wxEmptyString ) const override
+        -:  107:    {
+        -:  108:        return m_excludedFromSim;
+        -:  109:    }
+        -:  110:
+        -:  111:    bool operator<( const SCH_ITEM& aItem ) const override;
+        -:  112:
+        -:  113:    void Move( const VECTOR2I& aMoveVector ) override
+        -:  114:    {
+        -:  115:        EDA_SHAPE::move( aMoveVector );
+        -:  116:        EDA_TEXT::Offset( aMoveVector );
+        -:  117:    }
+        -:  118:
+        -:  119:    void MirrorHorizontally( int aCenter ) override;
+        -:  120:    void MirrorVertically( int aCenter ) override;
+        -:  121:    void Rotate( const VECTOR2I& aCenter, bool aRotateCCW ) override;
+        -:  122:
+        -:  123:    virtual void Rotate90( bool aClockwise );
+        -:  124:
+        -:  125:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  126:
+        -:  127:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  128:    bool HitTest( const SHAPE_LINE_CHAIN& aPoly, bool aContained ) const override;
+        -:  129:
+        -:  130:    bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const override
+        -:  131:    {
+        -:  132:        return SCH_ITEM::Matches( GetText(), aSearchData );
+        -:  133:    }
+        -:  134:
+        -:  135:    bool Replace( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) override
+        -:  136:    {
+        -:  137:        return EDA_TEXT::Replace( aSearchData );
+        -:  138:    }
+        -:  139:
+        -:  140:    virtual bool IsReplaceable() const override { return true; }
+        -:  141:
+        -:  142:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  143:
+        -:  144:    BITMAPS GetMenuImage() const override;
+        -:  145:
+        -:  146:    void Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& aPlotOpts,
+        -:  147:               int aUnit, int aBodyStyle, const VECTOR2I& aOffset, bool aDimmed ) override;
+        -:  148:
+        -:  149:    EDA_ITEM* Clone() const override
+        -:  150:    {
+        -:  151:        return new SCH_TEXTBOX( *this );
+        -:  152:    }
+        -:  153:
+        -:  154:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:  155:
+        -:  156:    double Similarity( const SCH_ITEM& aOther ) const override;
+        -:  157:
+        -:  158:    bool operator==( const SCH_ITEM& aOther ) const override;
+        -:  159:
+        -:  160:protected:
+        -:  161:    void swapData( SCH_ITEM* aItem ) override;
+        -:  162:
+        -:  163:    const KIFONT::METRICS& getFontMetrics() const override { return GetFontMetrics(); }
+        -:  164:
+        -:  165:    int compare( const SCH_ITEM& aOther, int aCompareFlags = 0 ) const override;
+        -:  166:
+        -:  167:protected:
+        -:  168:    bool m_excludedFromSim;
+        -:  169:    int  m_marginLeft;
+        -:  170:    int  m_marginTop;
+        -:  171:    int  m_marginRight;
+        -:  172:    int  m_marginBottom;
+        -:  173:};
+        -:  174:
+        -:  175:
+        -:  176:#endif /* SCH_TEXTBOX_H */

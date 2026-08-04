@@ -1,0 +1,632 @@
+        -:    0:Source:/usr/include/c++/14/bits/cpp_type_traits.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:// The  -*- C++ -*- type traits classes for internal use in libstdc++
+        -:    2:
+        -:    3:// Copyright (C) 2000-2024 Free Software Foundation, Inc.
+        -:    4://
+        -:    5:// This file is part of the GNU ISO C++ Library.  This library is free
+        -:    6:// software; you can redistribute it and/or modify it under the
+        -:    7:// terms of the GNU General Public License as published by the
+        -:    8:// Free Software Foundation; either version 3, or (at your option)
+        -:    9:// any later version.
+        -:   10:
+        -:   11:// This library is distributed in the hope that it will be useful,
+        -:   12:// but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13:// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14:// GNU General Public License for more details.
+        -:   15:
+        -:   16:// Under Section 7 of GPL version 3, you are granted additional
+        -:   17:// permissions described in the GCC Runtime Library Exception, version
+        -:   18:// 3.1, as published by the Free Software Foundation.
+        -:   19:
+        -:   20:// You should have received a copy of the GNU General Public License and
+        -:   21:// a copy of the GCC Runtime Library Exception along with this program;
+        -:   22:// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+        -:   23:// <http://www.gnu.org/licenses/>.
+        -:   24:
+        -:   25:/** @file bits/cpp_type_traits.h
+        -:   26: *  This is an internal header file, included by other library headers.
+        -:   27: *  Do not attempt to use it directly. @headername{ext/type_traits.h}
+        -:   28: */
+        -:   29:
+        -:   30:// Written by Gabriel Dos Reis <dosreis@cmla.ens-cachan.fr>
+        -:   31:
+        -:   32:#ifndef _CPP_TYPE_TRAITS_H
+        -:   33:#define _CPP_TYPE_TRAITS_H 1
+        -:   34:
+        -:   35:#pragma GCC system_header
+        -:   36:
+        -:   37:#include <bits/c++config.h>
+        -:   38:#include <bits/version.h>
+        -:   39:
+        -:   40://
+        -:   41:// This file provides some compile-time information about various types.
+        -:   42:// These representations were designed, on purpose, to be constant-expressions
+        -:   43:// and not types as found in <bits/type_traits.h>.  In particular, they
+        -:   44:// can be used in control structures and the optimizer hopefully will do
+        -:   45:// the obvious thing.
+        -:   46://
+        -:   47:// Why integral expressions, and not functions nor types?
+        -:   48:// Firstly, these compile-time entities are used as template-arguments
+        -:   49:// so function return values won't work:  We need compile-time entities.
+        -:   50:// We're left with types and constant  integral expressions.
+        -:   51:// Secondly, from the point of view of ease of use, type-based compile-time
+        -:   52:// information is -not- *that* convenient.  One has to write lots of
+        -:   53:// overloaded functions and to hope that the compiler will select the right
+        -:   54:// one. As a net effect, the overall structure isn't very clear at first
+        -:   55:// glance.
+        -:   56:// Thirdly, partial ordering and overload resolution (of function templates)
+        -:   57:// is highly costly in terms of compiler-resource.  It is a Good Thing to
+        -:   58:// keep these resource consumption as least as possible.
+        -:   59://
+        -:   60:// See valarray_array.h for a case use.
+        -:   61://
+        -:   62:// -- Gaby (dosreis@cmla.ens-cachan.fr) 2000-03-06.
+        -:   63://
+        -:   64:// Update 2005: types are also provided and <bits/type_traits.h> has been
+        -:   65:// removed.
+        -:   66://
+        -:   67:
+        -:   68:extern "C++" {
+        -:   69:
+        -:   70:namespace std _GLIBCXX_VISIBILITY(default)
+        -:   71:{
+        -:   72:_GLIBCXX_BEGIN_NAMESPACE_VERSION
+        -:   73:
+        -:   74:  struct __true_type { };
+        -:   75:  struct __false_type { };
+        -:   76:
+        -:   77:  template<bool>
+        -:   78:    struct __truth_type
+        -:   79:    { typedef __false_type __type; };
+        -:   80:
+        -:   81:  template<>
+        -:   82:    struct __truth_type<true>
+        -:   83:    { typedef __true_type __type; };
+        -:   84:
+        -:   85:  // N.B. The conversions to bool are needed due to the issue
+        -:   86:  // explained in c++/19404.
+        -:   87:  template<class _Sp, class _Tp>
+        -:   88:    struct __traitor
+        -:   89:    {
+        -:   90:      enum { __value = bool(_Sp::__value) || bool(_Tp::__value) };
+        -:   91:      typedef typename __truth_type<__value>::__type __type;
+        -:   92:    };
+        -:   93:
+        -:   94:  // Compare for equality of types.
+        -:   95:  template<typename, typename>
+        -:   96:    struct __are_same
+        -:   97:    {
+        -:   98:      enum { __value = 0 };
+        -:   99:      typedef __false_type __type;
+        -:  100:    };
+        -:  101:
+        -:  102:  template<typename _Tp>
+        -:  103:    struct __are_same<_Tp, _Tp>
+        -:  104:    {
+        -:  105:      enum { __value = 1 };
+        -:  106:      typedef __true_type __type;
+        -:  107:    };
+        -:  108:
+        -:  109:  // Holds if the template-argument is a void type.
+        -:  110:  template<typename _Tp>
+        -:  111:    struct __is_void
+        -:  112:    {
+        -:  113:      enum { __value = 0 };
+        -:  114:      typedef __false_type __type;
+        -:  115:    };
+        -:  116:
+        -:  117:  template<>
+        -:  118:    struct __is_void<void>
+        -:  119:    {
+        -:  120:      enum { __value = 1 };
+        -:  121:      typedef __true_type __type;
+        -:  122:    };
+        -:  123:
+        -:  124:  //
+        -:  125:  // Integer types
+        -:  126:  //
+        -:  127:  template<typename _Tp>
+        -:  128:    struct __is_integer
+        -:  129:    {
+        -:  130:      enum { __value = 0 };
+        -:  131:      typedef __false_type __type;
+        -:  132:    };
+        -:  133:
+        -:  134:  // Thirteen specializations (yes there are eleven standard integer
+        -:  135:  // types; <em>long long</em> and <em>unsigned long long</em> are
+        -:  136:  // supported as extensions).  Up to four target-specific __int<N>
+        -:  137:  // types are supported as well.
+        -:  138:  template<>
+        -:  139:    struct __is_integer<bool>
+        -:  140:    {
+        -:  141:      enum { __value = 1 };
+        -:  142:      typedef __true_type __type;
+        -:  143:    };
+        -:  144:
+        -:  145:  template<>
+        -:  146:    struct __is_integer<char>
+        -:  147:    {
+        -:  148:      enum { __value = 1 };
+        -:  149:      typedef __true_type __type;
+        -:  150:    };
+        -:  151:
+        -:  152:  template<>
+        -:  153:    struct __is_integer<signed char>
+        -:  154:    {
+        -:  155:      enum { __value = 1 };
+        -:  156:      typedef __true_type __type;
+        -:  157:    };
+        -:  158:
+        -:  159:  template<>
+        -:  160:    struct __is_integer<unsigned char>
+        -:  161:    {
+        -:  162:      enum { __value = 1 };
+        -:  163:      typedef __true_type __type;
+        -:  164:    };
+        -:  165:
+        -:  166:# ifdef __WCHAR_TYPE__
+        -:  167:  template<>
+        -:  168:    struct __is_integer<wchar_t>
+        -:  169:    {
+        -:  170:      enum { __value = 1 };
+        -:  171:      typedef __true_type __type;
+        -:  172:    };
+        -:  173:# endif
+        -:  174:
+        -:  175:#ifdef _GLIBCXX_USE_CHAR8_T
+        -:  176:  template<>
+        -:  177:    struct __is_integer<char8_t>
+        -:  178:    {
+        -:  179:      enum { __value = 1 };
+        -:  180:      typedef __true_type __type;
+        -:  181:    };
+        -:  182:#endif
+        -:  183:
+        -:  184:#if __cplusplus >= 201103L
+        -:  185:  template<>
+        -:  186:    struct __is_integer<char16_t>
+        -:  187:    {
+        -:  188:      enum { __value = 1 };
+        -:  189:      typedef __true_type __type;
+        -:  190:    };
+        -:  191:
+        -:  192:  template<>
+        -:  193:    struct __is_integer<char32_t>
+        -:  194:    {
+        -:  195:      enum { __value = 1 };
+        -:  196:      typedef __true_type __type;
+        -:  197:    };
+        -:  198:#endif
+        -:  199:
+        -:  200:  template<>
+        -:  201:    struct __is_integer<short>
+        -:  202:    {
+        -:  203:      enum { __value = 1 };
+        -:  204:      typedef __true_type __type;
+        -:  205:    };
+        -:  206:
+        -:  207:  template<>
+        -:  208:    struct __is_integer<unsigned short>
+        -:  209:    {
+        -:  210:      enum { __value = 1 };
+        -:  211:      typedef __true_type __type;
+        -:  212:    };
+        -:  213:
+        -:  214:  template<>
+        -:  215:    struct __is_integer<int>
+        -:  216:    {
+        -:  217:      enum { __value = 1 };
+        -:  218:      typedef __true_type __type;
+        -:  219:    };
+        -:  220:
+        -:  221:  template<>
+        -:  222:    struct __is_integer<unsigned int>
+        -:  223:    {
+        -:  224:      enum { __value = 1 };
+        -:  225:      typedef __true_type __type;
+        -:  226:    };
+        -:  227:
+        -:  228:  template<>
+        -:  229:    struct __is_integer<long>
+        -:  230:    {
+        -:  231:      enum { __value = 1 };
+        -:  232:      typedef __true_type __type;
+        -:  233:    };
+        -:  234:
+        -:  235:  template<>
+        -:  236:    struct __is_integer<unsigned long>
+        -:  237:    {
+        -:  238:      enum { __value = 1 };
+        -:  239:      typedef __true_type __type;
+        -:  240:    };
+        -:  241:
+        -:  242:  template<>
+        -:  243:    struct __is_integer<long long>
+        -:  244:    {
+        -:  245:      enum { __value = 1 };
+        -:  246:      typedef __true_type __type;
+        -:  247:    };
+        -:  248:
+        -:  249:  template<>
+        -:  250:    struct __is_integer<unsigned long long>
+        -:  251:    {
+        -:  252:      enum { __value = 1 };
+        -:  253:      typedef __true_type __type;
+        -:  254:    };
+        -:  255:
+        -:  256:#define __INT_N(TYPE) 			\
+        -:  257:  __extension__				\
+        -:  258:  template<>				\
+        -:  259:    struct __is_integer<TYPE>		\
+        -:  260:    {					\
+        -:  261:      enum { __value = 1 };		\
+        -:  262:      typedef __true_type __type;	\
+        -:  263:    };					\
+        -:  264:  __extension__				\
+        -:  265:  template<>				\
+        -:  266:    struct __is_integer<unsigned TYPE>	\
+        -:  267:    {					\
+        -:  268:      enum { __value = 1 };		\
+        -:  269:      typedef __true_type __type;	\
+        -:  270:    };
+        -:  271:
+        -:  272:#ifdef __GLIBCXX_TYPE_INT_N_0
+        -:  273:__INT_N(__GLIBCXX_TYPE_INT_N_0)
+        -:  274:#endif
+        -:  275:#ifdef __GLIBCXX_TYPE_INT_N_1
+        -:  276:__INT_N(__GLIBCXX_TYPE_INT_N_1)
+        -:  277:#endif
+        -:  278:#ifdef __GLIBCXX_TYPE_INT_N_2
+        -:  279:__INT_N(__GLIBCXX_TYPE_INT_N_2)
+        -:  280:#endif
+        -:  281:#ifdef __GLIBCXX_TYPE_INT_N_3
+        -:  282:__INT_N(__GLIBCXX_TYPE_INT_N_3)
+        -:  283:#endif
+        -:  284:
+        -:  285:#undef __INT_N
+        -:  286:
+        -:  287:  //
+        -:  288:  // Floating point types
+        -:  289:  //
+        -:  290:  template<typename _Tp>
+        -:  291:    struct __is_floating
+        -:  292:    {
+        -:  293:      enum { __value = 0 };
+        -:  294:      typedef __false_type __type;
+        -:  295:    };
+        -:  296:
+        -:  297:  // three specializations (float, double and 'long double')
+        -:  298:  template<>
+        -:  299:    struct __is_floating<float>
+        -:  300:    {
+        -:  301:      enum { __value = 1 };
+        -:  302:      typedef __true_type __type;
+        -:  303:    };
+        -:  304:
+        -:  305:  template<>
+        -:  306:    struct __is_floating<double>
+        -:  307:    {
+        -:  308:      enum { __value = 1 };
+        -:  309:      typedef __true_type __type;
+        -:  310:    };
+        -:  311:
+        -:  312:  template<>
+        -:  313:    struct __is_floating<long double>
+        -:  314:    {
+        -:  315:      enum { __value = 1 };
+        -:  316:      typedef __true_type __type;
+        -:  317:    };
+        -:  318:
+        -:  319:#ifdef __STDCPP_FLOAT16_T__
+        -:  320:  template<>
+        -:  321:    struct __is_floating<_Float16>
+        -:  322:    {
+        -:  323:      enum { __value = 1 };
+        -:  324:      typedef __true_type __type;
+        -:  325:    };
+        -:  326:#endif
+        -:  327:
+        -:  328:#ifdef __STDCPP_FLOAT32_T__
+        -:  329:  template<>
+        -:  330:    struct __is_floating<_Float32>
+        -:  331:    {
+        -:  332:      enum { __value = 1 };
+        -:  333:      typedef __true_type __type;
+        -:  334:    };
+        -:  335:#endif
+        -:  336:
+        -:  337:#ifdef __STDCPP_FLOAT64_T__
+        -:  338:  template<>
+        -:  339:    struct __is_floating<_Float64>
+        -:  340:    {
+        -:  341:      enum { __value = 1 };
+        -:  342:      typedef __true_type __type;
+        -:  343:    };
+        -:  344:#endif
+        -:  345:
+        -:  346:#ifdef __STDCPP_FLOAT128_T__
+        -:  347:  template<>
+        -:  348:    struct __is_floating<_Float128>
+        -:  349:    {
+        -:  350:      enum { __value = 1 };
+        -:  351:      typedef __true_type __type;
+        -:  352:    };
+        -:  353:#endif
+        -:  354:
+        -:  355:#ifdef __STDCPP_BFLOAT16_T__
+        -:  356:  template<>
+        -:  357:    struct __is_floating<__gnu_cxx::__bfloat16_t>
+        -:  358:    {
+        -:  359:      enum { __value = 1 };
+        -:  360:      typedef __true_type __type;
+        -:  361:    };
+        -:  362:#endif
+        -:  363:
+        -:  364:  //
+        -:  365:  // Pointer types
+        -:  366:  //
+        -:  367:  template<typename _Tp>
+        -:  368:    struct __is_pointer
+        -:  369:    {
+        -:  370:      enum { __value = 0 };
+        -:  371:      typedef __false_type __type;
+        -:  372:    };
+        -:  373:
+        -:  374:  template<typename _Tp>
+        -:  375:    struct __is_pointer<_Tp*>
+        -:  376:    {
+        -:  377:      enum { __value = 1 };
+        -:  378:      typedef __true_type __type;
+        -:  379:    };
+        -:  380:
+        -:  381:  //
+        -:  382:  // An arithmetic type is an integer type or a floating point type
+        -:  383:  //
+        -:  384:  template<typename _Tp>
+        -:  385:    struct __is_arithmetic
+        -:  386:    : public __traitor<__is_integer<_Tp>, __is_floating<_Tp> >
+        -:  387:    { };
+        -:  388:
+        -:  389:  //
+        -:  390:  // A scalar type is an arithmetic type or a pointer type
+        -:  391:  // 
+        -:  392:  template<typename _Tp>
+        -:  393:    struct __is_scalar
+        -:  394:    : public __traitor<__is_arithmetic<_Tp>, __is_pointer<_Tp> >
+        -:  395:    { };
+        -:  396:
+        -:  397:  //
+        -:  398:  // For use in std::copy and std::find overloads for streambuf iterators.
+        -:  399:  //
+        -:  400:  template<typename _Tp>
+        -:  401:    struct __is_char
+        -:  402:    {
+        -:  403:      enum { __value = 0 };
+        -:  404:      typedef __false_type __type;
+        -:  405:    };
+        -:  406:
+        -:  407:  template<>
+        -:  408:    struct __is_char<char>
+        -:  409:    {
+        -:  410:      enum { __value = 1 };
+        -:  411:      typedef __true_type __type;
+        -:  412:    };
+        -:  413:
+        -:  414:#ifdef __WCHAR_TYPE__
+        -:  415:  template<>
+        -:  416:    struct __is_char<wchar_t>
+        -:  417:    {
+        -:  418:      enum { __value = 1 };
+        -:  419:      typedef __true_type __type;
+        -:  420:    };
+        -:  421:#endif
+        -:  422:
+        -:  423:  template<typename _Tp>
+        -:  424:    struct __is_byte
+        -:  425:    {
+        -:  426:      enum { __value = 0 };
+        -:  427:      typedef __false_type __type;
+        -:  428:    };
+        -:  429:
+        -:  430:  template<>
+        -:  431:    struct __is_byte<char>
+        -:  432:    {
+        -:  433:      enum { __value = 1 };
+        -:  434:      typedef __true_type __type;
+        -:  435:    };
+        -:  436:
+        -:  437:  template<>
+        -:  438:    struct __is_byte<signed char>
+        -:  439:    {
+        -:  440:      enum { __value = 1 };
+        -:  441:      typedef __true_type __type;
+        -:  442:    };
+        -:  443:
+        -:  444:  template<>
+        -:  445:    struct __is_byte<unsigned char>
+        -:  446:    {
+        -:  447:      enum { __value = 1 };
+        -:  448:      typedef __true_type __type;
+        -:  449:    };
+        -:  450:
+        -:  451:#ifdef __glibcxx_byte // C++ >= 17
+        -:  452:  enum class byte : unsigned char;
+        -:  453:
+        -:  454:  template<>
+        -:  455:    struct __is_byte<byte>
+        -:  456:    {
+        -:  457:      enum { __value = 1 };
+        -:  458:      typedef __true_type __type;
+        -:  459:    };
+        -:  460:#endif // C++17
+        -:  461:
+        -:  462:#ifdef _GLIBCXX_USE_CHAR8_T
+        -:  463:  template<>
+        -:  464:    struct __is_byte<char8_t>
+        -:  465:    {
+        -:  466:      enum { __value = 1 };
+        -:  467:      typedef __true_type __type;
+        -:  468:    };
+        -:  469:#endif
+        -:  470:
+        -:  471:  template<typename> struct iterator_traits;
+        -:  472:
+        -:  473:  // A type that is safe for use with memcpy, memmove, memcmp etc.
+        -:  474:  template<typename _Tp>
+        -:  475:    struct __is_nonvolatile_trivially_copyable
+        -:  476:    {
+        -:  477:      enum { __value = __is_trivially_copyable(_Tp) };
+        -:  478:    };
+        -:  479:
+        -:  480:  // Cannot use memcpy/memmove/memcmp on volatile types even if they are
+        -:  481:  // trivially copyable, so ensure __memcpyable<volatile int*, volatile int*>
+        -:  482:  // and similar will be false.
+        -:  483:  template<typename _Tp>
+        -:  484:    struct __is_nonvolatile_trivially_copyable<volatile _Tp>
+        -:  485:    {
+        -:  486:      enum { __value = 0 };
+        -:  487:    };
+        -:  488:
+        -:  489:  // Whether two iterator types can be used with memcpy/memmove.
+        -:  490:  template<typename _OutputIter, typename _InputIter>
+        -:  491:    struct __memcpyable
+        -:  492:    {
+        -:  493:      enum { __value = 0 };
+        -:  494:    };
+        -:  495:
+        -:  496:  template<typename _Tp>
+        -:  497:    struct __memcpyable<_Tp*, _Tp*>
+        -:  498:    : __is_nonvolatile_trivially_copyable<_Tp>
+        -:  499:    { };
+        -:  500:
+        -:  501:  template<typename _Tp>
+        -:  502:    struct __memcpyable<_Tp*, const _Tp*>
+        -:  503:    : __is_nonvolatile_trivially_copyable<_Tp>
+        -:  504:    { };
+        -:  505:
+        -:  506:  // Whether two iterator types can be used with memcmp.
+        -:  507:  // This trait only says it's well-formed to use memcmp, not that it
+        -:  508:  // gives the right answer for a given algorithm. So for example, std::equal
+        -:  509:  // needs to add additional checks that the types are integers or pointers,
+        -:  510:  // because other trivially copyable types can overload operator==.
+        -:  511:  template<typename _Iter1, typename _Iter2>
+        -:  512:    struct __memcmpable
+        -:  513:    {
+        -:  514:      enum { __value = 0 };
+        -:  515:    };
+        -:  516:
+        -:  517:  // OK to use memcmp with pointers to trivially copyable types.
+        -:  518:  template<typename _Tp>
+        -:  519:    struct __memcmpable<_Tp*, _Tp*>
+        -:  520:    : __is_nonvolatile_trivially_copyable<_Tp>
+        -:  521:    { };
+        -:  522:
+        -:  523:  template<typename _Tp>
+        -:  524:    struct __memcmpable<const _Tp*, _Tp*>
+        -:  525:    : __is_nonvolatile_trivially_copyable<_Tp>
+        -:  526:    { };
+        -:  527:
+        -:  528:  template<typename _Tp>
+        -:  529:    struct __memcmpable<_Tp*, const _Tp*>
+        -:  530:    : __is_nonvolatile_trivially_copyable<_Tp>
+        -:  531:    { };
+        -:  532:
+        -:  533:  // Whether memcmp can be used to determine ordering for a type
+        -:  534:  // e.g. in std::lexicographical_compare or three-way comparisons.
+        -:  535:  // True for unsigned integer-like types where comparing each byte in turn
+        -:  536:  // as an unsigned char yields the right result. This is true for all
+        -:  537:  // unsigned integers on big endian targets, but only unsigned narrow
+        -:  538:  // character types (and std::byte) on little endian targets.
+        -:  539:  template<typename _Tp, bool _TreatAsBytes =
+        -:  540:#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        -:  541:	__is_integer<_Tp>::__value
+        -:  542:#else
+        -:  543:	__is_byte<_Tp>::__value
+        -:  544:#endif
+        -:  545:    >
+        -:  546:    struct __is_memcmp_ordered
+        -:  547:    {
+        -:  548:      static const bool __value = _Tp(-1) > _Tp(1); // is unsigned
+        -:  549:    };
+        -:  550:
+        -:  551:  template<typename _Tp>
+        -:  552:    struct __is_memcmp_ordered<_Tp, false>
+        -:  553:    {
+        -:  554:      static const bool __value = false;
+        -:  555:    };
+        -:  556:
+        -:  557:  // Whether two types can be compared using memcmp.
+        -:  558:  template<typename _Tp, typename _Up, bool = sizeof(_Tp) == sizeof(_Up)>
+        -:  559:    struct __is_memcmp_ordered_with
+        -:  560:    {
+        -:  561:      static const bool __value = __is_memcmp_ordered<_Tp>::__value
+        -:  562:	&& __is_memcmp_ordered<_Up>::__value;
+        -:  563:    };
+        -:  564:
+        -:  565:  template<typename _Tp, typename _Up>
+        -:  566:    struct __is_memcmp_ordered_with<_Tp, _Up, false>
+        -:  567:    {
+        -:  568:      static const bool __value = false;
+        -:  569:    };
+        -:  570:
+        -:  571:#if __cplusplus >= 201703L
+        -:  572:#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        -:  573:  // std::byte is not an integer, but it can be compared using memcmp.
+        -:  574:  template<>
+        -:  575:    struct __is_memcmp_ordered<std::byte, false>
+        -:  576:    { static constexpr bool __value = true; };
+        -:  577:#endif
+        -:  578:
+        -:  579:  // std::byte can only be compared to itself, not to other types.
+        -:  580:  template<>
+        -:  581:    struct __is_memcmp_ordered_with<std::byte, std::byte, true>
+        -:  582:    { static constexpr bool __value = true; };
+        -:  583:
+        -:  584:  template<typename _Tp, bool _SameSize>
+        -:  585:    struct __is_memcmp_ordered_with<_Tp, std::byte, _SameSize>
+        -:  586:    { static constexpr bool __value = false; };
+        -:  587:
+        -:  588:  template<typename _Up, bool _SameSize>
+        -:  589:    struct __is_memcmp_ordered_with<std::byte, _Up, _SameSize>
+        -:  590:    { static constexpr bool __value = false; };
+        -:  591:#endif
+        -:  592:
+        -:  593:  //
+        -:  594:  // Move iterator type
+        -:  595:  //
+        -:  596:  template<typename _Tp>
+        -:  597:    struct __is_move_iterator
+        -:  598:    {
+        -:  599:      enum { __value = 0 };
+        -:  600:      typedef __false_type __type;
+        -:  601:    };
+        -:  602:
+        -:  603:  // Fallback implementation of the function in bits/stl_iterator.h used to
+        -:  604:  // remove the move_iterator wrapper.
+        -:  605:  template<typename _Iterator>
+        -:  606:    _GLIBCXX20_CONSTEXPR
+        -:  607:    inline _Iterator
+    #####:  608:    __miter_base(_Iterator __it)
+    #####:  609:    { return __it; }
+------------------
+__gnu_cxx::__normal_iterator<PCB_TABLECELL* const*, std::vector<PCB_TABLECELL*, std::allocator<PCB_TABLECELL*> > > std::__miter_base<__gnu_cxx::__normal_iterator<PCB_TABLECELL* const*, std::vector<PCB_TABLECELL*, std::allocator<PCB_TABLECELL*> > > >(__gnu_cxx::__normal_iterator<PCB_TABLECELL* const*, std::vector<PCB_TABLECELL*, std::allocator<PCB_TABLECELL*> > >):
+    #####:  608:    __miter_base(_Iterator __it)
+    #####:  609:    { return __it; }
+------------------
+unsigned long* std::__miter_base<unsigned long*>(unsigned long*):
+    #####:  608:    __miter_base(_Iterator __it)
+    #####:  609:    { return __it; }
+------------------
+__gnu_cxx::__normal_iterator<unsigned long const*, std::vector<unsigned long, std::allocator<unsigned long> > > std::__miter_base<__gnu_cxx::__normal_iterator<unsigned long const*, std::vector<unsigned long, std::allocator<unsigned long> > > >(__gnu_cxx::__normal_iterator<unsigned long const*, std::vector<unsigned long, std::allocator<unsigned long> > >):
+    #####:  608:    __miter_base(_Iterator __it)
+    #####:  609:    { return __it; }
+------------------
+        -:  610:
+        -:  611:_GLIBCXX_END_NAMESPACE_VERSION
+        -:  612:} // namespace
+        -:  613:} // extern "C++"
+        -:  614:
+        -:  615:#endif //_CPP_TYPE_TRAITS_H

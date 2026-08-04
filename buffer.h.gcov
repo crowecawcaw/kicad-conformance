@@ -1,0 +1,736 @@
+        -:    0:Source:/usr/include/wx-3.2/wx/buffer.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:///////////////////////////////////////////////////////////////////////////////
+        -:    2:// Name:        wx/buffer.h
+        -:    3:// Purpose:     auto buffer classes: buffers which automatically free memory
+        -:    4:// Author:      Vadim Zeitlin
+        -:    5:// Modified by:
+        -:    6:// Created:     12.04.99
+        -:    7:// Copyright:   (c) 1998 Vadim Zeitlin <zeitlin@dptmaths.ens-cachan.fr>
+        -:    8:// Licence:     wxWindows licence
+        -:    9:///////////////////////////////////////////////////////////////////////////////
+        -:   10:
+        -:   11:#ifndef _WX_BUFFER_H
+        -:   12:#define _WX_BUFFER_H
+        -:   13:
+        -:   14:#include "wx/defs.h"
+        -:   15:#include "wx/wxcrtbase.h"
+        -:   16:
+        -:   17:#include <stdlib.h>             // malloc() and free()
+        -:   18:
+        -:   19:class WXDLLIMPEXP_FWD_BASE wxCStrData;
+        -:   20:
+        -:   21:// ----------------------------------------------------------------------------
+        -:   22:// Special classes for (wide) character strings: they use malloc/free instead
+        -:   23:// of new/delete
+        -:   24:// ----------------------------------------------------------------------------
+        -:   25:
+        -:   26:// helpers used by wxCharTypeBuffer
+        -:   27:namespace wxPrivate
+        -:   28:{
+        -:   29:
+        -:   30:struct UntypedBufferData
+        -:   31:{
+        -:   32:    enum Kind
+        -:   33:    {
+        -:   34:        Owned,
+        -:   35:        NonOwned
+        -:   36:    };
+        -:   37:
+    #####:   38:    UntypedBufferData(void *str, size_t len, Kind kind = Owned)
+    #####:   39:        : m_str(str), m_length(len), m_ref(1), m_owned(kind == Owned) {}
+        -:   40:
+    #####:   41:    ~UntypedBufferData()
+        -:   42:    {
+    #####:   43:        if ( m_owned )
+    #####:   44:            free(m_str);
+    #####:   45:    }
+        -:   46:
+        -:   47:    void *m_str;
+        -:   48:    size_t m_length;
+        -:   49:
+        -:   50:    // "short" to have sizeof(Data)=12 on 32bit archs
+        -:   51:    unsigned short m_ref;
+        -:   52:
+        -:   53:    bool m_owned;
+        -:   54:};
+        -:   55:
+        -:   56:// NB: this is defined in string.cpp and not the (non-existent) buffer.cpp
+        -:   57:WXDLLIMPEXP_BASE UntypedBufferData * GetUntypedNullData();
+        -:   58:
+        -:   59:} // namespace wxPrivate
+        -:   60:
+        -:   61:
+        -:   62:// Reference-counted character buffer for storing string data. The buffer
+        -:   63:// is only valid for as long as the "parent" object that provided the data
+        -:   64:// is valid; see wxCharTypeBuffer<T> for persistent variant.
+        -:   65:template <typename T>
+        -:   66:class wxScopedCharTypeBuffer
+        -:   67:{
+        -:   68:public:
+        -:   69:    typedef T CharType;
+        -:   70:
+    #####:   71:    wxScopedCharTypeBuffer()
+        -:   72:    {
+    #####:   73:        m_data = GetNullData();
+    #####:   74:    }
+------------------
+wxScopedCharTypeBuffer<char>::wxScopedCharTypeBuffer():
+    #####:   71:    wxScopedCharTypeBuffer()
+        -:   72:    {
+    #####:   73:        m_data = GetNullData();
+    #####:   74:    }
+------------------
+wxScopedCharTypeBuffer<wchar_t>::wxScopedCharTypeBuffer():
+    #####:   71:    wxScopedCharTypeBuffer()
+        -:   72:    {
+    #####:   73:        m_data = GetNullData();
+    #####:   74:    }
+------------------
+        -:   75:
+        -:   76:    // Creates "non-owned" buffer, i.e. 'str' is not owned by the buffer
+        -:   77:    // and doesn't get freed by dtor. Used e.g. to point to wxString's internal
+        -:   78:    // storage.
+        -:   79:    static
+    #####:   80:    const wxScopedCharTypeBuffer CreateNonOwned(const CharType *str,
+        -:   81:                                                size_t len = wxNO_LEN)
+        -:   82:    {
+    #####:   83:        if ( len == wxNO_LEN )
+    #####:   84:            len = wxStrlen(str);
+        -:   85:
+    #####:   86:        wxScopedCharTypeBuffer buf;
+    #####:   87:        if ( str )
+    #####:   88:            buf.m_data = new Data(const_cast<CharType*>(str), len, Data::NonOwned);
+    #####:   89:        return buf;
+    =====:   90:    }
+------------------
+wxScopedCharTypeBuffer<wchar_t>::CreateNonOwned(wchar_t const*, unsigned long):
+    #####:   80:    const wxScopedCharTypeBuffer CreateNonOwned(const CharType *str,
+        -:   81:                                                size_t len = wxNO_LEN)
+        -:   82:    {
+    #####:   83:        if ( len == wxNO_LEN )
+    #####:   84:            len = wxStrlen(str);
+        -:   85:
+    #####:   86:        wxScopedCharTypeBuffer buf;
+    #####:   87:        if ( str )
+    #####:   88:            buf.m_data = new Data(const_cast<CharType*>(str), len, Data::NonOwned);
+    #####:   89:        return buf;
+    =====:   90:    }
+------------------
+wxScopedCharTypeBuffer<char>::CreateNonOwned(char const*, unsigned long):
+    #####:   80:    const wxScopedCharTypeBuffer CreateNonOwned(const CharType *str,
+        -:   81:                                                size_t len = wxNO_LEN)
+        -:   82:    {
+    #####:   83:        if ( len == wxNO_LEN )
+    #####:   84:            len = wxStrlen(str);
+        -:   85:
+    #####:   86:        wxScopedCharTypeBuffer buf;
+    #####:   87:        if ( str )
+    #####:   88:            buf.m_data = new Data(const_cast<CharType*>(str), len, Data::NonOwned);
+    #####:   89:        return buf;
+    =====:   90:    }
+------------------
+        -:   91:
+        -:   92:    // Creates "owned" buffer, i.e. takes over ownership of 'str' and frees it
+        -:   93:    // in dtor (if ref.count reaches 0).
+        -:   94:    static
+        -:   95:    const wxScopedCharTypeBuffer CreateOwned(CharType *str,
+        -:   96:                                             size_t len = wxNO_LEN )
+        -:   97:    {
+        -:   98:        if ( len == wxNO_LEN )
+        -:   99:            len = wxStrlen(str);
+        -:  100:
+        -:  101:        wxScopedCharTypeBuffer buf;
+        -:  102:        if ( str )
+        -:  103:            buf.m_data = new Data(str, len);
+        -:  104:        return buf;
+        -:  105:    }
+        -:  106:
+    #####:  107:    wxScopedCharTypeBuffer(const wxScopedCharTypeBuffer& src)
+        -:  108:    {
+    #####:  109:        m_data = src.m_data;
+    #####:  110:        IncRef();
+    #####:  111:    }
+        -:  112:
+        -:  113:    wxScopedCharTypeBuffer& operator=(const wxScopedCharTypeBuffer& src)
+        -:  114:    {
+        -:  115:        if ( &src == this )
+        -:  116:            return *this;
+        -:  117:
+        -:  118:        DecRef();
+        -:  119:        m_data = src.m_data;
+        -:  120:        IncRef();
+        -:  121:
+        -:  122:        return *this;
+        -:  123:    }
+        -:  124:
+    #####:  125:    ~wxScopedCharTypeBuffer()
+        -:  126:    {
+    #####:  127:        DecRef();
+    #####:  128:    }
+------------------
+wxScopedCharTypeBuffer<wchar_t>::~wxScopedCharTypeBuffer():
+    #####:  125:    ~wxScopedCharTypeBuffer()
+        -:  126:    {
+    #####:  127:        DecRef();
+    #####:  128:    }
+------------------
+wxScopedCharTypeBuffer<char>::~wxScopedCharTypeBuffer():
+    #####:  125:    ~wxScopedCharTypeBuffer()
+        -:  126:    {
+    #####:  127:        DecRef();
+    #####:  128:    }
+------------------
+        -:  129:
+        -:  130:    // NB: this method is only const for backward compatibility. It used to
+        -:  131:    //     be needed for auto_ptr-like semantics of the copy ctor, but now
+        -:  132:    //     that ref-counting is used, it's not really needed.
+        -:  133:    CharType *release() const
+        -:  134:    {
+        -:  135:        if ( m_data == GetNullData() )
+        -:  136:            return NULL;
+        -:  137:
+        -:  138:        wxASSERT_MSG( m_data->m_owned, wxT("can't release non-owned buffer") );
+        -:  139:        wxASSERT_MSG( m_data->m_ref == 1, wxT("can't release shared buffer") );
+        -:  140:
+        -:  141:        CharType * const p = m_data->Get();
+        -:  142:
+        -:  143:        wxScopedCharTypeBuffer *self = const_cast<wxScopedCharTypeBuffer*>(this);
+        -:  144:        self->m_data->Set(NULL, 0);
+        -:  145:        self->DecRef();
+        -:  146:
+        -:  147:        return p;
+        -:  148:    }
+        -:  149:
+        -:  150:    void reset()
+        -:  151:    {
+        -:  152:        DecRef();
+        -:  153:    }
+        -:  154:
+        -:  155:    // For some reasong clang-tidy gives a warning about using freed memory
+        -:  156:    // here even when this is not at all the case, seemingly because it doesn't
+        -:  157:    // follow reference counting logic, i.e. it assumes that it's possible to
+        -:  158:    // delete the data even when it's still referenced.
+        -:  159:    //
+        -:  160:    // Suppress the warning as it's extremely annoying to get it for every use
+        -:  161:    // of wxCharBuffer.
+        -:  162:    //
+        -:  163:    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
+        -:  164:    CharType *data() { return m_data->Get(); }
+        -:  165:    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDelete)
+    #####:  166:    const CharType *data() const { return  m_data->Get(); }
+------------------
+wxScopedCharTypeBuffer<wchar_t>::data() const:
+    #####:  166:    const CharType *data() const { return  m_data->Get(); }
+------------------
+wxScopedCharTypeBuffer<char>::data() const:
+    #####:  166:    const CharType *data() const { return  m_data->Get(); }
+------------------
+    #####:  167:    operator const CharType *() const { return data(); }
+------------------
+wxScopedCharTypeBuffer<wchar_t>::operator wchar_t const*() const:
+    #####:  167:    operator const CharType *() const { return data(); }
+------------------
+wxScopedCharTypeBuffer<char>::operator char const*() const:
+    #####:  167:    operator const CharType *() const { return data(); }
+------------------
+        -:  168:    CharType operator[](size_t n) const { return data()[n]; }
+        -:  169:
+        -:  170:    size_t length() const { return m_data->m_length; }
+        -:  171:
+        -:  172:protected:
+        -:  173:    // reference-counted data
+        -:  174:    struct Data : public wxPrivate::UntypedBufferData
+        -:  175:    {
+    #####:  176:        Data(CharType *str, size_t len, Kind kind = Owned)
+    #####:  177:            : wxPrivate::UntypedBufferData(str, len, kind)
+        -:  178:        {
+    #####:  179:        }
+------------------
+wxScopedCharTypeBuffer<wchar_t>::Data::Data(wchar_t*, unsigned long, wxPrivate::UntypedBufferData::Kind):
+    #####:  176:        Data(CharType *str, size_t len, Kind kind = Owned)
+    #####:  177:            : wxPrivate::UntypedBufferData(str, len, kind)
+        -:  178:        {
+    #####:  179:        }
+------------------
+wxScopedCharTypeBuffer<char>::Data::Data(char*, unsigned long, wxPrivate::UntypedBufferData::Kind):
+    #####:  176:        Data(CharType *str, size_t len, Kind kind = Owned)
+    #####:  177:            : wxPrivate::UntypedBufferData(str, len, kind)
+        -:  178:        {
+    #####:  179:        }
+------------------
+        -:  180:
+    #####:  181:        CharType *Get() const { return static_cast<CharType *>(m_str); }
+------------------
+wxScopedCharTypeBuffer<wchar_t>::Data::Get() const:
+    #####:  181:        CharType *Get() const { return static_cast<CharType *>(m_str); }
+------------------
+wxScopedCharTypeBuffer<char>::Data::Get() const:
+    #####:  181:        CharType *Get() const { return static_cast<CharType *>(m_str); }
+------------------
+        -:  182:        void Set(CharType *str, size_t len)
+        -:  183:        {
+        -:  184:            m_str = str;
+        -:  185:            m_length = len;
+        -:  186:        }
+        -:  187:    };
+        -:  188:
+        -:  189:    // placeholder for NULL string, to simplify this code
+    #####:  190:    static Data *GetNullData()
+        -:  191:    {
+    #####:  192:        return static_cast<Data *>(wxPrivate::GetUntypedNullData());
+        -:  193:    }
+------------------
+wxScopedCharTypeBuffer<wchar_t>::GetNullData():
+    #####:  190:    static Data *GetNullData()
+        -:  191:    {
+    #####:  192:        return static_cast<Data *>(wxPrivate::GetUntypedNullData());
+        -:  193:    }
+------------------
+wxScopedCharTypeBuffer<char>::GetNullData():
+    #####:  190:    static Data *GetNullData()
+        -:  191:    {
+    #####:  192:        return static_cast<Data *>(wxPrivate::GetUntypedNullData());
+        -:  193:    }
+------------------
+        -:  194:
+    #####:  195:    void IncRef()
+        -:  196:    {
+    #####:  197:        if ( m_data == GetNullData() ) // exception, not ref-counted
+    #####:  198:            return;
+    #####:  199:        m_data->m_ref++;
+        -:  200:    }
+        -:  201:
+    #####:  202:    void DecRef()
+        -:  203:    {
+    #####:  204:        if ( m_data == GetNullData() ) // exception, not ref-counted
+    #####:  205:            return;
+    #####:  206:        if ( --m_data->m_ref == 0 )
+    #####:  207:            delete m_data;
+    #####:  208:        m_data = GetNullData();
+        -:  209:    }
+        -:  210:
+        -:  211:    // sets this object to a be copy of 'other'; if 'src' is non-owned,
+        -:  212:    // a deep copy is made and 'this' will contain new instance of the data
+        -:  213:    void MakeOwnedCopyOf(const wxScopedCharTypeBuffer& src)
+        -:  214:    {
+        -:  215:        this->DecRef();
+        -:  216:
+        -:  217:        if ( src.m_data == this->GetNullData() )
+        -:  218:        {
+        -:  219:            this->m_data = this->GetNullData();
+        -:  220:        }
+        -:  221:        else if ( src.m_data->m_owned )
+        -:  222:        {
+        -:  223:            this->m_data = src.m_data;
+        -:  224:            this->IncRef();
+        -:  225:        }
+        -:  226:        else
+        -:  227:        {
+        -:  228:            // if the scoped buffer had non-owned data, we have to make
+        -:  229:            // a copy here, because src.m_data->m_str is valid only for as long
+        -:  230:            // as 'src' exists
+        -:  231:            this->m_data = new Data
+        -:  232:                               (
+        -:  233:                                   StrCopy(src.data(), src.length()),
+        -:  234:                                   src.length()
+        -:  235:                               );
+        -:  236:        }
+        -:  237:    }
+        -:  238:
+        -:  239:    static CharType *StrCopy(const CharType *src, size_t len)
+        -:  240:    {
+        -:  241:        CharType *dst = (CharType*)malloc(sizeof(CharType) * (len + 1));
+        -:  242:        if ( dst )
+        -:  243:            memcpy(dst, src, sizeof(CharType) * (len + 1));
+        -:  244:        return dst;
+        -:  245:    }
+        -:  246:
+        -:  247:protected:
+        -:  248:    Data *m_data;
+        -:  249:};
+        -:  250:
+        -:  251:typedef wxScopedCharTypeBuffer<char> wxScopedCharBuffer;
+        -:  252:typedef wxScopedCharTypeBuffer<wchar_t> wxScopedWCharBuffer;
+        -:  253:
+        -:  254:
+        -:  255:// this buffer class always stores data in "owned" (persistent) manner
+        -:  256:template <typename T>
+        -:  257:class wxCharTypeBuffer : public wxScopedCharTypeBuffer<T>
+        -:  258:{
+        -:  259:protected:
+        -:  260:    typedef typename wxScopedCharTypeBuffer<T>::Data Data;
+        -:  261:
+        -:  262:public:
+        -:  263:    typedef T CharType;
+        -:  264:
+        -:  265:    wxCharTypeBuffer(const CharType *str = NULL, size_t len = wxNO_LEN)
+        -:  266:    {
+        -:  267:        if ( str )
+        -:  268:        {
+        -:  269:            if ( len == wxNO_LEN )
+        -:  270:                len = wxStrlen(str);
+        -:  271:            this->m_data = new Data(this->StrCopy(str, len), len);
+        -:  272:        }
+        -:  273:        else
+        -:  274:        {
+        -:  275:            this->m_data = this->GetNullData();
+        -:  276:        }
+        -:  277:    }
+        -:  278:
+        -:  279:    wxCharTypeBuffer(size_t len)
+        -:  280:    {
+        -:  281:        CharType* const str = (CharType *)malloc((len + 1)*sizeof(CharType));
+        -:  282:        if ( str )
+        -:  283:        {
+        -:  284:            str[len] = (CharType)0;
+        -:  285:
+        -:  286:            // There is a potential memory leak here if new throws because it
+        -:  287:            // fails to allocate Data, we ought to use new(nothrow) here, but
+        -:  288:            // this might fail to compile under some platforms so until this
+        -:  289:            // can be fully tested, just live with this (rather unlikely, as
+        -:  290:            // Data is a small object) potential leak.
+        -:  291:            this->m_data = new Data(str, len);
+        -:  292:        }
+        -:  293:        else
+        -:  294:        {
+        -:  295:            this->m_data = this->GetNullData();
+        -:  296:        }
+        -:  297:    }
+        -:  298:
+        -:  299:    wxCharTypeBuffer(const wxCharTypeBuffer& src)
+        -:  300:        : wxScopedCharTypeBuffer<T>(src) {}
+        -:  301:
+        -:  302:    wxCharTypeBuffer& operator=(const CharType *str)
+        -:  303:    {
+        -:  304:        this->DecRef();
+        -:  305:
+        -:  306:        if ( str )
+        -:  307:            this->m_data = new Data(wxStrdup(str), wxStrlen(str));
+        -:  308:        return *this;
+        -:  309:    }
+        -:  310:
+        -:  311:    wxCharTypeBuffer& operator=(const wxCharTypeBuffer& src)
+        -:  312:    {
+        -:  313:        wxScopedCharTypeBuffer<T>::operator=(src);
+        -:  314:        return *this;
+        -:  315:    }
+        -:  316:
+        -:  317:    wxCharTypeBuffer(const wxScopedCharTypeBuffer<T>& src)
+        -:  318:    {
+        -:  319:        this->MakeOwnedCopyOf(src);
+        -:  320:    }
+        -:  321:
+        -:  322:    wxCharTypeBuffer& operator=(const wxScopedCharTypeBuffer<T>& src)
+        -:  323:    {
+        -:  324:        MakeOwnedCopyOf(src);
+        -:  325:        return *this;
+        -:  326:    }
+        -:  327:
+        -:  328:    bool extend(size_t len)
+        -:  329:    {
+        -:  330:        wxASSERT_MSG( this->m_data->m_owned, "cannot extend non-owned buffer" );
+        -:  331:        wxASSERT_MSG( this->m_data->m_ref == 1, "can't extend shared buffer" );
+        -:  332:
+        -:  333:        CharType *str =
+        -:  334:            (CharType *)realloc(this->data(), (len + 1) * sizeof(CharType));
+        -:  335:        if ( !str )
+        -:  336:            return false;
+        -:  337:
+        -:  338:        // For consistency with the ctor taking just the length, NUL-terminate
+        -:  339:        // the buffer.
+        -:  340:        str[len] = (CharType)0;
+        -:  341:
+        -:  342:        if ( this->m_data == this->GetNullData() )
+        -:  343:        {
+        -:  344:            this->m_data = new Data(str, len);
+        -:  345:        }
+        -:  346:        else
+        -:  347:        {
+        -:  348:            this->m_data->Set(str, len);
+        -:  349:            this->m_data->m_owned = true;
+        -:  350:        }
+        -:  351:
+        -:  352:        return true;
+        -:  353:    }
+        -:  354:
+        -:  355:    void shrink(size_t len)
+        -:  356:    {
+        -:  357:        wxASSERT_MSG( this->m_data->m_owned, "cannot shrink non-owned buffer" );
+        -:  358:        wxASSERT_MSG( this->m_data->m_ref == 1, "can't shrink shared buffer" );
+        -:  359:
+        -:  360:        wxASSERT( len <= this->length() );
+        -:  361:
+        -:  362:        this->m_data->m_length = len;
+        -:  363:        this->data()[len] = 0;
+        -:  364:    }
+        -:  365:};
+        -:  366:
+        -:  367:class wxCharBuffer : public wxCharTypeBuffer<char>
+        -:  368:{
+        -:  369:public:
+        -:  370:    typedef wxCharTypeBuffer<char> wxCharTypeBufferBase;
+        -:  371:    typedef wxScopedCharTypeBuffer<char> wxScopedCharTypeBufferBase;
+        -:  372:
+        -:  373:    wxCharBuffer(const wxCharTypeBufferBase& buf)
+        -:  374:        : wxCharTypeBufferBase(buf) {}
+        -:  375:    wxCharBuffer(const wxScopedCharTypeBufferBase& buf)
+        -:  376:        : wxCharTypeBufferBase(buf) {}
+        -:  377:
+        -:  378:    wxCharBuffer(const CharType *str = NULL) : wxCharTypeBufferBase(str) {}
+        -:  379:    wxCharBuffer(size_t len) : wxCharTypeBufferBase(len) {}
+        -:  380:
+        -:  381:    wxCharBuffer(const wxCStrData& cstr);
+        -:  382:};
+        -:  383:
+        -:  384:class wxWCharBuffer : public wxCharTypeBuffer<wchar_t>
+        -:  385:{
+        -:  386:public:
+        -:  387:    typedef wxCharTypeBuffer<wchar_t> wxCharTypeBufferBase;
+        -:  388:    typedef wxScopedCharTypeBuffer<wchar_t> wxScopedCharTypeBufferBase;
+        -:  389:
+        -:  390:    wxWCharBuffer(const wxCharTypeBufferBase& buf)
+        -:  391:        : wxCharTypeBufferBase(buf) {}
+        -:  392:    wxWCharBuffer(const wxScopedCharTypeBufferBase& buf)
+        -:  393:        : wxCharTypeBufferBase(buf) {}
+        -:  394:
+        -:  395:    wxWCharBuffer(const CharType *str = NULL) : wxCharTypeBufferBase(str) {}
+        -:  396:    wxWCharBuffer(size_t len) : wxCharTypeBufferBase(len) {}
+        -:  397:
+        -:  398:    wxWCharBuffer(const wxCStrData& cstr);
+        -:  399:};
+        -:  400:
+        -:  401:// wxCharTypeBuffer<T> implicitly convertible to T*
+        -:  402:template <typename T>
+        -:  403:class wxWritableCharTypeBuffer : public wxCharTypeBuffer<T>
+        -:  404:{
+        -:  405:public:
+        -:  406:    typedef typename wxScopedCharTypeBuffer<T>::CharType CharType;
+        -:  407:
+        -:  408:    wxWritableCharTypeBuffer(const wxScopedCharTypeBuffer<T>& src)
+        -:  409:        : wxCharTypeBuffer<T>(src) {}
+        -:  410:    // FIXME-UTF8: this won't be needed after converting mb_str()/wc_str() to
+        -:  411:    //             always return a buffer
+        -:  412:    //             + we should derive this class from wxScopedCharTypeBuffer
+        -:  413:    //               then
+        -:  414:    wxWritableCharTypeBuffer(const CharType *str = NULL)
+        -:  415:        : wxCharTypeBuffer<T>(str) {}
+        -:  416:
+        -:  417:    operator CharType*() { return this->data(); }
+        -:  418:};
+        -:  419:
+        -:  420:typedef wxWritableCharTypeBuffer<char> wxWritableCharBuffer;
+        -:  421:typedef wxWritableCharTypeBuffer<wchar_t> wxWritableWCharBuffer;
+        -:  422:
+        -:  423:
+        -:  424:#if wxUSE_UNICODE
+        -:  425:    #define wxWxCharBuffer wxWCharBuffer
+        -:  426:
+        -:  427:    #define wxMB2WXbuf wxWCharBuffer
+        -:  428:    #define wxWX2MBbuf wxCharBuffer
+        -:  429:    #if wxUSE_UNICODE_WCHAR
+        -:  430:        #define wxWC2WXbuf wxChar*
+        -:  431:        #define wxWX2WCbuf wxChar*
+        -:  432:    #elif wxUSE_UNICODE_UTF8
+        -:  433:        #define wxWC2WXbuf wxWCharBuffer
+        -:  434:        #define wxWX2WCbuf wxWCharBuffer
+        -:  435:    #endif
+        -:  436:#else // ANSI
+        -:  437:    #define wxWxCharBuffer wxCharBuffer
+        -:  438:
+        -:  439:    #define wxMB2WXbuf wxChar*
+        -:  440:    #define wxWX2MBbuf wxChar*
+        -:  441:    #define wxWC2WXbuf wxCharBuffer
+        -:  442:    #define wxWX2WCbuf wxWCharBuffer
+        -:  443:#endif // Unicode/ANSI
+        -:  444:
+        -:  445:// ----------------------------------------------------------------------------
+        -:  446:// A class for holding growable data buffers (not necessarily strings)
+        -:  447:// ----------------------------------------------------------------------------
+        -:  448:
+        -:  449:// This class manages the actual data buffer pointer and is ref-counted.
+        -:  450:class wxMemoryBufferData
+        -:  451:{
+        -:  452:public:
+        -:  453:    // the initial size and also the size added by ResizeIfNeeded()
+        -:  454:    enum { DefBufSize = 1024 };
+        -:  455:
+        -:  456:    friend class wxMemoryBuffer;
+        -:  457:
+        -:  458:    // everything is private as it can only be used by wxMemoryBuffer
+        -:  459:private:
+        -:  460:    wxMemoryBufferData(size_t size = wxMemoryBufferData::DefBufSize)
+        -:  461:        : m_data(size ? malloc(size) : NULL), m_size(size), m_len(0), m_ref(0)
+        -:  462:    {
+        -:  463:    }
+        -:  464:    ~wxMemoryBufferData() { free(m_data); }
+        -:  465:
+        -:  466:
+        -:  467:    void ResizeIfNeeded(size_t newSize)
+        -:  468:    {
+        -:  469:        if (newSize > m_size)
+        -:  470:        {
+        -:  471:            void* const data = realloc(m_data, newSize + wxMemoryBufferData::DefBufSize);
+        -:  472:            if ( !data )
+        -:  473:            {
+        -:  474:                // It's better to crash immediately dereferencing a null
+        -:  475:                // pointer in the function calling us than overflowing the
+        -:  476:                // buffer which couldn't be made big enough.
+        -:  477:                free(release());
+        -:  478:                return;
+        -:  479:            }
+        -:  480:
+        -:  481:            m_data = data;
+        -:  482:            m_size = newSize + wxMemoryBufferData::DefBufSize;
+        -:  483:        }
+        -:  484:    }
+        -:  485:
+        -:  486:    void IncRef() { m_ref += 1; }
+        -:  487:    void DecRef()
+        -:  488:    {
+        -:  489:        m_ref -= 1;
+        -:  490:        if (m_ref == 0)  // are there no more references?
+        -:  491:            delete this;
+        -:  492:    }
+        -:  493:
+        -:  494:    void *release()
+        -:  495:    {
+        -:  496:        if ( m_data == NULL )
+        -:  497:            return NULL;
+        -:  498:
+        -:  499:        wxASSERT_MSG( m_ref == 1, "can't release shared buffer" );
+        -:  500:
+        -:  501:        void *p = m_data;
+        -:  502:        m_data = NULL;
+        -:  503:        m_len =
+        -:  504:        m_size = 0;
+        -:  505:
+        -:  506:        return p;
+        -:  507:    }
+        -:  508:
+        -:  509:
+        -:  510:    // the buffer containing the data
+        -:  511:    void  *m_data;
+        -:  512:
+        -:  513:    // the size of the buffer
+        -:  514:    size_t m_size;
+        -:  515:
+        -:  516:    // the amount of data currently in the buffer
+        -:  517:    size_t m_len;
+        -:  518:
+        -:  519:    // the reference count
+        -:  520:    size_t m_ref;
+        -:  521:
+        -:  522:    wxDECLARE_NO_COPY_CLASS(wxMemoryBufferData);
+        -:  523:};
+        -:  524:
+        -:  525:
+        -:  526:class wxMemoryBuffer
+        -:  527:{
+        -:  528:public:
+        -:  529:    // ctor and dtor
+        -:  530:    wxMemoryBuffer(size_t size = wxMemoryBufferData::DefBufSize)
+        -:  531:    {
+        -:  532:        m_bufdata = new wxMemoryBufferData(size);
+        -:  533:        m_bufdata->IncRef();
+        -:  534:    }
+        -:  535:
+        -:  536:    ~wxMemoryBuffer() { m_bufdata->DecRef(); }
+        -:  537:
+        -:  538:
+        -:  539:    // copy and assignment
+        -:  540:    wxMemoryBuffer(const wxMemoryBuffer& src)
+        -:  541:        : m_bufdata(src.m_bufdata)
+        -:  542:    {
+        -:  543:        m_bufdata->IncRef();
+        -:  544:    }
+        -:  545:
+        -:  546:    wxMemoryBuffer& operator=(const wxMemoryBuffer& src)
+        -:  547:    {
+        -:  548:        if (&src != this)
+        -:  549:        {
+        -:  550:            m_bufdata->DecRef();
+        -:  551:            m_bufdata = src.m_bufdata;
+        -:  552:            m_bufdata->IncRef();
+        -:  553:        }
+        -:  554:        return *this;
+        -:  555:    }
+        -:  556:
+        -:  557:
+        -:  558:    // Accessors
+        -:  559:    void  *GetData() const    { return m_bufdata->m_data; }
+        -:  560:    size_t GetBufSize() const { return m_bufdata->m_size; }
+        -:  561:    size_t GetDataLen() const { return m_bufdata->m_len; }
+        -:  562:
+        -:  563:    bool IsEmpty() const { return GetDataLen() == 0; }
+        -:  564:
+        -:  565:    void   SetBufSize(size_t size) { m_bufdata->ResizeIfNeeded(size); }
+        -:  566:    void   SetDataLen(size_t len)
+        -:  567:    {
+        -:  568:        wxASSERT(len <= m_bufdata->m_size);
+        -:  569:        m_bufdata->m_len = len;
+        -:  570:    }
+        -:  571:
+        -:  572:    void Clear() { SetDataLen(0); }
+        -:  573:
+        -:  574:    // Ensure the buffer is big enough and return a pointer to it
+        -:  575:    void *GetWriteBuf(size_t sizeNeeded)
+        -:  576:    {
+        -:  577:        m_bufdata->ResizeIfNeeded(sizeNeeded);
+        -:  578:        return m_bufdata->m_data;
+        -:  579:    }
+        -:  580:
+        -:  581:    // Update the length after the write
+        -:  582:    void  UngetWriteBuf(size_t sizeUsed) { SetDataLen(sizeUsed); }
+        -:  583:
+        -:  584:    // Like the above, but appends to the buffer
+        -:  585:    void *GetAppendBuf(size_t sizeNeeded)
+        -:  586:    {
+        -:  587:        m_bufdata->ResizeIfNeeded(m_bufdata->m_len + sizeNeeded);
+        -:  588:        return (char*)m_bufdata->m_data + m_bufdata->m_len;
+        -:  589:    }
+        -:  590:
+        -:  591:    // Update the length after the append
+        -:  592:    void  UngetAppendBuf(size_t sizeUsed)
+        -:  593:    {
+        -:  594:        SetDataLen(m_bufdata->m_len + sizeUsed);
+        -:  595:    }
+        -:  596:
+        -:  597:    // Other ways to append to the buffer
+        -:  598:    void  AppendByte(char data)
+        -:  599:    {
+        -:  600:        wxCHECK_RET( m_bufdata->m_data, wxT("invalid wxMemoryBuffer") );
+        -:  601:
+        -:  602:        m_bufdata->ResizeIfNeeded(m_bufdata->m_len + 1);
+        -:  603:        *(((char*)m_bufdata->m_data) + m_bufdata->m_len) = data;
+        -:  604:        m_bufdata->m_len += 1;
+        -:  605:    }
+        -:  606:
+        -:  607:    void  AppendData(const void *data, size_t len)
+        -:  608:    {
+        -:  609:        memcpy(GetAppendBuf(len), data, len);
+        -:  610:        UngetAppendBuf(len);
+        -:  611:    }
+        -:  612:
+        -:  613:    operator const char *() const { return (const char*)GetData(); }
+        -:  614:
+        -:  615:    // gives up ownership of data, returns the pointer; after this call,
+        -:  616:    // data isn't freed by the buffer and its content is resent to empty
+        -:  617:    void *release()
+        -:  618:    {
+        -:  619:        return m_bufdata->release();
+        -:  620:    }
+        -:  621:
+        -:  622:private:
+        -:  623:    wxMemoryBufferData*  m_bufdata;
+        -:  624:};
+        -:  625:
+        -:  626:// ----------------------------------------------------------------------------
+        -:  627:// template class for any kind of data
+        -:  628:// ----------------------------------------------------------------------------
+        -:  629:
+        -:  630:// TODO
+        -:  631:
+        -:  632:#endif // _WX_BUFFER_H

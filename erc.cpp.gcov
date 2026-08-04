@@ -1,0 +1,2295 @@
+        -:    0:Source:/src/kicad/eeschema/erc/erc.cpp
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+        -:    5: * Copyright (C) 2011 Wayne Stambaugh <stambaughw@gmail.com>
+        -:    6: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    7: *
+        -:    8: * This program is free software; you can redistribute it and/or
+        -:    9: * modify it under the terms of the GNU General Public License
+        -:   10: * as published by the Free Software Foundation; either version 2
+        -:   11: * of the License, or (at your option) any later version.
+        -:   12: *
+        -:   13: * This program is distributed in the hope that it will be useful,
+        -:   14: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   16: * GNU General Public License for more details.
+        -:   17: *
+        -:   18: * You should have received a copy of the GNU General Public License
+        -:   19: * along with this program; if not, you may find one here:
+        -:   20: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   21: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   22: * or you may write to the Free Software Foundation, Inc.,
+        -:   23: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   24: */
+        -:   25:
+        -:   26:#include <algorithm>
+        -:   27:#include <numeric>
+        -:   28:#include <set>
+        -:   29:
+        -:   30:#include "connection_graph.h"
+        -:   31:#include "kiface_ids.h"
+        -:   32:#include <advanced_config.h>
+        -:   33:#include <common.h>     // for ExpandEnvVarSubstitutions
+        -:   34:#include <erc/erc.h>
+        -:   35:#include <erc/erc_sch_pin_context.h>
+        -:   36:#include <gal/graphics_abstraction_layer.h>
+        -:   37:#include <string_utils.h>
+        -:   38:#include <sch_pin.h>
+        -:   39:#include <project_sch.h>
+        -:   40:#include <project/project_file.h>
+        -:   41:#include <project/net_settings.h>
+        -:   42:#include <sch_bus_entry.h>
+        -:   43:#include <sch_edit_frame.h>
+        -:   44:#include <sch_marker.h>
+        -:   45:#include <sch_reference_list.h>
+        -:   46:#include <sch_rule_area.h>
+        -:   47:#include <sch_sheet.h>
+        -:   48:#include <sch_sheet_pin.h>
+        -:   49:#include <sch_pin.h>
+        -:   50:#include <sch_textbox.h>
+        -:   51:#include <sch_line.h>
+        -:   52:#include <schematic.h>
+        -:   53:#include <drawing_sheet/ds_draw_item.h>
+        -:   54:#include <drawing_sheet/ds_proxy_view_item.h>
+        -:   55:#include <vector>
+        -:   56:#include <wx/ffile.h>
+        -:   57:#include <sim/sim_lib_mgr.h>
+        -:   58:#include <progress_reporter.h>
+        -:   59:#include <kiway.h>
+        -:   60:#include <pgm_base.h>
+        -:   61:#include <libraries/symbol_library_adapter.h>
+        -:   62:
+        -:   63:
+        -:   64:/* ERC tests :
+        -:   65: *  1 - conflicts between connected pins ( example: 2 connected outputs )
+        -:   66: *  2 - minimal connections requirements ( 1 input *must* be connected to an
+        -:   67: * output, or a passive pin )
+        -:   68: */
+        -:   69:
+        -:   70:/*
+        -:   71: *  Minimal ERC requirements:
+        -:   72: *  All pins *must* be connected (except ELECTRICAL_PINTYPE::PT_NC).
+        -:   73: *  When a pin is not connected in schematic, the user must place a "non
+        -:   74: * connected" symbol to this pin.
+        -:   75: *  This ensures a forgotten connection will be detected.
+        -:   76: */
+        -:   77:
+        -:   78:// Messages for matrix rows:
+        -:   79:const wxString CommentERC_H[] =
+        -:   80:{
+        -:   81:    _( "Input Pin" ),
+        -:   82:    _( "Output Pin" ),
+        -:   83:    _( "Bidirectional Pin" ),
+        -:   84:    _( "Tri-State Pin" ),
+        -:   85:    _( "Passive Pin" ),
+        -:   86:    _( "Free Pin" ),
+        -:   87:    _( "Unspecified Pin" ),
+        -:   88:    _( "Power Input Pin" ),
+        -:   89:    _( "Power Output Pin" ),
+        -:   90:    _( "Open Collector" ),
+        -:   91:    _( "Open Emitter" ),
+        -:   92:    _( "No Connection" )
+        -:   93:};
+        -:   94:
+        -:   95:// Messages for matrix columns
+        -:   96:const wxString CommentERC_V[] =
+        -:   97:{
+        -:   98:    _( "Input Pin" ),
+        -:   99:    _( "Output Pin" ),
+        -:  100:    _( "Bidirectional Pin" ),
+        -:  101:    _( "Tri-State Pin" ),
+        -:  102:    _( "Passive Pin" ),
+        -:  103:    _( "Free Pin" ),
+        -:  104:    _( "Unspecified Pin" ),
+        -:  105:    _( "Power Input Pin" ),
+        -:  106:    _( "Power Output Pin" ),
+        -:  107:    _( "Open Collector" ),
+        -:  108:    _( "Open Emitter" ),
+        -:  109:    _( "No Connection" )
+        -:  110:};
+        -:  111:
+        -:  112:
+        -:  113:// List of pin types that are considered drivers for usual input pins
+        -:  114:// i.e. pin type = ELECTRICAL_PINTYPE::PT_INPUT, but not PT_POWER_IN
+        -:  115:// that need only a PT_POWER_OUT pin type to be driven
+        -:  116:const std::set<ELECTRICAL_PINTYPE> DrivingPinTypes =
+        -:  117:{
+        -:  118:    ELECTRICAL_PINTYPE::PT_OUTPUT,
+        -:  119:    ELECTRICAL_PINTYPE::PT_POWER_OUT,
+        -:  120:    ELECTRICAL_PINTYPE::PT_PASSIVE,
+        -:  121:    ELECTRICAL_PINTYPE::PT_TRISTATE,
+        -:  122:    ELECTRICAL_PINTYPE::PT_BIDI
+        -:  123:};
+        -:  124:
+        -:  125:// List of pin types that are considered drivers for power pins
+        -:  126:// In fact only a ELECTRICAL_PINTYPE::PT_POWER_OUT pin type can drive
+        -:  127:// power input pins
+        -:  128:const std::set<ELECTRICAL_PINTYPE> DrivingPowerPinTypes =
+        -:  129:{
+        -:  130:    ELECTRICAL_PINTYPE::PT_POWER_OUT
+        -:  131:};
+        -:  132:
+        -:  133:// List of pin types that require a driver elsewhere on the net
+        -:  134:const std::set<ELECTRICAL_PINTYPE> DrivenPinTypes =
+        -:  135:{
+        -:  136:    ELECTRICAL_PINTYPE::PT_INPUT,
+        -:  137:    ELECTRICAL_PINTYPE::PT_POWER_IN
+        -:  138:};
+        -:  139:
+        -:  140:extern void CheckDuplicatePins( LIB_SYMBOL* aSymbol, std::vector<wxString>& aMessages,
+        -:  141:                                UNITS_PROVIDER* aUnitsProvider );
+        -:  142:
+       56:  143:int ERC_TESTER::TestDuplicateSheetNames( bool aCreateMarker )
+        -:  144:{
+       56:  145:    int err_count = 0;
+        -:  146:
+      177:  147:    for( SCH_SCREEN* screen = m_screens.GetFirst(); screen; screen = m_screens.GetNext() )
+        -:  148:    {
+      121:  149:        std::vector<SCH_SHEET*> list;
+        -:  150:
+     7931:  151:        for( SCH_ITEM* item : screen->Items().OfType( SCH_SHEET_T ) )
+      187:  152:            list.push_back( static_cast<SCH_SHEET*>( item ) );
+        -:  153:
+      187:  154:        for( size_t i = 0; i < list.size(); i++ )
+        -:  155:        {
+       66:  156:            SCH_SHEET* sheet = list[i];
+        -:  157:
+       69:  158:            for( size_t j = i + 1; j < list.size(); j++ )
+        -:  159:            {
+        3:  160:                SCH_SHEET* test_item = list[j];
+        -:  161:
+        -:  162:                // We have found a second sheet: compare names
+        -:  163:                // we are using case insensitive comparison to avoid mistakes between
+        -:  164:                // similar names like Mysheet and mysheet
+        3:  165:                if( sheet->GetShownName( false ).IsSameAs( test_item->GetShownName( false ), false ) )
+        -:  166:                {
+        2:  167:                    if( aCreateMarker )
+        -:  168:                    {
+        1:  169:                        auto ercItem = ERC_ITEM::Create( ERCE_DUPLICATE_SHEET_NAME );
+        1:  170:                        ercItem->SetItems( sheet, test_item );
+        -:  171:
+       1*:  172:                        SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), sheet->GetPosition() );
+        1:  173:                        screen->Append( marker );
+        1:  174:                    }
+        -:  175:
+        2:  176:                    err_count++;
+        -:  177:                }
+        -:  178:            }
+        -:  179:        }
+      121:  180:    }
+        -:  181:
+       56:  182:    return err_count;
+        -:  183:}
+        -:  184:
+        -:  185:
+       19:  186:void ERC_TESTER::TestTextVars( DS_PROXY_VIEW_ITEM* aDrawingSheet )
+        -:  187:{
+       19:  188:    DS_DRAW_ITEM_LIST wsItems( schIUScale, FOR_ERC_DRC );
+        -:  189:
+       19:  190:    auto unresolved =
+       81:  191:            [this]( wxString str )
+        -:  192:            {
+       81:  193:                str = ExpandEnvVarSubstitutions( str, &m_schematic->Project() );
+       81:  194:                return str.Matches( wxS( "*${*}*" ) );
+       19:  195:            };
+        -:  196:
+        -:  197:    auto testAssertion =
+      775:  198:            []( const SCH_ITEM* item, const SCH_SHEET_PATH& sheet, SCH_SCREEN* screen,
+        -:  199:                const wxString& text, const VECTOR2I& pos )
+        -:  200:            {
+        -:  201:                // Match anywhere in the text so users can embed ${ERC_ERROR ...}
+        -:  202:                // or ${ERC_WARNING ...} inside placeholder strings rather than
+        -:  203:                // only at the start of the field.  The leading "(^|[^\\\\])"
+        -:  204:                // group requires the marker to start the string or follow a
+        -:  205:                // non-backslash, so `\${ERC_ERROR ...}` stays inert; the
+        -:  206:                // captured message is group 2.
+      775:  207:                static wxRegEx warningExpr( wxS( "(^|[^\\\\])\\$\\{ERC_WARNING\\s*([^}]*)\\}" ) );
+      775:  208:                static wxRegEx errorExpr( wxS( "(^|[^\\\\])\\$\\{ERC_ERROR\\s*([^}]*)\\}" ) );
+        -:  209:
+      775:  210:                auto reportEach =
+     1550:  211:                        [&]( wxRegEx& aExpr, int aErrorCode )
+        -:  212:                        {
+        -:  213:                            // Return true on any *match*, not only when a marker is appended,
+        -:  214:                            // so the caller-side unresolved-variable suppression stays
+        -:  215:                            // correct even if the limit-exceeded short-circuit lands here in
+        -:  216:                            // the future.
+     1550:  217:                            bool     found = false;
+     1550:  218:                            wxString remaining = text;
+        -:  219:
+     1550:  220:                            while( aExpr.Matches( remaining ) )
+        -:  221:                            {
+    #####:  222:                                found = true;
+        -:  223:
+    #####:  224:                                wxString ercText = aExpr.GetMatch( remaining, 2 );
+        -:  225:
+    #####:  226:                                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( aErrorCode );
+        -:  227:
+    #####:  228:                                if( item )
+    #####:  229:                                    ercItem->SetItems( item );
+        -:  230:                                else
+    #####:  231:                                    ercText += _( " (in drawing sheet)" );
+        -:  232:
+    #####:  233:                                ercItem->SetSheetSpecificPath( sheet );
+    #####:  234:                                ercItem->SetErrorMessage( ercText );
+        -:  235:
+    #####:  236:                                SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pos );
+    #####:  237:                                screen->Append( marker );
+        -:  238:
+    #####:  239:                                size_t start = 0;
+    #####:  240:                                size_t len = 0;
+        -:  241:
+    #####:  242:                                if( !aExpr.GetMatch( &start, &len, 0 ) || len == 0 )
+    #####:  243:                                    break;
+        -:  244:
+    #####:  245:                                remaining = remaining.Mid( start + len );
+    #####:  246:                            }
+        -:  247:
+     1550:  248:                            return found;
+     1550:  249:                        };
+        -:  250:
+      775:  251:                bool foundWarning = reportEach( warningExpr, ERCE_GENERIC_WARNING );
+      775:  252:                bool foundError = reportEach( errorExpr, ERCE_GENERIC_ERROR );
+        -:  253:
+    1550*:  254:                return foundWarning || foundError;
+        -:  255:            };
+        -:  256:
+       19:  257:    if( aDrawingSheet )
+        -:  258:    {
+       19:  259:        wsItems.SetPageNumber( wxS( "1" ) );
+       19:  260:        wsItems.SetSheetCount( 1 );
+       19:  261:        wsItems.SetFileName( wxS( "dummyFilename" ) );
+       19:  262:        wsItems.SetSheetName( wxS( "dummySheet" ) );
+       19:  263:        wsItems.SetSheetLayer( wxS( "dummyLayer" ) );
+       19:  264:        wsItems.SetProject( &m_schematic->Project() );
+       19:  265:        wsItems.BuildDrawItemsList( aDrawingSheet->GetPageInfo(), aDrawingSheet->GetTitleBlock() );
+        -:  266:    }
+        -:  267:
+       40:  268:    for( const SCH_SHEET_PATH& sheet : m_sheetList )
+        -:  269:    {
+       21:  270:        SCH_SCREEN* screen = sheet.LastScreen();
+        -:  271:
+        -:  272:        // Snapshot before iterating: the loop body appends SCH_MARKERs to this same screen,
+        -:  273:        // and screen->Items() is a live view over the screen's RTree, so mutating it while
+        -:  274:        // the range-for above walks it can reorder nodes and skip not-yet-visited items.
+       63:  275:        std::vector<SCH_ITEM*> items( screen->Items().OfType( SCH_LOCATE_ANY_T ).begin(),
+       63:  276:                                      screen->Items().OfType( SCH_LOCATE_ANY_T ).end() );
+        -:  277:
+       84:  278:        for( SCH_ITEM* item : items )
+        -:  279:        {
+       63:  280:            if( item->Type() == SCH_SYMBOL_T )
+        -:  281:            {
+       15:  282:                SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+        -:  283:
+       91:  284:                for( SCH_FIELD& field : symbol->GetFields() )
+        -:  285:                {
+       76:  286:                    if( testAssertion( &field, sheet, screen, field.GetText(), field.GetPosition() ) )
+        -:  287:                    {
+        -:  288:                        // Don't run unresolved test
+        -:  289:                    }
+       76:  290:                    else if( unresolved( field.GetShownText( &sheet, true ) ) )
+        -:  291:                    {
+    #####:  292:                        auto ercItem = ERC_ITEM::Create( ERCE_UNRESOLVED_VARIABLE );
+    #####:  293:                        ercItem->SetItems( symbol );
+    #####:  294:                        ercItem->SetSheetSpecificPath( sheet );
+        -:  295:
+    #####:  296:                        SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), field.GetPosition() );
+    #####:  297:                        screen->Append( marker );
+    #####:  298:                    }
+        -:  299:                }
+        -:  300:
+       15:  301:                if( symbol->GetLibSymbolRef() )
+        -:  302:                {
+       30:  303:                    symbol->GetLibSymbolRef()->RunOnChildren(
+       30:  304:                            [&]( SCH_ITEM* child )
+        -:  305:                            {
+      107:  306:                                if( child->Type() == SCH_FIELD_T )
+        -:  307:                                {
+        -:  308:                                    // test only SCH_SYMBOL fields, not LIB_SYMBOL fields
+        -:  309:                                }
+       32:  310:                                else if( child->Type() == SCH_TEXT_T )
+        -:  311:                                {
+    #####:  312:                                    SCH_TEXT* textItem = static_cast<SCH_TEXT*>( child );
+        -:  313:
+    #####:  314:                                    if( testAssertion( symbol, sheet, screen, textItem->GetText(),
+    #####:  315:                                                       textItem->GetPosition() ) )
+        -:  316:                                    {
+        -:  317:                                        // Don't run unresolved test
+        -:  318:                                    }
+    #####:  319:                                    else if( unresolved( textItem->GetShownText( &sheet, true ) ) )
+        -:  320:                                    {
+    #####:  321:                                        auto ercItem = ERC_ITEM::Create( ERCE_UNRESOLVED_VARIABLE );
+    #####:  322:                                        ercItem->SetItems( symbol );
+    #####:  323:                                        ercItem->SetSheetSpecificPath( sheet );
+        -:  324:
+    #####:  325:                                        BOX2I bbox = textItem->GetBoundingBox();
+    #####:  326:                                        bbox = symbol->GetTransform().TransformCoordinate( bbox );
+    #####:  327:                                        VECTOR2I pos = bbox.Centre() + symbol->GetPosition();
+        -:  328:
+    #####:  329:                                        SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pos );
+    #####:  330:                                        screen->Append( marker );
+    #####:  331:                                    }
+        -:  332:                                }
+       32:  333:                                else if( child->Type() == SCH_TEXTBOX_T )
+        -:  334:                                {
+    #####:  335:                                    SCH_TEXTBOX* textboxItem = static_cast<SCH_TEXTBOX*>( child );
+        -:  336:
+    #####:  337:                                    if( testAssertion( symbol, sheet, screen, textboxItem->GetText(),
+    #####:  338:                                                       textboxItem->GetPosition() ) )
+        -:  339:                                    {
+        -:  340:                                        // Don't run unresolved test
+        -:  341:                                    }
+    #####:  342:                                    else if( unresolved( textboxItem->GetShownText( nullptr, &sheet,
+        -:  343:                                                                                    true ) ) )
+        -:  344:                                    {
+    #####:  345:                                        auto ercItem = ERC_ITEM::Create( ERCE_UNRESOLVED_VARIABLE );
+    #####:  346:                                        ercItem->SetItems( symbol );
+    #####:  347:                                        ercItem->SetSheetSpecificPath( sheet );
+        -:  348:
+    #####:  349:                                        BOX2I bbox = textboxItem->GetBoundingBox();
+    #####:  350:                                        bbox = symbol->GetTransform().TransformCoordinate( bbox );
+    #####:  351:                                        VECTOR2I pos = bbox.Centre() + symbol->GetPosition();
+        -:  352:
+    #####:  353:                                        SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pos );
+    #####:  354:                                        screen->Append( marker );
+    #####:  355:                                    }
+        -:  356:                                }
+      107:  357:                            },
+        -:  358:                            RECURSE_MODE::NO_RECURSE );
+        -:  359:                }
+        -:  360:            }
+      48*:  361:            else if( SCH_LABEL_BASE* label = dynamic_cast<SCH_LABEL_BASE*>( item ) )
+        -:  362:            {
+       10:  363:                for( SCH_FIELD& field : label->GetFields() )
+        -:  364:                {
+        1:  365:                    if( testAssertion( &field, sheet, screen, field.GetText(), field.GetPosition() ) )
+        -:  366:                    {
+        -:  367:                        // Don't run unresolved test
+        -:  368:                    }
+        1:  369:                    else if( unresolved( field.GetShownText( &sheet, true ) ) )
+        -:  370:                    {
+    #####:  371:                        auto ercItem = ERC_ITEM::Create( ERCE_UNRESOLVED_VARIABLE );
+    #####:  372:                        ercItem->SetItems( label );
+    #####:  373:                        ercItem->SetSheetSpecificPath( sheet );
+        -:  374:
+    #####:  375:                        SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), field.GetPosition() );
+    #####:  376:                        screen->Append( marker );
+    #####:  377:                    }
+        -:  378:                }
+        -:  379:            }
+       39:  380:            else if( item->Type() == SCH_SHEET_T )
+        -:  381:            {
+        2:  382:                SCH_SHEET* subSheet = static_cast<SCH_SHEET*>( item );
+        -:  383:
+        6:  384:                for( SCH_FIELD& field : subSheet->GetFields() )
+        -:  385:                {
+        4:  386:                    if( testAssertion( &field, sheet, screen, field.GetText(), field.GetPosition() ) )
+        -:  387:                    {
+        -:  388:                        // Don't run unresolved test
+        -:  389:                    }
+        4:  390:                    else if( unresolved( field.GetShownText( &sheet, true ) ) )
+        -:  391:                    {
+    #####:  392:                        auto ercItem = ERC_ITEM::Create( ERCE_UNRESOLVED_VARIABLE );
+    #####:  393:                        ercItem->SetItems( subSheet );
+    #####:  394:                        ercItem->SetSheetSpecificPath( sheet );
+        -:  395:
+    #####:  396:                        SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), field.GetPosition() );
+    #####:  397:                        screen->Append( marker );
+    #####:  398:                    }
+        -:  399:                }
+        -:  400:
+        2:  401:                SCH_SHEET_PATH subSheetPath = sheet;
+        2:  402:                subSheetPath.push_back( subSheet );
+        -:  403:
+       2*:  404:                for( SCH_SHEET_PIN* pin : subSheet->GetPins() )
+        -:  405:                {
+    #####:  406:                    if( pin->GetShownText( &subSheetPath, true ).Matches( wxS( "*${*}*" ) ) )
+        -:  407:                    {
+    #####:  408:                        auto ercItem = ERC_ITEM::Create( ERCE_UNRESOLVED_VARIABLE );
+    #####:  409:                        ercItem->SetItems( pin );
+    #####:  410:                        ercItem->SetSheetSpecificPath( sheet );
+        -:  411:
+    #####:  412:                        SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pin->GetPosition() );
+    #####:  413:                        screen->Append( marker );
+    #####:  414:                    }
+        -:  415:                }
+        2:  416:            }
+      37*:  417:            else if( SCH_TEXT* text = dynamic_cast<SCH_TEXT*>( item ) )
+        -:  418:            {
+        1:  419:                if( testAssertion( text, sheet, screen, text->GetText(), text->GetPosition() ) )
+        -:  420:                {
+        -:  421:                    // Don't run unresolved test
+        -:  422:                }
+        1:  423:                else if( text->GetShownText( &sheet, true ).Matches( wxS( "*${*}*" ) ) )
+        -:  424:                {
+        1:  425:                    auto ercItem = ERC_ITEM::Create( ERCE_UNRESOLVED_VARIABLE );
+        1:  426:                    ercItem->SetItems( text );
+        1:  427:                    ercItem->SetSheetSpecificPath( sheet );
+        -:  428:
+       1*:  429:                    SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), text->GetPosition() );
+        1:  430:                    screen->Append( marker );
+        1:  431:                }
+        -:  432:            }
+      36*:  433:            else if( SCH_TEXTBOX* textBox = dynamic_cast<SCH_TEXTBOX*>( item ) )
+        -:  434:            {
+    #####:  435:                if( testAssertion( textBox, sheet, screen, textBox->GetText(),
+    #####:  436:                                   textBox->GetPosition() ) )
+        -:  437:                {
+        -:  438:                    // Don't run unresolved test
+        -:  439:                }
+    #####:  440:                else if( textBox->GetShownText( nullptr, &sheet, true ).Matches( wxS( "*${*}*" ) ) )
+        -:  441:                {
+    #####:  442:                    auto ercItem = ERC_ITEM::Create( ERCE_UNRESOLVED_VARIABLE );
+    #####:  443:                    ercItem->SetItems( textBox );
+    #####:  444:                    ercItem->SetSheetSpecificPath( sheet );
+        -:  445:
+    #####:  446:                    SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), textBox->GetPosition() );
+    #####:  447:                    screen->Append( marker );
+    #####:  448:                }
+        -:  449:            }
+        -:  450:        }
+        -:  451:
+     1239:  452:        for( DS_DRAW_ITEM_BASE* item = wsItems.GetFirst(); item; item = wsItems.GetNext() )
+        -:  453:        {
+    1218*:  454:            if( DS_DRAW_ITEM_TEXT* text = dynamic_cast<DS_DRAW_ITEM_TEXT*>( item ) )
+        -:  455:            {
+      693:  456:                if( testAssertion( nullptr, sheet, screen, text->GetText(), text->GetPosition() ) )
+        -:  457:                {
+        -:  458:                    // Don't run unresolved test
+        -:  459:                }
+      693:  460:                else if( text->GetShownText( true ).Matches( wxS( "*${*}*" ) ) )
+        -:  461:                {
+    #####:  462:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_UNRESOLVED_VARIABLE );
+    #####:  463:                    ercItem->SetErrorMessage( _( "Unresolved text variable in drawing sheet" ) );
+    #####:  464:                    ercItem->SetSheetSpecificPath( sheet );
+        -:  465:
+    #####:  466:                    SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), text->GetPosition() );
+    #####:  467:                    screen->Append( marker );
+    #####:  468:                }
+        -:  469:            }
+        -:  470:        }
+       21:  471:    }
+       19:  472:}
+        -:  473:
+        -:  474:
+       19:  475:int ERC_TESTER::TestFieldNameWhitespace()
+        -:  476:{
+       19:  477:    int warnings = 0;
+        -:  478:
+       40:  479:    for( const SCH_SHEET_PATH& sheet : m_sheetList )
+        -:  480:    {
+       21:  481:        SCH_SCREEN* screen = sheet.LastScreen();
+        -:  482:
+     1395:  483:        for( SCH_ITEM* item : screen->Items().OfType( SCH_SYMBOL_T ) )
+        -:  484:        {
+       15:  485:            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+        -:  486:
+       91:  487:            for( SCH_FIELD& field : symbol->GetFields() )
+        -:  488:            {
+       76:  489:                wxString trimmedFieldName = field.GetName();
+       76:  490:                trimmedFieldName.Trim();
+       76:  491:                trimmedFieldName.Trim( false );
+        -:  492:
+       76:  493:                if( field.GetName() != trimmedFieldName )
+        -:  494:                {
+        1:  495:                    auto ercItem = ERC_ITEM::Create( ERCE_FIELD_NAME_WHITESPACE );
+        1:  496:                    ercItem->SetItems( symbol, &field );
+        1:  497:                    ercItem->SetItemsSheetPaths( sheet, sheet );
+        1:  498:                    ercItem->SetSheetSpecificPath( sheet );
+        2:  499:                    ercItem->SetErrorMessage(
+        2:  500:                            wxString::Format(
+        2:  501:                                    _( "Field name has leading or trailing whitespace: '%s'" ),
+        2:  502:                                    field.GetName() ) );
+        -:  503:
+       1*:  504:                    SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), field.GetPosition() );
+        1:  505:                    screen->Append( marker );
+        1:  506:                    warnings++;
+        1:  507:                }
+       76:  508:            }
+       21:  509:        }
+        -:  510:
+     1369:  511:        for( SCH_ITEM* item : screen->Items().OfType( SCH_SHEET_T ) )
+        -:  512:        {
+        2:  513:            SCH_SHEET* subSheet = static_cast<SCH_SHEET*>( item );
+        -:  514:
+        6:  515:            for( SCH_FIELD& field : subSheet->GetFields() )
+        -:  516:            {
+        4:  517:                wxString trimmedFieldName = field.GetName();
+        4:  518:                trimmedFieldName.Trim();
+        4:  519:                trimmedFieldName.Trim( false );
+        -:  520:
+        4:  521:                if( field.GetName() != trimmedFieldName )
+        -:  522:                {
+    #####:  523:                    auto ercItem = ERC_ITEM::Create( ERCE_FIELD_NAME_WHITESPACE );
+    #####:  524:                    ercItem->SetItems( subSheet, &field );
+    #####:  525:                    ercItem->SetItemsSheetPaths( sheet, sheet );
+    #####:  526:                    ercItem->SetSheetSpecificPath( sheet );
+    #####:  527:                    ercItem->SetErrorMessage(
+    #####:  528:                            wxString::Format(
+    #####:  529:                                    _( "Field name has leading or trailing whitespace: '%s'" ),
+    #####:  530:                                    field.GetName() ) );
+        -:  531:
+    #####:  532:                    SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), field.GetPosition() );
+    #####:  533:                    screen->Append( marker );
+    #####:  534:                    warnings++;
+    #####:  535:                }
+        4:  536:            }
+       21:  537:        }
+        -:  538:    }
+        -:  539:
+       19:  540:    return warnings;
+        -:  541:}
+        -:  542:
+        -:  543:
+       19:  544:int ERC_TESTER::TestMultiunitFootprints()
+        -:  545:{
+       19:  546:    int errors = 0;
+        -:  547:
+       20:  548:    for( std::pair<const wxString, SCH_REFERENCE_LIST>& symbol : m_refMap )
+        -:  549:    {
+        1:  550:        SCH_REFERENCE_LIST& refList = symbol.second;
+        -:  551:
+       1*:  552:        if( refList.GetCount() == 0 )
+        -:  553:        {
+    #####:  554:            wxFAIL;   // it should not happen
+    #####:  555:            continue;
+        -:  556:        }
+        -:  557:
+        -:  558:        // Reference footprint
+        1:  559:        SCH_SYMBOL* unit = nullptr;
+        1:  560:        wxString    unitName;
+        1:  561:        wxString    unitFP;
+        -:  562:
+        2:  563:        for( size_t ii = 0; ii < refList.GetCount(); ++ii )
+        -:  564:        {
+        1:  565:            SCH_SHEET_PATH sheetPath = refList.GetItem( ii ).GetSheetPath();
+        1:  566:            unitFP = refList.GetItem( ii ).GetFootprint();
+        -:  567:
+        1:  568:            if( !unitFP.IsEmpty() )
+        -:  569:            {
+    #####:  570:                unit = refList.GetItem( ii ).GetSymbol();
+    #####:  571:                unitName = unit->GetRef( &sheetPath, true );
+    #####:  572:                break;
+        -:  573:            }
+        1:  574:        }
+        -:  575:
+        2:  576:        for( size_t ii = 0; ii < refList.GetCount(); ++ii )
+        -:  577:        {
+        1:  578:            SCH_REFERENCE& secondRef = refList.GetItem( ii );
+        1:  579:            SCH_SYMBOL*    secondUnit = secondRef.GetSymbol();
+        1:  580:            wxString       secondName = secondUnit->GetRef( &secondRef.GetSheetPath(), true );
+        1:  581:            const wxString secondFp = secondRef.GetFootprint();
+        1:  582:            wxString       msg;
+        -:  583:
+       1*:  584:            if( unit && !secondFp.IsEmpty() && unitFP != secondFp )
+        -:  585:            {
+    #####:  586:                msg.Printf( _( "Different footprints assigned to %s and %s" ),
+        -:  587:                            unitName, secondName );
+        -:  588:
+    #####:  589:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_DIFFERENT_UNIT_FP );
+    #####:  590:                ercItem->SetErrorMessage( msg );
+    #####:  591:                ercItem->SetItems( unit, secondUnit );
+        -:  592:
+    #####:  593:                SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), secondUnit->GetPosition() );
+    #####:  594:                secondRef.GetSheetPath().LastScreen()->Append( marker );
+        -:  595:
+    #####:  596:                ++errors;
+    #####:  597:            }
+        1:  598:        }
+        1:  599:    }
+        -:  600:
+       19:  601:    return errors;
+        -:  602:}
+        -:  603:
+        -:  604:
+       19:  605:int ERC_TESTER::TestMissingUnits()
+        -:  606:{
+       19:  607:    int errors = 0;
+        -:  608:
+       20:  609:    for( std::pair<const wxString, SCH_REFERENCE_LIST>& symbol : m_refMap )
+        -:  610:    {
+        1:  611:        SCH_REFERENCE_LIST& refList = symbol.second;
+        -:  612:
+       1*:  613:        wxCHECK2( refList.GetCount(), continue );
+        -:  614:
+        -:  615:        // Reference unit
+        1:  616:        SCH_REFERENCE& base_ref = refList.GetItem( 0 );
+        1:  617:        SCH_SYMBOL* unit = base_ref.GetSymbol();
+        1:  618:        LIB_SYMBOL* libSymbol = base_ref.GetLibPart();
+        -:  619:
+       1*:  620:        if( static_cast<ssize_t>( refList.GetCount() ) == libSymbol->GetUnitCount() )
+    #####:  621:            continue;
+        -:  622:
+        1:  623:        std::set<int> lib_units;
+        1:  624:        std::set<int> instance_units;
+        1:  625:        std::set<int> missing_units;
+        -:  626:
+        1:  627:        auto report =
+        1:  628:                [&]( std::set<int>& aMissingUnits, const wxString& aErrorMsg, int aErrorCode )
+        -:  629:                {
+        1:  630:                    wxString msg;
+        1:  631:                    wxString missing_pin_units = wxS( "[ " );
+        1:  632:                    int ii = 0;
+        -:  633:
+        2:  634:                    for( int missing_unit : aMissingUnits )
+        -:  635:                    {
+        1:  636:                        if( ii++ == 3 )
+        -:  637:                        {
+    #####:  638:                            missing_pin_units += wxS( "..." );
+    #####:  639:                            break;
+        -:  640:                        }
+        -:  641:
+        1:  642:                        missing_pin_units += libSymbol->GetUnitDisplayName( missing_unit, false ) + ", " ;
+        -:  643:                    }
+        -:  644:
+        1:  645:                    missing_pin_units.Truncate( missing_pin_units.length() - 2 );
+        1:  646:                    missing_pin_units += wxS( " ]" );
+        -:  647:
+        1:  648:                    msg.Printf( aErrorMsg, symbol.first, missing_pin_units );
+        -:  649:
+        1:  650:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( aErrorCode );
+        1:  651:                    ercItem->SetErrorMessage( msg );
+        1:  652:                    ercItem->SetItems( unit );
+        1:  653:                    ercItem->SetSheetSpecificPath( base_ref.GetSheetPath() );
+        1:  654:                    ercItem->SetItemsSheetPaths( base_ref.GetSheetPath() );
+        -:  655:
+       1*:  656:                    SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), unit->GetPosition() );
+        1:  657:                    base_ref.GetSheetPath().LastScreen()->Append( marker );
+        -:  658:
+        1:  659:                    ++errors;
+        1:  660:                };
+        -:  661:
+        3:  662:        for( int ii = 1; ii <= libSymbol->GetUnitCount(); ++ii )
+        2:  663:            lib_units.insert( lib_units.end(), ii );
+        -:  664:
+        2:  665:        for( size_t ii = 0; ii < refList.GetCount(); ++ii )
+        1:  666:            instance_units.insert( instance_units.end(), refList.GetItem( ii ).GetUnit() );
+        -:  667:
+        1:  668:        std::set_difference( lib_units.begin(), lib_units.end(),
+        -:  669:                             instance_units.begin(), instance_units.end(),
+        -:  670:                             std::inserter( missing_units, missing_units.begin() ) );
+        -:  671:
+       1*:  672:        if( !missing_units.empty() && m_settings.IsTestEnabled( ERCE_MISSING_UNIT ) )
+        -:  673:        {
+        1:  674:            report( missing_units, _( "Symbol %s has unplaced units %s" ), ERCE_MISSING_UNIT );
+        -:  675:        }
+        -:  676:
+        1:  677:        std::set<int> missing_power;
+        1:  678:        std::set<int> missing_input;
+        1:  679:        std::set<int> missing_bidi;
+        -:  680:
+        2:  681:        for( int missing_unit : missing_units )
+        -:  682:        {
+        1:  683:            int bodyStyle = 0;
+        -:  684:
+        2:  685:            for( size_t ii = 0; ii < refList.GetCount(); ++ii )
+        -:  686:            {
+        1:  687:                if( refList.GetItem( ii ).GetUnit() == missing_unit )
+        -:  688:                {
+    #####:  689:                    bodyStyle = refList.GetItem( ii ).GetSymbol()->GetBodyStyle();
+    #####:  690:                    break;
+        -:  691:                }
+        -:  692:            }
+        -:  693:
+        2:  694:            for( SCH_PIN* pin : libSymbol->GetGraphicalPins( missing_unit, bodyStyle ) )
+        -:  695:            {
+        1:  696:                switch( pin->GetType() )
+        -:  697:                {
+    #####:  698:                case ELECTRICAL_PINTYPE::PT_POWER_IN:
+    #####:  699:                    missing_power.insert( missing_unit );
+    #####:  700:                    break;
+        -:  701:
+    #####:  702:                case ELECTRICAL_PINTYPE::PT_BIDI:
+    #####:  703:                    missing_bidi.insert( missing_unit );
+    #####:  704:                    break;
+        -:  705:
+    #####:  706:                case ELECTRICAL_PINTYPE::PT_INPUT:
+    #####:  707:                    missing_input.insert( missing_unit );
+    #####:  708:                    break;
+        -:  709:
+        1:  710:                default:
+        1:  711:                    break;
+        -:  712:                }
+        1:  713:            }
+        -:  714:        }
+        -:  715:
+       1*:  716:        if( !missing_power.empty() && m_settings.IsTestEnabled( ERCE_MISSING_POWER_INPUT_PIN ) )
+        -:  717:        {
+    #####:  718:            report( missing_power, _( "Symbol %s has input power pins in units %s that are not placed" ),
+        -:  719:                    ERCE_MISSING_POWER_INPUT_PIN );
+        -:  720:        }
+        -:  721:
+       1*:  722:        if( !missing_input.empty() && m_settings.IsTestEnabled( ERCE_MISSING_INPUT_PIN ) )
+        -:  723:        {
+    #####:  724:           report( missing_input, _( "Symbol %s has input pins in units %s that are not placed" ),
+        -:  725:                   ERCE_MISSING_INPUT_PIN );
+        -:  726:        }
+        -:  727:
+       1*:  728:        if( !missing_bidi.empty() && m_settings.IsTestEnabled( ERCE_MISSING_BIDI_PIN ) )
+        -:  729:        {
+    #####:  730:            report( missing_bidi, _( "Symbol %s has bidirectional pins in units %s that are not placed" ),
+        -:  731:                    ERCE_MISSING_BIDI_PIN );
+        -:  732:        }
+        1:  733:    }
+        -:  734:
+       19:  735:    return errors;
+        -:  736:}
+        -:  737:
+        -:  738:
+       19:  739:int ERC_TESTER::TestMissingNetclasses()
+        -:  740:{
+       19:  741:    int                            err_count = 0;
+       19:  742:    std::shared_ptr<NET_SETTINGS>& settings = m_schematic->Project().GetProjectFile().NetSettings();
+       19:  743:    wxString                       defaultNetclass = settings->GetDefaultNetclass()->GetName();
+        -:  744:
+       19:  745:    auto logError =
+    #####:  746:            [&]( const SCH_SHEET_PATH& sheet, SCH_ITEM* item, const wxString& netclass )
+        -:  747:            {
+    #####:  748:                err_count++;
+        -:  749:
+    #####:  750:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_UNDEFINED_NETCLASS );
+        -:  751:
+    #####:  752:                ercItem->SetItems( item );
+    #####:  753:                ercItem->SetErrorMessage( wxString::Format( _( "Netclass %s is not defined" ), netclass ) );
+        -:  754:
+    #####:  755:                SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), item->GetPosition() );
+    #####:  756:                sheet.LastScreen()->Append( marker );
+    #####:  757:            };
+        -:  758:
+       40:  759:    for( const SCH_SHEET_PATH& sheet : m_sheetList )
+        -:  760:    {
+     1446:  761:        for( SCH_ITEM* item : sheet.LastScreen()->Items() )
+        -:  762:        {
+       81:  763:            item->RunOnChildren(
+      162:  764:                    [&]( SCH_ITEM* aChild )
+        -:  765:                    {
+       97:  766:                        if( aChild->Type() == SCH_FIELD_T )
+        -:  767:                        {
+       81:  768:                            SCH_FIELD* field = static_cast<SCH_FIELD*>( aChild );
+        -:  769:
+       81:  770:                            if( field->GetCanonicalName() == wxT( "Netclass" ) )
+        -:  771:                            {
+    #####:  772:                                wxString netclass = field->GetShownText( &sheet, false );
+        -:  773:
+    #####:  774:                                if( !netclass.empty() && !netclass.IsSameAs( defaultNetclass )
+    #####:  775:                                    && !settings->HasNetclass( netclass ) )
+        -:  776:                                {
+    #####:  777:                                    logError( sheet, item, netclass );
+        -:  778:                                }
+    #####:  779:                            }
+        -:  780:                        }
+        -:  781:
+       97:  782:                        return true;
+        -:  783:                    },
+        -:  784:                RECURSE_MODE::NO_RECURSE );
+       21:  785:        }
+        -:  786:    }
+        -:  787:
+       19:  788:    return err_count;
+       19:  789:}
+        -:  790:
+        -:  791:
+       19:  792:int ERC_TESTER::TestLabelMultipleWires()
+        -:  793:{
+       19:  794:    int err_count = 0;
+        -:  795:
+       40:  796:    for( const SCH_SHEET_PATH& sheet : m_sheetList )
+        -:  797:    {
+       21:  798:        std::map<VECTOR2I, std::vector<SCH_ITEM*>> connMap;
+        -:  799:
+     1381:  800:        for( SCH_ITEM* item : sheet.LastScreen()->Items().OfType( SCH_LABEL_T ) )
+        -:  801:        {
+        8:  802:            SCH_LABEL* label = static_cast<SCH_LABEL*>( item );
+        -:  803:
+       16:  804:            for( const VECTOR2I& pt : label->GetConnectionPoints() )
+       16:  805:                connMap[pt].emplace_back( label );
+       21:  806:        }
+        -:  807:
+       29:  808:        for( const std::pair<const VECTOR2I, std::vector<SCH_ITEM*>>& pair : connMap )
+        -:  809:        {
+        8:  810:            std::vector<SCH_ITEM*> lines;
+        -:  811:
+      526:  812:            for( SCH_ITEM* item : sheet.LastScreen()->Items().Overlapping( SCH_LINE_T, pair.first ) )
+        -:  813:            {
+        3:  814:                SCH_LINE* line = static_cast<SCH_LINE*>( item );
+        -:  815:
+       3*:  816:                if( line->IsGraphicLine() )
+    #####:  817:                    continue;
+        -:  818:
+        -:  819:                // If the line is connected at the endpoint, then there will be a junction
+        3:  820:                if( !line->IsEndPoint( pair.first ) )
+    #####:  821:                    lines.emplace_back( line );
+        8:  822:            }
+        -:  823:
+        8:  824:            if( lines.size() > 1 )
+        -:  825:            {
+    #####:  826:                err_count++;
+    #####:  827:                lines.resize( 3 ); // Only show the first 3 lines and if there are only two, adds a nullptr
+        -:  828:
+    #####:  829:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_LABEL_MULTIPLE_WIRES );
+    #####:  830:                wxString msg = wxString::Format( _( "Label connects more than one wire at %d, %d" ),
+    #####:  831:                                                 pair.first.x, pair.first.y );
+        -:  832:
+    #####:  833:                ercItem->SetItems( pair.second.front(), lines[0], lines[1], lines[2] );
+    #####:  834:                ercItem->SetErrorMessage( msg );
+    #####:  835:                ercItem->SetSheetSpecificPath( sheet );
+        -:  836:
+    #####:  837:                SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pair.first );
+    #####:  838:                sheet.LastScreen()->Append( marker );
+    #####:  839:            }
+        8:  840:        }
+       21:  841:    }
+        -:  842:
+       19:  843:    return err_count;
+        -:  844:}
+        -:  845:
+        -:  846:
+    #####:  847:int ERC_TESTER::TestFourWayJunction()
+        -:  848:{
+    #####:  849:    int err_count = 0;
+        -:  850:
+        -:  851:    auto pinStackAlreadyRepresented =
+    #####:  852:            []( SCH_PIN* pin, std::vector<SCH_ITEM*>& collection ) -> bool
+        -:  853:            {
+    #####:  854:                for( SCH_ITEM*& item : collection )
+        -:  855:                {
+    #####:  856:                    if( item->Type() == SCH_PIN_T && item->GetParentSymbol() == pin->GetParentSymbol() )
+        -:  857:                    {
+    #####:  858:                        if( pin->IsVisible() && !static_cast<SCH_PIN*>( item )->IsVisible() )
+    #####:  859:                            item = pin;
+        -:  860:
+    #####:  861:                        return true;
+        -:  862:                    }
+        -:  863:                }
+        -:  864:
+    #####:  865:                return false;
+        -:  866:            };
+        -:  867:
+    #####:  868:    for( const SCH_SHEET_PATH& sheet : m_sheetList )
+        -:  869:    {
+    #####:  870:        std::map<VECTOR2I, std::vector<SCH_ITEM*>> connMap;
+    #####:  871:        SCH_SCREEN* screen = sheet.LastScreen();
+        -:  872:
+    #####:  873:        for( SCH_ITEM* item : screen->Items().OfType( SCH_SYMBOL_T ) )
+        -:  874:        {
+    #####:  875:            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+        -:  876:
+    #####:  877:            for( SCH_PIN* pin : symbol->GetPins( &sheet ) )
+        -:  878:            {
+    #####:  879:                std::vector<SCH_ITEM*>& entry = connMap[pin->GetPosition()];
+        -:  880:
+        -:  881:                // Only one pin per pin-stack.
+    #####:  882:                if( pinStackAlreadyRepresented( pin, entry ) )
+    #####:  883:                    continue;
+        -:  884:
+    #####:  885:                entry.emplace_back( pin );
+    #####:  886:            }
+    #####:  887:        }
+        -:  888:
+    #####:  889:        for( SCH_ITEM* item : screen->Items().OfType( SCH_LINE_T ) )
+        -:  890:        {
+    #####:  891:            SCH_LINE* line = static_cast<SCH_LINE*>( item );
+        -:  892:
+    #####:  893:            if( line->IsGraphicLine() )
+    #####:  894:                continue;
+        -:  895:
+    #####:  896:            for( const VECTOR2I& pt : line->GetConnectionPoints() )
+    #####:  897:                connMap[pt].emplace_back( line );
+    #####:  898:        }
+        -:  899:
+    #####:  900:        for( const std::pair<const VECTOR2I, std::vector<SCH_ITEM*>>& pair : connMap )
+        -:  901:        {
+    #####:  902:            if( pair.second.size() >= 4 )
+        -:  903:            {
+    #####:  904:                err_count++;
+        -:  905:
+    #####:  906:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_FOUR_WAY_JUNCTION );
+        -:  907:
+    #####:  908:                ercItem->SetItems( pair.second[0], pair.second[1], pair.second[2], pair.second[3] );
+        -:  909:
+    #####:  910:                wxString msg = wxString::Format( _( "Four items connected at %d, %d" ),
+    #####:  911:                                                 pair.first.x, pair.first.y );
+    #####:  912:                ercItem->SetErrorMessage( msg );
+        -:  913:
+    #####:  914:                ercItem->SetSheetSpecificPath( sheet );
+        -:  915:
+    #####:  916:                SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pair.first );
+    #####:  917:                sheet.LastScreen()->Append( marker );
+    #####:  918:            }
+        -:  919:        }
+    #####:  920:    }
+        -:  921:
+    #####:  922:    return err_count;
+        -:  923:}
+        -:  924:
+        -:  925:
+       19:  926:int ERC_TESTER::TestNoConnectPins()
+        -:  927:{
+       19:  928:    int err_count = 0;
+        -:  929:
+       40:  930:    for( const SCH_SHEET_PATH& sheet : m_sheetList )
+        -:  931:    {
+       21:  932:        std::map<VECTOR2I, std::vector<SCH_ITEM*>> pinMap;
+        -:  933:
+       21:  934:        auto addOther =
+       40:  935:                [&]( const VECTOR2I& pt, SCH_ITEM* aOther )
+        -:  936:                {
+       40:  937:                    if( pinMap.count( pt ) )
+    #####:  938:                        pinMap[pt].emplace_back( aOther );
+       61:  939:                };
+        -:  940:
+     1395:  941:        for( SCH_ITEM* item : sheet.LastScreen()->Items().OfType( SCH_SYMBOL_T ) )
+        -:  942:        {
+       15:  943:            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+        -:  944:
+       30:  945:            for( SCH_PIN* pin : symbol->GetPins( &sheet ) )
+        -:  946:            {
+       15:  947:                if( pin->GetType() == ELECTRICAL_PINTYPE::PT_NC )
+    #####:  948:                    pinMap[pin->GetPosition()].emplace_back( pin );
+       15:  949:            }
+       21:  950:        }
+        -:  951:
+     1495:  952:        for( SCH_ITEM* item : sheet.LastScreen()->Items() )
+        -:  953:        {
+       65:  954:            if( item->Type() == SCH_SYMBOL_T )
+        -:  955:            {
+       15:  956:                SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+        -:  957:
+       30:  958:                for( SCH_PIN* pin : symbol->GetPins( &sheet ) )
+        -:  959:                {
+       15:  960:                    if( pin->GetType() != ELECTRICAL_PINTYPE::PT_NC )
+       15:  961:                        addOther( pin->GetPosition(), pin );
+       15:  962:                }
+        -:  963:            }
+       50:  964:            else if( item->IsConnectable() && item->Type() != SCH_NO_CONNECT_T )
+        -:  965:            {
+       44:  966:                for( const VECTOR2I& pt : item->GetConnectionPoints() )
+       44:  967:                    addOther( pt, item );
+        -:  968:            }
+       21:  969:        }
+        -:  970:
+      21*:  971:        for( const std::pair<const VECTOR2I, std::vector<SCH_ITEM*>>& pair : pinMap )
+        -:  972:        {
+    #####:  973:            if( pair.second.size() > 1 )
+        -:  974:            {
+    #####:  975:                bool all_nc = true;
+        -:  976:
+    #####:  977:                for( SCH_ITEM* item : pair.second )
+        -:  978:                {
+    #####:  979:                    if( item->Type() != SCH_PIN_T )
+        -:  980:                    {
+    #####:  981:                        all_nc = false;
+    #####:  982:                        break;
+        -:  983:                    }
+        -:  984:
+    #####:  985:                    SCH_PIN* pin = static_cast<SCH_PIN*>( item );
+        -:  986:
+    #####:  987:                    if( pin->GetType() != ELECTRICAL_PINTYPE::PT_NC )
+        -:  988:                    {
+    #####:  989:                        all_nc = false;
+    #####:  990:                        break;
+        -:  991:                    }
+        -:  992:                }
+        -:  993:
+    #####:  994:                if( all_nc )
+    #####:  995:                    continue;
+        -:  996:
+    #####:  997:                err_count++;
+        -:  998:
+    #####:  999:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_NOCONNECT_CONNECTED );
+        -: 1000:
+    #####: 1001:                ercItem->SetItems( pair.second[0], pair.second[1],
+    #####: 1002:                                   pair.second.size() > 2 ? pair.second[2] : nullptr,
+    #####: 1003:                                   pair.second.size() > 3 ? pair.second[3] : nullptr );
+    #####: 1004:                ercItem->SetErrorMessage( _( "Pin with 'no connection' type is connected" ) );
+    #####: 1005:                ercItem->SetSheetSpecificPath( sheet );
+        -: 1006:
+    #####: 1007:                SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pair.first );
+    #####: 1008:                sheet.LastScreen()->Append( marker );
+    #####: 1009:            }
+        -: 1010:        }
+       21: 1011:    }
+        -: 1012:
+       19: 1013:    return err_count;
+        -: 1014:}
+        -: 1015:
+        -: 1016:
+       19: 1017:int ERC_TESTER::TestPinToPin()
+        -: 1018:{
+       19: 1019:    int errors = 0;
+        -: 1020:
+       35: 1021:    for( const std::pair<NET_NAME_CODE_CACHE_KEY, std::vector<CONNECTION_SUBGRAPH*>> net : m_nets )
+        -: 1022:    {
+        -: 1023:        using iterator_t = std::vector<ERC_SCH_PIN_CONTEXT>::iterator;
+       16: 1024:        std::vector<ERC_SCH_PIN_CONTEXT>           pins;
+       16: 1025:        std::unordered_map<EDA_ITEM*, SCH_SCREEN*> pinToScreenMap;
+       16: 1026:        bool has_noconnect = false;
+        -: 1027:
+       32: 1028:        for( CONNECTION_SUBGRAPH* subgraph: net.second )
+        -: 1029:        {
+       16: 1030:            if( subgraph->GetNoConnect() )
+        1: 1031:                has_noconnect = true;
+        -: 1032:
+       48: 1033:            for( SCH_ITEM* item : subgraph->GetItems() )
+        -: 1034:            {
+       32: 1035:                if( item->Type() == SCH_PIN_T )
+        -: 1036:                {
+       15: 1037:                    pins.emplace_back( static_cast<SCH_PIN*>( item ), subgraph->GetSheet() );
+       15: 1038:                    pinToScreenMap[item] = subgraph->GetSheet().LastScreen();
+        -: 1039:                }
+        -: 1040:            }
+        -: 1041:        }
+        -: 1042:
+       16: 1043:        std::sort( pins.begin(), pins.end(),
+       10: 1044:                   []( const ERC_SCH_PIN_CONTEXT& lhs, const ERC_SCH_PIN_CONTEXT& rhs )
+        -: 1045:                   {
+       10: 1046:                       int ret = StrNumCmp( lhs.Pin()->GetParentSymbol()->GetRef( &lhs.Sheet() ),
+       20: 1047:                                            rhs.Pin()->GetParentSymbol()->GetRef( &rhs.Sheet() ) );
+        -: 1048:
+       10: 1049:                       if( ret == 0 )
+    #####: 1050:                           ret = StrNumCmp( lhs.Pin()->GetNumber(), rhs.Pin()->GetNumber() );
+        -: 1051:
+       10: 1052:                       if( ret == 0 )
+    #####: 1053:                           ret = lhs < rhs; // Fallback to hash to guarantee deterministic sort
+        -: 1054:
+       10: 1055:                       return ret < 0;
+        -: 1056:                   } );
+        -: 1057:
+       16: 1058:        ERC_SCH_PIN_CONTEXT needsDriver;
+       16: 1059:        ELECTRICAL_PINTYPE  needsDriverType = ELECTRICAL_PINTYPE::PT_UNSPECIFIED;
+       16: 1060:        bool                hasDriver = false;
+       16: 1061:        std::vector<ERC_SCH_PIN_CONTEXT*> pinsNeedingDrivers;
+       16: 1062:        std::vector<ERC_SCH_PIN_CONTEXT*> nonPowerPinsNeedingDrivers;
+       16: 1063:        std::vector<ERC_SCH_PIN_CONTEXT*> powerInPinsNeedingDrivers;
+        -: 1064:
+        -: 1065:        // We need different drivers for power nets and normal nets.
+        -: 1066:        // A power net has at least one pin having the ELECTRICAL_PINTYPE::PT_POWER_IN
+        -: 1067:        // and power nets can be driven only by ELECTRICAL_PINTYPE::PT_POWER_OUT pins
+       16: 1068:        bool     ispowerNet  = false;
+        -: 1069:
+       29: 1070:        for( ERC_SCH_PIN_CONTEXT& refPin : pins )
+        -: 1071:        {
+       14: 1072:            if( refPin.Pin()->GetType() == ELECTRICAL_PINTYPE::PT_POWER_IN )
+        -: 1073:            {
+        1: 1074:                ispowerNet = true;
+        1: 1075:                break;
+        -: 1076:            }
+        -: 1077:        }
+        -: 1078:
+       16: 1079:        std::vector<std::tuple<iterator_t, iterator_t, PIN_ERROR>> pin_mismatches;
+       16: 1080:        std::map<iterator_t, int>                                  pin_mismatch_counts;
+        -: 1081:
+       31: 1082:        for( auto refIt = pins.begin(); refIt != pins.end(); ++refIt )
+        -: 1083:        {
+       15: 1084:            ERC_SCH_PIN_CONTEXT& refPin = *refIt;
+       15: 1085:            ELECTRICAL_PINTYPE refType = refPin.Pin()->GetType();
+        -: 1086:
+       15: 1087:            if( DrivenPinTypes.contains( refType ) )
+        -: 1088:            {
+        -: 1089:                // needsDriver will be the pin shown in the error report eventually, so try to
+        -: 1090:                // upgrade to a "better" pin if possible: something visible and only a power symbol
+        -: 1091:                // if this net needs a power driver
+        3: 1092:                pinsNeedingDrivers.push_back( &refPin );
+        -: 1093:
+        3: 1094:                if( !refPin.Pin()->IsPower() )
+        3: 1095:                    nonPowerPinsNeedingDrivers.push_back( &refPin );
+        -: 1096:
+        3: 1097:                if( refType == ELECTRICAL_PINTYPE::PT_POWER_IN )
+        1: 1098:                    powerInPinsNeedingDrivers.push_back( &refPin );
+        -: 1099:
+        3: 1100:                if( !needsDriver.Pin()
+       1*: 1101:                    || ( !needsDriver.Pin()->IsVisible() && refPin.Pin()->IsVisible() )
+        4: 1102:                    || ( ispowerNet != ( needsDriverType == ELECTRICAL_PINTYPE::PT_POWER_IN )
+    #####: 1103:                         && ispowerNet == ( refType == ELECTRICAL_PINTYPE::PT_POWER_IN ) ) )
+        -: 1104:                {
+        2: 1105:                    needsDriver = refPin;
+        2: 1106:                    needsDriverType = needsDriver.Pin()->GetType();
+        -: 1107:                }
+        -: 1108:            }
+        -: 1109:
+       15: 1110:            if( ispowerNet )
+        2: 1111:                hasDriver |= ( DrivingPowerPinTypes.count( refType ) != 0 );
+        -: 1112:            else
+       13: 1113:                hasDriver |= ( DrivingPinTypes.count( refType ) != 0 );
+        -: 1114:
+       20: 1115:            for( auto testIt = refIt + 1; testIt != pins.end(); ++testIt )
+        -: 1116:            {
+        5: 1117:                ERC_SCH_PIN_CONTEXT& testPin = *testIt;
+        -: 1118:
+        -: 1119:                // Multiple pins in the same symbol that share a type,
+        -: 1120:                // name and position are considered
+        -: 1121:                // "stacked" and shouldn't trigger ERC errors
+       5*: 1122:                if( refPin.Pin()->IsStacked( testPin.Pin() ) && refPin.Sheet() == testPin.Sheet() )
+    #####: 1123:                    continue;
+        -: 1124:
+        5: 1125:                ELECTRICAL_PINTYPE testType = testPin.Pin()->GetType();
+        -: 1126:
+        5: 1127:                if( ispowerNet )
+        1: 1128:                    hasDriver |= DrivingPowerPinTypes.contains( testType );
+        -: 1129:                else
+        4: 1130:                    hasDriver |= DrivingPinTypes.contains( testType );
+        -: 1131:
+        5: 1132:                PIN_ERROR erc = m_settings.GetPinMapValue( refType, testType );
+        -: 1133:
+        5: 1134:                if( erc != PIN_ERROR::OK && m_settings.IsTestEnabled( ERCE_PIN_TO_PIN_WARNING ) )
+        -: 1135:                {
+        1: 1136:                    pin_mismatches.emplace_back( std::tuple<iterator_t, iterator_t, PIN_ERROR>{ refIt, testIt, erc } );
+        -: 1137:
+        1: 1138:                    if( m_settings.GetERCSortingMetric() == ERC_PIN_SORTING_METRIC::SM_HEURISTICS )
+        -: 1139:                    {
+        1: 1140:                        pin_mismatch_counts[refIt] = m_settings.GetPinTypeWeight( ( *refIt ).Pin()->GetType() );
+        1: 1141:                        pin_mismatch_counts[testIt] = m_settings.GetPinTypeWeight( ( *testIt ).Pin()->GetType() );
+        -: 1142:                    }
+        -: 1143:                    else
+        -: 1144:                    {
+    #####: 1145:                        if( !pin_mismatch_counts.contains( testIt ) )
+    #####: 1146:                            pin_mismatch_counts.emplace( testIt, 1 );
+        -: 1147:                        else
+    #####: 1148:                            pin_mismatch_counts[testIt]++;
+        -: 1149:
+    #####: 1150:                        if( !pin_mismatch_counts.contains( refIt ) )
+    #####: 1151:                            pin_mismatch_counts.emplace( refIt, 1 );
+        -: 1152:                        else
+    #####: 1153:                            pin_mismatch_counts[refIt]++;
+        -: 1154:                    }
+        -: 1155:                }
+        -: 1156:            }
+        -: 1157:        }
+        -: 1158:
+       16: 1159:        std::multimap<size_t, iterator_t, std::greater<size_t>> pins_dsc;
+        -: 1160:
+       16: 1161:        std::transform( pin_mismatch_counts.begin(), pin_mismatch_counts.end(),
+        -: 1162:                        std::inserter( pins_dsc, pins_dsc.begin() ),
+        2: 1163:                        []( const auto& p )
+        -: 1164:                        {
+        2: 1165:                            return std::pair<size_t, iterator_t>( p.second, p.first );
+        -: 1166:                        } );
+        -: 1167:
+       17: 1168:        for( const auto& [amount, pinItBind] : pins_dsc )
+        -: 1169:        {
+        2: 1170:            auto& pinIt = pinItBind;
+        -: 1171:
+        2: 1172:            if( pin_mismatches.empty() )
+        1: 1173:                break;
+        -: 1174:
+        1: 1175:            SCH_PIN* pin = ( *pinIt ).Pin();
+        1: 1176:            VECTOR2I position = pin->GetPosition();
+        -: 1177:
+        1: 1178:            iterator_t nearest_pin = pins.end();
+        1: 1179:            double     smallest_distance = std::numeric_limits<double>::infinity();
+        1: 1180:            PIN_ERROR  erc;
+        -: 1181:
+        1: 1182:            std::erase_if(
+        -: 1183:                    pin_mismatches,
+        1: 1184:                    [&]( const auto& tuple )
+        -: 1185:                    {
+        1: 1186:                        iterator_t other;
+        -: 1187:
+        1: 1188:                        if( pinIt == std::get<0>( tuple ) )
+        1: 1189:                            other = std::get<1>( tuple );
+    #####: 1190:                        else if( pinIt == std::get<1>( tuple ) )
+    #####: 1191:                            other = std::get<0>( tuple );
+        -: 1192:                        else
+    #####: 1193:                            return false;
+        -: 1194:
+        1: 1195:                        if( ( *pinIt ).Sheet().Cmp( ( *other ).Sheet() ) != 0 )
+        -: 1196:                        {
+    #####: 1197:                            if( std::isinf( smallest_distance ) )
+        -: 1198:                            {
+    #####: 1199:                                nearest_pin = other;
+    #####: 1200:                                erc = std::get<2>( tuple );
+        -: 1201:                            }
+        -: 1202:                        }
+        -: 1203:                        else
+        -: 1204:                        {
+        1: 1205:                            double distance = position.Distance( ( *other ).Pin()->GetPosition() );
+        -: 1206:
+       1*: 1207:                            if( std::isinf( smallest_distance ) || distance < smallest_distance )
+        -: 1208:                            {
+        1: 1209:                                smallest_distance = distance;
+        1: 1210:                                nearest_pin = other;
+        1: 1211:                                erc = std::get<2>( tuple );
+        -: 1212:                            }
+        -: 1213:                        }
+        -: 1214:
+        1: 1215:                        return true;
+        -: 1216:                    } );
+        -: 1217:
+        1: 1218:            if( nearest_pin != pins.end() )
+        -: 1219:            {
+        1: 1220:                SCH_PIN* other_pin = ( *nearest_pin ).Pin();
+        -: 1221:
+        1: 1222:                auto ercItem = ERC_ITEM::Create( erc == PIN_ERROR::WARNING ? ERCE_PIN_TO_PIN_WARNING
+       1*: 1223:                                                                           : ERCE_PIN_TO_PIN_ERROR );
+        1: 1224:                ercItem->SetItems( pin, other_pin );
+        1: 1225:                ercItem->SetSheetSpecificPath( ( *pinIt ).Sheet() );
+        1: 1226:                ercItem->SetItemsSheetPaths( ( *pinIt ).Sheet(), ( *nearest_pin ).Sheet() );
+        -: 1227:
+        2: 1228:                ercItem->SetErrorMessage( wxString::Format( _( "Pins of type %s and %s are connected" ),
+        2: 1229:                                                            ElectricalPinTypeGetText( pin->GetType() ),
+        2: 1230:                                                            ElectricalPinTypeGetText( other_pin->GetType() ) ) );
+        -: 1231:
+       1*: 1232:                SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pin->GetPosition() );
+        1: 1233:                pinToScreenMap[pin]->Append( marker );
+        1: 1234:                errors++;
+        1: 1235:            }
+        -: 1236:        }
+        -: 1237:
+       16: 1238:        if( needsDriver.Pin() && !hasDriver && !has_noconnect )
+        -: 1239:        {
+        2: 1240:            int err_code = ispowerNet ? ERCE_POWERPIN_NOT_DRIVEN : ERCE_PIN_NOT_DRIVEN;
+        -: 1241:
+        2: 1242:            if( m_settings.IsTestEnabled( err_code ) )
+        -: 1243:            {
+        2: 1244:                std::vector<ERC_SCH_PIN_CONTEXT*> pinsToMark;
+        -: 1245:
+        -: 1246:                // The marker should land on a pin matching the error message: for an
+        -: 1247:                // ERCE_POWERPIN_NOT_DRIVEN error mark a PT_POWER_IN pin (which is what the
+        -: 1248:                // error refers to), for ERCE_PIN_NOT_DRIVEN prefer a pin that is not on a
+        -: 1249:                // power symbol so the marker is anchored to the consuming pin rather than
+        -: 1250:                // a power flag.
+        2: 1251:                if( m_showAllErrors )
+        -: 1252:                {
+    #####: 1253:                    if( ispowerNet && !powerInPinsNeedingDrivers.empty() )
+    #####: 1254:                        pinsToMark = powerInPinsNeedingDrivers;
+    #####: 1255:                    else if( !nonPowerPinsNeedingDrivers.empty() )
+    #####: 1256:                        pinsToMark = nonPowerPinsNeedingDrivers;
+        -: 1257:                    else
+    #####: 1258:                        pinsToMark = pinsNeedingDrivers;
+        -: 1259:                }
+        -: 1260:                else
+        -: 1261:                {
+        2: 1262:                    if( ispowerNet && !powerInPinsNeedingDrivers.empty() )
+        1: 1263:                        pinsToMark.push_back( powerInPinsNeedingDrivers.front() );
+        -: 1264:                    else
+        1: 1265:                        pinsToMark.push_back( &needsDriver );
+        -: 1266:                }
+        -: 1267:
+        4: 1268:                for( ERC_SCH_PIN_CONTEXT* pinCtx : pinsToMark )
+        -: 1269:                {
+        2: 1270:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( err_code );
+        -: 1271:
+        2: 1272:                    ercItem->SetItems( pinCtx->Pin() );
+        2: 1273:                    ercItem->SetSheetSpecificPath( pinCtx->Sheet() );
+        2: 1274:                    ercItem->SetItemsSheetPaths( pinCtx->Sheet() );
+        -: 1275:
+       2*: 1276:                    SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pinCtx->Pin()->GetPosition() );
+        2: 1277:                    pinToScreenMap[pinCtx->Pin()]->Append( marker );
+        2: 1278:                    errors++;
+        2: 1279:                }
+        2: 1280:            }
+        -: 1281:        }
+       16: 1282:    }
+        -: 1283:
+       19: 1284:    return errors;
+        -: 1285:}
+        -: 1286:
+        -: 1287:
+       19: 1288:int ERC_TESTER::TestMultUnitPinConflicts()
+        -: 1289:{
+       19: 1290:    int errors = 0;
+        -: 1291:
+       19: 1292:    std::unordered_map<wxString, std::pair<wxString, SCH_PIN*>> pinToNetMap;
+        -: 1293:
+       35: 1294:    for( const std::pair<NET_NAME_CODE_CACHE_KEY, std::vector<CONNECTION_SUBGRAPH*>> net : m_nets )
+        -: 1295:    {
+       16: 1296:        const wxString& netName = net.first.Name;
+        -: 1297:
+       32: 1298:        for( CONNECTION_SUBGRAPH* subgraph : net.second )
+        -: 1299:        {
+       48: 1300:            for( SCH_ITEM* item : subgraph->GetItems() )
+        -: 1301:            {
+       32: 1302:                if( item->Type() == SCH_PIN_T )
+        -: 1303:                {
+       15: 1304:                    SCH_PIN* pin = static_cast<SCH_PIN*>( item );
+       15: 1305:                    const SCH_SHEET_PATH& sheet = subgraph->GetSheet();
+        -: 1306:
+       15: 1307:                    if( !pin->GetParentSymbol()->IsMultiUnit() )
+       14: 1308:                        continue;
+        -: 1309:
+        1: 1310:                    wxString name = pin->GetParentSymbol()->GetRef( &sheet ) + ":" + pin->GetShownNumber();
+        -: 1311:
+        1: 1312:                    if( !pinToNetMap.count( name ) )
+        -: 1313:                    {
+        1: 1314:                        pinToNetMap[name] = std::make_pair( netName, pin );
+        -: 1315:                    }
+    #####: 1316:                    else if( pinToNetMap[name].first != netName )
+        -: 1317:                    {
+    #####: 1318:                        std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_DIFFERENT_UNIT_NET );
+        -: 1319:
+    #####: 1320:                        ercItem->SetErrorMessage( wxString::Format( _( "Pin %s is connected to both %s and %s" ),
+        -: 1321:                                                                    pin->GetShownNumber(),
+        -: 1322:                                                                    netName,
+    #####: 1323:                                                                    pinToNetMap[name].first ) );
+        -: 1324:
+    #####: 1325:                        ercItem->SetItems( pin, pinToNetMap[name].second );
+    #####: 1326:                        ercItem->SetSheetSpecificPath( sheet );
+    #####: 1327:                        ercItem->SetItemsSheetPaths( sheet, sheet );
+        -: 1328:
+    #####: 1329:                        SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pin->GetPosition() );
+    #####: 1330:                        sheet.LastScreen()->Append( marker );
+    #####: 1331:                        errors += 1;
+    #####: 1332:                    }
+        1: 1333:                }
+        -: 1334:            }
+        -: 1335:        }
+       16: 1336:    }
+        -: 1337:
+       19: 1338:    return errors;
+       19: 1339:}
+        -: 1340:
+        -: 1341:
+       19: 1342:int ERC_TESTER::TestDuplicatePinNets()
+        -: 1343:{
+       19: 1344:    int errors = 0;
+        -: 1345:
+       40: 1346:    for( const SCH_SHEET_PATH& sheet : m_sheetList )
+        -: 1347:    {
+       21: 1348:        SCH_SCREEN* screen = sheet.LastScreen();
+        -: 1349:
+     1395: 1350:        for( SCH_ITEM* item : screen->Items().OfType( SCH_SYMBOL_T ) )
+        -: 1351:        {
+       15: 1352:            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+       15: 1353:            LIB_SYMBOL* libSymbol = symbol->GetLibSymbolRef().get();
+        -: 1354:
+      15*: 1355:            if( !libSymbol )
+    #####: 1356:                continue;
+        -: 1357:
+      15*: 1358:            if( libSymbol->GetDuplicatePinNumbersAreJumpers() )
+    #####: 1359:                continue;
+        -: 1360:
+       15: 1361:            std::vector<SCH_PIN*> pins = symbol->GetPins( &sheet );
+        -: 1362:
+       15: 1363:            std::map<wxString, std::vector<std::pair<SCH_PIN*, wxString>>> pinsByNumber;
+        -: 1364:
+       30: 1365:            for( SCH_PIN* pin : pins )
+        -: 1366:            {
+       15: 1367:                SCH_CONNECTION* conn = pin->Connection( &sheet );
+      15*: 1368:                wxString        netName = conn ? conn->GetNetName() : wxString();
+        -: 1369:
+       15: 1370:                pinsByNumber[pin->GetNumber()].emplace_back( pin, netName );
+       15: 1371:            }
+        -: 1372:
+       30: 1373:            for( const auto& [pinNumber, pinNetPairs] : pinsByNumber )
+        -: 1374:            {
+       15: 1375:                if( pinNetPairs.size() < 2 )
+       15: 1376:                    continue;
+        -: 1377:
+    #####: 1378:                wxString firstNet = pinNetPairs[0].second;
+    #####: 1379:                bool     hasDifferentNets = false;
+    #####: 1380:                SCH_PIN* conflictPin = nullptr;
+        -: 1381:
+    #####: 1382:                for( size_t i = 1; i < pinNetPairs.size(); i++ )
+        -: 1383:                {
+    #####: 1384:                    if( pinNetPairs[i].second != firstNet )
+        -: 1385:                    {
+    #####: 1386:                        hasDifferentNets = true;
+    #####: 1387:                        conflictPin = pinNetPairs[i].first;
+    #####: 1388:                        break;
+        -: 1389:                    }
+        -: 1390:                }
+        -: 1391:
+    #####: 1392:                if( hasDifferentNets )
+        -: 1393:                {
+    #####: 1394:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_DUPLICATE_PIN_ERROR );
+    #####: 1395:                    wxString msg;
+        -: 1396:
+    #####: 1397:                    msg.Printf( _( "Pin %s on symbol '%s' is connected to different nets: %s and %s" ),
+        -: 1398:                                pinNumber,
+    #####: 1399:                                symbol->GetRef( &sheet ),
+    #####: 1400:                                firstNet.IsEmpty() ? _( "<no net>" ) : firstNet,
+    #####: 1401:                                pinNetPairs[1].second.IsEmpty() ? _( "<no net>" ) : pinNetPairs[1].second );
+        -: 1402:
+    #####: 1403:                    ercItem->SetErrorMessage( msg );
+    #####: 1404:                    ercItem->SetItems( pinNetPairs[0].first, conflictPin );
+    #####: 1405:                    ercItem->SetSheetSpecificPath( sheet );
+    #####: 1406:                    ercItem->SetItemsSheetPaths( sheet, sheet );
+        -: 1407:
+    #####: 1408:                    SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ),
+    #####: 1409:                                                         pinNetPairs[0].first->GetPosition() );
+    #####: 1410:                    screen->Append( marker );
+    #####: 1411:                    errors++;
+    #####: 1412:                }
+    #####: 1413:            }
+       36: 1414:        }
+        -: 1415:    }
+        -: 1416:
+       19: 1417:    return errors;
+        -: 1418:}
+        -: 1419:
+        -: 1420:
+       19: 1421:int ERC_TESTER::TestGroundPins()
+        -: 1422:{
+       19: 1423:    int errors = 0;
+        -: 1424:
+        -: 1425:    auto isGround =
+       16: 1426:            []( const wxString& txt )
+        -: 1427:            {
+       16: 1428:                wxString upper = txt.Upper();
+        -: 1429:
+       16: 1430:                return upper.Contains( wxT( "GND" ) )
+       32: 1431:                       || upper == wxT( "EARTH" ) || upper.StartsWith( wxT( "EARTH_" ) )
+      48*: 1432:                       || upper == wxT( "VSS" ) || upper == wxT( "VSSA" );
+       16: 1433:            };
+        -: 1434:
+       40: 1435:    for( const SCH_SHEET_PATH& sheet : m_sheetList )
+        -: 1436:    {
+       21: 1437:        SCH_SCREEN* screen = sheet.LastScreen();
+        -: 1438:
+     1395: 1439:        for( SCH_ITEM* item : screen->Items().OfType( SCH_SYMBOL_T ) )
+        -: 1440:        {
+       15: 1441:            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+       15: 1442:            bool        hasGroundNet = false;
+       15: 1443:            std::vector<SCH_PIN*> mismatched;
+        -: 1444:
+       30: 1445:            for( SCH_PIN* pin : symbol->GetPins( &sheet ) )
+        -: 1446:            {
+       15: 1447:                SCH_CONNECTION* conn = pin->Connection( &sheet );
+      15*: 1448:                wxString        net = conn ? conn->GetNetName() : wxString();
+       15: 1449:                bool            netIsGround = isGround( net );
+        -: 1450:
+        -: 1451:                // We are only interested in power pins
+       15: 1452:                if( pin->GetType() != ELECTRICAL_PINTYPE::PT_POWER_OUT
+       15: 1453:                    && pin->GetType() != ELECTRICAL_PINTYPE::PT_POWER_IN )
+        -: 1454:                {
+       14: 1455:                    continue;
+        -: 1456:                }
+        -: 1457:
+        1: 1458:                if( netIsGround )
+    #####: 1459:                    hasGroundNet = true;
+        -: 1460:
+       1*: 1461:                if( isGround( pin->GetShownName() ) && !netIsGround )
+    #####: 1462:                    mismatched.push_back( pin );
+       30: 1463:            }
+        -: 1464:
+       15: 1465:            if( hasGroundNet )
+        -: 1466:            {
+    #####: 1467:                for( SCH_PIN* pin : mismatched )
+        -: 1468:                {
+    #####: 1469:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_GROUND_PIN_NOT_GROUND );
+        -: 1470:
+    #####: 1471:                    ercItem->SetErrorMessage( wxString::Format( _( "Pin %s not connected to ground net" ),
+        -: 1472:                                                                pin->GetShownName() ) );
+    #####: 1473:                    ercItem->SetItems( pin );
+    #####: 1474:                    ercItem->SetSheetSpecificPath( sheet );
+    #####: 1475:                    ercItem->SetItemsSheetPaths( sheet );
+        -: 1476:
+    #####: 1477:                    SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pin->GetPosition() );
+    #####: 1478:                    screen->Append( marker );
+    #####: 1479:                    errors++;
+    #####: 1480:                }
+        -: 1481:            }
+       36: 1482:        }
+        -: 1483:    }
+        -: 1484:
+       19: 1485:    return errors;
+        -: 1486:}
+        -: 1487:
+        -: 1488:
+       19: 1489:int ERC_TESTER::TestStackedPinNotation()
+        -: 1490:{
+       19: 1491:    int warnings = 0;
+        -: 1492:
+       40: 1493:    for( const SCH_SHEET_PATH& sheet : m_sheetList )
+        -: 1494:    {
+       21: 1495:        SCH_SCREEN* screen = sheet.LastScreen();
+        -: 1496:
+     1395: 1497:        for( SCH_ITEM* item : screen->Items().OfType( SCH_SYMBOL_T ) )
+        -: 1498:        {
+       15: 1499:            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+        -: 1500:
+       30: 1501:            for( SCH_PIN* pin : symbol->GetPins( &sheet ) )
+        -: 1502:            {
+       15: 1503:                bool valid;
+       15: 1504:                pin->GetStackedPinNumbers( &valid );
+        -: 1505:
+       15: 1506:                if( !valid )
+        -: 1507:                {
+    #####: 1508:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_STACKED_PIN_SYNTAX );
+    #####: 1509:                    ercItem->SetItems( pin );
+    #####: 1510:                    ercItem->SetSheetSpecificPath( sheet );
+    #####: 1511:                    ercItem->SetItemsSheetPaths( sheet );
+        -: 1512:
+    #####: 1513:                    SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), pin->GetPosition() );
+    #####: 1514:                    screen->Append( marker );
+    #####: 1515:                    warnings++;
+    #####: 1516:                }
+       15: 1517:            }
+       21: 1518:        }
+        -: 1519:    }
+        -: 1520:
+       19: 1521:    return warnings;
+        -: 1522:}
+        -: 1523:
+        -: 1524:
+       19: 1525:int ERC_TESTER::TestSameLocalGlobalLabel()
+        -: 1526:{
+       19: 1527:    int errCount = 0;
+        -: 1528:
+       19: 1529:    std::unordered_map<wxString, std::pair<SCH_ITEM*, SCH_SHEET_PATH>> globalLabels;
+       19: 1530:    std::unordered_map<wxString, std::pair<SCH_ITEM*, SCH_SHEET_PATH>> localLabels;
+        -: 1531:
+       35: 1532:    for( const std::pair<NET_NAME_CODE_CACHE_KEY, std::vector<CONNECTION_SUBGRAPH*>> net : m_nets )
+        -: 1533:    {
+       32: 1534:        for( CONNECTION_SUBGRAPH* subgraph : net.second )
+        -: 1535:        {
+       16: 1536:            const SCH_SHEET_PATH& sheet = subgraph->GetSheet();
+        -: 1537:
+       48: 1538:            for( SCH_ITEM* item : subgraph->GetItems() )
+        -: 1539:            {
+       32: 1540:                if( item->Type() == SCH_LABEL_T || item->Type() == SCH_GLOBAL_LABEL_T )
+        -: 1541:                {
+        9: 1542:                    SCH_LABEL_BASE* label = static_cast<SCH_LABEL_BASE*>( item );
+        9: 1543:                    wxString        text = label->GetShownText( &sheet, false );
+        -: 1544:
+        9: 1545:                    auto& map = item->Type() == SCH_LABEL_T ? localLabels : globalLabels;
+        -: 1546:
+        9: 1547:                    if( !map.count( text ) )
+        -: 1548:                    {
+        9: 1549:                        map[text] = std::make_pair( label, sheet );
+        -: 1550:                    }
+        9: 1551:                }
+        -: 1552:            }
+        -: 1553:        }
+       16: 1554:    }
+        -: 1555:
+       20: 1556:    for( auto& [globalText, globalItem] : globalLabels )
+        -: 1557:    {
+        2: 1558:        for( auto& [localText, localItem] : localLabels )
+        -: 1559:        {
+        1: 1560:            if( globalText == localText )
+        -: 1561:            {
+        1: 1562:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_SAME_LOCAL_GLOBAL_LABEL );
+        1: 1563:                ercItem->SetItems( globalItem.first, localItem.first );
+        1: 1564:                ercItem->SetSheetSpecificPath( globalItem.second );
+        1: 1565:                ercItem->SetItemsSheetPaths( globalItem.second, localItem.second );
+        -: 1566:
+       1*: 1567:                SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), globalItem.first->GetPosition() );
+        1: 1568:                globalItem.second.LastScreen()->Append( marker );
+        -: 1569:
+        1: 1570:                errCount++;
+        1: 1571:            }
+        -: 1572:        }
+        -: 1573:    }
+        -: 1574:
+       19: 1575:    return errCount;
+       19: 1576:}
+        -: 1577:
+        -: 1578:
+       19: 1579:int ERC_TESTER::TestSimilarLabels()
+        -: 1580:{
+       19: 1581:    int errors = 0;
+       19: 1582:    std::unordered_map<wxString, std::vector<std::tuple<wxString, SCH_ITEM*, SCH_SHEET_PATH>>> generalMap;
+        -: 1583:
+        -: 1584:    auto logError =
+        1: 1585:            [&]( const wxString& normalized, SCH_ITEM* item, const SCH_SHEET_PATH& sheet,
+        -: 1586:                 const std::tuple<wxString, SCH_ITEM*, SCH_SHEET_PATH>& other )
+        -: 1587:            {
+        1: 1588:                auto& [otherText, otherItem, otherSheet] = other;
+        1: 1589:                ERCE_T typeOfWarning = ERCE_SIMILAR_LABELS;
+        -: 1590:
+       1*: 1591:                if( item->Type() == SCH_PIN_T && otherItem->Type() == SCH_PIN_T )
+        -: 1592:                {
+        -: 1593:                    //Two Pins
+    #####: 1594:                    typeOfWarning = ERCE_SIMILAR_POWER;
+        -: 1595:                }
+       1*: 1596:                else if( item->Type() == SCH_PIN_T || otherItem->Type() == SCH_PIN_T )
+        -: 1597:                {
+        -: 1598:                    //Pin and Label
+    #####: 1599:                    typeOfWarning = ERCE_SIMILAR_LABEL_AND_POWER;
+        -: 1600:                }
+        -: 1601:                else
+        -: 1602:                {
+        -: 1603:                    //Two Labels
+        1: 1604:                    typeOfWarning = ERCE_SIMILAR_LABELS;
+        -: 1605:                }
+        -: 1606:
+        1: 1607:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( typeOfWarning );
+        1: 1608:                ercItem->SetItems( item, otherItem );
+        1: 1609:                ercItem->SetSheetSpecificPath( sheet );
+        1: 1610:                ercItem->SetItemsSheetPaths( sheet, otherSheet );
+        -: 1611:
+       1*: 1612:                SCH_MARKER* marker = new SCH_MARKER( std::move( ercItem ), item->GetPosition() );
+        1: 1613:                sheet.LastScreen()->Append( marker );
+        1: 1614:            };
+        -: 1615:
+       35: 1616:    for( const std::pair<NET_NAME_CODE_CACHE_KEY, std::vector<CONNECTION_SUBGRAPH*>> net : m_nets )
+        -: 1617:    {
+       32: 1618:        for( CONNECTION_SUBGRAPH* subgraph : net.second )
+        -: 1619:        {
+       16: 1620:            const SCH_SHEET_PATH& sheet = subgraph->GetSheet();
+        -: 1621:
+       48: 1622:            for( SCH_ITEM* item : subgraph->GetItems() )
+        -: 1623:            {
+       32: 1624:                switch( item->Type() )
+        -: 1625:                {
+        9: 1626:                case SCH_LABEL_T:
+        -: 1627:                case SCH_HIER_LABEL_T:
+        -: 1628:                case SCH_GLOBAL_LABEL_T:
+        -: 1629:                {
+        9: 1630:                    SCH_LABEL_BASE* label = static_cast<SCH_LABEL_BASE*>( item );
+        9: 1631:                    wxString        unnormalized = label->GetShownText( &sheet, false );
+        9: 1632:                    wxString        normalized = unnormalized.Lower();
+        -: 1633:
+        9: 1634:                    generalMap[normalized].emplace_back( std::make_tuple( unnormalized, label, sheet ) );
+        -: 1635:
+       20: 1636:                    for( const auto& otherTuple : generalMap.at( normalized ) )
+        -: 1637:                    {
+       11: 1638:                        const auto& [otherText, otherItem, otherSheet] = otherTuple;
+        -: 1639:
+       11: 1640:                        if( unnormalized != otherText )
+        -: 1641:                        {
+        -: 1642:                            // Similar local labels on different sheets are fine
+       2*: 1643:                            if( item->Type() == SCH_LABEL_T && otherItem->Type() == SCH_LABEL_T
+       2*: 1644:                                    && sheet != otherSheet )
+        -: 1645:                            {
+    #####: 1646:                                continue;
+        -: 1647:                            }
+        -: 1648:
+        1: 1649:                            logError( normalized, label, sheet, otherTuple );
+        1: 1650:                            errors += 1;
+        -: 1651:                        }
+        -: 1652:                    }
+        -: 1653:
+        9: 1654:                    break;
+        9: 1655:                }
+       15: 1656:                case SCH_PIN_T:
+        -: 1657:                {
+       15: 1658:                    SCH_PIN* pin = static_cast<SCH_PIN*>( item );
+        -: 1659:
+       15: 1660:                    if( !pin->IsPower() )
+       15: 1661:                        continue;
+        -: 1662:
+    #####: 1663:                    SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( pin->GetParentSymbol() );
+    #####: 1664:                    wxString    unnormalized = symbol->GetValue( true, &sheet, false );
+    #####: 1665:                    wxString    normalized = unnormalized.Lower();
+        -: 1666:
+    #####: 1667:                    generalMap[normalized].emplace_back( std::make_tuple( unnormalized, pin, sheet ) );
+        -: 1668:
+    #####: 1669:                    for( const auto& otherTuple : generalMap.at( normalized ) )
+        -: 1670:                    {
+    #####: 1671:                        const auto& [otherText, otherItem, otherSheet] = otherTuple;
+        -: 1672:
+    #####: 1673:                        if( unnormalized != otherText )
+        -: 1674:                        {
+    #####: 1675:                            logError( normalized, pin, sheet, otherTuple );
+    #####: 1676:                            errors += 1;
+        -: 1677:                        }
+        -: 1678:                    }
+        -: 1679:
+    #####: 1680:                    break;
+    #####: 1681:                }
+        -: 1682:
+        8: 1683:                default:
+        8: 1684:                    break;
+        -: 1685:                }
+        -: 1686:            }
+        -: 1687:        }
+       16: 1688:    }
+        -: 1689:
+       19: 1690:    return errors;
+       19: 1691:}
+        -: 1692:
+        -: 1693:
+       19: 1694:int ERC_TESTER::TestLibSymbolIssues()
+        -: 1695:{
+      19*: 1696:    wxCHECK( m_schematic, 0 );
+        -: 1697:
+       19: 1698:    LIBRARY_MANAGER& manager = Pgm().GetLibraryManager();
+       19: 1699:    SYMBOL_LIBRARY_ADAPTER* adapter = PROJECT_SCH::SymbolLibAdapter( &m_schematic->Project() );
+       19: 1700:    wxString          msg;
+       19: 1701:    int               err_count = 0;
+        -: 1702:
+       59: 1703:    for( SCH_SCREEN* screen = m_screens.GetFirst(); screen; screen = m_screens.GetNext() )
+        -: 1704:    {
+       40: 1705:        std::vector<SCH_MARKER*> markers;
+        -: 1706:
+     2630: 1707:        for( SCH_ITEM* item : screen->Items().OfType( SCH_SYMBOL_T ) )
+        -: 1708:        {
+       15: 1709:            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+       15: 1710:            LIB_SYMBOL* libSymbolInSchematic = symbol->GetLibSymbolRef().get();
+        -: 1711:
+      15*: 1712:            if( !libSymbolInSchematic )
+      15*: 1713:                continue;
+        -: 1714:
+       15: 1715:            wxString libName = symbol->GetLibId().GetLibNickname();
+        -: 1716:
+       15: 1717:            std::optional<const LIBRARY_TABLE_ROW*> optRow =
+       15: 1718:                    manager.GetRow( LIBRARY_TABLE_TYPE::SYMBOL, libName );
+        -: 1719:
+      15*: 1720:            if( !optRow || ( *optRow )->Disabled() )
+        -: 1721:            {
+       15: 1722:                if( m_settings.IsTestEnabled( ERCE_LIB_SYMBOL_ISSUES ) )
+        -: 1723:                {
+       15: 1724:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_LIB_SYMBOL_ISSUES );
+       15: 1725:                    ercItem->SetItems( symbol );
+       15: 1726:                    msg.Printf( _( "The current configuration does not include the symbol library '%s'" ),
+       30: 1727:                                UnescapeString( libName ) );
+       15: 1728:                    ercItem->SetErrorMessage( msg );
+        -: 1729:
+      15*: 1730:                    markers.emplace_back( new SCH_MARKER( std::move( ercItem ), symbol->GetPosition() ) );
+       15: 1731:                }
+        -: 1732:
+       15: 1733:                continue;
+       15: 1734:            }
+    #####: 1735:            else if( !adapter->IsLibraryLoaded( libName ) )
+        -: 1736:            {
+    #####: 1737:                if( m_settings.IsTestEnabled( ERCE_LIB_SYMBOL_ISSUES ) )
+        -: 1738:                {
+    #####: 1739:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_LIB_SYMBOL_ISSUES );
+    #####: 1740:                    std::optional<wxString> uri =
+    #####: 1741:                            manager.GetFullURI( LIBRARY_TABLE_TYPE::SYMBOL, libName, true );
+    #####: 1742:                    wxCHECK2( uri.has_value(), uri = wxEmptyString );
+    #####: 1743:                    ercItem->SetItems( symbol );
+    #####: 1744:                    msg.Printf( _( "The symbol library '%s' was not found at '%s'" ),
+    #####: 1745:                                UnescapeString( libName ), *uri );
+    #####: 1746:                    ercItem->SetErrorMessage( msg );
+        -: 1747:
+    #####: 1748:                    markers.emplace_back( new SCH_MARKER( std::move( ercItem ), symbol->GetPosition() ) );
+    #####: 1749:                }
+        -: 1750:
+    #####: 1751:                continue;
+    #####: 1752:            }
+        -: 1753:
+    #####: 1754:            wxString    symbolName = symbol->GetLibId().GetLibItemName();
+    #####: 1755:            LIB_SYMBOL* libSymbol = adapter->LoadSymbol( symbol->GetLibId() );
+        -: 1756:
+    #####: 1757:            if( libSymbol == nullptr )
+        -: 1758:            {
+    #####: 1759:                if( m_settings.IsTestEnabled( ERCE_LIB_SYMBOL_ISSUES ) )
+        -: 1760:                {
+    #####: 1761:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_LIB_SYMBOL_ISSUES );
+    #####: 1762:                    ercItem->SetItems( symbol );
+    #####: 1763:                    msg.Printf( _( "Symbol '%s' not found in symbol library '%s'" ),
+    #####: 1764:                                UnescapeString( symbolName ),
+    #####: 1765:                                UnescapeString( libName ) );
+    #####: 1766:                    ercItem->SetErrorMessage( msg );
+        -: 1767:
+    #####: 1768:                    markers.emplace_back( new SCH_MARKER( std::move( ercItem ), symbol->GetPosition() ) );
+    #####: 1769:                }
+        -: 1770:
+    #####: 1771:                continue;
+    #####: 1772:            }
+        -: 1773:
+    #####: 1774:            std::unique_ptr<LIB_SYMBOL> flattenedSymbol = libSymbol->Flatten();
+    #####: 1775:            constexpr int flags = SCH_ITEM::COMPARE_FLAGS::EQUALITY | SCH_ITEM::COMPARE_FLAGS::ERC;
+        -: 1776:
+    #####: 1777:            if( m_settings.IsTestEnabled( ERCE_LIB_SYMBOL_MISMATCH ) )
+        -: 1778:            {
+        -: 1779:                // We have to check for duplicate pins first as they will cause Compare() to fail.
+        -: 1780:                // Symbols with duplicate pins are valid if those pins share the same net, so we
+        -: 1781:                // only skip the comparison here. The actual error checking for duplicate pins on
+        -: 1782:                // different nets is done in TestDuplicatePinNets().
+    #####: 1783:                std::vector<wxString> messages;
+        -: 1784:
+    #####: 1785:                if( !libSymbolInSchematic->GetDuplicatePinNumbersAreJumpers() )
+        -: 1786:                {
+    #####: 1787:                    UNITS_PROVIDER unitsProvider( schIUScale, EDA_UNITS::MILS );
+    #####: 1788:                    CheckDuplicatePins( libSymbolInSchematic, messages, &unitsProvider );
+    #####: 1789:                }
+        -: 1790:
+    #####: 1791:                if( messages.empty() && flattenedSymbol->Compare( *libSymbolInSchematic, flags ) != 0 )
+        -: 1792:                {
+    #####: 1793:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_LIB_SYMBOL_MISMATCH );
+    #####: 1794:                    ercItem->SetItems( symbol );
+    #####: 1795:                    msg.Printf( _( "Symbol '%s' doesn't match copy in library '%s'" ),
+    #####: 1796:                                UnescapeString( symbolName ),
+    #####: 1797:                                UnescapeString( libName ) );
+    #####: 1798:                    ercItem->SetErrorMessage( msg );
+        -: 1799:
+    #####: 1800:                    markers.emplace_back( new SCH_MARKER( std::move( ercItem ), symbol->GetPosition() ) );
+    #####: 1801:                }
+    #####: 1802:            }
+      55*: 1803:        }
+        -: 1804:
+       55: 1805:        for( SCH_MARKER* marker : markers )
+        -: 1806:        {
+       15: 1807:            screen->Append( marker );
+       15: 1808:            err_count += 1;
+        -: 1809:        }
+       40: 1810:    }
+        -: 1811:
+       19: 1812:    return err_count;
+       19: 1813:}
+        -: 1814:
+        -: 1815:
+       19: 1816:int ERC_TESTER::TestFootprintLinkIssues( KIFACE* aCvPcb, PROJECT* aProject )
+        -: 1817:{
+      19*: 1818:    wxCHECK( m_schematic, 0 );
+        -: 1819:
+       19: 1820:    if( std::optional<LIBRARY_MANAGER_ADAPTER*> adapter =
+       19: 1821:                Pgm().GetLibraryManager().Adapter( LIBRARY_TABLE_TYPE::FOOTPRINT ) )
+        -: 1822:    {
+    #####: 1823:        ( *adapter )->BlockUntilLoaded();
+        -: 1824:    }
+        -: 1825:
+       19: 1826:    wxString msg;
+       19: 1827:    int      err_count = 0;
+        -: 1828:
+        -: 1829:    typedef int (*TESTER_FN_PTR)( const wxString&, PROJECT* );
+        -: 1830:
+       19: 1831:    TESTER_FN_PTR linkTester = (TESTER_FN_PTR) aCvPcb->IfaceOrAddress( KIFACE_TEST_FOOTPRINT_LINK );
+        -: 1832:
+       40: 1833:    for( SCH_SHEET_PATH& sheet : m_sheetList )
+        -: 1834:    {
+       21: 1835:        std::vector<SCH_MARKER*> markers;
+        -: 1836:
+     1395: 1837:        for( SCH_ITEM* item : sheet.LastScreen()->Items().OfType( SCH_SYMBOL_T ) )
+        -: 1838:        {
+       15: 1839:            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+       15: 1840:            wxString    footprint = symbol->GetFootprintFieldText( true, &sheet, false );
+        -: 1841:
+       15: 1842:            if( footprint.IsEmpty() )
+       15: 1843:                continue;
+        -: 1844:
+    #####: 1845:            LIB_ID fpID;
+        -: 1846:
+    #####: 1847:            if( fpID.Parse( footprint, true ) >= 0 )
+        -: 1848:            {
+    #####: 1849:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_FOOTPRINT_LINK_ISSUES );
+    #####: 1850:                msg.Printf( _( "'%s' is not a valid footprint identifier" ), footprint );
+    #####: 1851:                ercItem->SetErrorMessage( msg );
+    #####: 1852:                ercItem->SetItems( symbol );
+    #####: 1853:                markers.emplace_back( new SCH_MARKER( std::move( ercItem ), symbol->GetPosition() ) );
+    #####: 1854:                continue;
+    #####: 1855:            }
+        -: 1856:
+    #####: 1857:            wxString libName = fpID.GetLibNickname();
+    #####: 1858:            wxString fpName = fpID.GetLibItemName();
+    #####: 1859:            int      ret = (linkTester)( footprint, aProject );
+        -: 1860:
+    #####: 1861:            if( ret == KIFACE_TEST_FOOTPRINT_LINK_NO_LIBRARY )
+        -: 1862:            {
+    #####: 1863:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_FOOTPRINT_LINK_ISSUES );
+    #####: 1864:                msg.Printf( _( "The current configuration does not include the footprint library '%s'" ),
+        -: 1865:                            libName );
+    #####: 1866:                ercItem->SetErrorMessage( msg );
+    #####: 1867:                ercItem->SetItems( symbol );
+    #####: 1868:                markers.emplace_back( new SCH_MARKER( std::move( ercItem ), symbol->GetPosition() ) );
+    #####: 1869:            }
+    #####: 1870:            else if( ret == KIFACE_TEST_FOOTPRINT_LINK_LIBRARY_NOT_ENABLED )
+        -: 1871:            {
+    #####: 1872:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_FOOTPRINT_LINK_ISSUES );
+    #####: 1873:                msg.Printf( _( "The footprint library '%s' is not enabled in the current configuration" ),
+        -: 1874:                            libName );
+    #####: 1875:                ercItem->SetErrorMessage( msg );
+    #####: 1876:                ercItem->SetItems( symbol );
+    #####: 1877:                markers.emplace_back( new SCH_MARKER( std::move( ercItem ), symbol->GetPosition() ) );
+    #####: 1878:            }
+    #####: 1879:            else if( ret == KIFACE_TEST_FOOTPRINT_LINK_NO_FOOTPRINT )
+        -: 1880:            {
+    #####: 1881:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_FOOTPRINT_LINK_ISSUES );
+    #####: 1882:                msg.Printf( _( "Footprint '%s' not found in library '%s'" ),
+        -: 1883:                            fpName,
+        -: 1884:                            libName );
+    #####: 1885:                ercItem->SetErrorMessage( msg );
+    #####: 1886:                ercItem->SetItems( symbol );
+    #####: 1887:                markers.emplace_back( new SCH_MARKER( std::move( ercItem ), symbol->GetPosition() ) );
+    #####: 1888:            }
+      36*: 1889:        }
+        -: 1890:
+      21*: 1891:        for( SCH_MARKER* marker : markers )
+        -: 1892:        {
+    #####: 1893:            sheet.LastScreen()->Append( marker );
+    #####: 1894:            err_count += 1;
+        -: 1895:        }
+       21: 1896:    }
+        -: 1897:
+       19: 1898:    return err_count;
+       19: 1899:}
+        -: 1900:
+        -: 1901:
+    #####: 1902:int ERC_TESTER::TestFootprintFilters()
+        -: 1903:{
+    #####: 1904:    wxCHECK( m_schematic, 0 );
+        -: 1905:
+    #####: 1906:    wxString msg;
+    #####: 1907:    int      err_count = 0;
+        -: 1908:
+    #####: 1909:    for( SCH_SHEET_PATH& sheet : m_sheetList )
+        -: 1910:    {
+    #####: 1911:        std::vector<SCH_MARKER*> markers;
+        -: 1912:
+    #####: 1913:        for( SCH_ITEM* item : sheet.LastScreen()->Items().OfType( SCH_SYMBOL_T ) )
+        -: 1914:        {
+    #####: 1915:            SCH_SYMBOL*                  sch_symbol = static_cast<SCH_SYMBOL*>( item );
+    #####: 1916:            std::unique_ptr<LIB_SYMBOL>& lib_symbol = sch_symbol->GetLibSymbolRef();
+        -: 1917:
+    #####: 1918:            if( !lib_symbol )
+    #####: 1919:                continue;
+        -: 1920:
+    #####: 1921:            wxArrayString filters = lib_symbol->GetFPFilters();
+        -: 1922:
+    #####: 1923:            if( filters.empty() )
+    #####: 1924:                continue;
+        -: 1925:
+    #####: 1926:            wxString lowerId = sch_symbol->GetFootprintFieldText( true, &sheet, false ).Lower();
+    #####: 1927:            LIB_ID   footprint;
+        -: 1928:
+    #####: 1929:            if( footprint.Parse( lowerId ) > 0 )
+    #####: 1930:                continue;
+        -: 1931:
+    #####: 1932:            wxString lowerItemName = footprint.GetUniStringLibItemName().Lower();
+    #####: 1933:            bool     found = false;
+        -: 1934:
+    #####: 1935:            for( wxString filter : filters )
+        -: 1936:            {
+    #####: 1937:                filter.LowerCase();
+        -: 1938:
+        -: 1939:                // If the filter contains a ':' character, include the library name in the pattern
+    #####: 1940:                if( filter.Contains( wxS( ":" ) ) )
+    #####: 1941:                    found |= lowerId.Matches( filter );
+        -: 1942:                else
+    #####: 1943:                    found |= lowerItemName.Matches( filter );
+        -: 1944:
+    #####: 1945:                if( found )
+    #####: 1946:                    break;
+    #####: 1947:            }
+        -: 1948:
+    #####: 1949:            if( !found )
+        -: 1950:            {
+    #####: 1951:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_FOOTPRINT_FILTERS );
+    #####: 1952:                msg.Printf( _( "Assigned footprint (%s) doesn't match footprint filters (%s)" ),
+    #####: 1953:                            footprint.GetUniStringLibItemName(),
+    #####: 1954:                            wxJoin( filters, ' ' ) );
+    #####: 1955:                ercItem->SetErrorMessage( msg );
+    #####: 1956:                ercItem->SetItems( sch_symbol );
+    #####: 1957:                markers.emplace_back( new SCH_MARKER( std::move( ercItem ), sch_symbol->GetPosition() ) );
+    #####: 1958:            }
+    #####: 1959:        }
+        -: 1960:
+    #####: 1961:        for( SCH_MARKER* marker : markers )
+        -: 1962:        {
+    #####: 1963:            sheet.LastScreen()->Append( marker );
+    #####: 1964:            err_count += 1;
+        -: 1965:        }
+    #####: 1966:    }
+        -: 1967:
+    #####: 1968:    return err_count;
+    #####: 1969:}
+        -: 1970:
+        -: 1971:
+       19: 1972:int ERC_TESTER::TestOffGridEndpoints()
+        -: 1973:{
+       19: 1974:    const int gridSize = m_schematic->Settings().m_ConnectionGridSize;
+       19: 1975:    int       err_count = 0;
+        -: 1976:
+       59: 1977:    for( SCH_SCREEN* screen = m_screens.GetFirst(); screen; screen = m_screens.GetNext() )
+        -: 1978:    {
+       40: 1979:        std::vector<SCH_MARKER*> markers;
+        -: 1980:
+     2798: 1981:        for( SCH_ITEM* item : screen->Items() )
+        -: 1982:        {
+       99: 1983:            if( item->Type() == SCH_LINE_T && item->IsConnectable() )
+        -: 1984:            {
+        8: 1985:                SCH_LINE* line = static_cast<SCH_LINE*>( item );
+        -: 1986:
+        8: 1987:                if( ( line->GetStartPoint().x % gridSize ) != 0
+       8*: 1988:                        || ( line->GetStartPoint().y % gridSize ) != 0 )
+        -: 1989:                {
+    #####: 1990:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_ENDPOINT_OFF_GRID );
+    #####: 1991:                    ercItem->SetItems( line );
+        -: 1992:
+    #####: 1993:                    markers.emplace_back( new SCH_MARKER( std::move( ercItem ), line->GetStartPoint() ) );
+    #####: 1994:                }
+        8: 1995:                else if( ( line->GetEndPoint().x % gridSize ) != 0
+       8*: 1996:                            || ( line->GetEndPoint().y % gridSize ) != 0 )
+        -: 1997:                {
+    #####: 1998:                    std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_ENDPOINT_OFF_GRID );
+    #####: 1999:                    ercItem->SetItems( line );
+        -: 2000:
+    #####: 2001:                    markers.emplace_back( new SCH_MARKER( std::move( ercItem ), line->GetEndPoint() ) );
+    #####: 2002:                }
+        -: 2003:            }
+       99: 2004:            if( item->Type() == SCH_BUS_WIRE_ENTRY_T )
+        -: 2005:            {
+    #####: 2006:                SCH_BUS_WIRE_ENTRY* entry = static_cast<SCH_BUS_WIRE_ENTRY*>( item );
+        -: 2007:
+    #####: 2008:                for( const VECTOR2I& point : entry->GetConnectionPoints() )
+        -: 2009:                {
+    #####: 2010:                    if( ( point.x % gridSize ) != 0
+    #####: 2011:                        || ( point.y % gridSize ) != 0 )
+        -: 2012:                    {
+    #####: 2013:                        std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_ENDPOINT_OFF_GRID );
+    #####: 2014:                        ercItem->SetItems( entry );
+        -: 2015:
+    #####: 2016:                        markers.emplace_back( new SCH_MARKER( std::move( ercItem ), point ) );
+    #####: 2017:                    }
+    #####: 2018:                }
+        -: 2019:            }
+       99: 2020:            else if( item->Type() == SCH_SYMBOL_T )
+        -: 2021:            {
+       15: 2022:                SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+        -: 2023:
+       29: 2024:                for( SCH_PIN* pin : symbol->GetPins( nullptr ) )
+        -: 2025:                {
+      15*: 2026:                    if( pin->GetType() == ELECTRICAL_PINTYPE::PT_NC )
+    #####: 2027:                        continue;
+        -: 2028:
+       15: 2029:                    VECTOR2I pinPos = pin->GetPosition();
+        -: 2030:
+       15: 2031:                    if( ( pinPos.x % gridSize ) != 0 || ( pinPos.y % gridSize ) != 0 )
+        -: 2032:                    {
+        1: 2033:                        std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_ENDPOINT_OFF_GRID );
+        1: 2034:                        ercItem->SetItems( pin );
+        -: 2035:
+       1*: 2036:                        markers.emplace_back( new SCH_MARKER( std::move( ercItem ), pinPos ) );
+        1: 2037:                        break;
+        1: 2038:                    }
+       15: 2039:                }
+        -: 2040:            }
+       40: 2041:        }
+        -: 2042:
+       41: 2043:        for( SCH_MARKER* marker : markers )
+        -: 2044:        {
+        1: 2045:            screen->Append( marker );
+        1: 2046:            err_count += 1;
+        -: 2047:        }
+       40: 2048:    }
+        -: 2049:
+       19: 2050:    return err_count;
+        -: 2051:}
+        -: 2052:
+        -: 2053:
+    #####: 2054:int ERC_TESTER::TestSimModelIssues()
+        -: 2055:{
+    #####: 2056:    WX_STRING_REPORTER reporter;
+    #####: 2057:    int                err_count = 0;
+    #####: 2058:    SIM_LIB_MGR        libMgr( &m_schematic->Project() );
+    #####: 2059:    wxString           variant = m_schematic->GetCurrentVariant();
+        -: 2060:
+    #####: 2061:    for( SCH_SHEET_PATH& sheet : m_sheetList )
+        -: 2062:    {
+    #####: 2063:        if( sheet.GetExcludedFromSim( variant ) )
+    #####: 2064:            continue;
+        -: 2065:
+    #####: 2066:        std::vector<SCH_MARKER*> markers;
+        -: 2067:
+    #####: 2068:        for( SCH_ITEM* item : sheet.LastScreen()->Items().OfType( SCH_SYMBOL_T ) )
+        -: 2069:        {
+    #####: 2070:            SCH_SYMBOL* symbol = static_cast<SCH_SYMBOL*>( item );
+        -: 2071:
+        -: 2072:            // Power symbols and other symbols which have the reference starting with "#" are
+        -: 2073:            // not included in simulation
+    #####: 2074:            if( symbol->GetRef( &sheet ).StartsWith( '#' ) || symbol->ResolveExcludedFromSim() )
+    #####: 2075:                continue;
+        -: 2076:
+        -: 2077:            // Reset for each symbol
+    #####: 2078:            reporter.Clear();
+        -: 2079:
+    #####: 2080:            SIM_LIBRARY::MODEL model = libMgr.CreateModel( &sheet, *symbol, true, 0, variant, reporter );
+        -: 2081:
+    #####: 2082:            if( reporter.HasMessage() )
+        -: 2083:            {
+    #####: 2084:                wxString                  msg = reporter.GetMessages();
+    #####: 2085:                std::shared_ptr<ERC_ITEM> ercItem = ERC_ITEM::Create( ERCE_SIMULATION_MODEL );
+        -: 2086:
+        -: 2087:                //Remove \n and \r at e.o.l if any:
+    #####: 2088:                msg.Trim();
+        -: 2089:
+    #####: 2090:                ercItem->SetErrorMessage( msg );
+    #####: 2091:                ercItem->SetItems( symbol );
+        -: 2092:
+    #####: 2093:                markers.emplace_back( new SCH_MARKER( std::move( ercItem ), symbol->GetPosition() ) );
+    #####: 2094:            }
+    #####: 2095:        }
+        -: 2096:
+    #####: 2097:        for( SCH_MARKER* marker : markers )
+        -: 2098:        {
+    #####: 2099:            sheet.LastScreen()->Append( marker );
+    #####: 2100:            err_count += 1;
+        -: 2101:        }
+    #####: 2102:    }
+        -: 2103:
+    #####: 2104:    return err_count;
+    #####: 2105:}
+        -: 2106:
+        -: 2107:
+       19: 2108:void ERC_TESTER::RunTests( DS_PROXY_VIEW_ITEM* aDrawingSheet, SCH_EDIT_FRAME* aEditFrame,
+        -: 2109:                           KIFACE* aCvPcb, PROJECT* aProject, PROGRESS_REPORTER* aProgressReporter )
+        -: 2110:{
+       19: 2111:    m_sheetList.AnnotatePowerSymbols();
+        -: 2112:
+        -: 2113:    // Test duplicate sheet names inside a given sheet.  While one can have multiple references
+        -: 2114:    // to the same file, each must have a unique name.
+       19: 2115:    if( m_settings.IsTestEnabled( ERCE_DUPLICATE_SHEET_NAME ) )
+        -: 2116:    {
+       19: 2117:        if( aProgressReporter )
+    #####: 2118:            aProgressReporter->AdvancePhase( _( "Checking sheet names..." ) );
+        -: 2119:
+       19: 2120:        TestDuplicateSheetNames( true );
+        -: 2121:    }
+        -: 2122:
+        -: 2123:    // The connection graph has a whole set of ERC checks it can run
+       19: 2124:    if( aProgressReporter )
+    #####: 2125:        aProgressReporter->AdvancePhase( _( "Checking conflicts..." ) );
+        -: 2126:
+        -: 2127:    // If we are using the new connectivity, make sure that we do a full-rebuild
+       19: 2128:    if( aEditFrame )
+        -: 2129:    {
+    #####: 2130:        if( ADVANCED_CFG::GetCfg().m_IncrementalConnectivity )
+    #####: 2131:            aEditFrame->RecalculateConnections( nullptr, GLOBAL_CLEANUP );
+        -: 2132:        else
+    #####: 2133:            aEditFrame->RecalculateConnections( nullptr, NO_CLEANUP );
+        -: 2134:    }
+        -: 2135:
+       19: 2136:    m_schematic->ConnectionGraph()->RunERC();
+        -: 2137:
+       19: 2138:    if( aProgressReporter )
+    #####: 2139:        aProgressReporter->AdvancePhase( _( "Checking units..." ) );
+        -: 2140:
+        -: 2141:    // Test is all units of each multiunit symbol have the same footprint assigned.
+       19: 2142:    if( m_settings.IsTestEnabled( ERCE_DIFFERENT_UNIT_FP ) )
+        -: 2143:    {
+       19: 2144:        if( aProgressReporter )
+    #####: 2145:            aProgressReporter->AdvancePhase( _( "Checking footprints..." ) );
+        -: 2146:
+       19: 2147:        TestMultiunitFootprints();
+        -: 2148:    }
+        -: 2149:
+       19: 2150:    if( m_settings.IsTestEnabled( ERCE_MISSING_UNIT )
+    #####: 2151:        || m_settings.IsTestEnabled( ERCE_MISSING_INPUT_PIN )
+    #####: 2152:        || m_settings.IsTestEnabled( ERCE_MISSING_POWER_INPUT_PIN )
+      19*: 2153:        || m_settings.IsTestEnabled( ERCE_MISSING_BIDI_PIN ) )
+        -: 2154:    {
+       19: 2155:        TestMissingUnits();
+        -: 2156:    }
+        -: 2157:
+       19: 2158:    if( aProgressReporter )
+    #####: 2159:        aProgressReporter->AdvancePhase( _( "Checking pins..." ) );
+        -: 2160:
+       19: 2161:    if( m_settings.IsTestEnabled( ERCE_DIFFERENT_UNIT_NET ) )
+       19: 2162:        TestMultUnitPinConflicts();
+        -: 2163:
+       19: 2164:    if( m_settings.IsTestEnabled( ERCE_DUPLICATE_PIN_ERROR ) )
+       19: 2165:        TestDuplicatePinNets();
+        -: 2166:
+        -: 2167:    // Test pins on each net against the pin connection table
+       19: 2168:    if( m_settings.IsTestEnabled( ERCE_PIN_TO_PIN_ERROR )
+    #####: 2169:        || m_settings.IsTestEnabled( ERCE_POWERPIN_NOT_DRIVEN )
+      19*: 2170:        || m_settings.IsTestEnabled( ERCE_PIN_NOT_DRIVEN ) )
+        -: 2171:    {
+       19: 2172:        TestPinToPin();
+        -: 2173:    }
+        -: 2174:
+       19: 2175:    if( m_settings.IsTestEnabled( ERCE_GROUND_PIN_NOT_GROUND ) )
+       19: 2176:        TestGroundPins();
+        -: 2177:
+       19: 2178:    if( m_settings.IsTestEnabled( ERCE_STACKED_PIN_SYNTAX ) )
+       19: 2179:        TestStackedPinNotation();
+        -: 2180:
+        -: 2181:    // Test similar labels (i;e. labels which are identical when
+        -: 2182:    // using case insensitive comparisons)
+       19: 2183:    if( m_settings.IsTestEnabled( ERCE_SIMILAR_LABELS )
+    #####: 2184:        || m_settings.IsTestEnabled( ERCE_SIMILAR_POWER )
+      19*: 2185:        || m_settings.IsTestEnabled( ERCE_SIMILAR_LABEL_AND_POWER ) )
+        -: 2186:    {
+       19: 2187:        if( aProgressReporter )
+    #####: 2188:            aProgressReporter->AdvancePhase( _( "Checking similar labels..." ) );
+        -: 2189:
+       19: 2190:        TestSimilarLabels();
+        -: 2191:    }
+        -: 2192:
+       19: 2193:    if( m_settings.IsTestEnabled( ERCE_SAME_LOCAL_GLOBAL_LABEL ) )
+        -: 2194:    {
+       19: 2195:        if( aProgressReporter )
+    #####: 2196:            aProgressReporter->AdvancePhase( _( "Checking local and global labels..." ) );
+        -: 2197:
+       19: 2198:        TestSameLocalGlobalLabel();
+        -: 2199:    }
+        -: 2200:
+       19: 2201:    if( m_settings.IsTestEnabled( ERCE_UNRESOLVED_VARIABLE ) )
+        -: 2202:    {
+       19: 2203:        if( aProgressReporter )
+    #####: 2204:            aProgressReporter->AdvancePhase( _( "Checking for unresolved variables..." ) );
+        -: 2205:
+       19: 2206:        TestTextVars( aDrawingSheet );
+        -: 2207:    }
+        -: 2208:
+       19: 2209:    if( m_settings.IsTestEnabled( ERCE_FIELD_NAME_WHITESPACE ) )
+        -: 2210:    {
+       19: 2211:        if( aProgressReporter )
+    #####: 2212:            aProgressReporter->AdvancePhase( _( "Checking field names..." ) );
+        -: 2213:
+       19: 2214:        TestFieldNameWhitespace();
+        -: 2215:    }
+        -: 2216:
+       19: 2217:    if( m_settings.IsTestEnabled( ERCE_SIMULATION_MODEL ) )
+        -: 2218:    {
+    #####: 2219:        if( aProgressReporter )
+    #####: 2220:            aProgressReporter->AdvancePhase( _( "Checking SPICE models..." ) );
+        -: 2221:
+    #####: 2222:        TestSimModelIssues();
+        -: 2223:    }
+        -: 2224:
+       19: 2225:    if( m_settings.IsTestEnabled( ERCE_NOCONNECT_CONNECTED ) )
+        -: 2226:    {
+       19: 2227:        if( aProgressReporter )
+    #####: 2228:            aProgressReporter->AdvancePhase( _( "Checking no connect pins for connections..." ) );
+        -: 2229:
+       19: 2230:        TestNoConnectPins();
+        -: 2231:    }
+        -: 2232:
+       19: 2233:    if( m_settings.IsTestEnabled( ERCE_LIB_SYMBOL_ISSUES )
+      19*: 2234:        || m_settings.IsTestEnabled( ERCE_LIB_SYMBOL_MISMATCH ) )
+        -: 2235:    {
+       19: 2236:        if( aProgressReporter )
+    #####: 2237:            aProgressReporter->AdvancePhase( _( "Checking for library symbol issues..." ) );
+        -: 2238:
+       19: 2239:        TestLibSymbolIssues();
+        -: 2240:    }
+        -: 2241:
+      19*: 2242:    if( m_settings.IsTestEnabled( ERCE_FOOTPRINT_LINK_ISSUES ) && aCvPcb )
+        -: 2243:    {
+       19: 2244:        if( aProgressReporter )
+    #####: 2245:            aProgressReporter->AdvancePhase( _( "Checking for footprint link issues..." ) );
+        -: 2246:
+       19: 2247:        TestFootprintLinkIssues( aCvPcb, aProject );
+        -: 2248:    }
+        -: 2249:
+       19: 2250:    if( m_settings.IsTestEnabled( ERCE_FOOTPRINT_FILTERS ) )
+        -: 2251:    {
+    #####: 2252:        if( aProgressReporter )
+    #####: 2253:            aProgressReporter->AdvancePhase( _( "Checking footprint assignments against footprint filters..." ) );
+        -: 2254:
+    #####: 2255:        TestFootprintFilters();
+        -: 2256:    }
+        -: 2257:
+       19: 2258:    if( m_settings.IsTestEnabled( ERCE_ENDPOINT_OFF_GRID ) )
+        -: 2259:    {
+       19: 2260:        if( aProgressReporter )
+    #####: 2261:            aProgressReporter->AdvancePhase( _( "Checking for off grid pins and wires..." ) );
+        -: 2262:
+       19: 2263:        TestOffGridEndpoints();
+        -: 2264:    }
+        -: 2265:
+       19: 2266:    if( m_settings.IsTestEnabled( ERCE_FOUR_WAY_JUNCTION ) )
+        -: 2267:    {
+    #####: 2268:        if( aProgressReporter )
+    #####: 2269:            aProgressReporter->AdvancePhase( _( "Checking for four way junctions..." ) );
+        -: 2270:
+    #####: 2271:        TestFourWayJunction();
+        -: 2272:    }
+        -: 2273:
+       19: 2274:    if( m_settings.IsTestEnabled( ERCE_LABEL_MULTIPLE_WIRES ) )
+        -: 2275:    {
+       19: 2276:        if( aProgressReporter )
+    #####: 2277:            aProgressReporter->AdvancePhase( _( "Checking for labels on more than one wire..." ) );
+        -: 2278:
+       19: 2279:        TestLabelMultipleWires();
+        -: 2280:    }
+        -: 2281:
+       19: 2282:    if( m_settings.IsTestEnabled( ERCE_UNDEFINED_NETCLASS ) )
+        -: 2283:    {
+       19: 2284:        if( aProgressReporter )
+    #####: 2285:            aProgressReporter->AdvancePhase( _( "Checking for undefined netclasses..." ) );
+        -: 2286:
+       19: 2287:        TestMissingNetclasses();
+        -: 2288:    }
+        -: 2289:
+       19: 2290:    m_schematic->ResolveERCExclusionsPostUpdate();
+       19: 2291:}

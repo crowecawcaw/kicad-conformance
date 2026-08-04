@@ -1,0 +1,1341 @@
+        -:    0:Source:/src/kicad/include/gal/graphics_abstraction_layer.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KICAD, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2012 Torsten Hueter, torstenhtr <at> gmx.de
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * Graphics Abstraction Layer (GAL) - base class
+        -:    8: *
+        -:    9: * This program is free software; you can redistribute it and/or
+        -:   10: * modify it under the terms of the GNU General Public License
+        -:   11: * as published by the Free Software Foundation; either version 2
+        -:   12: * of the License, or (at your option) any later version.
+        -:   13: *
+        -:   14: * This program is distributed in the hope that it will be useful,
+        -:   15: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   16: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   17: * GNU General Public License for more details.
+        -:   18: *
+        -:   19: * You should have received a copy of the GNU General Public License
+        -:   20: * along with this program; if not, you may find one here:
+        -:   21: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   22: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   23: * or you may write to the Free Software Foundation, Inc.,
+        -:   24: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   25: */
+        -:   26:
+        -:   27:#ifndef GRAPHICSABSTRACTIONLAYER_H_
+        -:   28:#define GRAPHICSABSTRACTIONLAYER_H_
+        -:   29:
+        -:   30:#include <deque>
+        -:   31:#include <stack>
+        -:   32:#include <limits>
+        -:   33:
+        -:   34:#include <math/matrix3x3.h>
+        -:   35:
+        -:   36:#include <gal/gal.h>
+        -:   37:#include <gal/color4d.h>
+        -:   38:#include <gal/cursors.h>
+        -:   39:#include <gal/definitions.h>
+        -:   40:#include <gal/gal_display_options.h>
+        -:   41:#include <font/stroke_font.h>
+        -:   42:#include <geometry/eda_angle.h>
+        -:   43:#include <pgm_base.h>
+        -:   44:#include <settings/common_settings.h>
+        -:   45:
+        -:   46:class SHAPE_LINE_CHAIN;
+        -:   47:class SHAPE_POLY_SET;
+        -:   48:class BITMAP_BASE;
+        -:   49:
+        -:   50:namespace KIGFX
+        -:   51:{
+        -:   52:/**
+        -:   53: * Abstract interface for drawing on a 2D-surface.
+        -:   54: *
+        -:   55: * The functions are optimized for drawing shapes of an EDA-program such as KiCad. Most methods
+        -:   56: * are abstract and need to be implemented by a lower layer, for example by a Cairo or OpenGL
+        -:   57: * implementation.  Almost all methods use world coordinates as arguments. The board design is
+        -:   58: * defined in world space units for drawing purposes these are transformed to screen units with
+        -:   59: * this layer. So zooming is handled here as well.
+        -:   60: *
+        -:   61: */
+        -:   62:class GAL_API GAL : GAL_DISPLAY_OPTIONS_OBSERVER
+        -:   63:{
+        -:   64:    // These friend declarations allow us to hide routines that should not be called.  The
+        -:   65:    // corresponding RAII objects must be used instead.
+        -:   66:    friend class GAL_CONTEXT_LOCKER;
+        -:   67:    friend class GAL_UPDATE_CONTEXT;
+        -:   68:    friend class GAL_DRAWING_CONTEXT;
+        -:   69:
+        -:   70:public:
+        -:   71:    // Constructor / Destructor
+        -:   72:    GAL( GAL_DISPLAY_OPTIONS& aOptions );
+        -:   73:    virtual ~GAL();
+        -:   74:
+        -:   75:    /// Return the initialization status for the canvas.
+        -:   76:    virtual bool IsInitialized() const { return true; }
+        -:   77:
+        -:   78:    /// Return true if the GAL canvas is visible on the screen.
+        -:   79:    virtual bool IsVisible() const { return true; }
+        -:   80:
+        -:   81:    /// Return true if the GAL engine is a Cairo based type.
+        -:   82:    virtual bool IsCairoEngine() { return false; }
+        -:   83:
+        -:   84:    /// Return true if the GAL engine is a OpenGL based type.
+        -:   85:    virtual bool IsOpenGlEngine() { return false; }
+        -:   86:
+        -:   87:    // ---------------
+        -:   88:    // Drawing methods
+        -:   89:    // ---------------
+        -:   90:
+        -:   91:    /**
+        -:   92:     * Draw a line.
+        -:   93:     *
+        -:   94:     * Start and end points are defined as 2D-Vectors.
+        -:   95:     *
+        -:   96:     * @param aStartPoint   is the start point of the line.
+        -:   97:     * @param aEndPoint     is the end point of the line.
+        -:   98:     */
+        -:   99:    virtual void DrawLine( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint ) {};
+        -:  100:
+        -:  101:    /**
+        -:  102:     * Draw a rounded segment.
+        -:  103:     *
+        -:  104:     * Start and end points are defined as 2D-Vectors.
+        -:  105:     *
+        -:  106:     * @param aStartPoint   is the start point of the segment.
+        -:  107:     * @param aEndPoint     is the end point of the segment.
+        -:  108:     * @param aWidth        is a width of the segment
+        -:  109:     */
+        -:  110:    virtual void DrawSegment( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint,
+        -:  111:                              double aWidth ){};
+        -:  112:
+        -:  113:    /**
+        -:  114:     * Draw a chain of rounded segments.
+        -:  115:     *
+        -:  116:     * @param aPointList is a list of 2D-Vectors containing the chain points.
+        -:  117:     * @param aWidth     is a width of the segments
+        -:  118:     */
+        -:  119:    virtual void DrawSegmentChain( const std::vector<VECTOR2D>& aPointList, double aWidth ){};
+        -:  120:    virtual void DrawSegmentChain( const SHAPE_LINE_CHAIN& aLineChain, double aWidth ){};
+        -:  121:
+        -:  122:    /**
+        -:  123:     * Draw a polyline
+        -:  124:     *
+        -:  125:     * @param aPointList is a list of 2D-Vectors containing the polyline points.
+        -:  126:     */
+        -:  127:    virtual void DrawPolyline( const std::deque<VECTOR2D>& aPointList ) {};
+        -:  128:    virtual void DrawPolyline( const std::vector<VECTOR2D>& aPointList ) {};
+        -:  129:    virtual void DrawPolyline( const VECTOR2D aPointList[], int aListSize ) {};
+        -:  130:    virtual void DrawPolyline( const SHAPE_LINE_CHAIN& aLineChain ) {};
+        -:  131:
+        -:  132:    /**
+        -:  133:     * Draw multiple polylines
+        -:  134:     *
+        -:  135:     * @param aPointLists are lists of 2D-Vectors containing the polyline points.
+        -:  136:     */
+        -:  137:    virtual void DrawPolylines( const std::vector<std::vector<VECTOR2D>>& aPointLists ){};
+        -:  138:
+        -:  139:    /**
+        -:  140:     * Draw a circle using world coordinates.
+        -:  141:     *
+        -:  142:     * @param aCenterPoint is the center point of the circle.
+        -:  143:     * @param aRadius is the radius of the circle.
+        -:  144:     */
+        -:  145:    virtual void DrawCircle( const VECTOR2D& aCenterPoint, double aRadius ) {};
+        -:  146:
+        -:  147:    /**
+        -:  148:     * Draw a hole wall ring.
+        -:  149:     *
+        -:  150:     * @param aCenterPoint is the center point of the hole.
+        -:  151:     * @param aHoleRadius is the radius of the hole.
+        -:  152:     * @param aWallWidth is the wall thickness.
+        -:  153:     */
+        -:  154:    virtual void DrawHoleWall( const VECTOR2D& aCenterPoint, double aHoleRadius,
+        -:  155:                               double aWallWidth ) {};
+        -:  156:
+        -:  157:    /**
+        -:  158:     * Draw an arc.
+        -:  159:     *
+        -:  160:     * @param aCenterPoint  is the center point of the arc.
+        -:  161:     * @param aRadius       is the arc radius.
+        -:  162:     * @param aStartAngle   is the start angle of the arc.
+        -:  163:     * @param aAngle        is the angle of the arc.
+        -:  164:     */
+        -:  165:    virtual void DrawArc( const VECTOR2D& aCenterPoint, double aRadius,
+        -:  166:                          const EDA_ANGLE& aStartAngle, const EDA_ANGLE& aAngle ){};
+        -:  167:
+        -:  168:    /**
+        -:  169:     * Draw an arc segment.
+        -:  170:     *
+        -:  171:     * This method differs from DrawArc() in what happens when fill/stroke are on or off.
+        -:  172:     * DrawArc() draws a "pie piece" when fill is turned on, and a thick stroke when fill is off.
+        -:  173:     * DrawArcSegment() with fill *on* behaves like DrawArc() with fill *off*.
+        -:  174:     * DrawArcSegment() with fill *off* draws the outline of what it would have drawn with fill on.
+        -:  175:     *
+        -:  176:     * This has meaning only for back ends that can't draw a true arc, and use segments to
+        -:  177:     * approximate.
+        -:  178:     *
+        -:  179:     * TODO: Unify Arc routines
+        -:  180:     *
+        -:  181:     * @param aCenterPoint  is the center point of the arc.
+        -:  182:     * @param aRadius       is the arc radius.
+        -:  183:     * @param aStartAngle   is the start angle of the arc.
+        -:  184:     * @param aAngle        is the angle of the arc.
+        -:  185:     * @param aWidth        is the thickness of the arc (pen size).
+        -:  186:     * @param aMaxError     is the max allowed error to create segments to approximate a circle.
+        -:  187:     */
+        -:  188:    virtual void DrawArcSegment( const VECTOR2D& aCenterPoint, double aRadius,
+        -:  189:                                 const EDA_ANGLE& aStartAngle, const EDA_ANGLE& aAngle,
+        -:  190:                                 double aWidth, double aMaxError ){};
+        -:  191:
+        -:  192:    /**
+        -:  193:     * Draw a rectangle.
+        -:  194:     *
+        -:  195:     * @param aStartPoint   is the start point of the rectangle.
+        -:  196:     * @param aEndPoint     is the end point of the rectangle.
+        -:  197:     */
+        -:  198:    virtual void DrawRectangle( const VECTOR2D& aStartPoint, const VECTOR2D& aEndPoint ) {};
+        -:  199:
+        -:  200:    void DrawRectangle( const BOX2I& aRect )
+        -:  201:    {
+        -:  202:        DrawRectangle( aRect.GetOrigin(), aRect.GetEnd() );
+        -:  203:    }
+        -:  204:
+        -:  205:    /**
+        -:  206:     * Draw a polygon representing a font glyph.
+        -:  207:     */
+        -:  208:    virtual void DrawGlyph( const KIFONT::GLYPH& aGlyph, int aNth = 0, int aTotal = 1 ) {};
+        -:  209:
+        -:  210:    /**
+        -:  211:     * Draw polygons representing font glyphs.
+        -:  212:     */
+    #####:  213:    virtual void DrawGlyphs( const std::vector<std::unique_ptr<KIFONT::GLYPH>>& aGlyphs )
+        -:  214:    {
+    #####:  215:        COLOR4D fillColor = GetFillColor();
+    #####:  216:        COLOR4D strokeColor = GetStrokeColor();
+        -:  217:
+    #####:  218:        for( size_t i = 0; i < aGlyphs.size(); i++ )
+        -:  219:        {
+    #####:  220:            if( aGlyphs[i]->IsHover() )
+        -:  221:            {
+    #####:  222:                SetFillColor( m_hoverColor );
+    #####:  223:                SetStrokeColor( m_hoverColor );
+        -:  224:            }
+        -:  225:
+    #####:  226:            DrawGlyph( *aGlyphs[i], i, aGlyphs.size() );
+        -:  227:
+    #####:  228:            if( aGlyphs[i]->IsHover() )
+        -:  229:            {
+    #####:  230:                SetFillColor( fillColor );
+    #####:  231:                SetStrokeColor( strokeColor );
+        -:  232:            }
+        -:  233:        }
+    #####:  234:    }
+        -:  235:
+        -:  236:
+        -:  237:    /**
+        -:  238:     * Draw a polygon.
+        -:  239:     *
+        -:  240:     * @param aPointList is the list of the polygon points.
+        -:  241:     */
+        -:  242:    virtual void DrawPolygon( const std::deque<VECTOR2D>& aPointList ) {};
+        -:  243:    virtual void DrawPolygon( const VECTOR2D aPointList[], int aListSize ) {};
+        -:  244:    virtual void DrawPolygon( const SHAPE_POLY_SET& aPolySet,
+        -:  245:                              bool aStrokeTriangulation = false ) {};
+        -:  246:    virtual void DrawPolygon( const SHAPE_LINE_CHAIN& aPolySet ) {};
+        -:  247:
+        -:  248:    /**
+        -:  249:     * Draw a cubic bezier spline.
+        -:  250:     *
+        -:  251:     * @param startPoint    is the start point of the spline.
+        -:  252:     * @param controlPointA is the first control point.
+        -:  253:     * @param controlPointB is the second control point.
+        -:  254:     * @param endPoint      is the end point of the spline.
+        -:  255:     * @param aFilterValue  is used by Bezier to segments approximation, if
+        -:  256:     * the Bezier curve is not supported and needs a curve to polyline conversion.
+        -:  257:     * aFilterValue = 0 means no filtering.
+        -:  258:     */
+        -:  259:    virtual void DrawCurve( const VECTOR2D& startPoint,    const VECTOR2D& controlPointA,
+        -:  260:                            const VECTOR2D& controlPointB, const VECTOR2D& endPoint,
+        -:  261:                            double aFilterValue = 0.0 ) {};
+        -:  262:
+        -:  263:    /**
+        -:  264:     * Draw a bitmap image.
+        -:  265:     */
+        -:  266:    virtual void DrawBitmap( const BITMAP_BASE& aBitmap, double alphaBlend = 1.0 ) {};
+        -:  267:
+        -:  268:    // --------------
+        -:  269:    // Screen methods
+        -:  270:    // --------------
+        -:  271:
+        -:  272:    /// Resize the canvas.
+        -:  273:    virtual void ResizeScreen( int aWidth, int aHeight ) {};
+        -:  274:
+        -:  275:    /// Show/hide the GAL canvas
+        -:  276:    virtual bool Show( bool aShow ) { return true; };
+        -:  277:
+        -:  278:    /// Return GAL canvas size in pixels
+        -:  279:    const VECTOR2I& GetScreenPixelSize() const
+        -:  280:    {
+        -:  281:        return m_screenSize;
+        -:  282:    }
+        -:  283:
+        -:  284:    /// Return the swap interval. -1 for adaptive, 0 for disabled/unknown
+        -:  285:    virtual int GetSwapInterval() const { return 0; };
+        -:  286:
+        -:  287:    /// Force all remaining objects to be drawn.
+        -:  288:    virtual void Flush() {};
+        -:  289:
+        -:  290:    void SetClearColor( const COLOR4D& aColor )
+        -:  291:    {
+        -:  292:        m_clearColor = aColor;
+        -:  293:    }
+        -:  294:
+        -:  295:    const COLOR4D& GetClearColor( ) const
+        -:  296:    {
+        -:  297:        return m_clearColor;
+        -:  298:    }
+        -:  299:
+        -:  300:    /**
+        -:  301:     * Clear the screen.
+        -:  302:     *
+        -:  303:     * @param aColor is the color used for clearing.
+        -:  304:     */
+        -:  305:    virtual void ClearScreen() {};
+        -:  306:
+        -:  307:    // -----------------
+        -:  308:    // Attribute setting
+        -:  309:    // -----------------
+        -:  310:
+        -:  311:    /**
+        -:  312:     * Enable/disable fill.
+        -:  313:     *
+        -:  314:     * @param aIsFillEnabled is true, when the graphics objects should be filled, else false.
+        -:  315:     */
+        -:  316:    virtual void SetIsFill( bool aIsFillEnabled )
+        -:  317:    {
+        -:  318:        m_isFillEnabled = aIsFillEnabled;
+        -:  319:    }
+        -:  320:
+        -:  321:    /**
+        -:  322:     * Get the fill status.
+        -:  323:     *
+        -:  324:     * @return true if fill is enabled, false otherwise.
+        -:  325:     */
+        -:  326:    inline bool GetIsFill() const
+        -:  327:    {
+        -:  328:        return m_isFillEnabled;
+        -:  329:    }
+        -:  330:
+        -:  331:    /**
+        -:  332:     * Enable/disable stroked outlines.
+        -:  333:     *
+        -:  334:     * @param aIsStrokeEnabled is true, if the outline of an object should be stroked.
+        -:  335:     */
+        -:  336:    virtual void SetIsStroke( bool aIsStrokeEnabled )
+        -:  337:    {
+        -:  338:        m_isStrokeEnabled = aIsStrokeEnabled;
+        -:  339:    }
+        -:  340:
+        -:  341:    /**
+        -:  342:     * Get the stroke status.
+        -:  343:     *
+        -:  344:     * @return true if stroke is enabled, false otherwise.
+        -:  345:     */
+        -:  346:    inline bool GetIsStroke() const
+        -:  347:    {
+        -:  348:        return m_isStrokeEnabled;
+        -:  349:    }
+        -:  350:
+        -:  351:    /**
+        -:  352:     * Set the fill color.
+        -:  353:     *
+        -:  354:     * @param aColor is the color for filling.
+        -:  355:     */
+        -:  356:    virtual void SetFillColor( const COLOR4D& aColor )
+        -:  357:    {
+        -:  358:        m_fillColor = aColor;
+        -:  359:    }
+        -:  360:
+        -:  361:    /**
+        -:  362:     * Get the fill color.
+        -:  363:     *
+        -:  364:     * @return the color for filling a outline.
+        -:  365:     */
+    #####:  366:    inline const COLOR4D& GetFillColor() const
+        -:  367:    {
+    #####:  368:        return m_fillColor;
+        -:  369:    }
+        -:  370:
+        -:  371:    /**
+        -:  372:     * Set the stroke color.
+        -:  373:     *
+        -:  374:     * @param aColor is the color for stroking the outline.
+        -:  375:     */
+        -:  376:    virtual void SetStrokeColor( const COLOR4D& aColor )
+        -:  377:    {
+        -:  378:        m_strokeColor = aColor;
+        -:  379:    }
+        -:  380:
+        -:  381:    virtual void SetHoverColor( const COLOR4D& aColor )
+        -:  382:    {
+        -:  383:        m_hoverColor = aColor;
+        -:  384:    }
+        -:  385:
+        -:  386:    /**
+        -:  387:     * Get the stroke color.
+        -:  388:     *
+        -:  389:     * @return the color for stroking the outline.
+        -:  390:     */
+    #####:  391:    inline const COLOR4D& GetStrokeColor() const
+        -:  392:    {
+    #####:  393:        return m_strokeColor;
+        -:  394:    }
+        -:  395:
+        -:  396:    /**
+        -:  397:     * Set the line width.
+        -:  398:     *
+        -:  399:     * @param aLineWidth is the line width.
+        -:  400:     */
+    #####:  401:    virtual void SetLineWidth( float aLineWidth )
+        -:  402:    {
+    #####:  403:        m_lineWidth = aLineWidth;
+    #####:  404:    }
+        -:  405:
+        -:  406:    /**
+        -:  407:     * Set the minimum line width in pixels.
+        -:  408:     *
+        -:  409:     * @param aLineWidth is the minimum line width.
+        -:  410:     */
+        -:  411:    virtual void SetMinLineWidth( float aLineWidth )
+        -:  412:    {
+        -:  413:        m_minLineWidth = aLineWidth;
+        -:  414:    }
+        -:  415:
+        -:  416:    /**
+        -:  417:     * Get the line width.
+        -:  418:     *
+        -:  419:     * @return the actual line width.
+        -:  420:     */
+        -:  421:    inline float GetLineWidth() const
+        -:  422:    {
+        -:  423:        return m_lineWidth;
+        -:  424:    }
+        -:  425:
+        -:  426:    /**
+        -:  427:     * Get the minimum line width in pixels.
+        -:  428:     *
+        -:  429:     * @return the minimum line width.
+        -:  430:     */
+        -:  431:    inline float GetMinLineWidth() const
+        -:  432:    {
+        -:  433:        return m_minLineWidth;
+        -:  434:    }
+        -:  435:
+        -:  436:    /**
+        -:  437:     * Set the depth of the layer (position on the z-axis)
+        -:  438:     *
+        -:  439:     * If you do this, you should consider using a GAL_SCOPED_ATTR to ensure
+        -:  440:     * the depth is reset to the original value.
+        -:  441:     *
+        -:  442:     * @param aLayerDepth the layer depth for the objects. Smaller is closer to the viewer.
+        -:  443:     */
+        -:  444:    virtual void SetLayerDepth( double aLayerDepth )
+        -:  445:    {
+        -:  446:        wxCHECK_MSG( aLayerDepth <= m_depthRange.y, /*void*/,
+        -:  447:                     wxT( "SetLayerDepth: below minimum" ) );
+        -:  448:        wxCHECK_MSG( aLayerDepth >= m_depthRange.x, /*void*/,
+        -:  449:                     wxT( "SetLayerDepth: above maximum" ) );
+        -:  450:
+        -:  451:        m_layerDepth = aLayerDepth;
+        -:  452:    }
+        -:  453:
+        -:  454:    /**
+        -:  455:     * Change the current depth to deeper, so it is possible to draw objects right beneath
+        -:  456:     * other.
+        -:  457:     *
+        -:  458:     * If you do this, you should consider using a GAL_SCOPED_ATTR to ensure the depth
+        -:  459:     * is reset to the original value.
+        -:  460:     */
+        -:  461:    inline void AdvanceDepth()
+        -:  462:    {
+        -:  463:        SetLayerDepth( m_layerDepth - 0.1 );
+        -:  464:    }
+        -:  465:
+        -:  466:    // ----
+        -:  467:    // Text
+        -:  468:    // ----
+        -:  469:
+        -:  470:    /**
+        -:  471:     * Draw a text using a bitmap font. It should be faster than StrokeText(), but can be used
+        -:  472:     * only for non-Gerber elements.
+        -:  473:     *
+        -:  474:     * @param aText is the text to be drawn.
+        -:  475:     * @param aPosition is the text position in world coordinates.
+        -:  476:     * @param aAngle is the text rotation angle.
+        -:  477:     */
+        -:  478:    virtual void BitmapText( const wxString& aText, const VECTOR2I& aPosition,
+        -:  479:                             const EDA_ANGLE& aAngle );
+        -:  480:
+        -:  481:    /**
+        -:  482:     * Reset text attributes to default styling.  FONT TODO: do we need any of this in GAL anymore?
+        -:  483:     *
+        -:  484:     * Normally, custom attributes will be set individually after this, otherwise you can use
+        -:  485:     * SetTextAttributes()
+        -:  486:     */
+        -:  487:    void ResetTextAttributes();
+        -:  488:
+        -:  489:    void SetGlyphSize( const VECTOR2I aSize )         { m_attributes.m_Size = aSize; }
+        -:  490:    const VECTOR2I& GetGlyphSize() const              { return m_attributes.m_Size; }
+        -:  491:
+        -:  492:    inline void SetFontBold( const bool aBold )       { m_attributes.m_Bold = aBold; }
+        -:  493:    inline bool IsFontBold() const                    { return m_attributes.m_Bold; }
+        -:  494:
+        -:  495:    inline void SetFontItalic( bool aItalic )         { m_attributes.m_Italic = aItalic; }
+        -:  496:    inline bool IsFontItalic() const                  { return m_attributes.m_Italic; }
+        -:  497:
+        -:  498:    inline void SetFontUnderlined( bool aUnderlined ) { m_attributes.m_Underlined = aUnderlined; }
+        -:  499:    inline bool IsFontUnderlined() const              { return m_attributes.m_Underlined; }
+        -:  500:
+        -:  501:    void SetTextMirrored( const bool aMirrored )      { m_attributes.m_Mirrored = aMirrored; }
+        -:  502:    bool IsTextMirrored() const                       { return m_attributes.m_Mirrored; }
+        -:  503:
+        -:  504:    void SetHorizontalJustify( const GR_TEXT_H_ALIGN_T aHorizontalJustify )
+        -:  505:    {
+        -:  506:        m_attributes.m_Halign = aHorizontalJustify;
+        -:  507:    }
+        -:  508:
+        -:  509:    GR_TEXT_H_ALIGN_T GetHorizontalJustify() const { return m_attributes.m_Halign; }
+        -:  510:
+        -:  511:    void SetVerticalJustify( const GR_TEXT_V_ALIGN_T aVerticalJustify )
+        -:  512:    {
+        -:  513:        m_attributes.m_Valign = aVerticalJustify;
+        -:  514:    }
+        -:  515:
+        -:  516:    GR_TEXT_V_ALIGN_T GetVerticalJustify() const { return m_attributes.m_Valign; }
+        -:  517:
+        -:  518:
+        -:  519:    // --------------
+        -:  520:    // Transformation
+        -:  521:    // --------------
+        -:  522:
+        -:  523:    /**
+        -:  524:     * Transform the context.
+        -:  525:     *
+        -:  526:     * @param aTransformation is the transformation matrix.
+        -:  527:     */
+        -:  528:    virtual void Transform( const MATRIX3x3D& aTransformation ) {};
+        -:  529:
+        -:  530:    /**
+        -:  531:     * Rotate the context.
+        -:  532:     *
+        -:  533:     * @param aAngle is the rotation angle in radians.
+        -:  534:     */
+        -:  535:    virtual void Rotate( double aAngle ) {};
+        -:  536:
+        -:  537:    /**
+        -:  538:     * Translate the context.
+        -:  539:     *
+        -:  540:     * @param aTranslation is the translation vector.
+        -:  541:     */
+        -:  542:    virtual void Translate( const VECTOR2D& aTranslation ) {};
+        -:  543:
+        -:  544:    /**
+        -:  545:     * Scale the context.
+        -:  546:     *
+        -:  547:     * @param aScale is the scale factor for the x- and y-axis.
+        -:  548:     */
+        -:  549:    virtual void Scale( const VECTOR2D& aScale ) {};
+        -:  550:
+        -:  551:    /// Save the context.
+        -:  552:    virtual void Save() {};
+        -:  553:
+        -:  554:    /// Restore the context.
+        -:  555:    virtual void Restore() {};
+        -:  556:
+        -:  557:    // --------------------------------------------
+        -:  558:    // Group methods
+        -:  559:    // ---------------------------------------------
+        -:  560:
+        -:  561:    /**
+        -:  562:     * Begin a group.
+        -:  563:     *
+        -:  564:     * A group is a collection of graphic items.
+        -:  565:     * Hierarchical groups are possible, attributes and transformations can be used.
+        -:  566:     *
+        -:  567:     * @return the number of the group.
+        -:  568:     */
+        -:  569:    virtual int BeginGroup() { return 0; };
+        -:  570:
+        -:  571:    /// End the group.
+        -:  572:    virtual void EndGroup() {};
+        -:  573:
+        -:  574:    /**
+        -:  575:     * Draw the stored group.
+        -:  576:     *
+        -:  577:     * @param aGroupNumber is the group number.
+        -:  578:     */
+        -:  579:    virtual void DrawGroup( int aGroupNumber ) {};
+        -:  580:
+        -:  581:    /**
+        -:  582:     * Change the color used to draw the group.
+        -:  583:     *
+        -:  584:     * @param aGroupNumber is the group number.
+        -:  585:     * @param aNewColor is the new color.
+        -:  586:     */
+        -:  587:    virtual void ChangeGroupColor( int aGroupNumber, const COLOR4D& aNewColor ) {};
+        -:  588:
+        -:  589:    /**
+        -:  590:     * Change the depth (Z-axis position) of the group.
+        -:  591:     *
+        -:  592:     * @param aGroupNumber is the group number.
+        -:  593:     * @param aDepth is the new depth.
+        -:  594:     */
+        -:  595:    virtual void ChangeGroupDepth( int aGroupNumber, int aDepth ) {};
+        -:  596:
+        -:  597:    /**
+        -:  598:     * Delete the group from the memory.
+        -:  599:     *
+        -:  600:     * @param aGroupNumber is the group number.
+        -:  601:     */
+        -:  602:    virtual void DeleteGroup( int aGroupNumber ) {};
+        -:  603:
+        -:  604:    /**
+        -:  605:     * Delete all data created during caching of graphic items.
+        -:  606:     */
+        -:  607:    virtual void ClearCache() {};
+        -:  608:
+        -:  609:    // --------------------------------------------------------
+        -:  610:    // Handling the world <-> screen transformation
+        -:  611:    // --------------------------------------------------------
+        -:  612:
+        -:  613:    /// Compute the world <-> screen transformation matrix
+        -:  614:    virtual void ComputeWorldScreenMatrix();
+        -:  615:
+        -:  616:    /**
+        -:  617:     * Get the world <-> screen transformation matrix.
+        -:  618:     *
+        -:  619:     * @return the transformation matrix.
+        -:  620:     */
+        -:  621:    const MATRIX3x3D& GetWorldScreenMatrix() const
+        -:  622:    {
+        -:  623:        return m_worldScreenMatrix;
+        -:  624:    }
+        -:  625:
+        -:  626:    /**
+        -:  627:     * Get the screen <-> world transformation matrix.
+        -:  628:     *
+        -:  629:     * @return the transformation matrix.
+        -:  630:     */
+        -:  631:    const MATRIX3x3D& GetScreenWorldMatrix() const
+        -:  632:    {
+        -:  633:        return m_screenWorldMatrix;
+        -:  634:    }
+        -:  635:
+        -:  636:    /**
+        -:  637:     * Set the world <-> screen transformation matrix.
+        -:  638:     *
+        -:  639:     * @param aMatrix is the 3x3 world <-> screen transformation matrix.
+        -:  640:     */
+        -:  641:    inline void SetWorldScreenMatrix( const MATRIX3x3D& aMatrix )
+        -:  642:    {
+        -:  643:        m_worldScreenMatrix = aMatrix;
+        -:  644:    }
+        -:  645:
+        -:  646:    /**
+        -:  647:     * @return the bounding box of the world that is displayed on screen at the moment
+        -:  648:     */
+        -:  649:    BOX2D GetVisibleWorldExtents() const;
+        -:  650:
+        -:  651:    /**
+        -:  652:     * Set the unit length.
+        -:  653:     *
+        -:  654:     * This defines the length [inch] per one integer. For instance a value 0.001 means
+        -:  655:     * that the coordinate [1000, 1000] corresponds with a point at (1 inch, 1 inch) or
+        -:  656:     * 1 mil resolution per integer.
+        -:  657:     */
+        -:  658:    void SetWorldUnitLength( double aWorldUnitLength ) { m_worldUnitLength = aWorldUnitLength; }
+        -:  659:
+        -:  660:    void SetScreenSize( const VECTOR2I& aSize ) { m_screenSize = aSize; }
+        -:  661:
+        -:  662:    /**
+        -:  663:     * Set the dots per inch of the screen.
+        -:  664:     *
+        -:  665:     * This value depends on the user screen, it should be configurable by the application.
+        -:  666:     * For instance a typical notebook with HD+ resolution (1600x900) has 106 DPI.
+        -:  667:     */
+        -:  668:    void SetScreenDPI( double aScreenDPI ) { m_screenDPI = aScreenDPI; }
+        -:  669:    double GetScreenDPI() const            { return m_screenDPI; }
+        -:  670:
+        -:  671:    /**
+        -:  672:     * Get/set the Point in world space to look at.
+        -:  673:     *
+        -:  674:     * This point corresponds with the center of the actual drawing area.
+        -:  675:     */
+        -:  676:    void SetLookAtPoint( const VECTOR2D& aPoint ) { m_lookAtPoint = aPoint; }
+        -:  677:    const VECTOR2D& GetLookAtPoint() const        { return m_lookAtPoint; }
+        -:  678:
+        -:  679:    void SetZoomFactor( double aZoomFactor )      { m_zoomFactor = aZoomFactor; }
+        -:  680:    double GetZoomFactor() const                  { return m_zoomFactor; }
+        -:  681:
+        -:  682:    /**
+        -:  683:     * Get/set the rotation angle (in radians).
+        -:  684:     */
+        -:  685:    void SetRotation( double aRotation )          { m_rotation = aRotation; }
+        -:  686:    double GetRotation() const                    { return m_rotation; }
+        -:  687:
+        -:  688:    /**
+        -:  689:     * Set the range of the layer depth.
+        -:  690:     *
+        -:  691:     * Usually required for the OpenGL implementation, any object outside this range is not drawn.
+        -:  692:     *
+        -:  693:     * The MinDepth (x) is closest to the clipping plane (top) while the MaxDepth (y) is farthest
+        -:  694:     * from the clipping plane (bottom).
+        -:  695:     */
+        -:  696:    void SetDepthRange( const VECTOR2D& aDepthRange ) { m_depthRange = aDepthRange; }
+        -:  697:    double GetMinDepth() const                        { return m_depthRange.x; }
+        -:  698:    double GetMaxDepth() const                        { return m_depthRange.y; }
+        -:  699:
+        -:  700:    /**
+        -:  701:     * Get the world scale.
+        -:  702:     *
+        -:  703:     * @return the actual world scale factor.
+        -:  704:     */
+        -:  705:    double GetWorldScale() const { return m_worldScale; }
+        -:  706:
+        -:  707:    /**
+        -:  708:     * Sets flipping of the screen.
+        -:  709:     *
+        -:  710:     * @param xAxis is the flip flag for the X axis.
+        -:  711:     * @param yAxis is the flip flag for the Y axis.
+        -:  712:     */
+        -:  713:    inline void SetFlip( bool xAxis, bool yAxis )
+        -:  714:    {
+        -:  715:        m_globalFlipX = xAxis;
+        -:  716:        m_globalFlipY = yAxis;
+        -:  717:    }
+        -:  718:
+        -:  719:    bool IsFlippedX() const { return m_globalFlipX; }
+        -:  720:    bool IsFlippedY() const { return m_globalFlipY; }
+        -:  721:
+        -:  722:    // ---------------------------
+        -:  723:    // Buffer manipulation methods
+        -:  724:    // ---------------------------
+        -:  725:
+        -:  726:    /**
+        -:  727:     * Set the target for rendering.
+        -:  728:     *
+        -:  729:     * @param aTarget is the new target for rendering.
+        -:  730:     */
+        -:  731:    virtual void SetTarget( RENDER_TARGET aTarget ) {};
+        -:  732:
+        -:  733:    /**
+        -:  734:     * Get the currently used target for rendering.
+        -:  735:     *
+        -:  736:     * @return The current rendering target.
+        -:  737:     */
+        -:  738:    virtual RENDER_TARGET GetTarget() const { return TARGET_CACHED; };
+        -:  739:
+        -:  740:    /**
+        -:  741:     * Clear the target for rendering.
+        -:  742:     *
+        -:  743:     * @param aTarget is the target to be cleared.
+        -:  744:     */
+        -:  745:    virtual void ClearTarget( RENDER_TARGET aTarget ) {};
+        -:  746:
+        -:  747:    /**
+        -:  748:     * Return true if the target exists.
+        -:  749:     *
+        -:  750:     * @param aTarget is the target to be checked.
+        -:  751:     */
+        -:  752:    virtual bool HasTarget( RENDER_TARGET aTarget )
+        -:  753:    {
+        -:  754:        return true;
+        -:  755:    };
+        -:  756:
+        -:  757:    /**
+        -:  758:     * Set negative draw mode in the renderer.
+        -:  759:     *
+        -:  760:     * When negative mode is enabled, drawn items will subtract from
+        -:  761:     * previously drawn items.  This is mainly needed for Gerber
+        -:  762:     * negative item support in Cairo, since unlike in OpenGL, objects
+        -:  763:     * drawn with zero opacity on top of other objects would not normally
+        -:  764:     * mask objects in Cairo.  This method is a no-op in OpenGL.
+        -:  765:     *
+        -:  766:     * @param aSetting is true if negative mode should be enabled
+        -:  767:     */
+        -:  768:    virtual void SetNegativeDrawMode( bool aSetting ) {};
+        -:  769:
+        -:  770:    /**
+        -:  771:     * Begins rendering of a differential layer. Used by gerbview's differential mode.
+        -:  772:     *
+        -:  773:     * Differential layers have their drawn objects blended onto the lower layers
+        -:  774:     * differently so we need to end drawing of current objects and start a new
+        -:  775:     * set to be completed with a different blend mode.
+        -:  776:     */
+        -:  777:    virtual void StartDiffLayer() {};
+        -:  778:
+        -:  779:    /**
+        -:  780:     * Ends rendering of a differential layer. Objects drawn after the StartDiffLayer()
+        -:  781:     * will be drawn and composited with a differential blend mode, then drawing is
+        -:  782:     * returned to normal.
+        -:  783:     */
+        -:  784:    virtual void EndDiffLayer() {};
+        -:  785:
+        -:  786:    /**
+        -:  787:     * Begins rendering in a new layer that will be copied to the main
+        -:  788:     * layer in EndNegativesLayer().
+        -:  789:     *
+        -:  790:     * For Cairo, layers with negative items need a new layer so when
+        -:  791:     * negative layers _CLEAR sections it doesn't delete drawings on layers
+        -:  792:     * below them. No-op in OpenGL
+        -:  793:     */
+        -:  794:    virtual void StartNegativesLayer(){};
+        -:  795:
+        -:  796:    /**
+        -:  797:     * Ends rendering of a negatives layer and draws it to the main layer.
+        -:  798:     * No-op in OpenGL.
+        -:  799:     */
+        -:  800:    virtual void EndNegativesLayer(){};
+        -:  801:
+        -:  802:    // -------------
+        -:  803:    // Grid methods
+        -:  804:    // -------------
+        -:  805:
+        -:  806:    /**
+        -:  807:     * Set the visibility setting of the grid.
+        -:  808:     *
+        -:  809:     * @param aVisibility is the new visibility setting of the grid.
+        -:  810:     */
+        -:  811:    void SetGridVisibility( bool aVisibility ) { m_gridVisibility = aVisibility; }
+        -:  812:
+        -:  813:    bool GetGridVisibility() const { return m_gridVisibility; }
+        -:  814:
+        -:  815:    bool GetGridSnapping() const
+        -:  816:    {
+        -:  817:        return m_options.m_gridSnapping == KIGFX::GRID_SNAPPING::ALWAYS ||
+        -:  818:                 ( m_gridVisibility && m_options.m_gridSnapping == KIGFX::GRID_SNAPPING::WITH_GRID );
+        -:  819:    }
+        -:  820:
+        -:  821:    /**
+        -:  822:     * Set the origin point for the grid.
+        -:  823:     *
+        -:  824:     * @param aGridOrigin is a vector containing the grid origin point, in world coordinates.
+        -:  825:     */
+        -:  826:    inline void SetGridOrigin( const VECTOR2D& aGridOrigin )
+        -:  827:    {
+        -:  828:        m_gridOrigin = aGridOrigin;
+        -:  829:
+        -:  830:        if( m_gridSize.x == 0.0 || m_gridSize.y == 0.0 )
+        -:  831:        {
+        -:  832:            m_gridOffset = VECTOR2D( 0.0, 0.0);
+        -:  833:        }
+        -:  834:        else
+        -:  835:        {
+        -:  836:            m_gridOffset = VECTOR2D( (long) m_gridOrigin.x % (long) m_gridSize.x,
+        -:  837:                                     (long) m_gridOrigin.y % (long) m_gridSize.y );
+        -:  838:        }
+        -:  839:    }
+        -:  840:
+        -:  841:    inline const VECTOR2D& GetGridOrigin() const
+        -:  842:    {
+        -:  843:        return m_gridOrigin;
+        -:  844:    }
+        -:  845:
+        -:  846:    /**
+        -:  847:     * Set the grid size.
+        -:  848:     *
+        -:  849:     * @param aGridSize is a vector containing the grid size in x and y direction.
+        -:  850:     */
+        -:  851:    inline void SetGridSize( const VECTOR2D& aGridSize )
+        -:  852:    {
+        -:  853:        m_gridSize = aGridSize;
+        -:  854:
+        -:  855:        // Avoid stupid grid size values: a grid size  should be >= 1 in internal units
+        -:  856:        m_gridSize.x = std::max( 1.0, m_gridSize.x );
+        -:  857:        m_gridSize.y = std::max( 1.0, m_gridSize.y );
+        -:  858:
+        -:  859:        m_gridOffset = VECTOR2D( (long) m_gridOrigin.x % (long) m_gridSize.x,
+        -:  860:                                 (long) m_gridOrigin.y % (long) m_gridSize.y );
+        -:  861:    }
+        -:  862:
+        -:  863:    /**
+        -:  864:     * Return the grid size.
+        -:  865:     *
+        -:  866:     * @return A vector containing the grid size in x and y direction.
+        -:  867:     */
+        -:  868:    inline const VECTOR2D& GetGridSize() const
+        -:  869:    {
+        -:  870:        return m_gridSize;
+        -:  871:    }
+        -:  872:
+        -:  873:    /**
+        -:  874:     * Return the visible grid size in x and y directions
+        -:  875:     *
+        -:  876:     * @return A vector containing the spacing of visible grid marks
+        -:  877:     */
+        -:  878:    inline VECTOR2D GetVisibleGridSize() const
+        -:  879:    {
+        -:  880:        VECTOR2D gridScreenSize( m_gridSize );
+        -:  881:        gridScreenSize.x = std::max( 100.0, gridScreenSize.x );
+        -:  882:        gridScreenSize.y = std::max( 100.0, gridScreenSize.y );
+        -:  883:
+        -:  884:        double gridThreshold = computeMinGridSpacing() / m_worldScale;
+        -:  885:
+        -:  886:        if( m_gridStyle == GRID_STYLE::SMALL_CROSS )
+        -:  887:            gridThreshold *= 2.0;
+        -:  888:
+        -:  889:        // If we cannot display the grid density, scale down by a tick size and
+        -:  890:        // try again.  Eventually, we get some representation of the grid
+        -:  891:        while( std::min( gridScreenSize.x, gridScreenSize.y ) <= gridThreshold )
+        -:  892:        {
+        -:  893:            gridScreenSize = gridScreenSize * static_cast<double>( m_gridTick );
+        -:  894:        }
+        -:  895:
+        -:  896:        return gridScreenSize;
+        -:  897:    }
+        -:  898:
+        -:  899:    /**
+        -:  900:     * Set the grid color.
+        -:  901:     *
+        -:  902:     * @param aGridColor is the grid color, it should have a low alpha value for the best effect.
+        -:  903:     */
+        -:  904:    inline void SetGridColor( const COLOR4D& aGridColor )
+        -:  905:    {
+        -:  906:        m_gridColor = aGridColor;
+        -:  907:    }
+        -:  908:
+        -:  909:    /**
+        -:  910:     * Set the axes color.
+        -:  911:     *
+        -:  912:     * @param aAxesColor is the color to draw the axes if enabled.
+        -:  913:     */
+        -:  914:    inline void SetAxesColor( const COLOR4D& aAxesColor )
+        -:  915:    {
+        -:  916:        m_axesColor = aAxesColor;
+        -:  917:    }
+        -:  918:
+        -:  919:    /**
+        -:  920:     * Enable drawing the axes.
+        -:  921:     */
+        -:  922:    inline void SetAxesEnabled( bool aAxesEnabled )
+        -:  923:    {
+        -:  924:        m_axesEnabled = aAxesEnabled;
+        -:  925:    }
+        -:  926:
+        -:  927:    /**
+        -:  928:     * Draw every tick line wider.
+        -:  929:     *
+        -:  930:     * @param aInterval increase the width of every aInterval line, if 0 do not use this feature.
+        -:  931:     */
+        -:  932:    inline void SetCoarseGrid( int aInterval )
+        -:  933:    {
+        -:  934:        m_gridTick = aInterval;
+        -:  935:    }
+        -:  936:
+        -:  937:    /**
+        -:  938:     * Get the grid line width.
+        -:  939:     *
+        -:  940:     * @return the grid line width
+        -:  941:     */
+        -:  942:    inline float GetGridLineWidth() const
+        -:  943:    {
+        -:  944:        return m_gridLineWidth;
+        -:  945:    }
+        -:  946:
+        -:  947:    ///< Draw the grid
+        -:  948:    virtual void DrawGrid() {};
+        -:  949:
+        -:  950:    /**
+        -:  951:     * For a given point it returns the nearest point belonging to the grid in world coordinates.
+        -:  952:     *
+        -:  953:     * @param aPoint is the point for which the grid point is searched.
+        -:  954:     * @return The nearest grid point in world coordinates.
+        -:  955:     */
+        -:  956:    VECTOR2D GetGridPoint( const VECTOR2D& aPoint ) const;
+        -:  957:
+        -:  958:    /**
+        -:  959:     * Compute the point position in world coordinates from given screen coordinates.
+        -:  960:     *
+        -:  961:     * @param aPoint the point position in screen coordinates.
+        -:  962:     * @return the point position in world coordinates.
+        -:  963:     */
+        -:  964:    inline VECTOR2D ToWorld( const VECTOR2D& aPoint ) const
+        -:  965:    {
+        -:  966:        return VECTOR2D( m_screenWorldMatrix * aPoint );
+        -:  967:    }
+        -:  968:
+        -:  969:    /**
+        -:  970:     * Compute the point position in screen coordinates from given world coordinates.
+        -:  971:     *
+        -:  972:     * @param aPoint the point position in world coordinates.
+        -:  973:     * @return the point position in screen coordinates.
+        -:  974:     */
+        -:  975:    inline VECTOR2D ToScreen( const VECTOR2D& aPoint ) const
+        -:  976:    {
+        -:  977:        return VECTOR2D( m_worldScreenMatrix * aPoint );
+        -:  978:    }
+        -:  979:
+        -:  980:    /**
+        -:  981:     * Set the cursor in the native panel.
+        -:  982:     *
+        -:  983:     * @param aCursor is the cursor to use in the native panel
+        -:  984:     * @return true if the cursor was updated, false if the cursor given was already set
+        -:  985:     */
+        -:  986:    virtual bool SetNativeCursorStyle( KICURSOR aCursor, bool aHiDPI );
+        -:  987:
+        -:  988:    /**
+        -:  989:     * Enable/disable cursor.
+        -:  990:     *
+        -:  991:     * @param aCursorEnabled is true if the cursor should be drawn, else false.
+        -:  992:     */
+        -:  993:    inline void SetCursorEnabled( bool aCursorEnabled )
+        -:  994:    {
+        -:  995:        m_isCursorEnabled = aCursorEnabled;
+        -:  996:    }
+        -:  997:
+        -:  998:    /**
+        -:  999:     * Return information about cursor visibility.
+        -: 1000:     *
+        -: 1001:     * @return True if cursor is visible.
+        -: 1002:     */
+        -: 1003:    bool IsCursorEnabled() const
+        -: 1004:    {
+        -: 1005:        return m_isCursorEnabled || m_forceDisplayCursor;
+        -: 1006:    }
+        -: 1007:
+        -: 1008:    /**
+        -: 1009:     * Set the cursor color.
+        -: 1010:     *
+        -: 1011:     * @param aCursorColor is the color of the cursor.
+        -: 1012:     */
+        -: 1013:    inline void SetCursorColor( const COLOR4D& aCursorColor )
+        -: 1014:    {
+        -: 1015:        m_cursorColor = aCursorColor;
+        -: 1016:    }
+        -: 1017:
+        -: 1018:    /**
+        -: 1019:     * Draw the cursor.
+        -: 1020:     *
+        -: 1021:     * @param aCursorPosition is the cursor position in screen coordinates.
+        -: 1022:     */
+        -: 1023:    virtual void DrawCursor( const VECTOR2D& aCursorPosition ) {};
+        -: 1024:
+        -: 1025:    virtual void EnableDepthTest( bool aEnabled = false ) {};
+        -: 1026:
+        -: 1027:    /**
+        -: 1028:     * Checks the state of the context lock
+        -: 1029:     * @return True if the context is currently locked
+        -: 1030:     */
+        -: 1031:    virtual bool IsContextLocked()
+        -: 1032:    {
+        -: 1033:        return false;
+        -: 1034:    }
+        -: 1035:
+        -: 1036:
+        -: 1037:    /// Use GAL_CONTEXT_LOCKER RAII object unless you know what you're doing.
+        -: 1038:    virtual void LockContext( int aClientCookie ) {}
+        -: 1039:
+        -: 1040:    virtual void UnlockContext( int aClientCookie ) {}
+        -: 1041:
+        -: 1042:    /// Start/end drawing functions, draw calls can be only made in between the calls
+        -: 1043:    /// to BeginDrawing()/EndDrawing(). Normally you should create a GAL_DRAWING_CONTEXT RAII
+        -: 1044:    /// object, but I'm leaving these functions public for more precise (i.e. timing/profiling)
+        -: 1045:    /// control of the drawing process - Tom
+        -: 1046:
+        -: 1047:    /// Begin the drawing, needs to be called for every new frame.
+        -: 1048:    /// Use GAL_DRAWING_CONTEXT RAII object unless you know what you're doing.
+        -: 1049:    virtual void BeginDrawing() {};
+        -: 1050:
+        -: 1051:    /// End the drawing, needs to be called for every new frame.
+        -: 1052:    /// Use GAL_DRAWING_CONTEXT RAII object unless you know what you're doing.
+        -: 1053:    virtual void EndDrawing() {};
+        -: 1054:protected:
+        -: 1055:
+        -: 1056:    /// Enable item update mode.
+        -: 1057:    /// Private: use GAL_UPDATE_CONTEXT RAII object
+        -: 1058:    virtual void beginUpdate() {}
+        -: 1059:
+        -: 1060:    /// Disable item update mode.
+        -: 1061:    virtual void endUpdate() {}
+        -: 1062:
+        -: 1063:
+        -: 1064:
+        -: 1065:    /// Compute the scaling factor for the world->screen matrix
+        -: 1066:    inline void computeWorldScale()
+        -: 1067:    {
+        -: 1068:        m_worldScale = m_screenDPI * m_worldUnitLength * m_zoomFactor;
+        -: 1069:
+        -: 1070:        PGM_BASE* pgm = PgmOrNull();
+        -: 1071:
+        -: 1072:        if( pgm && pgm->GetCommonSettings() )
+        -: 1073:            m_worldScale *= pgm->GetCommonSettings()->m_Appearance.zoom_correction_factor;
+        -: 1074:    }
+        -: 1075:
+        -: 1076:    /**
+        -: 1077:     * Compute minimum grid spacing from the grid settings.
+        -: 1078:     *
+        -: 1079:     * @return the minimum spacing to use for drawing the grid
+        -: 1080:     */
+        -: 1081:    double computeMinGridSpacing() const;
+        -: 1082:
+        -: 1083:    /// Possible depth range
+        -: 1084:    static const int MIN_DEPTH;
+        -: 1085:    static const int MAX_DEPTH;
+        -: 1086:
+        -: 1087:    /// Depth level on which the grid is drawn
+        -: 1088:    static const int GRID_DEPTH;
+        -: 1089:
+        -: 1090:    /**
+        -: 1091:     * Get the actual cursor color to draw.
+        -: 1092:     */
+        -: 1093:    COLOR4D getCursorColor() const;
+        -: 1094:
+        -: 1095:    // ---------------
+        -: 1096:    // Settings observer interface
+        -: 1097:    // ---------------
+        -: 1098:    /**
+        -: 1099:     * Handler for observer settings changes.
+        -: 1100:     */
+        -: 1101:    void OnGalDisplayOptionsChanged( const GAL_DISPLAY_OPTIONS& aOptions ) override;
+        -: 1102:
+        -: 1103:    /**
+        -: 1104:     * Handle updating display options.
+        -: 1105:     *
+        -: 1106:     * Derived classes should call up to this to set base-class methods.
+        -: 1107:     *
+        -: 1108:     * @return true if the new settings changed something. Derived classes can use this
+        -: 1109:     *         information to refresh themselves
+        -: 1110:     */
+        -: 1111:    virtual bool updatedGalDisplayOptions( const GAL_DISPLAY_OPTIONS& aOptions );
+        -: 1112:
+        -: 1113:    /**
+        -: 1114:     * Ensure that the first element is smaller than the second.
+        -: 1115:     */
+        -: 1116:    template <typename T>
+        -: 1117:    void normalize( T &a, T &b )
+        -: 1118:    {
+        -: 1119:        if( a > b )
+        -: 1120:        {
+        -: 1121:            T tmp = a;
+        -: 1122:            a = b;
+        -: 1123:            b = tmp;
+        -: 1124:        }
+        -: 1125:    }
+        -: 1126:
+        -: 1127:    GAL_DISPLAY_OPTIONS& m_options;
+        -: 1128:    UTIL::LINK           m_observerLink;
+        -: 1129:
+        -: 1130:    std::stack<double>   m_depthStack;         ///< Stored depth values
+        -: 1131:    VECTOR2I             m_screenSize;         ///< Screen size in screen (wx logical) coordinates
+        -: 1132:
+        -: 1133:    double               m_worldUnitLength;    ///< The unit length of the world coordinates [inch]
+        -: 1134:    double               m_screenDPI;          ///< The dots per inch of the screen
+        -: 1135:    VECTOR2D             m_lookAtPoint;        ///< Point to be looked at in world space
+        -: 1136:
+        -: 1137:    double               m_zoomFactor;         ///< The zoom factor
+        -: 1138:    double               m_rotation;           ///< Rotation transformation (radians)
+        -: 1139:    MATRIX3x3D           m_worldScreenMatrix;  ///< World transformation
+        -: 1140:    MATRIX3x3D           m_screenWorldMatrix;  ///< Screen transformation
+        -: 1141:    double               m_worldScale;         ///< The scale factor world->screen
+        -: 1142:
+        -: 1143:    bool                 m_globalFlipX;        ///< Flag for X axis flipping
+        -: 1144:    bool                 m_globalFlipY;        ///< Flag for Y axis flipping
+        -: 1145:
+        -: 1146:    float                m_lineWidth;          ///< The line width
+        -: 1147:    float                m_minLineWidth;       ///< Minimum line width in pixels
+        -: 1148:
+        -: 1149:    bool                 m_isFillEnabled;      ///< Is filling of graphic objects enabled ?
+        -: 1150:    bool                 m_isStrokeEnabled;    ///< Are the outlines stroked ?
+        -: 1151:
+        -: 1152:    COLOR4D              m_fillColor;          ///< The fill color
+        -: 1153:    COLOR4D              m_strokeColor;        ///< The color of the outlines
+        -: 1154:    COLOR4D              m_clearColor;
+        -: 1155:    COLOR4D              m_hoverColor;         ///< Color for hovered (active) links
+        -: 1156:
+        -: 1157:    double               m_layerDepth;         ///< The actual layer depth
+        -: 1158:    VECTOR2D             m_depthRange;         ///< Range of the depth
+        -: 1159:
+        -: 1160:    // Grid settings
+        -: 1161:    bool                 m_gridVisibility;     ///< Should the grid be shown
+        -: 1162:    GRID_STYLE           m_gridStyle;          ///< Grid display style
+        -: 1163:    VECTOR2D             m_gridSize;           ///< The grid size
+        -: 1164:    VECTOR2D             m_gridOrigin;         ///< The grid origin
+        -: 1165:    VECTOR2D             m_gridOffset;         ///< The grid offset to compensate cursor position
+        -: 1166:    COLOR4D              m_gridColor;          ///< Color of the grid
+        -: 1167:    COLOR4D              m_axesColor;          ///< Color of the axes
+        -: 1168:    bool                 m_axesEnabled;        ///< Should the axes be drawn
+        -: 1169:    int                  m_gridTick;           ///< Every tick line gets the double width
+        -: 1170:    float                m_gridLineWidth;      ///< Line width of the grid
+        -: 1171:    int                  m_gridMinSpacing;     ///< Minimum screen size of the grid (pixels)
+        -: 1172:                                               ///< below which the grid is not drawn
+        -: 1173:
+        -: 1174:    // Cursor settings
+        -: 1175:    bool                 m_isCursorEnabled;    ///< Is the cursor enabled?
+        -: 1176:    bool                 m_forceDisplayCursor; ///< Always show cursor
+        -: 1177:    COLOR4D              m_cursorColor;        ///< Cursor color
+        -: 1178:    KIGFX::CROSS_HAIR_MODE m_crossHairMode;    ///< Crosshair drawing mode
+        -: 1179:    VECTOR2D             m_cursorPosition;     ///< Current cursor position (world coordinates)
+        -: 1180:
+        -: 1181:    KICURSOR             m_currentNativeCursor; ///< Current cursor
+        -: 1182:
+        -: 1183:private:
+        -: 1184:
+        -: 1185:    inline double getLayerDepth() const
+        -: 1186:    {
+        -: 1187:        return m_layerDepth;
+        -: 1188:    }
+        -: 1189:
+        -: 1190:    TEXT_ATTRIBUTES      m_attributes;
+        -: 1191:
+        -: 1192:    friend class GAL_SCOPED_ATTRS;
+        -: 1193:};
+        -: 1194:
+        -: 1195:
+        -: 1196:class GAL_CONTEXT_LOCKER
+        -: 1197:{
+        -: 1198:public:
+        -: 1199:    GAL_CONTEXT_LOCKER( GAL* aGal ) :
+        -: 1200:        m_gal( aGal )
+        -: 1201:    {
+        -: 1202:        m_cookie = rand();
+        -: 1203:        m_gal->LockContext( m_cookie );
+        -: 1204:    }
+        -: 1205:
+        -: 1206:    ~GAL_CONTEXT_LOCKER()
+        -: 1207:    {
+        -: 1208:        m_gal->UnlockContext( m_cookie );
+        -: 1209:    }
+        -: 1210:
+        -: 1211:protected:
+        -: 1212:    GAL* m_gal;
+        -: 1213:    int  m_cookie;
+        -: 1214:};
+        -: 1215:
+        -: 1216:
+        -: 1217:class GAL_UPDATE_CONTEXT : public GAL_CONTEXT_LOCKER
+        -: 1218:{
+        -: 1219:public:
+        -: 1220:    GAL_UPDATE_CONTEXT( GAL* aGal ) :
+        -: 1221:            GAL_CONTEXT_LOCKER( aGal )
+        -: 1222:    {
+        -: 1223:        m_gal->beginUpdate();
+        -: 1224:    }
+        -: 1225:
+        -: 1226:    ~GAL_UPDATE_CONTEXT()
+        -: 1227:    {
+        -: 1228:        m_gal->endUpdate();
+        -: 1229:    }
+        -: 1230:};
+        -: 1231:
+        -: 1232:
+        -: 1233:class GAL_DRAWING_CONTEXT : public GAL_CONTEXT_LOCKER
+        -: 1234:{
+        -: 1235:public:
+        -: 1236:    GAL_DRAWING_CONTEXT( GAL* aGal ) :
+        -: 1237:            GAL_CONTEXT_LOCKER( aGal )
+        -: 1238:    {
+        -: 1239:        m_gal->BeginDrawing();
+        -: 1240:    }
+        -: 1241:
+        -: 1242:    ~GAL_DRAWING_CONTEXT() noexcept( false )
+        -: 1243:    {
+        -: 1244:        m_gal->EndDrawing();
+        -: 1245:    }
+        -: 1246:};
+        -: 1247:
+        -: 1248:
+        -: 1249:/**
+        -: 1250: * Attribute save/restore for GAL attributes.
+        -: 1251: */
+        -: 1252:class GAL_SCOPED_ATTRS
+        -: 1253:{
+        -: 1254:public:
+        -: 1255:    enum FLAGS
+        -: 1256:    {
+        -: 1257:        STROKE_WIDTH = 1,
+        -: 1258:        STROKE_COLOR = 2,
+        -: 1259:        IS_STROKE = 4,
+        -: 1260:        FILL_COLOR = 8,
+        -: 1261:        IS_FILL = 16,
+        -: 1262:        LAYER_DEPTH = 32,
+        -: 1263:
+        -: 1264:        // It is not clear to me that GAL needs to save text attributes.
+        -: 1265:        // Only BitmapText uses it, and maybe that should be passed in
+        -: 1266:        // explicitly (like for Draw) - every caller of BitmapText sets
+        -: 1267:        // the text attributes anyway.
+        -: 1268:        // TEXT_ATTRS = 64,
+        -: 1269:
+        -: 1270:        // Convenience flags
+        -: 1271:        STROKE = STROKE_WIDTH | STROKE_COLOR | IS_STROKE,
+        -: 1272:        FILL = FILL_COLOR | IS_FILL,
+        -: 1273:        STROKE_FILL = STROKE | FILL,
+        -: 1274:
+        -: 1275:        ALL_ATTRS = STROKE | FILL | LAYER_DEPTH,
+        -: 1276:    };
+        -: 1277:
+        -: 1278:    /**
+        -: 1279:     * Instantiate a GAL_SCOPED_ATTRS object, saving the current attributes of the GAL.
+        -: 1280:     *
+        -: 1281:     * Specify the flags to save/restore in aFlags.
+        -: 1282:     */
+        -: 1283:    GAL_SCOPED_ATTRS( KIGFX::GAL& aGal, int aFlags )
+        -: 1284:        : m_gal( aGal ), m_flags( aFlags )
+        -: 1285:    {
+        -: 1286:        // Save what we need to restore later.
+        -: 1287:        // These are all so cheap to copy, it's likely not worth if'ing
+        -: 1288:        m_strokeWidth = aGal.GetLineWidth();
+        -: 1289:        m_strokeColor = aGal.GetStrokeColor();
+        -: 1290:        m_isStroke = aGal.GetIsStroke();
+        -: 1291:        m_fillColor = aGal.GetFillColor();
+        -: 1292:        m_isFill = aGal.GetIsFill();
+        -: 1293:        m_layerDepth = aGal.getLayerDepth();
+        -: 1294:    }
+        -: 1295:
+        -: 1296:    ~GAL_SCOPED_ATTRS()
+        -: 1297:    {
+        -: 1298:        // Restore the attributes that were saved
+        -: 1299:        // based on the flags that were set.
+        -: 1300:
+        -: 1301:        if( m_flags & STROKE_WIDTH )
+        -: 1302:            m_gal.SetLineWidth( m_strokeWidth );
+        -: 1303:
+        -: 1304:        if( m_flags & STROKE_COLOR )
+        -: 1305:            m_gal.SetStrokeColor( m_strokeColor );
+        -: 1306:
+        -: 1307:        if( m_flags & IS_STROKE )
+        -: 1308:            m_gal.SetIsStroke( m_isStroke );
+        -: 1309:
+        -: 1310:        if( m_flags & FILL_COLOR )
+        -: 1311:            m_gal.SetFillColor( m_fillColor );
+        -: 1312:
+        -: 1313:        if( m_flags & IS_FILL )
+        -: 1314:            m_gal.SetIsFill( m_isFill );
+        -: 1315:
+        -: 1316:        if( m_flags & LAYER_DEPTH )
+        -: 1317:            m_gal.SetLayerDepth( m_layerDepth );
+        -: 1318:    }
+        -: 1319:
+        -: 1320:private:
+        -: 1321:    GAL& m_gal;
+        -: 1322:    int  m_flags;
+        -: 1323:
+        -: 1324:    COLOR4D m_strokeColor;
+        -: 1325:    double  m_strokeWidth;
+        -: 1326:    bool    m_isStroke;
+        -: 1327:
+        -: 1328:    COLOR4D m_fillColor;
+        -: 1329:    bool    m_isFill;
+        -: 1330:
+        -: 1331:    double m_layerDepth;
+        -: 1332:};
+        -: 1333:
+        -: 1334:
+        -: 1335:};    // namespace KIGFX
+        -: 1336:
+        -: 1337:#endif /* GRAPHICSABSTRACTIONLAYER_H_ */

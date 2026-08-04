@@ -1,0 +1,160 @@
+        -:    0:Source:/usr/include/wx-3.2/wx/gtk/mdi.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1://///////////////////////////////////////////////////////////////////////////
+        -:    2:// Name:        wx/gtk/mdi.h
+        -:    3:// Purpose:     TDI-based MDI implementation for wxGTK
+        -:    4:// Author:      Robert Roebling
+        -:    5:// Modified by: 2008-10-31 Vadim Zeitlin: derive from the base classes
+        -:    6:// Copyright:   (c) 1998 Robert Roebling
+        -:    7://              (c) 2008 Vadim Zeitlin
+        -:    8:// Licence:     wxWindows licence
+        -:    9://///////////////////////////////////////////////////////////////////////////
+        -:   10:
+        -:   11:#ifndef _WX_GTK_MDI_H_
+        -:   12:#define _WX_GTK_MDI_H_
+        -:   13:
+        -:   14:#include "wx/frame.h"
+        -:   15:
+        -:   16:class WXDLLIMPEXP_FWD_CORE wxMDIChildFrame;
+        -:   17:class WXDLLIMPEXP_FWD_CORE wxMDIClientWindow;
+        -:   18:
+        -:   19:typedef struct _GtkNotebook GtkNotebook;
+        -:   20:
+        -:   21://-----------------------------------------------------------------------------
+        -:   22:// wxMDIParentFrame
+        -:   23://-----------------------------------------------------------------------------
+        -:   24:
+        -:   25:class WXDLLIMPEXP_CORE wxMDIParentFrame : public wxMDIParentFrameBase
+        -:   26:{
+        -:   27:public:
+        -:   28:    wxMDIParentFrame() { Init(); }
+        -:   29:    wxMDIParentFrame(wxWindow *parent,
+        -:   30:                     wxWindowID id,
+        -:   31:                     const wxString& title,
+        -:   32:                     const wxPoint& pos = wxDefaultPosition,
+        -:   33:                     const wxSize& size = wxDefaultSize,
+        -:   34:                     long style = wxDEFAULT_FRAME_STYLE | wxVSCROLL | wxHSCROLL,
+        -:   35:                     const wxString& name = wxASCII_STR(wxFrameNameStr))
+        -:   36:    {
+        -:   37:        Init();
+        -:   38:
+        -:   39:        (void)Create(parent, id, title, pos, size, style, name);
+        -:   40:    }
+        -:   41:
+        -:   42:    bool Create(wxWindow *parent,
+        -:   43:                wxWindowID id,
+        -:   44:                const wxString& title,
+        -:   45:                const wxPoint& pos = wxDefaultPosition,
+        -:   46:                const wxSize& size = wxDefaultSize,
+        -:   47:                long style = wxDEFAULT_FRAME_STYLE | wxVSCROLL | wxHSCROLL,
+        -:   48:                const wxString& name = wxASCII_STR(wxFrameNameStr));
+        -:   49:
+        -:   50:    // we don't store the active child in m_currentChild unlike the base class
+        -:   51:    // version so override this method to find it dynamically
+        -:   52:    virtual wxMDIChildFrame *GetActiveChild() const wxOVERRIDE;
+        -:   53:
+        -:   54:    // implement base class pure virtuals
+        -:   55:    // ----------------------------------
+        -:   56:
+        -:   57:    virtual void ActivateNext() wxOVERRIDE;
+        -:   58:    virtual void ActivatePrevious() wxOVERRIDE;
+        -:   59:
+        -:   60:    static bool IsTDI() { return true; }
+        -:   61:
+        -:   62:    // implementation
+        -:   63:
+        -:   64:    bool                m_justInserted;
+        -:   65:
+        -:   66:    virtual void OnInternalIdle() wxOVERRIDE;
+        -:   67:
+        -:   68:protected:
+        -:   69:    virtual void DoGetClientSize(int* width, int* height) const wxOVERRIDE;
+        -:   70:
+        -:   71:private:
+        -:   72:    friend class wxMDIChildFrame;
+        -:   73:    void Init();
+        -:   74:
+        -:   75:    wxDECLARE_DYNAMIC_CLASS(wxMDIParentFrame);
+        -:   76:};
+        -:   77:
+        -:   78://-----------------------------------------------------------------------------
+        -:   79:// wxMDIChildFrame
+        -:   80://-----------------------------------------------------------------------------
+        -:   81:
+        -:   82:class WXDLLIMPEXP_CORE wxMDIChildFrame : public wxTDIChildFrame
+        -:   83:{
+        -:   84:public:
+        -:   85:    wxMDIChildFrame() { Init(); }
+        -:   86:    wxMDIChildFrame(wxMDIParentFrame *parent,
+        -:   87:                    wxWindowID id,
+        -:   88:                    const wxString& title,
+        -:   89:                    const wxPoint& pos = wxDefaultPosition,
+        -:   90:                    const wxSize& size = wxDefaultSize,
+        -:   91:                    long style = wxDEFAULT_FRAME_STYLE,
+        -:   92:                    const wxString& name = wxASCII_STR(wxFrameNameStr))
+        -:   93:    {
+        -:   94:        Init();
+        -:   95:
+        -:   96:        Create(parent, id, title, pos, size, style, name);
+        -:   97:    }
+        -:   98:
+        -:   99:    bool Create(wxMDIParentFrame *parent,
+        -:  100:                wxWindowID id,
+        -:  101:                const wxString& title,
+        -:  102:                const wxPoint& pos = wxDefaultPosition,
+        -:  103:                const wxSize& size = wxDefaultSize,
+        -:  104:                long style = wxDEFAULT_FRAME_STYLE,
+        -:  105:                const wxString& name = wxASCII_STR(wxFrameNameStr));
+        -:  106:
+        -:  107:    virtual ~wxMDIChildFrame();
+        -:  108:
+        -:  109:    virtual void SetMenuBar( wxMenuBar *menu_bar ) wxOVERRIDE;
+        -:  110:    virtual wxMenuBar *GetMenuBar() const wxOVERRIDE;
+        -:  111:
+        -:  112:    virtual void Activate() wxOVERRIDE;
+        -:  113:
+        -:  114:    virtual void SetTitle(const wxString& title) wxOVERRIDE;
+        -:  115:
+        -:  116:    // implementation
+        -:  117:
+        -:  118:    void OnActivate( wxActivateEvent& event );
+        -:  119:    void OnMenuHighlight( wxMenuEvent& event );
+        -:  120:    virtual void GTKHandleRealized() wxOVERRIDE;
+        -:  121:
+        -:  122:    wxMenuBar         *m_menuBar;
+        -:  123:    bool               m_justInserted;
+        -:  124:
+        -:  125:protected:
+        -:  126:    virtual void DoGetPosition(int *x, int *y) const wxOVERRIDE;
+        -:  127:
+        -:  128:private:
+        -:  129:    void Init();
+        -:  130:
+        -:  131:    GtkNotebook *GTKGetNotebook() const;
+        -:  132:
+        -:  133:    wxDECLARE_EVENT_TABLE();
+        -:  134:    wxDECLARE_DYNAMIC_CLASS(wxMDIChildFrame);
+        -:  135:};
+        -:  136:
+        -:  137://-----------------------------------------------------------------------------
+        -:  138:// wxMDIClientWindow
+        -:  139://-----------------------------------------------------------------------------
+        -:  140:
+        -:  141:class WXDLLIMPEXP_CORE wxMDIClientWindow : public wxMDIClientWindowBase
+        -:  142:{
+        -:  143:public:
+    #####:  144:    wxMDIClientWindow() { }
+        -:  145:    ~wxMDIClientWindow();
+        -:  146:
+        -:  147:    virtual bool CreateClient(wxMDIParentFrame *parent,
+        -:  148:                              long style = wxVSCROLL | wxHSCROLL) wxOVERRIDE;
+        -:  149:
+        -:  150:private:
+        -:  151:    virtual void AddChildGTK(wxWindowGTK* child) wxOVERRIDE;
+        -:  152:
+        -:  153:    wxDECLARE_DYNAMIC_CLASS(wxMDIClientWindow);
+        -:  154:};
+        -:  155:
+        -:  156:#endif // _WX_GTK_MDI_H_

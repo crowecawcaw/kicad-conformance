@@ -1,0 +1,221 @@
+        -:    0:Source:/src/kicad/common/jobs/jobset.h
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_jobset_run.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_jobset_run.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2024 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#ifndef JOBS_FILE_H
+        -:   22:#define JOBS_FILE_H
+        -:   23:
+        -:   24:#include <reporter.h>
+        -:   25:#include <bitmaps/bitmaps_list.h>
+        -:   26:#include <jobs/job.h>
+        -:   27:#include <jobs/jobs_output.h>
+        -:   28:#include <settings/json_settings.h>
+        -:   29:#include <settings/parameters.h>
+        -:   30:#include <widgets/wx_progress_reporters.h>
+        -:   31:#include <ctime>
+        -:   32:#include <memory>
+        -:   33:#include <optional>
+        -:   34:
+        -:   35:class PROJECT;
+        -:   36:
+        -:   37:
+        -:   38:class JOBSET_OUTPUT_REPORTER : public WX_STRING_REPORTER
+        -:   39:{
+        -:   40:public:
+        -:   41:    JOBSET_OUTPUT_REPORTER( const wxString& aTempDirPath, PROGRESS_REPORTER* aProgressReporter ) :
+        -:   42:            m_tempDirPath( aTempDirPath ),
+        -:   43:            m_includeDebug( false ),
+        -:   44:            m_progressReporter( aProgressReporter )
+        -:   45:    {
+        -:   46:    }
+        -:   47:
+        -:   48:    REPORTER& Report( const wxString& aText, SEVERITY aSeverity ) override
+        -:   49:    {
+        -:   50:        wxString text( aText );
+        -:   51:
+        -:   52:        if( aSeverity == RPT_SEVERITY_DEBUG && !m_includeDebug )
+        -:   53:            return *this;
+        -:   54:
+        -:   55:        if( aSeverity == RPT_SEVERITY_ACTION )
+        -:   56:            text.Replace( m_tempDirPath, wxEmptyString );
+        -:   57:
+        -:   58:        if( m_progressReporter )
+        -:   59:        {
+        -:   60:            m_progressReporter->Report( text );
+        -:   61:            m_progressReporter->KeepRefreshing();
+        -:   62:        }
+        -:   63:
+        -:   64:        return WX_STRING_REPORTER::Report( text, aSeverity );
+        -:   65:    }
+        -:   66:
+        -:   67:private:
+        -:   68:    wxString           m_tempDirPath;
+        -:   69:    bool               m_includeDebug;
+        -:   70:    PROGRESS_REPORTER* m_progressReporter;
+        -:   71:};
+        -:   72:
+        -:   73:
+        -:   74:
+        -:   75:struct KICOMMON_API JOBSET_JOB
+        -:   76:{
+        -:   77:    JOBSET_JOB() :
+        -:   78:            m_job( nullptr )
+        -:   79:    {}
+        -:   80:
+        -:   81:    JOBSET_JOB( const wxString& id, const wxString& type, JOB* job ) :
+        -:   82:            m_id( id ),
+        -:   83:            m_type( type ),
+        -:   84:            m_job( job )
+        -:   85:    {}
+        -:   86:
+        -:   87:    wxString             m_id;
+        -:   88:    wxString             m_type;
+        -:   89:    wxString             m_description;
+        -:   90:    std::shared_ptr<JOB> m_job;
+        -:   91:
+        -:   92:    wxString GetDescription() const;
+        -:   93:    void     SetDescription( const wxString& aDescription );
+        -:   94:
+        -:   95:    bool operator==( const JOBSET_JOB& rhs ) const;
+        -:   96:};
+        -:   97:
+        -:   98:
+        -:   99:enum class KICOMMON_API JOBSET_DESTINATION_T
+        -:  100:{
+        -:  101:    FOLDER,
+        -:  102:    ARCHIVE
+        -:  103:};
+        -:  104:
+        -:  105:struct KICOMMON_API JOBSET_DESTINATION_T_INFO
+        -:  106:{
+        -:  107:    wxString    name;
+        -:  108:    BITMAPS     bitmap;
+        -:  109:    bool        outputPathIsFolder;
+        -:  110:    wxString    fileWildcard;
+        -:  111:};
+        -:  112:
+        -:  113:extern KICOMMON_API
+        -:  114:std::map<JOBSET_DESTINATION_T, JOBSET_DESTINATION_T_INFO> JobsetDestinationTypeInfos;
+        -:  115:
+        -:  116:
+        -:  117:struct KICOMMON_API JOBSET_DESTINATION
+        -:  118:{
+        -:  119:    JOBSET_DESTINATION();
+        -:  120:
+        -:  121:    JOBSET_DESTINATION( const wxString& id, JOBSET_DESTINATION_T type );
+        -:  122:
+        -:  123:    void InitOutputHandler();
+        -:  124:
+        -:  125:    wxString GetDescription() const;
+        -:  126:    void SetDescription( const wxString& aDescription );
+        -:  127:
+        -:  128:    wxString GetPathInfo() const;
+        -:  129:
+        -:  130:    bool operator==( const JOBSET_DESTINATION& rhs ) const;
+        -:  131:
+        -:  132:public:
+        -:  133:    wxString              m_id;
+        -:  134:    JOBSET_DESTINATION_T  m_type;
+        -:  135:    wxString              m_description;
+        -:  136:    std::shared_ptr<JOBS_OUTPUT_HANDLER>  m_outputHandler;
+        -:  137:    std::vector<wxString> m_only;
+        -:  138:
+        -:  139:    ///< Transient property, not stored for now
+        -:  140:    std::optional<bool>                                                   m_lastRunSuccess;
+        -:  141:    std::unordered_map<wxString, std::optional<bool>>                     m_lastRunSuccessMap;
+        -:  142:    std::unordered_map<wxString, std::shared_ptr<JOBSET_OUTPUT_REPORTER>> m_lastRunReporters;
+        -:  143:    std::optional<wxString>                                               m_lastResolvedOutputPath;
+        -:  144:};
+        -:  145:
+        -:  146:
+        -:  147:class KICOMMON_API JOBSET : public JSON_SETTINGS
+        -:  148:{
+        -:  149:public:
+        -:  150:    JOBSET( const wxString& aFilename );
+        -:  151:
+    #####:  152:    virtual ~JOBSET() {}
+------------------
+JOBSET::~JOBSET():
+    #####:  152:    virtual ~JOBSET() {}
+------------------
+JOBSET::~JOBSET():
+    #####:  152:    virtual ~JOBSET() {}
+------------------
+        -:  153:
+        -:  154:    std::vector<JOBSET_JOB>& GetJobs()
+        -:  155:    {
+        -:  156:        return m_jobs;
+        -:  157:    }
+        -:  158:
+        -:  159:    std::vector<JOBSET_JOB> GetJobsForDestination( JOBSET_DESTINATION* aDestination );
+        -:  160:
+        -:  161:    std::vector<JOBSET_DESTINATION>& GetDestinations() { return m_destinations; }
+        -:  162:
+        -:  163:    /**
+        -:  164:     * Attempts to find a destination based on the given string
+        -:  165:     * Both the uuid of the destination and description name are used
+        -:  166:     */
+        -:  167:    JOBSET_DESTINATION* FindDestination( wxString& aDestinationStr );
+        -:  168:
+        -:  169:    bool SaveToFile( const wxString& aDirectory = "", bool aForce = false ) override;
+        -:  170:
+        -:  171:    void SetDirty( bool aFlag = true ) { m_dirty = aFlag; }
+        -:  172:    bool GetDirty() const { return m_dirty; }
+        -:  173:
+        -:  174:    wxString GetFullName() const { return m_fileNameWithoutPath; }
+        -:  175:
+        -:  176:    void AddNewJob( wxString aType, JOB* aJob );
+        -:  177:    JOBSET_DESTINATION* AddNewDestination( JOBSET_DESTINATION_T aType );
+        -:  178:
+        -:  179:    void RemoveDestination( JOBSET_DESTINATION* aDestination );
+        -:  180:    void MoveJobUp( size_t aJobIdx );
+        -:  181:    void MoveJobDown( size_t aJobIdx );
+        -:  182:    void RemoveJob( size_t aJobIdx );
+        -:  183:
+        -:  184:protected:
+        -:  185:    wxString getFileExt() const override;
+        -:  186:
+        -:  187:private:
+        -:  188:    std::vector<JOBSET_JOB>         m_jobs;
+        -:  189:    std::vector<JOBSET_DESTINATION> m_destinations;
+        -:  190:
+        -:  191:    bool                            m_dirty;
+        -:  192:    wxString                        m_fileNameWithoutPath;
+        -:  193:};
+        -:  194:
+        -:  195:
+        -:  196:KICOMMON_API void to_json( nlohmann::json& j, const JOBSET_JOB& f );
+        -:  197:KICOMMON_API void from_json( const nlohmann::json& j, JOBSET_JOB& f );
+        -:  198:
+        -:  199:KICOMMON_API void to_json( nlohmann::json& j, const JOBSET_DESTINATION& f );
+        -:  200:KICOMMON_API void from_json( const nlohmann::json& j, JOBSET_DESTINATION& f );
+        -:  201:
+        -:  202:#if defined( __MINGW32__ )
+        -:  203:template class KICOMMON_API PARAM_LIST<struct JOBSET_JOB>;
+        -:  204:template class KICOMMON_API PARAM_LIST<struct JOBSET_DESTINATION>;
+        -:  205:#else
+        -:  206:extern template class APIVISIBLE PARAM_LIST<JOBSET_JOB>;
+        -:  207:extern template class APIVISIBLE PARAM_LIST<JOBSET_DESTINATION>;
+        -:  208:#endif
+        -:  209:
+        -:  210:#endif

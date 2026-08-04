@@ -1,0 +1,1411 @@
+        -:    0:Source:/src/kicad/pcbnew/footprint.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#ifndef FOOTPRINT_H
+        -:   26:#define FOOTPRINT_H
+        -:   27:
+        -:   28:#include <deque>
+        -:   29:#include <mutex>
+        -:   30:#include <unordered_set>
+        -:   31:
+        -:   32:#include <template_fieldnames.h>
+        -:   33:
+        -:   34:#include <board_item_container.h>
+        -:   35:#include <board_item.h>
+        -:   36:#include <embedded_files.h>
+        -:   37:#include <layer_ids.h> // ALL_LAYERS definition.
+        -:   38:#include <lset.h>
+        -:   39:#include <lib_id.h>
+        -:   40:#include <lib_tree_item.h>
+        -:   41:#include <list>
+        -:   42:
+        -:   43:#include <zones.h>
+        -:   44:#include <convert_shape_list_to_polygon.h>
+        -:   45:#include <pcb_item_containers.h>
+        -:   46:#include <pcb_field.h>
+        -:   47:#include <functional>
+        -:   48:#include <math/vector3.h>
+        -:   49:#include <case_insensitive_map.h>
+        -:   50:
+        -:   51:class LINE_READER;
+        -:   52:class EDA_3D_CANVAS;
+        -:   53:class PAD;
+        -:   54:class BOARD;
+        -:   55:class COMPONENT_CLASS;
+        -:   56:class GENERAL_COLLECTOR;
+        -:   57:class MSG_PANEL_ITEM;
+        -:   58:class SHAPE;
+        -:   59:class REPORTER;
+        -:   60:class COMPONENT_CLASS_CACHE_PROXY;
+        -:   61:class PCB_POINT;
+        -:   62:
+        -:   63:namespace KIGFX {
+        -:   64:class VIEW;
+        -:   65:}
+        -:   66:
+        -:   67:namespace KIFONT {
+        -:   68:class OUTLINE_FONT;
+        -:   69:}
+        -:   70:
+        -:   71:enum INCLUDE_NPTH_T
+        -:   72:{
+        -:   73:    DO_NOT_INCLUDE_NPTH = false,
+        -:   74:    INCLUDE_NPTH = true
+        -:   75:};
+        -:   76:
+        -:   77:/**
+        -:   78: * The set of attributes allowed within a FOOTPRINT, using FOOTPRINT::SetAttributes()
+        -:   79: * and FOOTPRINT::GetAttributes().  These are to be ORed together when calling
+        -:   80: * FOOTPRINT::SetAttributes()
+        -:   81: */
+        -:   82:enum FOOTPRINT_ATTR_T
+        -:   83:{
+        -:   84:    FP_THROUGH_HOLE             = 0x0001,
+        -:   85:    FP_SMD                      = 0x0002,
+        -:   86:    FP_EXCLUDE_FROM_POS_FILES   = 0x0004,
+        -:   87:    FP_EXCLUDE_FROM_BOM         = 0x0008,
+        -:   88:    FP_BOARD_ONLY               = 0x0010,   // Footprint has no corresponding symbol
+        -:   89:    FP_JUST_ADDED               = 0x0020,   // Footprint just added by netlist update
+        -:   90:    FP_DNP                      = 0x0040
+        -:   91:};
+        -:   92:
+        -:   93:enum class FOOTPRINT_STACKUP
+        -:   94:{
+        -:   95:    /**
+        -:   96:     * The 'normal' stackup handling, where there is a single inner layer
+        -:   97:     * (In1) and rule areas using it expand to all inner layer on the host PCB.
+        -:   98:     */
+        -:   99:    EXPAND_INNER_LAYERS,
+        -:  100:    /**
+        -:  101:     * Stackup handling where the footprint can have any number of copper layers,
+        -:  102:     * and objects on those layers go to the matching inner layer on the host PCB.
+        -:  103:     */
+        -:  104:    CUSTOM_LAYERS,
+        -:  105:};
+        -:  106:
+        -:  107:class FP_3DMODEL
+        -:  108:{
+        -:  109:public:
+        -:  110:    FP_3DMODEL() :
+        -:  111:        // Initialize with sensible values
+        -:  112:        m_Scale { 1, 1, 1 },
+        -:  113:        m_Rotation { 0, 0, 0 },
+        -:  114:        m_Offset { 0, 0, 0 },
+        -:  115:        m_Opacity( 1.0 ),
+        -:  116:        m_Show( true )
+        -:  117:    {
+        -:  118:    }
+        -:  119:
+        -:  120:    VECTOR3D m_Scale;       ///< 3D model scaling factor (dimensionless)
+        -:  121:    VECTOR3D m_Rotation;    ///< 3D model rotation (degrees)
+        -:  122:    VECTOR3D m_Offset;      ///< 3D model offset (mm)
+        -:  123:    double   m_Opacity;
+        -:  124:    wxString m_Filename;    ///< The 3D shape filename in 3D library
+        -:  125:    bool     m_Show;        ///< Include model in rendering
+        -:  126:
+        -:  127:    bool operator==( const FP_3DMODEL& aOther ) const
+        -:  128:    {
+        -:  129:        return m_Scale == aOther.m_Scale
+        -:  130:                && m_Rotation == aOther.m_Rotation
+        -:  131:                && m_Offset == aOther.m_Offset
+        -:  132:                && m_Opacity == aOther.m_Opacity
+        -:  133:                && m_Filename == aOther.m_Filename
+        -:  134:                && m_Show == aOther.m_Show;
+        -:  135:    }
+        -:  136:};
+        -:  137:
+        -:  138:
+        -:  139:struct FOOTPRINT_COURTYARD_CACHE_DATA
+        -:  140:{
+        -:  141:    SHAPE_POLY_SET front;  // Note that a footprint can have both front and back courtyards populated.
+        -:  142:    SHAPE_POLY_SET back;
+        -:  143:    HASH_128       front_hash;
+        -:  144:    HASH_128       back_hash;
+        -:  145:};
+        -:  146:
+        -:  147:
+        -:  148:struct FOOTPRINT_GEOMETRY_CACHE_DATA
+        -:  149:{
+        -:  150:    BOX2I          bounding_box;
+        -:  151:    int            bounding_box_timestamp = 0;
+        -:  152:    BOX2I          text_excluded_bbox;
+        -:  153:    int            text_excluded_bbox_timestamp = 0;
+        -:  154:    SHAPE_POLY_SET hull;
+        -:  155:    int            hull_timestamp = 0;
+        -:  156:};
+        -:  157:
+        -:  158:
+        -:  159:/**
+        -:  160: * Variant information for a footprint.
+        -:  161: *
+        -:  162: * Footprint variants store per-variant overrides for DNP, exclusion flags, and field values.
+        -:  163: * These are synchronized with SCH_SYMBOL_VARIANT during Update PCB from Schematic operations.
+        -:  164: */
+        -:  165:class FOOTPRINT_VARIANT
+        -:  166:{
+        -:  167:public:
+        -:  168:    FOOTPRINT_VARIANT( const wxString& aName = wxEmptyString ) :
+        -:  169:            m_name( aName ),
+        -:  170:            m_dnp( false ),
+        -:  171:            m_excludedFromBOM( false ),
+        -:  172:            m_excludedFromPosFiles( false )
+        -:  173:    {
+        -:  174:    }
+        -:  175:
+        -:  176:    wxString GetName() const { return m_name; }
+        -:  177:    void SetName( const wxString& aName ) { m_name = aName; }
+        -:  178:
+    #####:  179:    bool GetDNP() const { return m_dnp; }
+        -:  180:    void SetDNP( bool aDNP ) { m_dnp = aDNP; }
+        -:  181:
+    #####:  182:    bool GetExcludedFromBOM() const { return m_excludedFromBOM; }
+        -:  183:    void SetExcludedFromBOM( bool aExclude ) { m_excludedFromBOM = aExclude; }
+        -:  184:
+    #####:  185:    bool GetExcludedFromPosFiles() const { return m_excludedFromPosFiles; }
+        -:  186:    void SetExcludedFromPosFiles( bool aExclude ) { m_excludedFromPosFiles = aExclude; }
+        -:  187:
+        -:  188:    /**
+        -:  189:     * Get a field value override for this variant.
+        -:  190:     * @param aFieldName The name of the field.
+        -:  191:     * @return The field value, or empty string if not overridden or overridden to empty.
+        -:  192:     */
+        -:  193:    wxString GetFieldValue( const wxString& aFieldName ) const
+        -:  194:    {
+        -:  195:        auto it = m_fields.find( aFieldName );
+        -:  196:
+        -:  197:        if( it != m_fields.end() )
+        -:  198:            return it->second;
+        -:  199:
+        -:  200:        return wxString();
+        -:  201:    }
+        -:  202:
+        -:  203:    /**
+        -:  204:     * Set a field value override for this variant.
+        -:  205:     * @param aFieldName The name of the field.
+        -:  206:     * @param aValue The value to set.
+        -:  207:     */
+        -:  208:    void SetFieldValue( const wxString& aFieldName, const wxString& aValue )
+        -:  209:    {
+        -:  210:        m_fields[aFieldName] = aValue;
+        -:  211:    }
+        -:  212:
+        -:  213:    bool HasFieldValue( const wxString& aFieldName ) const
+        -:  214:    {
+        -:  215:        return m_fields.find( aFieldName ) != m_fields.end();
+        -:  216:    }
+        -:  217:
+    #####:  218:    const std::map<wxString, wxString>& GetFields() const { return m_fields; }
+        -:  219:
+        -:  220:    bool operator==( const FOOTPRINT_VARIANT& aOther ) const
+        -:  221:    {
+        -:  222:        return m_name == aOther.m_name
+        -:  223:                && m_dnp == aOther.m_dnp
+        -:  224:                && m_excludedFromBOM == aOther.m_excludedFromBOM
+        -:  225:                && m_excludedFromPosFiles == aOther.m_excludedFromPosFiles
+        -:  226:                && m_fields == aOther.m_fields;
+        -:  227:    }
+        -:  228:
+        -:  229:private:
+        -:  230:    wxString                     m_name;
+        -:  231:    bool                         m_dnp;
+        -:  232:    bool                         m_excludedFromBOM;
+        -:  233:    bool                         m_excludedFromPosFiles;
+        -:  234:    std::map<wxString, wxString> m_fields;  ///< Field value overrides for this variant
+        -:  235:};
+        -:  236:
+        -:  237:
+        -:  238:class FOOTPRINT : public BOARD_ITEM_CONTAINER, public EMBEDDED_FILES, public LIB_TREE_ITEM
+        -:  239:{
+        -:  240:public:
+        -:  241:    FOOTPRINT( BOARD* parent );
+        -:  242:
+        -:  243:    FOOTPRINT( const FOOTPRINT& aFootprint );
+        -:  244:
+        -:  245:    // Move constructor and operator needed due to std containers inside the footprint
+        -:  246:    FOOTPRINT( FOOTPRINT&& aFootprint );
+        -:  247:
+        -:  248:    ~FOOTPRINT();
+        -:  249:
+        -:  250:    FOOTPRINT& operator=( const FOOTPRINT& aOther );
+        -:  251:    FOOTPRINT& operator=( FOOTPRINT&& aOther );
+        -:  252:
+        -:  253:    void CopyFrom( const BOARD_ITEM* aOther ) override;
+        -:  254:
+        -:  255:    void Serialize( google::protobuf::Any &aContainer ) const override;
+        -:  256:    bool Deserialize( const google::protobuf::Any &aContainer ) override;
+        -:  257:
+        -:  258:    static inline bool ClassOf( const EDA_ITEM* aItem )
+        -:  259:    {
+        -:  260:        return aItem && aItem->Type() == PCB_FOOTPRINT_T;
+        -:  261:    }
+        -:  262:
+        -:  263:    /// Resets the caches for this footprint, for example if it was modified via the API
+        -:  264:    void InvalidateGeometryCaches();
+        -:  265:
+    #####:  266:    LSET GetPrivateLayers() const { return m_privateLayers; }
+        -:  267:    void SetPrivateLayers( const LSET& aLayers ) { m_privateLayers = aLayers; }
+        -:  268:
+        -:  269:    ///< @copydoc BOARD_ITEM_CONTAINER::Add()
+        -:  270:    void Add( BOARD_ITEM* aItem, ADD_MODE aMode = ADD_MODE::INSERT,
+        -:  271:              bool aSkipConnectivity = false ) override;
+        -:  272:
+        -:  273:    ///< @copydoc BOARD_ITEM_CONTAINER::Remove()
+        -:  274:    void Remove( BOARD_ITEM* aItem, REMOVE_MODE aMode = REMOVE_MODE::NORMAL ) override;
+        -:  275:
+        -:  276:    /**
+        -:  277:     * Clear (i.e. force the ORPHANED dummy net info) the net info which
+        -:  278:     * depends on a given board for all pads of the footprint.
+        -:  279:     *
+        -:  280:     * This is needed when a footprint is copied between the fp editor and
+        -:  281:     * the board editor for instance, because net info become fully broken
+        -:  282:     */
+        -:  283:    void ClearAllNets();
+        -:  284:
+        -:  285:    /**
+        -:  286:     * Old footprints do not always have a valid UUID (some can be set to null uuid)
+        -:  287:     * However null UUIDs, having a special meaning in editor, create issues when
+        -:  288:     * editing a footprint
+        -:  289:     * So all null uuids a re replaced by a valid uuid
+        -:  290:     * @return true if at least one uuid is changed, false if no change
+        -:  291:     */
+        -:  292:    bool FixUuids();
+        -:  293:
+        -:  294:    /**
+        -:  295:     * Return the bounding box containing pads when the footprint is on the front side,
+        -:  296:     * orientation 0, position 0,0.
+        -:  297:     *
+        -:  298:     * Mainly used in Gerber place file to draw a footprint outline when the courtyard
+        -:  299:     * is missing or broken.
+        -:  300:     *
+        -:  301:     * @return The rectangle containing the pads for the normalized footprint.
+        -:  302:     */
+        -:  303:    BOX2I GetFpPadsLocalBbox() const;
+        -:  304:
+        -:  305:    /**
+        -:  306:     * Return a bounding polygon for the shapes and pads in the footprint.
+        -:  307:     *
+        -:  308:     * This operation is slower but more accurate than calculating a bounding box.
+        -:  309:     */
+        -:  310:    SHAPE_POLY_SET GetBoundingHull() const;
+        -:  311:    SHAPE_POLY_SET GetBoundingHull( PCB_LAYER_ID aLayer ) const;
+        -:  312:
+        -:  313:    bool TextOnly() const;
+        -:  314:
+        -:  315:    // Virtual function
+        -:  316:    const BOX2I GetBoundingBox() const override;
+        -:  317:    const BOX2I GetBoundingBox( bool aIncludeText ) const;
+        -:  318:
+        -:  319:    /**
+        -:  320:     * Return the bounding box of the footprint on a given set of layers
+        -:  321:    */
+        -:  322:    const BOX2I GetLayerBoundingBox( const LSET& aLayers ) const;
+        -:  323:
+        -:  324:    VECTOR2I GetCenter() const override { return GetBoundingBox( false ).GetCenter(); }
+        -:  325:
+        -:  326:    std::deque<PAD*>& Pads()               { return m_pads; }
+    #####:  327:    const std::deque<PAD*>& Pads() const   { return m_pads; }
+        -:  328:
+        -:  329:    DRAWINGS& GraphicalItems()             { return m_drawings; }
+    #####:  330:    const DRAWINGS& GraphicalItems() const { return m_drawings; }
+        -:  331:
+        -:  332:    ZONES& Zones()                         { return m_zones; }
+    #####:  333:    const ZONES& Zones() const             { return m_zones; }
+        -:  334:
+        -:  335:    GROUPS& Groups()                       { return m_groups; }
+    #####:  336:    const GROUPS& Groups() const           { return m_groups; }
+        -:  337:
+        -:  338:    PCB_POINTS& Points()                   { return m_points; }
+    #####:  339:    const PCB_POINTS& Points() const       { return m_points; }
+        -:  340:
+        -:  341:    bool HasThroughHolePads() const;
+        -:  342:
+        -:  343:    std::vector<FP_3DMODEL>& Models()             { return m_3D_Drawings; }
+    #####:  344:    const std::vector<FP_3DMODEL>& Models() const { return m_3D_Drawings; }
+        -:  345:
+        -:  346:    void     SetPosition( const VECTOR2I& aPos ) override;
+        -:  347:    VECTOR2I GetPosition() const override { return m_pos; }
+        -:  348:
+        -:  349:    void SetOrientation( const EDA_ANGLE& aNewAngle );
+    #####:  350:    EDA_ANGLE GetOrientation() const { return m_orient; }
+        -:  351:
+        -:  352:    /**
+        -:  353:     * Used as Layer property setter -- performs a flip if necessary to set the footprint layer
+        -:  354:     * @param aLayer is the target layer (F_Cu or B_Cu)
+        -:  355:     */
+        -:  356:    void SetLayerAndFlip( PCB_LAYER_ID aLayer );
+        -:  357:
+        -:  358:    // to make property magic work
+        -:  359:    PCB_LAYER_ID GetLayer() const override { return BOARD_ITEM::GetLayer(); }
+        -:  360:
+        -:  361:    // For property system:
+        -:  362:    void SetOrientationDegrees( double aOrientation )
+        -:  363:    {
+        -:  364:        SetOrientation( EDA_ANGLE( aOrientation, DEGREES_T ) );
+        -:  365:    }
+        -:  366:    double GetOrientationDegrees() const
+        -:  367:    {
+        -:  368:        return m_orient.AsDegrees();
+        -:  369:    }
+        -:  370:
+    #####:  371:    const LIB_ID& GetFPID() const { return m_fpid; }
+    #####:  372:    void          SetFPID( const LIB_ID& aFPID )
+        -:  373:    {
+    #####:  374:        m_fpid = aFPID;
+    #####:  375:    }
+        -:  376:
+        -:  377:    wxString GetFPIDAsString() const { return m_fpid.Format(); }
+        -:  378:    void SetFPIDAsString( const wxString& aFPID ) { m_fpid.Parse( aFPID ); }
+        -:  379:
+        -:  380:    // LIB_TREE_ITEM interface
+        -:  381:    LIB_ID GetLIB_ID() const override { return m_fpid; }
+        -:  382:    wxString GetName() const override { return m_fpid.GetLibItemName(); }
+        -:  383:    wxString GetLibNickname() const override { return m_fpid.GetLibNickname(); }
+        -:  384:    wxString GetDesc() override { return GetLibDescription(); }
+        -:  385:    int GetPinCount() override { return static_cast<int>( GetUniquePadCount( DO_NOT_INCLUDE_NPTH ) ); }
+        -:  386:    std::vector<SEARCH_TERM>& GetSearchTerms() override;
+        -:  387:
+    #####:  388:    wxString GetLibDescription() const { return m_libDescription; }
+        -:  389:    void     SetLibDescription( const wxString& aDesc ) { m_libDescription = aDesc; }
+        -:  390:
+    #####:  391:    wxString GetKeywords() const { return m_keywords; }
+        -:  392:    void SetKeywords( const wxString& aKeywords ) { m_keywords = aKeywords; }
+        -:  393:
+    #####:  394:    const KIID_PATH& GetPath() const { return m_path; }
+        -:  395:    void SetPath( const KIID_PATH& aPath ) { m_path = aPath; }
+        -:  396:
+    #####:  397:    wxString GetSheetname() const { return m_sheetname; }
+        -:  398:    void SetSheetname( const wxString& aSheetname ) { m_sheetname = aSheetname; }
+        -:  399:
+    #####:  400:    wxString GetSheetfile() const { return m_sheetfile; }
+        -:  401:    void SetSheetfile( const wxString& aSheetfile ) { m_sheetfile = aSheetfile; }
+        -:  402:
+    #####:  403:    wxString GetFilters() const { return m_filters; }
+        -:  404:    void SetFilters( const wxString& aFilters ) { m_filters = aFilters; }
+        -:  405:
+    #####:  406:    std::optional<int> GetLocalClearance() const                 { return m_clearance; }
+        -:  407:    void SetLocalClearance( std::optional<int> aClearance )      { m_clearance = aClearance; }
+        -:  408:
+    #####:  409:    std::optional<int> GetLocalSolderMaskMargin() const          { return m_solderMaskMargin; }
+        -:  410:    void SetLocalSolderMaskMargin( std::optional<int> aMargin )  { m_solderMaskMargin = aMargin; }
+        -:  411:
+    #####:  412:    std::optional<int> GetLocalSolderPasteMargin() const         { return m_solderPasteMargin; }
+        -:  413:    void SetLocalSolderPasteMargin( std::optional<int> aMargin ) { m_solderPasteMargin = aMargin; }
+        -:  414:
+    #####:  415:    std::optional<double> GetLocalSolderPasteMarginRatio() const { return m_solderPasteMarginRatio; }
+        -:  416:    void SetLocalSolderPasteMarginRatio( std::optional<double> aRatio ) { m_solderPasteMarginRatio = aRatio; }
+        -:  417:
+        -:  418:    void SetLocalZoneConnection( ZONE_CONNECTION aType ) { m_zoneConnection = aType; }
+    #####:  419:    ZONE_CONNECTION GetLocalZoneConnection() const { return m_zoneConnection; }
+        -:  420:
+        -:  421:    /**
+        -:  422:     * Set the stackup mode for this footprint.
+        -:  423:     *
+        -:  424:     * This determines if the footprint lists its own layers or uses a default stackup,
+        -:  425:     * with "expansion" of inner layers to the PCB's inner layers.
+        -:  426:     */
+        -:  427:    void SetStackupMode( FOOTPRINT_STACKUP aMode );
+    #####:  428:    FOOTPRINT_STACKUP GetStackupMode() const { return m_stackupMode; }
+        -:  429:
+        -:  430:    /**
+        -:  431:     * If the footprint has a non-default stackup, set the layers that
+        -:  432:     * should be used for the stackup.
+        -:  433:     */
+        -:  434:    void SetStackupLayers( LSET aLayers );
+    #####:  435:    const LSET& GetStackupLayers() const { return m_stackupLayers; }
+        -:  436:
+    #####:  437:    int GetAttributes() const { return m_attributes; }
+        -:  438:    void SetAttributes( int aAttributes ) { m_attributes = aAttributes; }
+        -:  439:
+    #####:  440:    bool AllowMissingCourtyard() const { return m_allowMissingCourtyard; }
+        -:  441:    void SetAllowMissingCourtyard( bool aAllow ) { m_allowMissingCourtyard = aAllow; }
+        -:  442:
+    #####:  443:    bool AllowSolderMaskBridges() const { return m_allowSolderMaskBridges; }
+        -:  444:    void SetAllowSolderMaskBridges( bool aAllow ) { m_allowSolderMaskBridges = aAllow; }
+        -:  445:
+        -:  446:    void SetFlag( int aFlag ) { m_arflag = aFlag; }
+        -:  447:    void IncrementFlag() { m_arflag += 1; }
+        -:  448:    int GetFlag() const { return m_arflag; }
+        -:  449:
+    #####:  450:    bool IsNetTie() const
+        -:  451:    {
+    #####:  452:        for( const wxString& group : m_netTiePadGroups )
+        -:  453:        {
+    #####:  454:            if( !group.IsEmpty() )
+    #####:  455:                return true;
+        -:  456:        }
+        -:  457:
+    #####:  458:        return false;
+        -:  459:    }
+        -:  460:
+        -:  461:    std::optional<int> GetLocalClearance( wxString* aSource ) const
+        -:  462:    {
+        -:  463:        if( m_clearance.has_value() && aSource )
+        -:  464:            *aSource = wxString::Format( _( "footprint %s" ), GetReference() );
+        -:  465:
+        -:  466:        return m_clearance;
+        -:  467:    }
+        -:  468:
+        -:  469:    /**
+        -:  470:     * Return any local clearance overrides set in the "classic" (ie: pre-rule) system.
+        -:  471:     *
+        -:  472:     * @param aSource [out] optionally reports the source as a user-readable string.
+        -:  473:     * @return the clearance in internal units.
+        -:  474:     */
+        -:  475:    std::optional<int> GetClearanceOverrides( wxString* aSource ) const
+        -:  476:    {
+        -:  477:        return GetLocalClearance( aSource );
+        -:  478:    }
+        -:  479:
+        -:  480:    ZONE_CONNECTION GetZoneConnectionOverrides( wxString* aSource ) const
+        -:  481:    {
+        -:  482:        if( m_zoneConnection != ZONE_CONNECTION::INHERITED && aSource )
+        -:  483:            *aSource = wxString::Format( _( "footprint %s" ), GetReference() );
+        -:  484:
+        -:  485:        return m_zoneConnection;
+        -:  486:    }
+        -:  487:
+        -:  488:    /**
+        -:  489:     * @return a list of pad groups, each of which is allowed to short nets within their group.
+        -:  490:     *         A pad group is a comma-separated list of pad numbers.
+        -:  491:     */
+    #####:  492:    const std::vector<wxString>& GetNetTiePadGroups() const { return m_netTiePadGroups; }
+        -:  493:
+        -:  494:    void ClearNetTiePadGroups()
+        -:  495:    {
+        -:  496:        m_netTiePadGroups.clear();
+        -:  497:    }
+        -:  498:
+        -:  499:    void AddNetTiePadGroup( const wxString& aGroup )
+        -:  500:    {
+        -:  501:        m_netTiePadGroups.emplace_back( aGroup );
+        -:  502:    }
+        -:  503:
+        -:  504:    /**
+        -:  505:     * @return a map from pad numbers to net-tie group indices.  If a pad is not a member of
+        -:  506:     *         a net-tie group its index will be -1.
+        -:  507:     */
+        -:  508:    std::map<wxString, int> MapPadNumbersToNetTieGroups() const;
+        -:  509:
+        -:  510:    /**
+        -:  511:     * @return a list of pads that appear in \a aPad's net-tie pad group.
+        -:  512:     */
+        -:  513:    std::vector<PAD*> GetNetTiePads( PAD* aPad ) const;
+        -:  514:
+        -:  515:    /**
+        -:  516:     * Returns the most likely attribute based on pads
+        -:  517:     * Either FP_THROUGH_HOLE/FP_SMD/OTHER(0)
+        -:  518:     * @return 0/FP_SMD/FP_THROUGH_HOLE
+        -:  519:     */
+        -:  520:    int GetLikelyAttribute() const;
+        -:  521:
+        -:  522:    void Move( const VECTOR2I& aMoveVector ) override;
+        -:  523:
+        -:  524:    void Rotate( const VECTOR2I& aRotCentre, const EDA_ANGLE& aAngle ) override;
+        -:  525:
+        -:  526:    void Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection ) override;
+        -:  527:
+        -:  528:    /**
+        -:  529:     * Move the reference point of the footprint.
+        -:  530:     *
+        -:  531:     * It looks like a move footprint:
+        -:  532:     * the footprints elements (pads, outlines, edges .. ) are moved
+        -:  533:     * However:
+        -:  534:     * - the footprint position is not modified.
+        -:  535:     * - the relative (local) coordinates of these items are modified
+        -:  536:     * (a move footprint does not change these local coordinates,
+        -:  537:     * but changes the footprint position)
+        -:  538:     */
+        -:  539:    void MoveAnchorPosition( const VECTOR2I& aMoveVector );
+        -:  540:
+        -:  541:    /**
+        -:  542:     * @return true if the footprint is flipped, i.e. on the back side of the board
+        -:  543:     */
+        -:  544:    bool IsFlipped() const { return GetLayer() == B_Cu; }
+        -:  545:
+        -:  546:    /**
+        -:  547:     * Use instead of IsFlipped() when you also need to account for unsided footprints (those
+        -:  548:     * purely on user-layers, etc.).
+        -:  549:     */
+        -:  550:    PCB_LAYER_ID GetSide() const;
+        -:  551:
+        -:  552:    /**
+        -:  553:     * @copydoc BOARD_ITEM::IsOnLayer
+        -:  554:     */
+        -:  555:    bool IsOnLayer( PCB_LAYER_ID aLayer ) const override;
+        -:  556:
+        -:  557:// m_footprintStatus bits:
+        -:  558:#define FP_is_LOCKED        0x01        ///< footprint LOCKED: no autoplace allowed
+        -:  559:#define FP_is_PLACED        0x02        ///< In autoplace: footprint automatically placed
+        -:  560:#define FP_to_PLACE         0x04        ///< In autoplace: footprint waiting for autoplace
+        -:  561:#define FP_PADS_are_LOCKED  0x08
+        -:  562:
+        -:  563:
+        -:  564:    bool IsLocked() const override
+        -:  565:    {
+        -:  566:        return ( m_fpStatus & FP_is_LOCKED ) != 0;
+        -:  567:    }
+        -:  568:
+        -:  569:    /**
+        -:  570:     * Set the #MODULE_is_LOCKED bit in the m_ModuleStatus.
+        -:  571:     *
+        -:  572:     * @param isLocked true means turn on locked status, else unlock
+        -:  573:     */
+        -:  574:    void SetLocked( bool isLocked ) override
+        -:  575:    {
+        -:  576:        if( isLocked )
+        -:  577:            m_fpStatus |= FP_is_LOCKED;
+        -:  578:        else
+        -:  579:            m_fpStatus &= ~FP_is_LOCKED;
+        -:  580:    }
+        -:  581:
+        -:  582:    /**
+        -:  583:     * @return true if the footprint is flagged with conflicting with some item
+        -:  584:     */
+        -:  585:    bool IsConflicting() const;
+        -:  586:
+    #####:  587:    bool IsPlaced() const { return m_fpStatus & FP_is_PLACED;  }
+        -:  588:    void SetIsPlaced( bool isPlaced )
+        -:  589:    {
+        -:  590:        if( isPlaced )
+        -:  591:            m_fpStatus |= FP_is_PLACED;
+        -:  592:        else
+        -:  593:            m_fpStatus &= ~FP_is_PLACED;
+        -:  594:    }
+        -:  595:
+        -:  596:    bool NeedsPlaced() const { return m_fpStatus & FP_to_PLACE;  }
+        -:  597:    void SetNeedsPlaced( bool needsPlaced )
+        -:  598:    {
+        -:  599:        if( needsPlaced )
+        -:  600:            m_fpStatus |= FP_to_PLACE;
+        -:  601:        else
+        -:  602:            m_fpStatus &= ~FP_to_PLACE;
+        -:  603:    }
+        -:  604:
+        -:  605:    bool LegacyPadsLocked() const { return m_fpStatus & FP_PADS_are_LOCKED;  }
+        -:  606:
+        -:  607:    /**
+        -:  608:     * Test if footprint attributes for type (SMD/Through hole/Other) match the expected
+        -:  609:     * type based on the pads in the footprint.
+        -:  610:     * Footprints with plated through-hole pads should usually be marked through hole even if they
+        -:  611:     * also have SMD because they might not be auto-placed.  Exceptions to this might be shielded
+        -:  612:     * connectors.  Otherwise, footprints with SMD pads should be marked SMD.
+        -:  613:     * Footprints with no connecting pads should be marked "Other"
+        -:  614:     *
+        -:  615:     * @param aErrorHandler callback to handle the error messages generated
+        -:  616:     */
+        -:  617:    void CheckFootprintAttributes( const std::function<void( const wxString& )>& aErrorHandler );
+        -:  618:
+        -:  619:    /**
+        -:  620:     * Run non-board-specific DRC checks on footprint's pads.  These are the checks supported by
+        -:  621:     * both the PCB DRC and the Footprint Editor Footprint Checker.
+        -:  622:     *
+        -:  623:     * @param aErrorHandler callback to handle the error messages generated
+        -:  624:     */
+        -:  625:    void CheckPads( UNITS_PROVIDER* aUnitsProvider,
+        -:  626:                    const std::function<void( const PAD*, int, const wxString& )>& aErrorHandler );
+        -:  627:
+        -:  628:    /**
+        -:  629:     * Check for overlapping, different-numbered, non-net-tie pads.
+        -:  630:     *
+        -:  631:     * @param aErrorHandler callback to handle the error messages generated
+        -:  632:     */
+        -:  633:    void CheckShortingPads( const std::function<void( const PAD*, const PAD*, int aErrorCode,
+        -:  634:                                                      const VECTOR2I& )>& aErrorHandler );
+        -:  635:
+        -:  636:    /**
+        -:  637:     * Check for un-allowed shorting of pads in net-tie footprints.  If two pads are shorted,
+        -:  638:     * they must both appear in one of the allowed-shorting lists.
+        -:  639:     *
+        -:  640:     * @param aErrorHandler callback to handle the error messages generated
+        -:  641:     */
+        -:  642:    void CheckNetTies( const std::function<void( const BOARD_ITEM* aItem,
+        -:  643:                                                 const BOARD_ITEM* bItem,
+        -:  644:                                                 const BOARD_ITEM* cItem,
+        -:  645:                                                 const VECTOR2I& )>& aErrorHandler );
+        -:  646:
+        -:  647:    /**
+        -:  648:     * Sanity check net-tie pad groups.  Pads cannot be listed more than once, and pad numbers
+        -:  649:     * must correspond to a pad.
+        -:  650:     *
+        -:  651:     * @param aErrorHandler callback to handle the error messages generated
+        -:  652:     */
+        -:  653:    void CheckNetTiePadGroups( const std::function<void( const wxString& )>& aErrorHandler );
+        -:  654:
+        -:  655:    void CheckClippedSilk( const std::function<void( BOARD_ITEM* aItemA,
+        -:  656:                                                     BOARD_ITEM* aItemB,
+        -:  657:                                                     const VECTOR2I& aPt )>& aErrorHandler );
+        -:  658:    /**
+        -:  659:     * Cache the pads that are allowed to connect to each other in the footprint.
+        -:  660:     */
+        -:  661:    void BuildNetTieCache();
+        -:  662:
+        -:  663:    /**
+        -:  664:     * Get the set of net codes that are allowed to connect to a footprint item
+        -:  665:     */
+        -:  666:    const std::set<int>& GetNetTieCache( const BOARD_ITEM* aItem ) const
+        -:  667:    {
+        -:  668:        static const std::set<int> emptySet;
+        -:  669:
+        -:  670:        auto it = m_netTieCache.find( aItem );
+        -:  671:
+        -:  672:        if( it == m_netTieCache.end() )
+        -:  673:            return emptySet;
+        -:  674:
+        -:  675:        return it->second;
+        -:  676:    }
+        -:  677:
+        -:  678:    /**
+        -:  679:     * Generate pads shapes on layer \a aLayer as polygons and adds these polygons to
+        -:  680:     * \a aBuffer.
+        -:  681:     *
+        -:  682:     * Useful to generate a polygonal representation of a footprint in 3D view and plot functions,
+        -:  683:     * when a full polygonal approach is needed.
+        -:  684:     *
+        -:  685:     * @param aLayer is the layer to consider, or #UNDEFINED_LAYER to consider all layers.
+        -:  686:     * @param aBuffer i the buffer to store polygons.
+        -:  687:     * @param aClearance is an additional size to add to pad shapes.
+        -:  688:     * @param aMaxError is the maximum deviation from true for arcs.
+        -:  689:     */
+        -:  690:    void TransformPadsToPolySet( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer, int aClearance,
+        -:  691:                                 int aMaxError, ERROR_LOC aErrorLoc ) const;
+        -:  692:
+        -:  693:    /**
+        -:  694:     * Generate shapes of graphic items (outlines) on layer \a aLayer as polygons and adds these
+        -:  695:     * polygons to \a aBuffer.
+        -:  696:     *
+        -:  697:     * Useful to generate a polygonal representation of a footprint in 3D view and plot functions,
+        -:  698:     * when a full polygonal approach is needed.
+        -:  699:     *
+        -:  700:     * @param aLayer is the layer to consider, or #UNDEFINED_LAYER to consider all.
+        -:  701:     * @param aBuffer is the buffer to store polygons.
+        -:  702:     * @param aClearance is a value to inflate shapes.
+        -:  703:     * @param aError is the maximum error between true arc and polygon approximation.
+        -:  704:     * @param aIncludeText set to true to transform text shapes.
+        -:  705:     * @param aIncludeShapes set to true to transform footprint shapes.
+        -:  706:     */
+        -:  707:    void TransformFPShapesToPolySet( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer, int aClearance,
+        -:  708:                                     int aError, ERROR_LOC aErrorLoc,
+        -:  709:                                     bool aIncludeText = true,
+        -:  710:                                     bool aIncludeShapes = true,
+        -:  711:                                     bool aIncludePrivateItems = false ) const;
+        -:  712:
+        -:  713:    /**
+        -:  714:     * This function is the same as TransformFPShapesToPolySet but only generates text.
+        -:  715:     */
+        -:  716:    void TransformFPTextToPolySet( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer, int aClearance,
+        -:  717:                                   int aError, ERROR_LOC aErrorLoc ) const
+        -:  718:    {
+        -:  719:        TransformFPShapesToPolySet( aBuffer, aLayer, aClearance, aError, aErrorLoc, true, false );
+        -:  720:    }
+        -:  721:
+        -:  722:    /**
+        -:  723:     * Return the list of system text vars for this footprint.
+        -:  724:     */
+        -:  725:    void GetContextualTextVars( wxArrayString* aVars ) const;
+        -:  726:
+        -:  727:    /**
+        -:  728:     * Resolve any references to system tokens supported by the component.
+        -:  729:     *
+        -:  730:     * @param aDepth a counter to limit recursion and circular references.
+        -:  731:     */
+        -:  732:    bool ResolveTextVar( wxString* token, int aDepth = 0 ) const;
+        -:  733:
+        -:  734:    /// @copydoc EDA_ITEM::GetMsgPanelInfo
+        -:  735:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:  736:
+        -:  737:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  738:
+        -:  739:    bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const override;
+        -:  740:
+        -:  741:    /**
+        -:  742:     * Test if a point is inside the bounding polygon of the footprint.
+        -:  743:     *
+        -:  744:     * The other hit test methods are just checking the bounding box, which can be quite
+        -:  745:     * inaccurate for rotated or oddly-shaped footprints.
+        -:  746:     *
+        -:  747:     * @param aPosition is the point to test
+        -:  748:     * @return true if aPosition is inside the bounding polygon
+        -:  749:     */
+        -:  750:    bool HitTestAccurate( const VECTOR2I& aPosition, int aAccuracy = 0 ) const;
+        -:  751:
+        -:  752:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  753:
+        -:  754:    bool HitTest( const SHAPE_LINE_CHAIN& aPoly, bool aContained ) const override;
+        -:  755:
+        -:  756:    /**
+        -:  757:     * Test if the point hits one or more of the footprint elements on a given layer.
+        -:  758:     *
+        -:  759:     * @param aPosition is the point to test
+        -:  760:     * @param aAccuracy is the hit test accuracy
+        -:  761:     * @param aLayer is the layer to test
+        -:  762:     * @return true if aPosition hits a footprint element on aLayer
+        -:  763:     */
+        -:  764:    bool HitTestOnLayer( const VECTOR2I& aPosition, PCB_LAYER_ID aLayer, int aAccuracy = 0 ) const;
+        -:  765:
+        -:  766:    bool HitTestOnLayer( const BOX2I& aRect, bool aContained, PCB_LAYER_ID aLayer, int aAccuracy = 0 ) const;
+        -:  767:
+        -:  768:    /**
+        -:  769:     * @return reference designator text.
+        -:  770:     */
+        -:  771:    const wxString& GetReference() const { return Reference().GetText(); }
+        -:  772:
+        -:  773:    /**
+        -:  774:     * @param aReference A reference to a wxString object containing the reference designator
+        -:  775:     *                   text.
+        -:  776:     */
+        -:  777:    void SetReference( const wxString& aReference ) { Reference().SetText( aReference ); }
+        -:  778:
+        -:  779:    // Property system doesn't like const references
+        -:  780:    wxString GetReferenceAsString() const
+        -:  781:    {
+        -:  782:        return GetReference();
+        -:  783:    }
+        -:  784:
+        -:  785:    /**
+        -:  786:     * Bump the current reference by \a aDelta.
+        -:  787:     */
+        -:  788:    void IncrementReference( int aDelta );
+        -:  789:
+        -:  790:    /**
+        -:  791:     * @return the value text.
+        -:  792:     */
+        -:  793:    const wxString& GetValue() const { return Value().GetText(); }
+        -:  794:
+        -:  795:    /**
+        -:  796:     * @param aValue A reference to a wxString object containing the value text.
+        -:  797:     */
+        -:  798:    void SetValue( const wxString& aValue ) { Value().SetText( aValue ); }
+        -:  799:
+        -:  800:    // Property system doesn't like const references
+        -:  801:    wxString GetValueAsString() const
+        -:  802:    {
+        -:  803:        return GetValue();
+        -:  804:    }
+        -:  805:
+        -:  806:    /// read/write accessors:
+        -:  807:    PCB_FIELD& Value()           { return *GetField( FIELD_T::VALUE ); }
+        -:  808:    PCB_FIELD& Reference()       { return *GetField( FIELD_T::REFERENCE ); }
+        -:  809:
+        -:  810:    /// The const versions to keep the compiler happy.
+    #####:  811:    const PCB_FIELD& Value() const     { return *GetField( FIELD_T::VALUE ); }
+    #####:  812:    const PCB_FIELD& Reference() const { return *GetField( FIELD_T::REFERENCE ); }
+        -:  813:
+        -:  814:    //-----<Fields>-----------------------------------------------------------
+        -:  815:
+        -:  816:    /**
+        -:  817:     * Return a mandatory field in this footprint.  The const version will return nullptr if
+        -:  818:     * the field doesn't exist; the non-const version will create the field and return it.
+        -:  819:     */
+        -:  820:    PCB_FIELD*       GetField( FIELD_T aFieldType );
+        -:  821:    const PCB_FIELD* GetField( FIELD_T aFieldNdx ) const;
+        -:  822:
+        -:  823:    /**
+        -:  824:     * Return a field in this symbol.
+        -:  825:     *
+        -:  826:     * @param aFieldName is the name of the field
+        -:  827:     *
+        -:  828:     * @return is the field with \a aFieldName or NULL if the field does not exist.
+        -:  829:     */
+        -:  830:    PCB_FIELD* GetField( const wxString& aFieldName ) const;
+        -:  831:
+        -:  832:    bool HasField( const wxString& aFieldName ) const;
+        -:  833:
+        -:  834:    /**
+        -:  835:     * Populate a std::vector with PCB_TEXTs.
+        -:  836:     *
+        -:  837:     * @param aVector is the vector to populate.
+        -:  838:     * @param aVisibleOnly is used to add only the fields that are visible and contain text.
+        -:  839:     */
+        -:  840:    void GetFields( std::vector<PCB_FIELD*>& aVector, bool aVisibleOnly ) const;
+        -:  841:
+        -:  842:    /**
+        -:  843:     * Return a reference to the deque holding the footprint's fields
+        -:  844:     */
+    #####:  845:    const std::deque<PCB_FIELD*>& GetFields() const { return m_fields; }
+        -:  846:    std::deque<PCB_FIELD*>& GetFields() { return m_fields; }
+        -:  847:
+        -:  848:    /**
+        -:  849:     * Return the next ordinal for a user field for this footprint
+        -:  850:     */
+        -:  851:    int GetNextFieldOrdinal() const;
+        -:  852:
+        -:  853:    /**
+        -:  854:     * @brief Apply default board settings to the footprint field text properties.
+        -:  855:     *
+        -:  856:     * This is needed because the board settings are not available when the footprint is
+        -:  857:     * being created in the footprint library cache, and we want these fields to have
+        -:  858:     * the correct default text properties.
+        -:  859:     */
+        -:  860:    void ApplyDefaultSettings( const BOARD& board, bool aStyleFields, bool aStyleText,
+        -:  861:                               bool aStyleShapes, bool aStyleDimensions, bool aStyleBarcodes );
+        -:  862:
+        -:  863:    struct FP_UNIT_INFO
+        -:  864:    {
+        -:  865:        wxString              m_unitName; // e.g. A
+        -:  866:        std::vector<wxString> m_pins;     // pin numbers in this unit
+        -:  867:    };
+        -:  868:
+        -:  869:    void                             SetUnitInfo( const std::vector<FP_UNIT_INFO>& aUnits ) { m_unitInfo = aUnits; }
+    #####:  870:    const std::vector<FP_UNIT_INFO>& GetUnitInfo() const { return m_unitInfo; }
+        -:  871:
+        -:  872:    bool IsBoardOnly() const { return m_attributes & FP_BOARD_ONLY; }
+        -:  873:    void SetBoardOnly( bool aIsBoardOnly = true )
+        -:  874:    {
+        -:  875:        if( aIsBoardOnly )
+        -:  876:            m_attributes |= FP_BOARD_ONLY;
+        -:  877:        else
+        -:  878:            m_attributes &= ~FP_BOARD_ONLY;
+        -:  879:    }
+        -:  880:
+    #####:  881:    bool IsExcludedFromPosFiles() const { return m_attributes & FP_EXCLUDE_FROM_POS_FILES; }
+        -:  882:    void SetExcludedFromPosFiles( bool aExclude = true )
+        -:  883:    {
+        -:  884:        if( aExclude )
+        -:  885:            m_attributes |= FP_EXCLUDE_FROM_POS_FILES;
+        -:  886:        else
+        -:  887:            m_attributes &= ~FP_EXCLUDE_FROM_POS_FILES;
+        -:  888:    }
+        -:  889:
+    #####:  890:    bool IsExcludedFromBOM() const { return m_attributes & FP_EXCLUDE_FROM_BOM; }
+        -:  891:    void SetExcludedFromBOM( bool aExclude = true )
+        -:  892:    {
+        -:  893:        if( aExclude )
+        -:  894:            m_attributes |= FP_EXCLUDE_FROM_BOM;
+        -:  895:        else
+        -:  896:            m_attributes &= ~FP_EXCLUDE_FROM_BOM;
+        -:  897:    }
+        -:  898:
+    #####:  899:    bool IsDNP() const { return m_attributes & FP_DNP; }
+        -:  900:    void SetDNP( bool aDNP = true )
+        -:  901:    {
+        -:  902:        if( aDNP )
+        -:  903:            m_attributes |= FP_DNP;
+        -:  904:        else
+        -:  905:            m_attributes &= ~FP_DNP;
+        -:  906:    }
+        -:  907:
+        -:  908:    // =====================================================================
+        -:  909:    // Variant Support
+        -:  910:    // =====================================================================
+        -:  911:
+        -:  912:    /**
+        -:  913:     * Get a variant by name.
+        -:  914:     * @param aVariantName The name of the variant.
+        -:  915:     * @return Pointer to the variant, or nullptr if not found.
+        -:  916:     */
+        -:  917:    const FOOTPRINT_VARIANT* GetVariant( const wxString& aVariantName ) const;
+        -:  918:
+        -:  919:    /**
+        -:  920:     * Get a mutable variant by name.
+        -:  921:     * @param aVariantName The name of the variant.
+        -:  922:     * @return Pointer to the variant, or nullptr if not found.
+        -:  923:     */
+        -:  924:    FOOTPRINT_VARIANT* GetVariant( const wxString& aVariantName );
+        -:  925:
+        -:  926:    /**
+        -:  927:     * Add or update a variant.
+        -:  928:     * @param aVariant The variant to add or update.
+        -:  929:     */
+        -:  930:    void SetVariant( const FOOTPRINT_VARIANT& aVariant );
+        -:  931:
+        -:  932:    /**
+        -:  933:     * Add a new variant with the given name.
+        -:  934:     * @param aVariantName The name of the variant to add.
+        -:  935:     * @return Reference to the newly created variant.
+        -:  936:     */
+        -:  937:    FOOTPRINT_VARIANT* AddVariant( const wxString& aVariantName );
+        -:  938:
+        -:  939:    /**
+        -:  940:     * Delete a variant by name.
+        -:  941:     * @param aVariantName The name of the variant to delete.
+        -:  942:     */
+        -:  943:    void DeleteVariant( const wxString& aVariantName );
+        -:  944:
+        -:  945:    /**
+        -:  946:     * Rename a variant.
+        -:  947:     * @param aOldName The current name of the variant.
+        -:  948:     * @param aNewName The new name for the variant.
+        -:  949:     */
+        -:  950:    void RenameVariant( const wxString& aOldName, const wxString& aNewName );
+        -:  951:
+        -:  952:    /**
+        -:  953:     * Check if a variant exists.
+        -:  954:     * @param aVariantName The name of the variant.
+        -:  955:     * @return true if the variant exists.
+        -:  956:     */
+        -:  957:    bool HasVariant( const wxString& aVariantName ) const;
+        -:  958:
+        -:  959:    /**
+        -:  960:     * Get all variants.
+        -:  961:     * @return Map of variant name to variant data.
+        -:  962:     */
+    #####:  963:    const CASE_INSENSITIVE_MAP<FOOTPRINT_VARIANT>& GetVariants() const { return m_variants; }
+        -:  964:
+        -:  965:    /**
+        -:  966:     * Get the DNP status for a specific variant.
+        -:  967:     *
+        -:  968:     * If the variant doesn't exist, returns the default DNP status.
+        -:  969:     *
+        -:  970:     * @param aVariantName The variant name (empty for default).
+        -:  971:     * @return true if DNP is set for the specified variant.
+        -:  972:     */
+        -:  973:    bool GetDNPForVariant( const wxString& aVariantName ) const;
+        -:  974:
+        -:  975:    /**
+        -:  976:     * Get the exclude-from-BOM status for a specific variant.
+        -:  977:     *
+        -:  978:     * If the variant doesn't exist, returns the default exclude-from-BOM status.
+        -:  979:     *
+        -:  980:     * @param aVariantName The variant name (empty for default).
+        -:  981:     * @return true if excluded from BOM for the specified variant.
+        -:  982:     */
+        -:  983:    bool GetExcludedFromBOMForVariant( const wxString& aVariantName ) const;
+        -:  984:
+        -:  985:    /**
+        -:  986:     * Get the exclude-from-position-files status for a specific variant.
+        -:  987:     *
+        -:  988:     * If the variant doesn't exist, returns the default exclude-from-position-files status.
+        -:  989:     *
+        -:  990:     * @param aVariantName The variant name (empty for default).
+        -:  991:     * @return true if excluded from position files for the specified variant.
+        -:  992:     */
+        -:  993:    bool GetExcludedFromPosFilesForVariant( const wxString& aVariantName ) const;
+        -:  994:
+        -:  995:    /**
+        -:  996:     * Get a field value for a specific variant.
+        -:  997:     *
+        -:  998:     * If the variant doesn't exist or doesn't override the field, returns the default field value.
+        -:  999:     *
+        -: 1000:     * @param aVariantName The variant name (empty for default).
+        -: 1001:     * @param aFieldName The field name.
+        -: 1002:     * @return The field value for the specified variant.
+        -: 1003:     */
+        -: 1004:    wxString GetFieldValueForVariant( const wxString& aVariantName, const wxString& aFieldName ) const;
+        -: 1005:
+        -: 1006:    void SetFileFormatVersionAtLoad( int aVersion ) { m_fileFormatVersionAtLoad = aVersion; }
+        -: 1007:    int GetFileFormatVersionAtLoad() const { return m_fileFormatVersionAtLoad; }
+        -: 1008:
+        -: 1009:    /**
+        -: 1010:     * Return a #PAD with a matching number.
+        -: 1011:     *
+        -: 1012:     * @note Numbers may not be unique depending on how the footprint was created.
+        -: 1013:     *
+        -: 1014:     * @param aPadNumber the pad number to find.
+        -: 1015:     * @param aSearchAfterMe = not nullptr to find a pad living after aAfterMe
+        -: 1016:     * @return the first matching numbered #PAD is returned or NULL if not found.
+        -: 1017:     */
+        -: 1018:    PAD* FindPadByNumber( const wxString& aPadNumber, PAD* aSearchAfterMe = nullptr ) const;
+        -: 1019:
+        -: 1020:    /**
+        -: 1021:     * Get a pad at \a aPosition on \a aLayerMask in the footprint.
+        -: 1022:     *
+        -: 1023:     * @param aPosition A VECTOR2I object containing the position to hit test.
+        -: 1024:     * @param aLayerMask A layer or layers to mask the hit test.
+        -: 1025:     * @return A pointer to a #PAD object if found otherwise NULL.
+        -: 1026:     */
+        -: 1027:    PAD* GetPad( const VECTOR2I& aPosition, const LSET& aLayerMask = LSET::AllLayersMask() );
+        -: 1028:
+        -: 1029:    std::vector<const PAD*> GetPads( const wxString& aPadNumber, const PAD* aIgnore = nullptr ) const;
+        -: 1030:
+        -: 1031:    /**
+        -: 1032:     * Return the number of pads.
+        -: 1033:     *
+        -: 1034:     * @param aIncludeNPTH includes non-plated through holes when true.  Does not include
+        -: 1035:     *                     non-plated through holes when false.
+        -: 1036:     * @return the number of pads according to \a aIncludeNPTH.
+        -: 1037:     */
+        -: 1038:    unsigned GetPadCount( INCLUDE_NPTH_T aIncludeNPTH = INCLUDE_NPTH_T(INCLUDE_NPTH) ) const;
+        -: 1039:
+        -: 1040:    /**
+        -: 1041:     * Return the number of unique non-blank pads.
+        -: 1042:     *
+        -: 1043:     * A complex pad can be built with many pads having the same pad name to create a complex
+        -: 1044:     * shape or fragmented solder paste areas.
+        -: 1045:     *
+        -: 1046:     * @param aIncludeNPTH includes non-plated through holes when true.  Does not include
+        -: 1047:     *                     non-plated through holes when false.
+        -: 1048:     * @return the number of unique pads according to \a aIncludeNPTH.
+        -: 1049:     */
+        -: 1050:    unsigned GetUniquePadCount( INCLUDE_NPTH_T aIncludeNPTH = INCLUDE_NPTH_T(INCLUDE_NPTH) ) const;
+        -: 1051:
+        -: 1052:    /**
+        -: 1053:     * Return the names of the unique, non-blank pads.
+        -: 1054:     */
+        -: 1055:    std::set<wxString>
+        -: 1056:    GetUniquePadNumbers( INCLUDE_NPTH_T aIncludeNPTH = INCLUDE_NPTH_T(INCLUDE_NPTH) ) const;
+        -: 1057:
+        -: 1058:    /**
+        -: 1059:     * Return the next available pad number in the footprint.
+        -: 1060:     *
+        -: 1061:     * @param aFillSequenceGaps true if the numbering should "fill in" gaps in the sequence,
+        -: 1062:     *                          else return the highest value + 1
+        -: 1063:     * @return the next available pad number
+        -: 1064:     */
+        -: 1065:    wxString GetNextPadNumber( const wxString& aLastPadName ) const;
+        -: 1066:
+    #####: 1067:    bool GetDuplicatePadNumbersAreJumpers() const { return m_duplicatePadNumbersAreJumpers; }
+        -: 1068:    void SetDuplicatePadNumbersAreJumpers( bool aEnabled ) { m_duplicatePadNumbersAreJumpers = aEnabled; }
+        -: 1069:
+        -: 1070:    /**
+        -: 1071:     * Each jumper pad group is a set of pad numbers that should be treated as internally connected.
+        -: 1072:     * @return The list of jumper pad groups in this footprint
+        -: 1073:     */
+        -: 1074:    std::vector<std::set<wxString>>& JumperPadGroups() { return m_jumperPadGroups; }
+    #####: 1075:    const std::vector<std::set<wxString>>& JumperPadGroups() const { return m_jumperPadGroups; }
+        -: 1076:
+        -: 1077:    /// Retrieves the jumper group containing the specified pad number, if one exists
+        -: 1078:    std::optional<const std::set<wxString>> GetJumperPadGroup( const wxString& aPadNumber ) const;
+        -: 1079:
+        -: 1080:    /**
+        -: 1081:     * Position Reference and Value fields at the top and bottom of footprint's bounding box.
+        -: 1082:     */
+        -: 1083:    void AutoPositionFields();
+        -: 1084:
+        -: 1085:    /**
+        -: 1086:     * Get the type of footprint
+        -: 1087:     * @return "SMD"/"Through hole"/"Other" based on attributes
+        -: 1088:     */
+        -: 1089:    wxString GetTypeName() const;
+        -: 1090:
+        -: 1091:    double GetArea( int aPadding = 0 ) const;
+        -: 1092:
+        -: 1093:    KIID GetLink() const { return m_link; }
+        -: 1094:    void SetLink( const KIID& aLink ) { m_link = aLink; }
+        -: 1095:
+        -: 1096:    BOARD_ITEM* Duplicate( bool addToParentGroup, BOARD_COMMIT* aCommit = nullptr ) const override;
+        -: 1097:
+        -: 1098:    /**
+        -: 1099:     * Duplicate a given item within the footprint, optionally adding it to the board.
+        -: 1100:     *
+        -: 1101:     * @return the new item, or NULL if the item could not be duplicated.
+        -: 1102:     */
+        -: 1103:    BOARD_ITEM* DuplicateItem( bool addToParentGroup, BOARD_COMMIT* aCommit, const BOARD_ITEM* aItem,
+        -: 1104:                               bool addToFootprint = false );
+        -: 1105:
+        -: 1106:    /**
+        -: 1107:     * Add \a a3DModel definition to the end of the 3D model list.
+        -: 1108:     *
+        -: 1109:     * @param a3DModel A pointer to a #FP_3DMODEL to add to the list.
+        -: 1110:     */
+        -: 1111:    void Add3DModel( FP_3DMODEL* a3DModel );
+        -: 1112:
+        -: 1113:    INSPECT_RESULT Visit( INSPECTOR inspector, void* testData,
+        -: 1114:                          const std::vector<KICAD_T>& aScanTypes ) override;
+        -: 1115:
+        -: 1116:    wxString GetClass() const override
+        -: 1117:    {
+        -: 1118:        return wxT( "FOOTPRINT" );
+        -: 1119:    }
+        -: 1120:
+        -: 1121:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -: 1122:
+        -: 1123:    wxString DisambiguateItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -: 1124:
+        -: 1125:    BITMAPS GetMenuImage() const override;
+        -: 1126:
+        -: 1127:    EDA_ITEM* Clone() const override;
+        -: 1128:
+        -: 1129:    ///< @copydoc BOARD_ITEM::RunOnChildren
+        -: 1130:    void RunOnChildren( const std::function<void( BOARD_ITEM* )>& aFunction, RECURSE_MODE aMode ) const override;
+        -: 1131:
+        -: 1132:    virtual std::vector<int> ViewGetLayers() const override;
+        -: 1133:
+        -: 1134:    double ViewGetLOD( int aLayer, const KIGFX::VIEW* aView ) const override;
+        -: 1135:
+        -: 1136:    virtual const BOX2I ViewBBox() const override;
+        -: 1137:
+        -: 1138:    /**
+        -: 1139:     * Test for validity of a name of a footprint to be used in a footprint library
+        -: 1140:     * ( no spaces, dir separators ... ).
+        -: 1141:     *
+        -: 1142:     * @param aName is the name in library to validate.
+        -: 1143:     * @return true if the given name is valid
+        -: 1144:     */
+        -: 1145:    static bool IsLibNameValid( const wxString& aName );
+        -: 1146:
+        -: 1147:    /**
+        -: 1148:     * Test for validity of the name in a library of the footprint ( no spaces, dir
+        -: 1149:     * separators ... ).
+        -: 1150:     *
+        -: 1151:     * @param aUserReadable set to false to get the list of invalid characters or  true to get
+        -: 1152:     *                      a readable form (i.e ' ' = 'space' '\\t'= 'tab').
+        -: 1153:     *
+        -: 1154:     * @return the list of invalid chars in the library name.
+        -: 1155:     */
+        -: 1156:    static const wxChar* StringLibNameInvalidChars( bool aUserReadable );
+        -: 1157:
+        -: 1158:    /**
+        -: 1159:     * Return true if a board footprint differs from the library version.
+        -: 1160:     */
+        -: 1161:    bool FootprintNeedsUpdate( const FOOTPRINT* aLibFP, int aCompareFlags = 0,
+        -: 1162:                               REPORTER* aReporter = nullptr );
+        -: 1163:
+        -: 1164:    /**
+        -: 1165:     * Take ownership of caller's heap allocated aInitialComments block.
+        -: 1166:     *
+        -: 1167:     * The comments are single line strings already containing the s-expression comments with
+        -: 1168:     * optional leading whitespace and then a '#' character followed by optional single line
+        -: 1169:     * text (text with no line endings, not even one).  This block of single line comments
+        -: 1170:     * will be output upfront of any generated s-expression text in the PCBIO::Format() function.
+        -: 1171:     *
+        -: 1172:     * @note A block of single line comments constitutes a multiline block of single line
+        -: 1173:     *       comments.  That is, the block is made of consecutive single line comments.
+        -: 1174:     *
+        -: 1175:     * @param aInitialComments is a heap allocated wxArrayString or NULL, which the caller
+        -: 1176:     *                         gives up ownership of over to this FOOTPRINT.
+        -: 1177:     */
+        -: 1178:    void SetInitialComments( wxArrayString* aInitialComments )
+        -: 1179:    {
+        -: 1180:        delete m_initial_comments;
+        -: 1181:        m_initial_comments = aInitialComments;
+        -: 1182:    }
+        -: 1183:
+        -: 1184:    /**
+        -: 1185:     * Calculate the ratio of total area of the footprint pads and graphical items to the
+        -: 1186:     * area of the footprint. Used by selection tool heuristics.
+        -: 1187:     *
+        -: 1188:     * @return the ratio.
+        -: 1189:     */
+        -: 1190:    double CoverageRatio( const GENERAL_COLLECTOR& aCollector ) const;
+        -: 1191:
+        -: 1192:    static double GetCoverageArea( const BOARD_ITEM* aItem, const GENERAL_COLLECTOR& aCollector );
+        -: 1193:
+        -: 1194:    /// Return the initial comments block or NULL if none, without transfer of ownership.
+    #####: 1195:    const wxArrayString* GetInitialComments() const { return m_initial_comments; }
+        -: 1196:
+        -: 1197:    /**
+        -: 1198:     * Used in DRC to test the courtyard area (a complex polygon).
+        -: 1199:     *
+        -: 1200:     * @return the courtyard polygon.
+        -: 1201:     */
+        -: 1202:    const SHAPE_POLY_SET& GetCourtyard( PCB_LAYER_ID aLayer ) const;
+        -: 1203:
+        -: 1204:    /**
+        -: 1205:     * Return the cached courtyard area. No checks are performed.
+        -: 1206:     *
+        -: 1207:     * @return the cached courtyard polygon.
+        -: 1208:     */
+        -: 1209:    const SHAPE_POLY_SET& GetCachedCourtyard( PCB_LAYER_ID aLayer ) const;
+        -: 1210:
+        -: 1211:    /**
+        -: 1212:     * Build complex polygons of the courtyard areas from graphic items on the courtyard layers.
+        -: 1213:     *
+        -: 1214:     * @note Set the #MALFORMED_F_COURTYARD and #MALFORMED_B_COURTYARD status flags if the given
+        -: 1215:     *       courtyard layer does not contain a (single) closed shape.
+        -: 1216:     */
+        -: 1217:    void BuildCourtyardCaches( OUTLINE_ERROR_HANDLER* aErrorHandler = nullptr );
+        -: 1218:
+        -: 1219:    // @copydoc BOARD_ITEM::GetEffectiveShape
+        -: 1220:    std::shared_ptr<SHAPE> GetEffectiveShape( PCB_LAYER_ID aLayer = UNDEFINED_LAYER,
+        -: 1221:                                              FLASHING aFlash = FLASHING::DEFAULT ) const override;
+        -: 1222:
+        -: 1223:    EMBEDDED_FILES* GetEmbeddedFiles() override
+        -: 1224:    {
+        -: 1225:        return static_cast<EMBEDDED_FILES*>( this );
+        -: 1226:    }
+        -: 1227:
+    #####: 1228:    const EMBEDDED_FILES* GetEmbeddedFiles() const
+        -: 1229:    {
+    #####: 1230:        return static_cast<const EMBEDDED_FILES*>( this );
+        -: 1231:    }
+        -: 1232:
+        -: 1233:    /**
+        -: 1234:     * Get a list of outline fonts referenced in the footprint
+        -: 1235:     */
+        -: 1236:    std::set<KIFONT::OUTLINE_FONT*> GetFonts() const override;
+        -: 1237:
+        -: 1238:    void EmbedFonts() override;
+        -: 1239:
+        -: 1240:    double Similarity( const BOARD_ITEM& aOther ) const override;
+        -: 1241:
+        -: 1242:    /// Sets the component class object pointer for this footprint
+        -: 1243:    void SetStaticComponentClass( const COMPONENT_CLASS* aClass ) const;
+        -: 1244:
+        -: 1245:    /// Returns the component class for this footprint
+        -: 1246:    const COMPONENT_CLASS* GetStaticComponentClass() const;
+        -: 1247:
+        -: 1248:    /// Returns the component class for this footprint
+        -: 1249:    const COMPONENT_CLASS* GetComponentClass() const;
+        -: 1250:
+        -: 1251:    /// Used for display in the properties panel
+        -: 1252:    wxString GetComponentClassAsString() const;
+        -: 1253:
+        -: 1254:    /// Forces immediate recalculation of the component class for this footprint
+        -: 1255:    void RecomputeComponentClass() const;
+        -: 1256:
+        -: 1257:    /// Forces deferred (on next access) recalculation of the component class for this footprint
+        -: 1258:    void InvalidateComponentClassCache() const;
+        -: 1259:
+        -: 1260:    /**
+        -: 1261:     * @brief Sets the transient component class names
+        -: 1262:     *
+        -: 1263:     * This is used during paste operations as we can't resolve the component classes immediately
+        -: 1264:     * until we have the true board context once the pasted items have been placed
+        -: 1265:     */
+        -: 1266:    void SetTransientComponentClassNames( const std::unordered_set<wxString>& classNames )
+        -: 1267:    {
+        -: 1268:        m_transientComponentClassNames = classNames;
+        -: 1269:    }
+        -: 1270:
+        -: 1271:    /// Gets the transient component class names
+        -: 1272:    const std::unordered_set<wxString>& GetTransientComponentClassNames()
+        -: 1273:    {
+        -: 1274:        return m_transientComponentClassNames;
+        -: 1275:    }
+        -: 1276:
+        -: 1277:    /// Remove the transient component class names
+        -: 1278:    void ClearTransientComponentClassNames() { m_transientComponentClassNames.clear(); };
+        -: 1279:
+        -: 1280:    /// Resolves a set of component class names to this footprint's actual component class
+        -: 1281:    void ResolveComponentClassNames( BOARD*                              aBoard,
+        -: 1282:                                     const std::unordered_set<wxString>& aComponentClassNames );
+        -: 1283:
+        -: 1284:    /// Used post-loading of a footprint to adjust the layers on pads to match board inner layers
+        -: 1285:    void FixUpPadsForBoard( BOARD* aBoard );
+        -: 1286:
+        -: 1287:    bool operator==( const BOARD_ITEM& aOther ) const override;
+        -: 1288:    bool operator==( const FOOTPRINT& aOther ) const;
+        -: 1289:
+        -: 1290:#if defined(DEBUG)
+        -: 1291:    virtual void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
+        -: 1292:#endif
+        -: 1293:
+        -: 1294:    struct cmp_drawings
+        -: 1295:    {
+        -: 1296:        bool operator()( const BOARD_ITEM* itemA, const BOARD_ITEM* itemB ) const;
+        -: 1297:    };
+        -: 1298:
+        -: 1299:    struct cmp_pads
+        -: 1300:    {
+        -: 1301:        bool operator()( const PAD* aFirst, const PAD* aSecond ) const;
+        -: 1302:    };
+        -: 1303:  // TODO(JE) padstacks -- this code isn't used anywhere though
+        -: 1304:#if 0
+        -: 1305:    struct cmp_padstack
+        -: 1306:    {
+        -: 1307:        bool operator()( const PAD* aFirst, const PAD* aSecond ) const;
+        -: 1308:    };
+        -: 1309:#endif
+        -: 1310:    struct cmp_zones
+        -: 1311:    {
+        -: 1312:        bool operator()( const ZONE* aFirst, const ZONE* aSecond ) const;
+        -: 1313:    };
+        -: 1314:
+        -: 1315:protected:
+        -: 1316:    virtual void swapData( BOARD_ITEM* aImage ) override;
+        -: 1317:
+        -: 1318:    void addMandatoryFields();
+        -: 1319:
+        -: 1320:private:
+        -: 1321:    std::deque<PCB_FIELD*>  m_fields;    // Fields, mapped by name, owned by pointer
+        -: 1322:    std::deque<BOARD_ITEM*> m_drawings;  // Drawings in the footprint, owned by pointer
+        -: 1323:    std::deque<PAD*>        m_pads;      // Pads, owned by pointer
+        -: 1324:    std::vector<ZONE*>      m_zones;     // Rule area zones, owned by pointer
+        -: 1325:    std::deque<PCB_GROUP*>  m_groups;    // Groups, owned by pointer
+        -: 1326:    std::deque<PCB_POINT*>  m_points;    // Points, owned by pointer
+        -: 1327:
+        -: 1328:    EDA_ANGLE       m_orient;            // Orientation
+        -: 1329:    VECTOR2I        m_pos;               // Position of footprint on the board in internal units.
+        -: 1330:    LIB_ID          m_fpid;              // The #LIB_ID of the FOOTPRINT.
+        -: 1331:    int             m_attributes;        // Flag bits (see FOOTPRINT_ATTR_T)
+        -: 1332:    int             m_fpStatus;          // For autoplace: flags (LOCKED, FIELDS_AUTOPLACED)
+        -: 1333:    int             m_fileFormatVersionAtLoad;
+        -: 1334:
+        -: 1335:    /// Variant data for this footprint, keyed by variant name
+        -: 1336:    CASE_INSENSITIVE_MAP<FOOTPRINT_VARIANT> m_variants;
+        -: 1337:
+        -: 1338:    // Bounding box caching strategy:
+        -: 1339:    // While we attempt to notice the low-hanging fruit operations and update the bounding boxes
+        -: 1340:    // accordingly, we rely mostly on a "if anything changed then the caches are stale" approach.
+        -: 1341:    // We implement this by having PCB_BASE_FRAME's OnModify() method increment an operation
+        -: 1342:    // counter, and storing that as a timestamp for the various caches.
+        -: 1343:    // This means caches will get regenerated often -- but still far less often than if we had no
+        -: 1344:    // caches at all.  The principal opitmization would be to change to dirty flag and make sure
+        -: 1345:    // that any edit that could affect the bounding boxes (including edits to the footprint
+        -: 1346:    // children) marked the bounding boxes dirty.  It would definitely be faster -- but also more
+        -: 1347:    // fragile.
+        -: 1348:    mutable std::mutex                                     m_geometry_cache_mutex;
+        -: 1349:    mutable std::unique_ptr<FOOTPRINT_GEOMETRY_CACHE_DATA> m_geometry_cache;
+        -: 1350:
+        -: 1351:    // A list of pad groups, each of which is allowed to short nets within their group.
+        -: 1352:    // A pad group is a comma-separated list of pad numbers.
+        -: 1353:    std::vector<wxString>  m_netTiePadGroups;
+        -: 1354:
+        -: 1355:    // A list of 1:N footprint item to allowed net numbers
+        -: 1356:    std::map<const BOARD_ITEM*, std::set<int>> m_netTieCache;
+        -: 1357:
+        -: 1358:    /// A list of jumper pad groups, each of which is a set of pad numbers that should be jumpered
+        -: 1359:    /// together (treated as internally connected for the purposes of connectivity)
+        -: 1360:    std::vector<std::set<wxString>> m_jumperPadGroups;
+        -: 1361:
+        -: 1362:    /// Flag that this footprint should automatically treat sets of two or more pads with the same
+        -: 1363:    /// number as jumpered pin groups
+        -: 1364:    bool                  m_duplicatePadNumbersAreJumpers;
+        -: 1365:
+        -: 1366:    bool                  m_allowMissingCourtyard;
+        -: 1367:    bool                  m_allowSolderMaskBridges;
+        -: 1368:
+        -: 1369:    // Optional overrides
+        -: 1370:    ZONE_CONNECTION       m_zoneConnection;
+        -: 1371:    std::optional<int>    m_clearance;
+        -: 1372:    std::optional<int>    m_solderMaskMargin;       // Solder mask margin
+        -: 1373:    std::optional<int>    m_solderPasteMargin;      // Solder paste margin absolute value
+        -: 1374:    std::optional<double> m_solderPasteMarginRatio; // Solder mask margin ratio of pad size
+        -: 1375:                                                    // The final margin is the sum of these 2 values
+        -: 1376:
+        -: 1377:    LSET              m_stackupLayers; // Layers in the stackup
+        -: 1378:    FOOTPRINT_STACKUP m_stackupMode;   // Stackup mode for this footprint
+        -: 1379:    LSET              m_privateLayers; // Layers visible only in the footprint editor
+        -: 1380:
+        -: 1381:    wxString        m_libDescription;    // File name and path for documentation file.
+        -: 1382:    wxString        m_keywords;          // Search keywords to find footprint in library.
+        -: 1383:    KIID_PATH       m_path;              // Path to associated symbol ([sheetUUID, .., symbolUUID]).
+        -: 1384:    wxString        m_sheetname;         // Name of the sheet containing the symbol for this footprint
+        -: 1385:    wxString        m_sheetfile;         // File of the sheet containing the symbol for this footprint
+        -: 1386:    wxString        m_filters;           // Footprint filters from symbol
+        -: 1387:    timestamp_t     m_lastEditTime;
+        -: 1388:    int             m_arflag;            // Use to trace ratsnest and auto routing.
+        -: 1389:    KIID            m_link;              // Temporary logical link used during editing
+        -: 1390:
+        -: 1391:    std::vector<FP_3DMODEL> m_3D_Drawings;       // 3D models.
+        -: 1392:    wxArrayString*          m_initial_comments;  // s-expression comments in the footprint,
+        -: 1393:                                                 //   lazily allocated only if needed for speed
+        -: 1394:
+        -: 1395:    mutable std::unique_ptr<FOOTPRINT_COURTYARD_CACHE_DATA> m_courtyard_cache;
+        -: 1396:    mutable std::mutex                                      m_courtyard_cache_mutex;
+        -: 1397:
+        -: 1398:    std::unordered_set<wxString> m_transientComponentClassNames;
+        -: 1399:    std::unique_ptr<COMPONENT_CLASS_CACHE_PROXY> m_componentClassCacheProxy;
+        -: 1400:
+        -: 1401:    // Optional unit mapping information for multi-unit symbols
+        -: 1402:    std::vector<FP_UNIT_INFO> m_unitInfo;
+        -: 1403:
+        -: 1404:    std::vector<SEARCH_TERM> m_searchTerms;
+        -: 1405:};
+        -: 1406:
+        -: 1407:#endif     // FOOTPRINT_H

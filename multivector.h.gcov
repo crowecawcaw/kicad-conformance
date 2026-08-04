@@ -1,0 +1,328 @@
+        -:    0:Source:/src/kicad/libs/core/include/core/multivector.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright 2017 CERN
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * @author Maciej Suminski <maciej.suminski@cern.ch>
+        -:    8: * @author Bernhard Stegmaier <stegmaier@sw-systems.de>
+        -:    9: *
+        -:   10: * This program is free software; you can redistribute it and/or
+        -:   11: * modify it under the terms of the GNU General Public License
+        -:   12: * as published by the Free Software Foundation; either version 2
+        -:   13: * of the License, or (at your option) any later version.
+        -:   14: *
+        -:   15: * This program is distributed in the hope that it will be useful,
+        -:   16: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   17: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   18: * GNU General Public License for more details.
+        -:   19: *
+        -:   20: * You should have received a copy of the GNU General Public License
+        -:   21: * along with this program; if not, you may find one here:
+        -:   22: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   23: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   24: * or you may write to the Free Software Foundation, Inc.,
+        -:   25: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   26: */
+        -:   27:
+        -:   28:#ifndef MULTIVECTOR_H
+        -:   29:#define MULTIVECTOR_H
+        -:   30:
+        -:   31:#include <wx/debug.h>
+        -:   32:#include <boost/ptr_container/ptr_vector.hpp>
+        -:   33:#include <stdexcept>
+        -:   34:
+        -:   35:/**
+        -:   36: * Multivector container type.
+        -:   37: *
+        -:   38: * Keeps items segregated by their type in multiple ptr_vectors. Provides both
+        -:   39: * access as a flat list as well as access by type of item.
+        -:   40: *
+        -:   41: * T is the stored type, needs to provide Type() method used to segregate items.
+        -:   42: * FIRST_TYPE_VAL is the lower boundary value of the types stored in the container.
+        -:   43: * LAST_TYPE_VAL is the upper boundary value of the types stored in the container.
+        -:   44: */
+        -:   45:template<typename T, int FIRST_TYPE_VAL, int LAST_TYPE_VAL>
+        -:   46:class MULTIVECTOR
+        -:   47:{
+        -:   48:public:
+        -:   49:    /**
+        -:   50:     * Type value to indicate no specific type. Mostly used to access the container as a flat list
+        -:   51:     * or to return data for the whole container.
+        -:   52:     */
+        -:   53:    static constexpr int UNDEFINED_TYPE = 0;
+        -:   54:    static_assert( FIRST_TYPE_VAL > UNDEFINED_TYPE,
+        -:   55:                   "FIRST_TYPE_VAL must be greater than UNDEFINED_TYPE" );
+        -:   56:    static_assert( FIRST_TYPE_VAL < LAST_TYPE_VAL,
+        -:   57:                   "FIRST_TYPE_VAL must be greater than LAST_TYPE_VAL" );
+        -:   58:
+        -:   59:    /**
+        -:   60:    * Helper for defining a list of library draw object pointers.
+        -:   61:    *
+        -:   62:    * The Boost pointer containers are responsible for deleting object pointers placed
+        -:   63:    * in them.  If you access a object pointer from the list, do not delete it directly.
+        -:   64:    */
+        -:   65:    typedef boost::ptr_vector<T> ITEM_PTR_VECTOR;
+        -:   66:
+        -:   67:    /**
+        -:   68:     * Generic implementation of a flat const/non-const iterator over contained items.
+        -:   69:     */
+        -:   70:    template<typename ITEM_TYPE, typename ITEM_CONTAINER, typename ITEM_CONTAINER_IT>
+        -:   71:    class ITERATOR_BASE
+        -:   72:    {
+        -:   73:    public:
+        -:   74:        ITEM_TYPE& operator*()
+        -:   75:        {
+        -:   76:            return *m_it;
+        -:   77:        }
+        -:   78:
+        -:   79:        ITEM_TYPE* operator->()
+        -:   80:        {
+        -:   81:            return &( *m_it );
+        -:   82:        }
+        -:   83:
+        -:   84:        ITERATOR_BASE& operator++()
+        -:   85:        {
+        -:   86:            if( m_it != (*m_parent)[ m_curType ].end() )
+        -:   87:                ++m_it;
+        -:   88:
+        -:   89:            validate();
+        -:   90:
+        -:   91:            return *this;
+        -:   92:        }
+        -:   93:
+        -:   94:        bool operator!=( const ITERATOR_BASE& aOther ) const
+        -:   95:        {
+        -:   96:            if( aOther.m_parent != m_parent )
+        -:   97:                return true;
+        -:   98:
+        -:   99:            if( aOther.m_filter != m_filter )
+        -:  100:                return true;
+        -:  101:
+        -:  102:            if( aOther.m_curType != m_curType )
+        -:  103:                return true;
+        -:  104:
+        -:  105:            return aOther.m_it != m_it;
+        -:  106:        }
+        -:  107:
+        -:  108:    protected:
+        -:  109:        /**
+        -:  110:         * @param aItems is the container to wrap.
+        -:  111:         * @param aIt is the iterator to initialize this iterator (usually some begin() or end()
+        -:  112:         * iterator).
+        -:  113:         * @param aBucket is the type ID of the given iterator.
+        -:  114:         * @param aType enables item type filtering. When aType is UNDEFINED_TYPE, there is no
+        -:  115:         * filtering and all item types are accessible by the iterator.
+        -:  116:         */
+        -:  117:        ITERATOR_BASE( ITEM_CONTAINER* aItems, ITEM_CONTAINER_IT aIt,
+        -:  118:                       int aBucket, int aType = UNDEFINED_TYPE )
+        -:  119:            : m_parent( aItems ), m_it( aIt ), m_curType( aBucket )
+        -:  120:        {
+        -:  121:            m_filter = ( aType != UNDEFINED_TYPE );
+        -:  122:        }
+        -:  123:
+        -:  124:        ///< Assures the iterator is in a valid state.
+        -:  125:        void validate()
+        -:  126:        {
+        -:  127:            // for all-items iterators (unfiltered): check if this is the end of the
+        -:  128:            // current type container, if so switch to the next non-empty container
+        -:  129:            if( !m_filter && m_it == (*m_parent)[ m_curType ].end() )
+        -:  130:            {
+        -:  131:                // switch to the next type (look for a not empty container)
+        -:  132:                int nextType = m_curType;
+        -:  133:
+        -:  134:                do
+        -:  135:                    ++nextType;
+        -:  136:                while( ( nextType <= LAST_TYPE ) && (*m_parent)[ nextType ].empty() );
+        -:  137:
+        -:  138:                // there is another not empty container, so make the iterator point to it,
+        -:  139:                // otherwise it means the iterator points to the last item
+        -:  140:                if( nextType <= LAST_TYPE )
+        -:  141:                {
+        -:  142:                    m_curType = nextType;
+        -:  143:                    m_it = (*m_parent)[ m_curType ].begin();
+        -:  144:                }
+        -:  145:            }
+        -:  146:        }
+        -:  147:
+        -:  148:        ///< Wrapped container
+        -:  149:        ITEM_CONTAINER* m_parent;
+        -:  150:
+        -:  151:        ///< Iterator for one of the ptr_vector containers stored in the array
+        -:  152:        ITEM_CONTAINER_IT m_it;
+        -:  153:
+        -:  154:        ///< Flag indicating whether type filtering is enabled
+        -:  155:        bool m_filter;
+        -:  156:
+        -:  157:        ///< Type of the currently iterated items
+        -:  158:        int m_curType;
+        -:  159:
+        -:  160:        friend class MULTIVECTOR;
+        -:  161:    };
+        -:  162:
+        -:  163:    ///< The non-const iterator
+        -:  164:    typedef ITERATOR_BASE<T, MULTIVECTOR<T, FIRST_TYPE_VAL, LAST_TYPE_VAL>,
+        -:  165:                          typename ITEM_PTR_VECTOR::iterator> ITERATOR;
+        -:  166:    ///< The const iterator
+        -:  167:    typedef ITERATOR_BASE<const T, const MULTIVECTOR<T, FIRST_TYPE_VAL, LAST_TYPE_VAL>,
+        -:  168:                          typename ITEM_PTR_VECTOR::const_iterator> CONST_ITERATOR;
+        -:  169:
+        -:  170:
+        -:  171:    MULTIVECTOR()
+        -:  172:    {
+        -:  173:    }
+        -:  174:
+        -:  175:    void push_back( T* aItem )
+        -:  176:    {
+        -:  177:        operator[]( aItem->Type() ).push_back( aItem );
+        -:  178:    }
+        -:  179:
+        -:  180:    ITERATOR erase( const ITERATOR& aIterator )
+        -:  181:    {
+        -:  182:        ITERATOR it( aIterator );
+        -:  183:        it.m_it = (*aIterator.m_parent)[ aIterator.m_curType ].erase( aIterator.m_it );
+        -:  184:        it.validate();
+        -:  185:
+        -:  186:        return it;
+        -:  187:    }
+        -:  188:
+        -:  189:    ITERATOR begin( int aType = UNDEFINED_TYPE )
+        -:  190:    {
+        -:  191:        int bucket = ( aType != UNDEFINED_TYPE ) ? aType : first();
+        -:  192:        return ITERATOR( this, operator[]( bucket ).begin(), bucket, aType );
+        -:  193:    }
+        -:  194:
+        -:  195:    ITERATOR end( int aType = UNDEFINED_TYPE )
+        -:  196:    {
+        -:  197:        int bucket = ( aType != UNDEFINED_TYPE ) ? aType : last();
+        -:  198:        return ITERATOR( this, operator[]( bucket ).end(), bucket, aType );
+        -:  199:    }
+        -:  200:
+        -:  201:    CONST_ITERATOR begin( int aType = UNDEFINED_TYPE ) const
+        -:  202:    {
+        -:  203:        int bucket = ( aType != UNDEFINED_TYPE ) ? aType : first();
+        -:  204:        return CONST_ITERATOR( this, operator[]( bucket ).begin(), bucket, aType );
+        -:  205:    }
+        -:  206:
+        -:  207:    CONST_ITERATOR end( int aType = UNDEFINED_TYPE ) const
+        -:  208:    {
+        -:  209:        int bucket = ( aType != UNDEFINED_TYPE ) ? aType : last();
+        -:  210:        return CONST_ITERATOR( this, operator[]( bucket ).end(), bucket, aType );
+        -:  211:    }
+        -:  212:
+        -:  213:    void clear( int aType = UNDEFINED_TYPE )
+        -:  214:    {
+        -:  215:        if( aType != UNDEFINED_TYPE )
+        -:  216:        {
+        -:  217:            operator[]( aType ).clear();
+        -:  218:        }
+        -:  219:        else
+        -:  220:        {
+        -:  221:            for( int i = 0; i < TYPES_COUNT; ++i)
+        -:  222:                m_data[ i ].clear();
+        -:  223:        }
+        -:  224:    }
+        -:  225:
+        -:  226:    size_t size( int aType = UNDEFINED_TYPE ) const
+        -:  227:    {
+        -:  228:        if( aType != UNDEFINED_TYPE )
+        -:  229:        {
+        -:  230:            return operator[]( aType ).size();
+        -:  231:        }
+        -:  232:        else
+        -:  233:        {
+        -:  234:            size_t cnt = 0;
+        -:  235:
+        -:  236:            for( int i = 0; i < TYPES_COUNT; ++i)
+        -:  237:                cnt += m_data[ i ].size();
+        -:  238:
+        -:  239:            return cnt;
+        -:  240:        }
+        -:  241:    }
+        -:  242:
+        -:  243:    bool empty( int aType = UNDEFINED_TYPE ) const
+        -:  244:    {
+        -:  245:        return ( size( aType ) == 0 );
+        -:  246:    }
+        -:  247:
+      216:  248:    void sort()
+        -:  249:    {
+     1296:  250:        for( int i = 0; i < TYPES_COUNT; ++i )
+     1080:  251:            m_data[ i ].sort();
+      216:  252:    }
+        -:  253:
+        -:  254:    /**
+        -:  255:     * Remove duplicate elements in list
+        -:  256:     */
+        -:  257:    void unique()
+        -:  258:    {
+        -:  259:        for( int i = 0; i < TYPES_COUNT; ++i )
+        -:  260:        {
+        -:  261:            if( m_data[ i ].size() > 1 )
+        -:  262:                m_data[ i ].unique();
+        -:  263:        }
+        -:  264:    }
+        -:  265:
+        -:  266:    ITEM_PTR_VECTOR& operator[]( int aType )
+        -:  267:    {
+        -:  268:        if( ( aType < FIRST_TYPE ) || ( aType > LAST_TYPE ) )
+        -:  269:        {
+        -:  270:            wxFAIL_MSG( wxT( "Attempted access to type not within MULTIVECTOR" ) );
+        -:  271:
+        -:  272:            // return type is a reference so we have to return something...
+        -:  273:            aType = FIRST_TYPE;
+        -:  274:        }
+        -:  275:
+        -:  276:        return m_data[ aType - FIRST_TYPE ];
+        -:  277:    }
+        -:  278:
+        -:  279:    const ITEM_PTR_VECTOR& operator[]( int aType ) const
+        -:  280:    {
+        -:  281:        if( ( aType < FIRST_TYPE ) || ( aType > LAST_TYPE ) )
+        -:  282:        {
+        -:  283:            wxFAIL_MSG( wxT( "Attempted access to type not within MULTIVECTOR" ) );
+        -:  284:
+        -:  285:            // return type is a reference so we have to return something...
+        -:  286:            aType = FIRST_TYPE;
+        -:  287:        }
+        -:  288:
+        -:  289:        return m_data[ aType - FIRST_TYPE ];
+        -:  290:    }
+        -:  291:
+        -:  292:    // Range of valid types handled by the iterator
+        -:  293:    static constexpr int FIRST_TYPE = FIRST_TYPE_VAL;
+        -:  294:    static constexpr int LAST_TYPE = LAST_TYPE_VAL;
+        -:  295:    static constexpr int TYPES_COUNT = LAST_TYPE - FIRST_TYPE + 1;
+        -:  296:
+        -:  297:private:
+        -:  298:    ///< Get first non-empty type or first type if all are empty.
+        -:  299:    int first() const
+        -:  300:    {
+        -:  301:        int i = 0;
+        -:  302:
+        -:  303:        while( ( i < TYPES_COUNT ) && ( m_data[ i ].empty() ) )
+        -:  304:            ++i;
+        -:  305:
+        -:  306:        return ( i == TYPES_COUNT ) ? FIRST_TYPE : FIRST_TYPE + i;
+        -:  307:    }
+        -:  308:
+        -:  309:    ///< Get last non-empty type or first type if all are empty.
+        -:  310:    int last() const
+        -:  311:    {
+        -:  312:        int i = TYPES_COUNT - 1;
+        -:  313:
+        -:  314:        while( ( i >= 0 ) && ( m_data[ i ].empty() ) )
+        -:  315:            --i;
+        -:  316:
+        -:  317:        return ( i < 0 ) ? FIRST_TYPE : FIRST_TYPE + i;
+        -:  318:    }
+        -:  319:
+        -:  320:    ///< Contained items by type
+        -:  321:    ITEM_PTR_VECTOR m_data[TYPES_COUNT];
+        -:  322:};
+        -:  323:
+        -:  324:#endif /* MULTIVECTOR_H */

@@ -1,0 +1,136 @@
+        -:    0:Source:/usr/include/boost/ptr_container/detail/map_iterator.hpp
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1://
+        -:    2:// Boost.Pointer Container
+        -:    3://
+        -:    4://  Copyright Thorsten Ottosen 2003-2005. Use, modification and
+        -:    5://  distribution is subject to the Boost Software License, Version
+        -:    6://  1.0. (See accompanying file LICENSE_1_0.txt or copy at
+        -:    7://  http://www.boost.org/LICENSE_1_0.txt)
+        -:    8://
+        -:    9:// For more information, see http://www.boost.org/libs/ptr_container/
+        -:   10://
+        -:   11:
+        -:   12:#ifndef BOOST_PTR_CONTAINER_MAP_ITERATOR_HPP
+        -:   13:#define BOOST_PTR_CONTAINER_MAP_ITERATOR_HPP
+        -:   14:
+        -:   15:#if defined(_MSC_VER) && (_MSC_VER >= 1200)
+        -:   16:# pragma once
+        -:   17:#endif
+        -:   18:
+        -:   19:#include <boost/config.hpp>
+        -:   20:#include <boost/iterator/iterator_adaptor.hpp>
+        -:   21:#include <boost/utility/compare_pointees.hpp>
+        -:   22:#include <utility>
+        -:   23:
+        -:   24:#if defined(BOOST_MSVC)  
+        -:   25:# pragma warning(push)  
+        -:   26:# pragma warning(disable:4512)    // Assignment operator could not be generated.  
+        -:   27:#endif 
+        -:   28:
+        -:   29:namespace boost
+        -:   30:{ 
+        -:   31:    namespace ptr_container_detail
+        -:   32:    {
+        -:   33:        template< class F, class S >
+        -:   34:        struct ref_pair
+        -:   35:        {
+        -:   36:            typedef F first_type;
+        -:   37:            typedef S second_type;
+        -:   38:
+        -:   39:            const F& first;
+        -:   40:            S        second;
+        -:   41:
+        -:   42:            template< class F2, class S2 >
+    #####:   43:            ref_pair( const std::pair<F2,S2>& p )
+    #####:   44:            : first(p.first), second(static_cast<S>(p.second))
+    #####:   45:            { }
+        -:   46:
+        -:   47:            template< class RP >
+        -:   48:            ref_pair( const RP* rp )
+        -:   49:            : first(rp->first), second(rp->second)
+        -:   50:            { }
+        -:   51:
+        -:   52:            const ref_pair* operator->() const
+        -:   53:            {
+        -:   54:                return this;
+        -:   55:            }
+        -:   56:
+        -:   57:            friend inline bool operator==( ref_pair l, ref_pair r )
+        -:   58:            {
+        -:   59:                return l.first == r.first && 
+        -:   60:                       boost::equal_pointees( l.second, r.second );
+        -:   61:            }
+        -:   62:
+        -:   63:            friend inline bool operator!=( ref_pair l, ref_pair r )
+        -:   64:            {
+        -:   65:                return !( l == r );
+        -:   66:            }
+        -:   67:
+        -:   68:            friend inline bool operator<( ref_pair l, ref_pair r )
+        -:   69:            {
+        -:   70:                if( l.first == r.first )
+        -:   71:                    return boost::less_pointees( l.second, r.second );
+        -:   72:                else 
+        -:   73:                    return l.first < r.first;
+        -:   74:            }
+        -:   75:
+        -:   76:            friend inline bool operator>( ref_pair l, ref_pair r )
+        -:   77:            {
+        -:   78:                return r < l;
+        -:   79:            }
+        -:   80:
+        -:   81:            friend inline bool operator<=( ref_pair l, ref_pair r )
+        -:   82:            {
+        -:   83:                return !(r < l);
+        -:   84:            }
+        -:   85:
+        -:   86:            friend inline bool operator>=( ref_pair l, ref_pair r )
+        -:   87:            {
+        -:   88:                return !(l < r);
+        -:   89:            }
+        -:   90:
+        -:   91:        };
+        -:   92:    }
+        -:   93:    
+        -:   94:    template< 
+        -:   95:              class I, // base iterator 
+        -:   96:              class F, // first type, key type
+        -:   97:              class S  // second type, mapped type
+        -:   98:            > 
+        -:   99:    class ptr_map_iterator : 
+        -:  100:        public boost::iterator_adaptor< ptr_map_iterator<I,F,S>, I, 
+        -:  101:                                        ptr_container_detail::ref_pair<F,S>, 
+        -:  102:                                        use_default, 
+        -:  103:                                        ptr_container_detail::ref_pair<F,S> >
+        -:  104:    {
+        -:  105:        typedef boost::iterator_adaptor< ptr_map_iterator<I,F,S>, I, 
+        -:  106:                                         ptr_container_detail::ref_pair<F,S>,
+        -:  107:                                         use_default, 
+        -:  108:                                         ptr_container_detail::ref_pair<F,S> > 
+        -:  109:            base_type;
+        -:  110:
+        -:  111:
+        -:  112:    public:
+        -:  113:        ptr_map_iterator() : base_type()                                 
+        -:  114:        { }
+        -:  115:        
+    #####:  116:        explicit ptr_map_iterator( const I& i ) : base_type(i)
+    #####:  117:        { }
+        -:  118:
+        -:  119:        template< class I2, class F2, class S2 >
+        -:  120:            ptr_map_iterator( const ptr_map_iterator<I2,F2,S2>& r ) 
+        -:  121:         : base_type(r.base())
+        -:  122:        { }
+        -:  123:        
+        -:  124:   }; // class 'ptr_map_iterator'
+        -:  125:
+        -:  126:}
+        -:  127:
+        -:  128:#if defined(BOOST_MSVC)  
+        -:  129:# pragma warning(pop)  
+        -:  130:#endif 
+        -:  131:
+        -:  132:#endif

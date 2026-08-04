@@ -49,7 +49,28 @@ tools/coverage/run-suite.sh -- suites/drc
 #      tools/coverage/out/report/summary.txt       plain text
 #      tools/coverage/out/report/coverage.info     lcov tracefile (may be absent --
 #                                                  see collect.sh's lcov timeout note)
+
+# 4. Analysis. focus.json is per-FILE and per-ROUND; these four answer the questions
+#    it cannot. Each exists because a figure in docs/COVERAGE.md had to be re-derived
+#    by hand once, which is neither reproducible nor diffable.
+python3 tools/coverage/compare.py OLD.json NEW.json --top 45 --file zone_filler
+tools/coverage/funcs.sh erc.cpp                        # per-FUNCTION, from the volume
+tools/coverage/funcs.sh --zero-only --min-lines 12 pcb_io_kicad_sexpr_parser.cpp
+python3 tools/coverage/gaps.py NEW.json corrected      # the docs/COVERAGE.md §3a table
+python3 tools/coverage/gaps.py NEW.json dead --min-lines 60
+python3 tools/coverage/subdir.py "pcbnew/pcb_io/kicad_sexpr/" OLD.json NEW.json
 ```
+
+`compare.py`, `gaps.py` and `subdir.py` read only gcovr JSON and need nothing but a
+python3 -- this workstation has none, so they are run as
+`docker run --rm -v "$PWD":/work -w /work kicad/kicad:10.0.5 python3 …`. `funcs.sh` needs
+the coverage image and the raw-counter volume, and delegates parsing to `gcovfuncs.py`
+rather than an inline awk/python one-liner: quoting a parser through `docker run bash -c`
+is a reliable way to get an empty table that reads as "no coverage".
+
+**Archive the previous round's `coverage.json` before running a new one** --
+`run-suite.sh` overwrites `out/report/`, and without a *before* file `compare.py` has
+nothing to diff. `out/round1/` and `out/round2*-coverage.json` are the retained ones.
 
 Counters **accumulate** in the volume across runs, which is what you want when measuring
 several suite invocations together. Pass `--fresh` (or `docker volume rm
@@ -100,6 +121,19 @@ DWARF at all; it pairs `.gcno` with `.gcda`) while still giving readable backtra
 `-O0` is kept, because that is what makes line and branch attribution match the source a
 human reads.
 
+**The target list must include `cvpcb_kiface`, and leaving it out is silent.** `kicad-cli`
+dlopen()s kifaces through KIWAY, and the obvious closure — `kicad-cli pcbnew_kiface
+eeschema_kiface` — is one short: `eeschema/eeschema_jobs_handler.cpp:1353` passes
+`m_kiway->KiFACE( KIWAY::FACE_CVPCB )` into `ERC_TESTER::RunTests` **unconditionally**,
+because cvpcb owns the footprint-link tester (`erc.cpp:1816`). Without `_cvpcb.kiface`,
+`KIWAY::KiFACE()` throws `IO_ERROR` (`kiway.cpp:284`) before any ERC test runs, every
+`sch erc` invocation exits 255, and `eeschema/erc/**` reports ~5% however many ERC cases
+the suite has. That shipped once (see `docs/COVERAGE.md` §2c and §8.4: it cost a whole
+measurement round of ERC data and presented as 19 `CRASH` verdicts, i.e. as a *suite*
+problem). The Dockerfile now builds and installs it and asserts `test -x` on it. Cost:
+the ninja edge count went from **2009 to 2032**, i.e. **23 extra edges** (22 of them
+`Building CXX object cvpcb/…`, plus the link), counted in the build log.
+
 **`-fprofile-update=atomic` is not optional here.** KiCad runs DRC, ERC and some
 parsing on thread pools. With the default non-atomic counter updates, concurrent
 increments race and are lost — the report would silently *under*-report coverage,
@@ -141,11 +175,13 @@ VM RAM, `--build-arg BUILD_JOBS=6`.
 | Shallow fetch of tag `10.0.5` | ~60 s |
 | CMake configure | 9 s (`Configuring done (8.0s)`, `Generating done (1.0s)`) |
 | Compile + link, **2009** ninja edges (the reduced target set) | **24 min 29 s measured** at `-j8`, cold ccache, emitting **1912** `.gcno` files. Image export/unpack adds ~4 min. |
+| Rebuild after changing `KICAD_TARGETS` (adding `cvpcb_kiface`, **2032** edges), ccache warm | **29 min 55 s measured** 2026-08-04 (`06:52:51Z` → `07:22:46Z`, `build succeeded on attempt 1`), of which **4 min 36 s** is image export/unpack. Emits **1934** `.gcno`. The ccache replay is not free — it ran at ~3.6 edges/s early and ~1.9 edges/s through the pcbnew/eeschema region. |
 | Final image | **17.1 GB** (`docker images`) — it must retain `/src/build`, since gcov pairs each `.gcda` with the `.gcno` next to its object. |
 | BuildKit cache after a full build | 26.2 GB (`docker system df`) |
 | Suite run, stock `kicad/kicad:10.0.5` (baseline) | **44 s** for 8 cases / 22 checks |
-| Suite run, instrumented | **4 min 46 s** for the full 77 cases / 199 checks, measured 2026-08-03 (`docs/COVERAGE.md` §2). Counters in a Docker volume; on a Windows bind mount the same run projected to ~2.5 h. |
-| `collect.sh` (gcovr over 1850 profiles) | ~6 min |
+| Suite run, instrumented, 77 cases / 199 checks | **4 min 46 s**, measured 2026-08-03 (`docs/COVERAGE.md` §2). Counters in a Docker volume; on a Windows bind mount the same run projected to ~2.5 h. |
+| Suite run, instrumented, **133 cases / 424 checks** | **≤ 11 min 54 s**, measured 2026-08-04 — see `docs/COVERAGE.md`'s note that this is a polled upper bound, not a stopwatch reading. |
+| `collect.sh` (gcovr over 1850-1886 profiles) | **~9 min to `coverage.json`** (2026-08-04: gcovr finished 07:45, collect started 07:35), plus **lcov**, which is the long pole — `focus.json` did not land until 07:56. Set `COVERAGE_SKIP_LCOV=1` if you do not need `coverage.info`. |
 
 Every figure in the table above is now an **observed total** from the 2026-08-03 build
 (`build.sh --jobs 8`, `build succeeded on attempt 1`), not a projection. Note that the
@@ -183,8 +219,15 @@ replays already-compiled objects at cache-hit speed rather than recompiling them
    assertions in the suite may behave differently than against the release image.
    Do not use this image for timing-sensitive results.
 
-4. **It is a different binary, and this is NOT hypothetical — it changed two observable
-   behaviours in the 2026-08-03 run** (`docs/COVERAGE.md` §2). Same source tag and same
+4. **It is a different binary, and this is NOT hypothetical — it changed three observable
+   behaviours across the 2026-08-03 and 2026-08-04 runs** (`docs/COVERAGE.md` §2). The
+   third, and worst, is not in the list below because it was an image-recipe bug rather
+   than a Debug-build artifact: `sch erc` exited 255 on every schematic because the
+   reduced target set omitted `_cvpcb.kiface` (see the target-list note above and
+   `docs/COVERAGE.md` §2c). It is fixed; the point that survives is that a coverage
+   *number* can be zero for a reason that has nothing to do with the suite, so a
+   subsystem reading ~0% deserves one direct `kicad-cli` invocation before it is written
+   up as a gap. Same source tag and same
    distro dependency versions, but a Debug build with wxASSERT live, no stock
    symbol/footprint libraries (so every invocation prints a
    `LIBRARY_MANAGER::LoadGlobalTables` assert backtrace), no wxPython, and

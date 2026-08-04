@@ -1,0 +1,676 @@
+        -:    0:Source:/usr/include/wx-3.2/wx/wxcrtbase.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * Name:        wx/wxcrtbase.h
+        -:    3: * Purpose:     Type-safe ANSI and Unicode builds compatible wrappers for
+        -:    4: *              CRT functions
+        -:    5: * Author:      Joel Farley, Ove Kaaven
+        -:    6: * Modified by: Vadim Zeitlin, Robert Roebling, Ron Lee
+        -:    7: * Created:     1998/06/12
+        -:    8: * Copyright:   (c) 1998-2006 wxWidgets dev team
+        -:    9: * Licence:     wxWindows licence
+        -:   10: */
+        -:   11:
+        -:   12:/* THIS IS A C FILE, DON'T USE C++ FEATURES (IN PARTICULAR COMMENTS) IN IT */
+        -:   13:
+        -:   14:#ifndef _WX_WXCRTBASE_H_
+        -:   15:#define _WX_WXCRTBASE_H_
+        -:   16:
+        -:   17:/* -------------------------------------------------------------------------
+        -:   18:                        headers and missing declarations
+        -:   19:   ------------------------------------------------------------------------- */
+        -:   20:
+        -:   21:#include "wx/chartype.h"
+        -:   22:
+        -:   23:/*
+        -:   24:    Standard headers we need here.
+        -:   25:
+        -:   26:    NB: don't include any wxWidgets headers here because almost all of them
+        -:   27:        include this one!
+        -:   28:
+        -:   29:    NB2: User code should include wx/crt.h instead of including this
+        -:   30:         header directly.
+        -:   31:
+        -:   32: */
+        -:   33:
+        -:   34:#include <stdio.h>
+        -:   35:#include <string.h>
+        -:   36:#include <ctype.h>
+        -:   37:#include <wctype.h>
+        -:   38:#include <time.h>
+        -:   39:
+        -:   40:#if defined(__WINDOWS__)
+        -:   41:    #include <io.h>
+        -:   42:#endif
+        -:   43:
+        -:   44:#if defined(HAVE_STRTOK_R) && defined(__DARWIN__) && defined(_MSL_USING_MW_C_HEADERS) && _MSL_USING_MW_C_HEADERS
+        -:   45:    char *strtok_r(char *, const char *, char **);
+        -:   46:#endif
+        -:   47:
+        -:   48:/*
+        -:   49:   Traditional MinGW doesn't declare isascii() in strict ANSI mode and we can't
+        -:   50:   declare it here ourselves as it's an inline function, so use our own
+        -:   51:   replacement instead.
+        -:   52: */
+        -:   53:#ifndef isascii
+        -:   54:    #if defined(wxNEEDS_STRICT_ANSI_WORKAROUNDS)
+        -:   55:        #define wxNEED_ISASCII
+        -:   56:    #endif
+        -:   57:#endif /* isascii */
+        -:   58:
+        -:   59:#ifdef wxNEED_ISASCII
+        -:   60:    inline int isascii(int c) { return (unsigned)c < 0x80; }
+        -:   61:
+        -:   62:    // Avoid further (re)definitions of it.
+        -:   63:    #define isascii isascii
+        -:   64:#endif
+        -:   65:
+        -:   66:/* string.h functions */
+        -:   67:
+        -:   68:#ifdef wxNEED_STRDUP
+        -:   69:    WXDLLIMPEXP_BASE char *strdup(const char* s);
+        -:   70:#endif
+        -:   71:
+        -:   72:
+        -:   73:/* -------------------------------------------------------------------------
+        -:   74:                            UTF-8 locale handling
+        -:   75:   ------------------------------------------------------------------------- */
+        -:   76:
+        -:   77:#ifdef __cplusplus
+        -:   78:        /* flag indicating whether the current locale uses UTF-8 or not; must be
+        -:   79:           updated every time the locale is changed! */
+        -:   80:        #if wxUSE_UTF8_LOCALE_ONLY
+        -:   81:        #define wxLocaleIsUtf8 true
+        -:   82:        #else
+        -:   83:        extern WXDLLIMPEXP_BASE bool wxLocaleIsUtf8;
+        -:   84:        #endif
+        -:   85:        /* function used to update the flag: */
+        -:   86:        extern WXDLLIMPEXP_BASE void wxUpdateLocaleIsUtf8();
+        -:   87:#endif /* __cplusplus */
+        -:   88:
+        -:   89:
+        -:   90:/* -------------------------------------------------------------------------
+        -:   91:                                 string.h
+        -:   92:   ------------------------------------------------------------------------- */
+        -:   93:
+        -:   94:#define wxCRT_StrcatA    strcat
+        -:   95:#define wxCRT_StrchrA    strchr
+        -:   96:#define wxCRT_StrcmpA    strcmp
+        -:   97:#define wxCRT_StrcpyA    strcpy
+        -:   98:#define wxCRT_StrcspnA   strcspn
+        -:   99:#define wxCRT_StrlenA    strlen
+        -:  100:#define wxCRT_StrncatA   strncat
+        -:  101:#define wxCRT_StrncmpA   strncmp
+        -:  102:#define wxCRT_StrncpyA   strncpy
+        -:  103:#define wxCRT_StrpbrkA   strpbrk
+        -:  104:#define wxCRT_StrrchrA   strrchr
+        -:  105:#define wxCRT_StrspnA    strspn
+        -:  106:#define wxCRT_StrstrA    strstr
+        -:  107:
+        -:  108:#define wxCRT_StrcatW    wcscat
+        -:  109:#define wxCRT_StrchrW    wcschr
+        -:  110:#define wxCRT_StrcmpW    wcscmp
+        -:  111:#define wxCRT_StrcpyW    wcscpy
+        -:  112:#define wxCRT_StrcspnW   wcscspn
+        -:  113:#define wxCRT_StrncatW   wcsncat
+        -:  114:#define wxCRT_StrncmpW   wcsncmp
+        -:  115:#define wxCRT_StrncpyW   wcsncpy
+        -:  116:#define wxCRT_StrpbrkW   wcspbrk
+        -:  117:#define wxCRT_StrrchrW   wcsrchr
+        -:  118:#define wxCRT_StrspnW    wcsspn
+        -:  119:#define wxCRT_StrstrW    wcsstr
+        -:  120:
+        -:  121:#define wxCRT_StrcollA   strcoll
+        -:  122:#define wxCRT_StrxfrmA   strxfrm
+        -:  123:
+        -:  124:#define wxCRT_StrcollW   wcscoll
+        -:  125:#define wxCRT_StrxfrmW   wcsxfrm
+        -:  126:
+        -:  127:/* Almost all compilers have strdup(), but VC++ and MinGW call it _strdup().
+        -:  128:   And we need to declare it manually for MinGW in strict ANSI mode. */
+        -:  129:#if (defined(__VISUALC__) && __VISUALC__ >= 1400)
+        -:  130:    #define wxCRT_StrdupA _strdup
+        -:  131:#elif defined(__MINGW32__)
+        -:  132:    wxDECL_FOR_STRICT_MINGW32(char*, _strdup, (const char *))
+        -:  133:    #define wxCRT_StrdupA _strdup
+        -:  134:#else
+        -:  135:    #define wxCRT_StrdupA strdup
+        -:  136:#endif
+        -:  137:
+        -:  138:/* Windows compilers provide _wcsdup() except for (old) Cygwin */
+        -:  139:#if defined(__WINDOWS__) && !defined(__CYGWIN__)
+        -:  140:    wxDECL_FOR_STRICT_MINGW32(wchar_t*, _wcsdup, (const wchar_t*))
+        -:  141:    #define wxCRT_StrdupW _wcsdup
+        -:  142:#elif defined(HAVE_WCSDUP)
+        -:  143:    #define wxCRT_StrdupW wcsdup
+        -:  144:#endif
+        -:  145:
+        -:  146:#ifdef wxHAVE_TCHAR_SUPPORT
+        -:  147:    /* we surely have wchar_t if we have TCHAR have wcslen() */
+        -:  148:    #ifndef HAVE_WCSLEN
+        -:  149:        #define HAVE_WCSLEN
+        -:  150:    #endif
+        -:  151:#endif /* wxHAVE_TCHAR_SUPPORT */
+        -:  152:
+        -:  153:#ifdef HAVE_WCSLEN
+        -:  154:    #define wxCRT_StrlenW wcslen
+        -:  155:#endif
+        -:  156:
+        -:  157:#define wxCRT_StrtodA    strtod
+        -:  158:#define wxCRT_StrtolA    strtol
+        -:  159:#define wxCRT_StrtoulA   strtoul
+        -:  160:
+        -:  161:#ifdef __ANDROID__ // these functions are broken on android
+        -:  162:
+        -:  163:extern double android_wcstod(const wchar_t *nptr, wchar_t **endptr);
+        -:  164:extern long android_wcstol(const wchar_t *nptr, wchar_t **endptr, int base);
+        -:  165:extern unsigned long android_wcstoul(const wchar_t *nptr, wchar_t **endptr, int base);
+        -:  166:
+        -:  167:#define wxCRT_StrtodW    android_wcstod
+        -:  168:#define wxCRT_StrtolW    android_wcstol
+        -:  169:#define wxCRT_StrtoulW   android_wcstoul
+        -:  170:#else
+        -:  171:#define wxCRT_StrtodW    wcstod
+        -:  172:#define wxCRT_StrtolW    wcstol
+        -:  173:#define wxCRT_StrtoulW   wcstoul
+        -:  174:#endif
+        -:  175:
+        -:  176:#ifdef __VISUALC__
+        -:  177:    #define wxCRT_StrtollA   _strtoi64
+        -:  178:    #define wxCRT_StrtoullA  _strtoui64
+        -:  179:    #define wxCRT_StrtollW   _wcstoi64
+        -:  180:    #define wxCRT_StrtoullW  _wcstoui64
+        -:  181:#else
+        -:  182:    /* Both of these functions are implemented in C++11 compilers */
+        -:  183:    #if wxCHECK_CXX_STD(201103L)
+        -:  184:        #ifndef HAVE_STRTOULL
+        -:  185:            #define HAVE_STRTOULL
+        -:  186:        #endif
+        -:  187:        #ifndef HAVE_WCSTOULL
+        -:  188:            #define HAVE_WCSTOULL
+        -:  189:        #endif
+        -:  190:    #endif
+        -:  191:
+        -:  192:    #ifdef HAVE_STRTOULL
+        -:  193:        wxDECL_FOR_STRICT_MINGW32(long long, strtoll, (const char*, char**, int))
+        -:  194:        wxDECL_FOR_STRICT_MINGW32(unsigned long long, strtoull, (const char*, char**, int))
+        -:  195:
+        -:  196:        #define wxCRT_StrtollA   strtoll
+        -:  197:        #define wxCRT_StrtoullA  strtoull
+        -:  198:    #endif /* HAVE_STRTOULL */
+        -:  199:    #ifdef HAVE_WCSTOULL
+        -:  200:        /* assume that we have wcstoull(), which is also C99, too */
+        -:  201:        #define wxCRT_StrtollW   wcstoll
+        -:  202:        #define wxCRT_StrtoullW  wcstoull
+        -:  203:    #endif /* HAVE_WCSTOULL */
+        -:  204:#endif
+        -:  205:
+        -:  206:/*
+        -:  207:    Only VC8 and later provide strnlen() and wcsnlen() functions under Windows.
+        -:  208: */
+        -:  209:#if wxCHECK_VISUALC_VERSION(8)
+        -:  210:    #ifndef HAVE_STRNLEN
+        -:  211:        #define HAVE_STRNLEN
+        -:  212:    #endif
+        -:  213:    #ifndef HAVE_WCSNLEN
+        -:  214:        #define HAVE_WCSNLEN
+        -:  215:    #endif
+        -:  216:#endif
+        -:  217:
+        -:  218:#ifdef HAVE_STRNLEN
+        -:  219:    #define wxCRT_StrnlenA  strnlen
+        -:  220:#endif
+        -:  221:
+        -:  222:#ifdef HAVE_WCSNLEN
+        -:  223:    /*
+        -:  224:        When using MinGW, wcsnlen() is not declared, but is still found by
+        -:  225:        configure -- just declare it in this case as it seems better to use it
+        -:  226:        if it's available (see https://sourceforge.net/p/mingw/bugs/2332/)
+        -:  227:     */
+        -:  228:    wxDECL_FOR_MINGW32_ALWAYS(size_t, wcsnlen, (const wchar_t*, size_t))
+        -:  229:
+        -:  230:    #define wxCRT_StrnlenW  wcsnlen
+        -:  231:#endif
+        -:  232:
+        -:  233:/* define wxCRT_StricmpA/W and wxCRT_StrnicmpA/W for various compilers */
+        -:  234:#if defined(__VISUALC__) || defined(__MINGW32__)
+        -:  235:    /*
+        -:  236:        Due to MinGW 5.3 bug (https://sourceforge.net/p/mingw/bugs/2322/),
+        -:  237:        _stricmp() and _strnicmp() are not declared in its standard headers
+        -:  238:        when compiling without optimizations. Work around this by always
+        -:  239:        declaring them ourselves (notice that if/when this bug were fixed, we'd
+        -:  240:        still need to use wxDECL_FOR_STRICT_MINGW32() for them here.
+        -:  241:     */
+        -:  242:    wxDECL_FOR_MINGW32_ALWAYS(int, _stricmp, (const char*, const char*))
+        -:  243:    wxDECL_FOR_MINGW32_ALWAYS(int, _strnicmp, (const char*, const char*, size_t))
+        -:  244:
+        -:  245:    #define wxCRT_StricmpA _stricmp
+        -:  246:    #define wxCRT_StrnicmpA _strnicmp
+        -:  247:#elif defined(__UNIX__)
+        -:  248:    #define wxCRT_StricmpA strcasecmp
+        -:  249:    #define wxCRT_StrnicmpA strncasecmp
+        -:  250:/* #else -- use wxWidgets implementation */
+        -:  251:#endif
+        -:  252:
+        -:  253:#ifdef __VISUALC__
+        -:  254:    #define wxCRT_StricmpW _wcsicmp
+        -:  255:    #define wxCRT_StrnicmpW _wcsnicmp
+        -:  256:#elif defined(__UNIX__)
+        -:  257:    #ifdef HAVE_WCSCASECMP
+        -:  258:        #define wxCRT_StricmpW wcscasecmp
+        -:  259:    #endif
+        -:  260:    #ifdef HAVE_WCSNCASECMP
+        -:  261:        #define wxCRT_StrnicmpW wcsncasecmp
+        -:  262:    #endif
+        -:  263:/* #else -- use wxWidgets implementation */
+        -:  264:#endif
+        -:  265:
+        -:  266:#ifdef HAVE_STRTOK_R
+        -:  267:    #define  wxCRT_StrtokA(str, sep, last)    strtok_r(str, sep, last)
+        -:  268:#endif
+        -:  269:/* FIXME-UTF8: detect and use wcstok() if available for wxCRT_StrtokW */
+        -:  270:
+        -:  271:/* these are extern "C" because they are used by regex lib: */
+        -:  272:#ifdef __cplusplus
+        -:  273:extern "C" {
+        -:  274:#endif
+        -:  275:
+        -:  276:#ifndef wxCRT_StrlenW
+        -:  277:WXDLLIMPEXP_BASE size_t wxCRT_StrlenW(const wchar_t *s);
+        -:  278:#endif
+        -:  279:
+        -:  280:#ifndef wxCRT_StrncmpW
+        -:  281:WXDLLIMPEXP_BASE int wxCRT_StrncmpW(const wchar_t *s1, const wchar_t *s2, size_t n);
+        -:  282:#endif
+        -:  283:
+        -:  284:#ifdef __cplusplus
+        -:  285:}
+        -:  286:#endif
+        -:  287:
+        -:  288:/* FIXME-UTF8: remove this once we are Unicode only */
+        -:  289:#if wxUSE_UNICODE
+        -:  290:    #define wxCRT_StrlenNative  wxCRT_StrlenW
+        -:  291:    #define wxCRT_StrncmpNative wxCRT_StrncmpW
+        -:  292:    #define wxCRT_ToupperNative wxCRT_ToupperW
+        -:  293:    #define wxCRT_TolowerNative wxCRT_TolowerW
+        -:  294:#else
+        -:  295:    #define wxCRT_StrlenNative  wxCRT_StrlenA
+        -:  296:    #define wxCRT_StrncmpNative wxCRT_StrncmpA
+        -:  297:    #define wxCRT_ToupperNative toupper
+        -:  298:    #define wxCRT_TolowerNative tolower
+        -:  299:#endif
+        -:  300:
+        -:  301:#ifndef wxCRT_StrcatW
+        -:  302:WXDLLIMPEXP_BASE wchar_t *wxCRT_StrcatW(wchar_t *dest, const wchar_t *src);
+        -:  303:#endif
+        -:  304:
+        -:  305:#ifndef wxCRT_StrchrW
+        -:  306:WXDLLIMPEXP_BASE const wchar_t *wxCRT_StrchrW(const wchar_t *s, wchar_t c);
+        -:  307:#endif
+        -:  308:
+        -:  309:#ifndef wxCRT_StrcmpW
+        -:  310:WXDLLIMPEXP_BASE int wxCRT_StrcmpW(const wchar_t *s1, const wchar_t *s2);
+        -:  311:#endif
+        -:  312:
+        -:  313:#ifndef wxCRT_StrcollW
+        -:  314:WXDLLIMPEXP_BASE int wxCRT_StrcollW(const wchar_t *s1, const wchar_t *s2);
+        -:  315:#endif
+        -:  316:
+        -:  317:#ifndef wxCRT_StrcpyW
+        -:  318:WXDLLIMPEXP_BASE wchar_t *wxCRT_StrcpyW(wchar_t *dest, const wchar_t *src);
+        -:  319:#endif
+        -:  320:
+        -:  321:#ifndef wxCRT_StrcspnW
+        -:  322:WXDLLIMPEXP_BASE size_t wxCRT_StrcspnW(const wchar_t *s, const wchar_t *reject);
+        -:  323:#endif
+        -:  324:
+        -:  325:#ifndef wxCRT_StrncatW
+        -:  326:WXDLLIMPEXP_BASE wchar_t *wxCRT_StrncatW(wchar_t *dest, const wchar_t *src, size_t n);
+        -:  327:#endif
+        -:  328:
+        -:  329:#ifndef wxCRT_StrncpyW
+        -:  330:WXDLLIMPEXP_BASE wchar_t *wxCRT_StrncpyW(wchar_t *dest, const wchar_t *src, size_t n);
+        -:  331:#endif
+        -:  332:
+        -:  333:#ifndef wxCRT_StrpbrkW
+        -:  334:WXDLLIMPEXP_BASE const wchar_t *wxCRT_StrpbrkW(const wchar_t *s, const wchar_t *accept);
+        -:  335:#endif
+        -:  336:
+        -:  337:#ifndef wxCRT_StrrchrW
+        -:  338:WXDLLIMPEXP_BASE const wchar_t *wxCRT_StrrchrW(const wchar_t *s, wchar_t c);
+        -:  339:#endif
+        -:  340:
+        -:  341:#ifndef wxCRT_StrspnW
+        -:  342:WXDLLIMPEXP_BASE size_t wxCRT_StrspnW(const wchar_t *s, const wchar_t *accept);
+        -:  343:#endif
+        -:  344:
+        -:  345:#ifndef wxCRT_StrstrW
+        -:  346:WXDLLIMPEXP_BASE const wchar_t *wxCRT_StrstrW(const wchar_t *haystack, const wchar_t *needle);
+        -:  347:#endif
+        -:  348:
+        -:  349:#ifndef wxCRT_StrtodW
+        -:  350:WXDLLIMPEXP_BASE double wxCRT_StrtodW(const wchar_t *nptr, wchar_t **endptr);
+        -:  351:#endif
+        -:  352:
+        -:  353:#ifndef wxCRT_StrtolW
+        -:  354:WXDLLIMPEXP_BASE long int wxCRT_StrtolW(const wchar_t *nptr, wchar_t **endptr, int base);
+        -:  355:#endif
+        -:  356:
+        -:  357:#ifndef wxCRT_StrtoulW
+        -:  358:WXDLLIMPEXP_BASE unsigned long int wxCRT_StrtoulW(const wchar_t *nptr, wchar_t **endptr, int base);
+        -:  359:#endif
+        -:  360:
+        -:  361:#ifndef wxCRT_StrxfrmW
+        -:  362:WXDLLIMPEXP_BASE size_t wxCRT_StrxfrmW(wchar_t *dest, const wchar_t *src, size_t n);
+        -:  363:#endif
+        -:  364:
+        -:  365:#ifndef wxCRT_StrdupA
+        -:  366:WXDLLIMPEXP_BASE char *wxCRT_StrdupA(const char *psz);
+        -:  367:#endif
+        -:  368:
+        -:  369:#ifndef wxCRT_StrdupW
+        -:  370:WXDLLIMPEXP_BASE wchar_t *wxCRT_StrdupW(const wchar_t *pwz);
+        -:  371:#endif
+        -:  372:
+        -:  373:#ifndef wxCRT_StricmpA
+        -:  374:WXDLLIMPEXP_BASE int wxCRT_StricmpA(const char *psz1, const char *psz2);
+        -:  375:#endif
+        -:  376:
+        -:  377:#ifndef wxCRT_StricmpW
+        -:  378:WXDLLIMPEXP_BASE int wxCRT_StricmpW(const wchar_t *psz1, const wchar_t *psz2);
+        -:  379:#endif
+        -:  380:
+        -:  381:#ifndef wxCRT_StrnicmpA
+        -:  382:WXDLLIMPEXP_BASE int wxCRT_StrnicmpA(const char *psz1, const char *psz2, size_t len);
+        -:  383:#endif
+        -:  384:
+        -:  385:#ifndef wxCRT_StrnicmpW
+        -:  386:WXDLLIMPEXP_BASE int wxCRT_StrnicmpW(const wchar_t *psz1, const wchar_t *psz2, size_t len);
+        -:  387:#endif
+        -:  388:
+        -:  389:#ifndef wxCRT_StrtokA
+        -:  390:WXDLLIMPEXP_BASE char *wxCRT_StrtokA(char *psz, const char *delim, char **save_ptr);
+        -:  391:#endif
+        -:  392:
+        -:  393:#ifndef wxCRT_StrtokW
+        -:  394:WXDLLIMPEXP_BASE wchar_t *wxCRT_StrtokW(wchar_t *psz, const wchar_t *delim, wchar_t **save_ptr);
+        -:  395:#endif
+        -:  396:
+        -:  397:/* supply strtoll and strtoull, if needed */
+        -:  398:#ifdef wxLongLong_t
+        -:  399:    #ifndef wxCRT_StrtollA
+        -:  400:        WXDLLIMPEXP_BASE wxLongLong_t wxCRT_StrtollA(const char* nptr,
+        -:  401:                                                     char** endptr,
+        -:  402:                                                     int base);
+        -:  403:        WXDLLIMPEXP_BASE wxULongLong_t wxCRT_StrtoullA(const char* nptr,
+        -:  404:                                                       char** endptr,
+        -:  405:                                                       int base);
+        -:  406:    #endif
+        -:  407:    #ifndef wxCRT_StrtollW
+        -:  408:        WXDLLIMPEXP_BASE wxLongLong_t wxCRT_StrtollW(const wchar_t* nptr,
+        -:  409:                                                     wchar_t** endptr,
+        -:  410:                                                     int base);
+        -:  411:        WXDLLIMPEXP_BASE wxULongLong_t wxCRT_StrtoullW(const wchar_t* nptr,
+        -:  412:                                                       wchar_t** endptr,
+        -:  413:                                                       int base);
+        -:  414:    #endif
+        -:  415:#endif /* wxLongLong_t */
+        -:  416:
+        -:  417:
+        -:  418:/* -------------------------------------------------------------------------
+        -:  419:                                  stdio.h
+        -:  420:   ------------------------------------------------------------------------- */
+        -:  421:
+        -:  422:#if defined(__UNIX__) || defined(__WXMAC__)
+        -:  423:    #define wxMBFILES 1
+        -:  424:#else
+        -:  425:    #define wxMBFILES 0
+        -:  426:#endif
+        -:  427:
+        -:  428:
+        -:  429:/* these functions are only needed in the form used for filenames (i.e. char*
+        -:  430:   on Unix, wchar_t* on Windows), so we don't need to use A/W suffix: */
+        -:  431:#if wxMBFILES || !wxUSE_UNICODE /* ANSI filenames */
+        -:  432:
+        -:  433:    #define wxCRT_Fopen   fopen
+        -:  434:    #define wxCRT_Freopen freopen
+        -:  435:    #define wxCRT_Remove  remove
+        -:  436:    #define wxCRT_Rename  rename
+        -:  437:
+        -:  438:#else /* Unicode filenames */
+        -:  439:    wxDECL_FOR_STRICT_MINGW32(FILE*, _wfopen, (const wchar_t*, const wchar_t*))
+        -:  440:    wxDECL_FOR_STRICT_MINGW32(FILE*, _wfreopen, (const wchar_t*, const wchar_t*, FILE*))
+        -:  441:    wxDECL_FOR_STRICT_MINGW32(int, _wrename, (const wchar_t*, const wchar_t*))
+        -:  442:    wxDECL_FOR_STRICT_MINGW32(int, _wremove, (const wchar_t*))
+        -:  443:
+        -:  444:    #define wxCRT_Rename   _wrename
+        -:  445:    #define wxCRT_Remove _wremove
+        -:  446:    #define wxCRT_Fopen    _wfopen
+        -:  447:    #define wxCRT_Freopen  _wfreopen
+        -:  448:
+        -:  449:#endif /* wxMBFILES/!wxMBFILES */
+        -:  450:
+        -:  451:#define wxCRT_PutsA       puts
+        -:  452:#define wxCRT_FputsA      fputs
+        -:  453:#define wxCRT_FgetsA      fgets
+        -:  454:#define wxCRT_FputcA      fputc
+        -:  455:#define wxCRT_FgetcA      fgetc
+        -:  456:#define wxCRT_UngetcA     ungetc
+        -:  457:
+        -:  458:#ifdef wxHAVE_TCHAR_SUPPORT
+        -:  459:    #define wxCRT_PutsW   _putws
+        -:  460:    #define wxCRT_FputsW  fputws
+        -:  461:    #define wxCRT_FputcW  fputwc
+        -:  462:#endif
+        -:  463:#ifdef HAVE_FPUTWS
+        -:  464:    #define wxCRT_FputsW  fputws
+        -:  465:#endif
+        -:  466:#ifdef HAVE_PUTWS
+        -:  467:    #define wxCRT_PutsW   putws
+        -:  468:#endif
+        -:  469:#ifdef HAVE_FPUTWC
+        -:  470:    #define wxCRT_FputcW  fputwc
+        -:  471:#endif
+        -:  472:#define wxCRT_FgetsW  fgetws
+        -:  473:
+        -:  474:#ifndef wxCRT_PutsW
+        -:  475:WXDLLIMPEXP_BASE int wxCRT_PutsW(const wchar_t *ws);
+        -:  476:#endif
+        -:  477:
+        -:  478:#ifndef wxCRT_FputsW
+        -:  479:WXDLLIMPEXP_BASE int wxCRT_FputsW(const wchar_t *ch, FILE *stream);
+        -:  480:#endif
+        -:  481:
+        -:  482:#ifndef wxCRT_FputcW
+        -:  483:WXDLLIMPEXP_BASE int wxCRT_FputcW(wchar_t wc, FILE *stream);
+        -:  484:#endif
+        -:  485:
+        -:  486:/*
+        -:  487:   NB: tmpnam() is unsafe and thus is not wrapped!
+        -:  488:       Use other wxWidgets facilities instead:
+        -:  489:        wxFileName::CreateTempFileName, wxTempFile, or wxTempFileOutputStream
+        -:  490:*/
+        -:  491:#define wxTmpnam(x)         wxTmpnam_is_insecure_use_wxTempFile_instead
+        -:  492:
+        -:  493:#define wxCRT_PerrorA   perror
+        -:  494:#ifdef wxHAVE_TCHAR_SUPPORT
+        -:  495:    #define wxCRT_PerrorW _wperror
+        -:  496:#endif
+        -:  497:
+        -:  498:/* -------------------------------------------------------------------------
+        -:  499:                                  stdlib.h
+        -:  500:   ------------------------------------------------------------------------- */
+        -:  501:
+        -:  502:#define wxCRT_GetenvA           getenv
+        -:  503:#ifdef wxHAVE_TCHAR_SUPPORT
+        -:  504:    #define wxCRT_GetenvW       _wgetenv
+        -:  505:#endif
+        -:  506:
+        -:  507:#ifndef wxCRT_GetenvW
+        -:  508:WXDLLIMPEXP_BASE wchar_t * wxCRT_GetenvW(const wchar_t *name);
+        -:  509:#endif
+        -:  510:
+        -:  511:
+        -:  512:#define wxCRT_SystemA               system
+        -:  513:#ifdef wxHAVE_TCHAR_SUPPORT
+        -:  514:    #define  wxCRT_SystemW          _wsystem
+        -:  515:#endif
+        -:  516:
+        -:  517:#define wxCRT_AtofA                 atof
+        -:  518:#define wxCRT_AtoiA                 atoi
+        -:  519:#define wxCRT_AtolA                 atol
+        -:  520:
+        -:  521:#if defined(wxHAVE_TCHAR_SUPPORT)
+        -:  522:    wxDECL_FOR_STRICT_MINGW32(int, _wtoi, (const wchar_t*))
+        -:  523:    wxDECL_FOR_STRICT_MINGW32(long, _wtol, (const wchar_t*))
+        -:  524:
+        -:  525:    #define  wxCRT_AtoiW           _wtoi
+        -:  526:    #define  wxCRT_AtolW           _wtol
+        -:  527:    /* _wtof doesn't exist */
+        -:  528:#else
+        -:  529:#ifndef __VMS
+        -:  530:    #define wxCRT_AtofW(s)         wcstod(s, NULL)
+        -:  531:#endif
+        -:  532:    #define wxCRT_AtolW(s)         wcstol(s, NULL, 10)
+        -:  533:    /* wcstoi doesn't exist */
+        -:  534:#endif
+        -:  535:
+        -:  536:/* -------------------------------------------------------------------------
+        -:  537:                                time.h
+        -:  538:   ------------------------------------------------------------------------- */
+        -:  539:
+        -:  540:#define wxCRT_StrftimeA  strftime
+        -:  541:#ifdef __SGI__
+        -:  542:    /*
+        -:  543:        IRIX provides not one but two versions of wcsftime(): XPG4 one which
+        -:  544:        uses "const char*" for the third parameter and so can't be used and the
+        -:  545:        correct, XPG5, one. Unfortunately we can't just define _XOPEN_SOURCE
+        -:  546:        high enough to get XPG5 version as this undefines other symbols which
+        -:  547:        make other functions we use unavailable (see <standards.h> for gory
+        -:  548:        details). So just declare the XPG5 version ourselves, we're extremely
+        -:  549:        unlikely to ever be compiled on a system without it. But if we ever do,
+        -:  550:        a configure test would need to be added for it (and _MIPS_SYMBOL_PRESENT
+        -:  551:        should be used to check for its presence during run-time, i.e. it would
+        -:  552:        probably be simpler to just always use our own wxCRT_StrftimeW() below
+        -:  553:        if it does ever become a problem).
+        -:  554:     */
+        -:  555:#ifdef __cplusplus
+        -:  556:    extern "C"
+        -:  557:#endif
+        -:  558:    size_t
+        -:  559:    _xpg5_wcsftime(wchar_t *, size_t, const wchar_t *, const struct tm * );
+        -:  560:    #define wxCRT_StrftimeW _xpg5_wcsftime
+        -:  561:#else
+        -:  562:    /*
+        -:  563:        Assume it's always available under non-Unix systems as this does seem
+        -:  564:        to be the case for now. And under Unix we trust configure to detect it
+        -:  565:        (except for SGI special case above).
+        -:  566:     */
+        -:  567:    #if defined(HAVE_WCSFTIME) || !defined(__UNIX__)
+        -:  568:        #define wxCRT_StrftimeW  wcsftime
+        -:  569:    #endif
+        -:  570:#endif
+        -:  571:
+        -:  572:#ifndef wxCRT_StrftimeW
+        -:  573:WXDLLIMPEXP_BASE size_t wxCRT_StrftimeW(wchar_t *s, size_t max,
+        -:  574:                                        const wchar_t *fmt,
+        -:  575:                                        const struct tm *tm);
+        -:  576:#endif
+        -:  577:
+        -:  578:
+        -:  579:
+        -:  580:/* -------------------------------------------------------------------------
+        -:  581:                                ctype.h
+        -:  582:   ------------------------------------------------------------------------- */
+        -:  583:
+        -:  584:#define wxCRT_IsalnumW(c)   iswalnum(c)
+        -:  585:#define wxCRT_IsalphaW(c)   iswalpha(c)
+        -:  586:#define wxCRT_IscntrlW(c)   iswcntrl(c)
+        -:  587:#define wxCRT_IsdigitW(c)   iswdigit(c)
+        -:  588:#define wxCRT_IsgraphW(c)   iswgraph(c)
+        -:  589:#define wxCRT_IslowerW(c)   iswlower(c)
+        -:  590:#define wxCRT_IsprintW(c)   iswprint(c)
+        -:  591:#define wxCRT_IspunctW(c)   iswpunct(c)
+        -:  592:#define wxCRT_IsspaceW(c)   iswspace(c)
+        -:  593:#define wxCRT_IsupperW(c)   iswupper(c)
+        -:  594:#define wxCRT_IsxdigitW(c)  iswxdigit(c)
+        -:  595:
+        -:  596:#ifdef __GLIBC__
+        -:  597:    #if (__GLIBC__ == 2) && (__GLIBC_MINOR__ == 0)
+        -:  598:        /* /usr/include/wctype.h incorrectly declares translations */
+        -:  599:        /* tables which provokes tons of compile-time warnings -- try */
+        -:  600:        /* to correct this */
+        -:  601:        #define wxCRT_TolowerW(wc) towctrans((wc), (wctrans_t)__ctype_tolower)
+        -:  602:        #define wxCRT_ToupperW(wc) towctrans((wc), (wctrans_t)__ctype_toupper)
+        -:  603:    #else /* !glibc 2.0 */
+        -:  604:        #define wxCRT_TolowerW   towlower
+        -:  605:        #define wxCRT_ToupperW   towupper
+        -:  606:    #endif
+        -:  607:#else /* !__GLIBC__ */
+        -:  608:    /* There is a bug in MSVC RTL: toxxx() functions don't do anything
+        -:  609:       with signed chars < 0, so "fix" it here. */
+        -:  610:    #define wxCRT_TolowerW(c)   towlower((wxUChar)(wxChar)(c))
+        -:  611:    #define wxCRT_ToupperW(c)   towupper((wxUChar)(wxChar)(c))
+        -:  612:#endif /* __GLIBC__/!__GLIBC__ */
+        -:  613:
+        -:  614:/* The Android platform, as of 2014, only support most wide-char function with
+        -:  615:   the exception of multi-byte encoding/decoding functions & wsprintf/wsscanf
+        -:  616:   See android-ndk-r9d/docs/STANDALONE-TOOLCHAIN.html (section 7.2)
+        -:  617:   In fact, mbstowcs/wcstombs are defined and compile, but don't work correctly
+        -:  618:*/
+        -:  619:
+        -:  620:#if defined(__WXQT__) && defined(__ANDROID__)
+        -:  621:    #define wxNEED_WX_MBSTOWCS
+        -:  622:    #undef HAVE_WCSRTOMBS
+        -:  623:    // TODO: use Qt built-in required functionality
+        -:  624:#endif
+        -:  625:
+        -:  626:#if defined(wxNEED_WX_MBSTOWCS) && defined(__ANDROID__)
+        -:  627:    #warning "Custom mb/wchar conv. only works for ASCII, see Android NDK notes"
+        -:  628:    WXDLLIMPEXP_BASE size_t android_mbstowcs(wchar_t *, const char *, size_t);
+        -:  629:    WXDLLIMPEXP_BASE size_t android_wcstombs(char *, const wchar_t *, size_t);
+        -:  630:    #define wxMbstowcs android_mbstowcs
+        -:  631:    #define wxWcstombs android_wcstombs
+        -:  632:#else
+        -:  633:    #define wxMbstowcs mbstowcs
+        -:  634:    #define wxWcstombs wcstombs
+        -:  635:#endif
+        -:  636:
+        -:  637:
+        -:  638:/* -------------------------------------------------------------------------
+        -:  639:       wx wrappers for CRT functions in both char* and wchar_t* versions
+        -:  640:   ------------------------------------------------------------------------- */
+        -:  641:
+        -:  642:#ifdef __cplusplus
+        -:  643:
+        -:  644:/* NB: this belongs to wxcrt.h and not this header, but it makes life easier
+        -:  645: *     for buffer.h and stringimpl.h (both of which must be included before
+        -:  646: *     string.h, which is required by wxcrt.h) to have them here: */
+        -:  647:
+        -:  648:/* safe version of strlen() (returns 0 if passed NULL pointer) */
+    #####:  649:inline size_t wxStrlen(const char *s) { return s ? wxCRT_StrlenA(s) : 0; }
+    #####:  650:inline size_t wxStrlen(const wchar_t *s) { return s ? wxCRT_StrlenW(s) : 0; }
+        -:  651:#ifndef wxWCHAR_T_IS_WXCHAR16
+        -:  652:       WXDLLIMPEXP_BASE size_t wxStrlen(const wxChar16 *s );
+        -:  653:#endif
+        -:  654:#ifndef wxWCHAR_T_IS_WXCHAR32
+        -:  655:       WXDLLIMPEXP_BASE size_t wxStrlen(const wxChar32 *s );
+        -:  656:#endif
+        -:  657:#define wxWcslen wxCRT_StrlenW
+        -:  658:
+        -:  659:#define wxStrdupA wxCRT_StrdupA
+        -:  660:#define wxStrdupW wxCRT_StrdupW
+        -:  661:inline char* wxStrdup(const char *s) { return wxCRT_StrdupA(s); }
+        -:  662:inline wchar_t* wxStrdup(const wchar_t *s) { return wxCRT_StrdupW(s); }
+        -:  663:#ifndef wxWCHAR_T_IS_WXCHAR16
+        -:  664:       WXDLLIMPEXP_BASE wxChar16* wxStrdup(const wxChar16* s);
+        -:  665:#endif
+        -:  666:#ifndef wxWCHAR_T_IS_WXCHAR32
+        -:  667:       WXDLLIMPEXP_BASE wxChar32* wxStrdup(const wxChar32* s);
+        -:  668:#endif
+        -:  669:
+        -:  670:#endif /* __cplusplus */
+        -:  671:
+        -:  672:#endif /* _WX_WXCRTBASE_H_ */

@@ -1,0 +1,341 @@
+        -:    0:Source:/src/kicad/libs/core/include/core/utf8.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2013 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * @author Dick Hollenbeck
+        -:    8: *
+        -:    9: * This program is free software; you can redistribute it and/or
+        -:   10: * modify it under the terms of the GNU General Public License
+        -:   11: * as published by the Free Software Foundation; either version 2
+        -:   12: * of the License, or (at your option) any later version.
+        -:   13: *
+        -:   14: * This program is distributed in the hope that it will be useful,
+        -:   15: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   16: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   17: * GNU General Public License for more details.
+        -:   18: *
+        -:   19: * You should have received a copy of the GNU General Public License
+        -:   20: * along with this program; if not, you may find one here:
+        -:   21: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   22: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   23: * or you may write to the Free Software Foundation, Inc.,
+        -:   24: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   25: */
+        -:   26:
+        -:   27:#ifndef UTF8_H_
+        -:   28:#define UTF8_H_
+        -:   29:
+        -:   30:#include <iostream>
+        -:   31:#include <string>
+        -:   32:#include <wx/string.h>
+        -:   33:
+        -:   34:#if defined(DEBUG)
+        -:   35: #define UTF8_VERIFY    // Might someday be a hidden cmake config option
+        -:   36:#endif
+        -:   37:
+        -:   38:
+        -:   39:/**
+        -:   40: * Test a C string to see if it is UTF8 encoded.
+        -:   41: *
+        -:   42: * An ASCII string is a valid UTF8 string.
+        -:   43: */
+        -:   44:bool IsUTF8( const char* aString );
+        -:   45:
+        -:   46:
+        -:   47:#if defined(UTF8_VERIFY)
+        -:   48: #define MAYBE_VERIFY_UTF8(x)       wxASSERT( IsUTF8(x) )
+        -:   49:#else
+        -:   50: #define MAYBE_VERIFY_UTF8(x)       // nothing
+        -:   51:#endif
+        -:   52:
+        -:   53:
+        -:   54:/**
+        -:   55: * An 8 bit string that is assuredly encoded in UTF8, and supplies special conversion
+        -:   56: * support to and from wxString, to and from std::string, and has non-mutating iteration
+        -:   57: * over Unicode characters.
+        -:   58: *
+        -:   59: * I've been careful to supply only conversion facilities and not try and duplicate
+        -:   60: * wxString() with many member functions. There are multiple ways to create text into
+        -:   61: * a std::string without the need of too many member functions:
+        -:   62: *
+        -:   63: *  - std::ostringstream.
+        -:   64: *
+        -:   65: * Because this class uses no virtuals, it should be possible to cast any std::string
+        -:   66: * into a UTF8 using this kind of cast: (UTF8 &) without construction or copying being
+        -:   67: * the effect of the cast.  Be sure the source std::string holds UTF8 encoded text before
+        -:   68: * you do that.
+        -:   69: */
+        -:   70:class UTF8
+        -:   71:{
+        -:   72:public:
+        -:   73:    UTF8( const wxString& o );
+        -:   74:
+        -:   75:    /// This is a constructor for which you could end up with
+        -:   76:    /// non-UTF8 encoding, but that would be your fault.
+        -:   77:    UTF8( const char* txt ) :
+        -:   78:        m_s( txt )
+        -:   79:    {
+        -:   80:        MAYBE_VERIFY_UTF8( c_str() );
+        -:   81:    }
+        -:   82:
+        -:   83:    /// For use with _() function on wx 2.8.
+        -:   84:    /// BTW _() on wx >= 2.9 returns wxString, not wchar_t* like on 2.8.
+        -:   85:    UTF8( const wchar_t* txt );
+        -:   86:
+        -:   87:    UTF8( const std::string& o ) :
+        -:   88:        m_s( o )
+        -:   89:    {
+        -:   90:        MAYBE_VERIFY_UTF8( c_str() );
+        -:   91:    }
+        -:   92:
+        -:   93:    UTF8( const UTF8& o ) :
+        -:   94:        m_s( o.m_s )
+        -:   95:    {
+        -:   96:        MAYBE_VERIFY_UTF8( c_str() );
+        -:   97:    }
+        -:   98:
+        -:   99:    UTF8()
+        -:  100:    {
+        -:  101:    }
+        -:  102:
+    #####:  103:    ~UTF8()     // Needed mainly to build python wrapper
+        -:  104:    {
+    #####:  105:    }
+        -:  106:
+        -:  107:    // expose some std::string functions publicly, since base class must be private.
+    #####:  108:    const char* c_str()                         const   { return m_s.c_str(); }
+    #####:  109:    bool empty()                                const   { return m_s.empty(); }
+        -:  110:
+        -:  111:    std::string::size_type find( char c )       const   { return m_s.find( c ); }
+        -:  112:    std::string::size_type find( char c, size_t s )     const   { return m_s.find( c, s ); }
+        -:  113:
+        -:  114:    void clear()                                        { m_s.clear(); }
+        -:  115:    std::string::size_type length()             const   { return m_s.length(); }
+        -:  116:    std::string::size_type size()               const   { return m_s.size(); }
+        -:  117:    int compare( const std::string& s )         const   { return m_s.compare( s ); }
+        -:  118:
+        -:  119:    bool operator==( const UTF8& rhs )          const   { return m_s == rhs.m_s; }
+        -:  120:    bool operator==( const std::string& rhs )   const   { return m_s == rhs; }
+        -:  121:    bool operator==( const char* s )            const   { return m_s == s; }
+        -:  122:
+        -:  123:    bool operator!=( const UTF8& rhs ) const { return !( operator==( rhs ) ); }
+        -:  124:    bool operator<( const UTF8& rhs ) const { return m_s < rhs.m_s;  }
+        -:  125:    bool operator>( const UTF8& rhs ) const { return m_s > rhs.m_s;  }
+        -:  126:
+        -:  127:    std::string::size_type find_first_of( const std::string& str,
+        -:  128:                                          std::string::size_type pos = 0 ) const
+        -:  129:    {
+        -:  130:        return m_s.find_first_of( str, pos );
+        -:  131:    }
+        -:  132:
+        -:  133:    UTF8& operator+=( const UTF8& str )
+        -:  134:    {
+        -:  135:        m_s += str.m_s;
+        -:  136:        MAYBE_VERIFY_UTF8( c_str() );
+        -:  137:        return *this;
+        -:  138:    }
+        -:  139:
+        -:  140:    UTF8& operator+=( char ch )
+        -:  141:    {
+        -:  142:        m_s.operator+=( ch );
+        -:  143:        MAYBE_VERIFY_UTF8( c_str() );
+        -:  144:        return *this;
+        -:  145:    }
+        -:  146:
+        -:  147:    UTF8& operator+=( const char* s )
+        -:  148:    {
+        -:  149:        m_s.operator+=( s );
+        -:  150:        MAYBE_VERIFY_UTF8( c_str() );
+        -:  151:        return *this;
+        -:  152:    }
+        -:  153:
+        -:  154:    /// Append a wide (unicode) char to the UTF8 string.
+        -:  155:    /// if this wide char is not a ASCII7 char, it will be added as a UTF8 multibyte sequence
+        -:  156:    /// @param w_ch is a UTF-16 value (can be a UTF-32 on Linux)
+        -:  157:    UTF8& operator+=( unsigned w_ch );
+        -:  158:
+        -:  159:    // std::string::npos is not constexpr, so we can't use it in an
+        -:  160:    // initializer.
+        -:  161:    static constexpr std::string::size_type npos = -1;
+        -:  162:
+        -:  163:    UTF8& operator=( const wxString& o );
+        -:  164:
+        -:  165:    UTF8& operator=( const std::string& o )
+        -:  166:    {
+        -:  167:        m_s = o;
+        -:  168:        MAYBE_VERIFY_UTF8( c_str() );
+        -:  169:        return *this;
+        -:  170:    }
+        -:  171:
+        -:  172:    UTF8& operator=( const char* s )
+        -:  173:    {
+        -:  174:        m_s = s;
+        -:  175:        MAYBE_VERIFY_UTF8( c_str() );
+        -:  176:        return *this;
+        -:  177:    }
+        -:  178:
+        -:  179:    UTF8& operator=( char c )
+        -:  180:    {
+        -:  181:        m_s = c;
+        -:  182:        MAYBE_VERIFY_UTF8( c_str() );
+        -:  183:        return *this;
+        -:  184:    }
+        -:  185:
+    #####:  186:    UTF8& operator=( const UTF8& aOther )
+        -:  187:    {
+    #####:  188:        m_s = aOther.m_s;
+    #####:  189:        MAYBE_VERIFY_UTF8( c_str() );
+    #####:  190:        return *this;
+        -:  191:    }
+        -:  192:
+        -:  193:    // Move assignment operator
+        -:  194:    UTF8& operator=( UTF8&& aOther ) noexcept
+        -:  195:    {
+        -:  196:        if (this != &aOther)
+        -:  197:            m_s = std::move( aOther.m_s );
+        -:  198:
+        -:  199:        MAYBE_VERIFY_UTF8( c_str() );
+        -:  200:        return *this;
+        -:  201:    }
+        -:  202:
+        -:  203:    // a substring of a UTF8 is not necessarily a UTF8 if a multibyte character
+        -:  204:    // was split, so return std::string not UTF8
+        -:  205:    std::string substr( size_t pos = 0, size_t len = npos ) const
+        -:  206:    {
+        -:  207:        return m_s.substr( pos, len );
+        -:  208:    }
+        -:  209:
+    #####:  210:    operator const std::string& () const    { return m_s; }
+        -:  211:    //operator std::string& ()                { return m_s; }
+        -:  212:    //operator std::string () const           { return m_s; }
+        -:  213:
+        -:  214:    wxString wx_str() const;
+        -:  215:    operator wxString () const;
+        -:  216:
+        -:  217:    // "Read only" iterating over bytes is done with these, use the uni_iter to iterate
+        -:  218:    // over UTF8 (multi-byte) characters
+        -:  219:    std::string::const_iterator begin()         const   { return m_s.begin(); }
+        -:  220:    std::string::const_iterator end()           const   { return m_s.end(); }
+        -:  221:
+        -:  222:#ifndef SWIG
+        -:  223:    /**
+        -:  224:     * uni_iter
+        -:  225:     * is a non-mutating iterator that walks through unicode code points in the UTF8 encoded
+        -:  226:     * string.  The normal ++(), ++(int), ->(), and *() operators are all supported
+        -:  227:     * for read only access and some return an unsigned holding the unicode character
+        -:  228:     * appropriate for the respective operator.
+        -:  229:     */
+        -:  230:    class uni_iter
+        -:  231:    {
+        -:  232:    public:
+        -:  233:        uni_iter()  // Needed only to build python wrapper, not used outside the wrapper
+        -:  234:        {
+        -:  235:            it = nullptr;
+        -:  236:        }
+        -:  237:
+        -:  238:        uni_iter( const uni_iter& o )
+        -:  239:        {
+        -:  240:            it = o.it;
+        -:  241:        }
+        -:  242:
+        -:  243:        /// pre-increment and return uni_iter at new position
+        -:  244:        const uni_iter& operator++()
+        -:  245:        {
+        -:  246:            it += uni_forward( it );
+        -:  247:            return *this;
+        -:  248:        }
+        -:  249:
+        -:  250:        /// post-increment and return uni_iter at initial position
+        -:  251:        uni_iter operator++( int )
+        -:  252:        {
+        -:  253:            uni_iter ret = *this;
+        -:  254:
+        -:  255:            it += uni_forward( it );
+        -:  256:            return ret;
+        -:  257:        }
+        -:  258:
+        -:  259:        /// return unicode at current position
+        -:  260:        unsigned operator->() const
+        -:  261:        {
+        -:  262:            unsigned    result;
+        -:  263:
+        -:  264:            // grab the result, do not advance
+        -:  265:            uni_forward( it, &result );
+        -:  266:            return result;
+        -:  267:        }
+        -:  268:
+        -:  269:        /// return unicode at current position
+        -:  270:        unsigned operator*() const
+        -:  271:        {
+        -:  272:            unsigned    result;
+        -:  273:
+        -:  274:            // grab the result, do not advance
+        -:  275:            uni_forward( it, &result );
+        -:  276:            return result;
+        -:  277:        }
+        -:  278:
+        -:  279:        uni_iter operator-( int aVal ) const { return uni_iter( (char*) it - aVal ); }
+        -:  280:
+        -:  281:        bool operator==( const uni_iter& other ) const  { return it == other.it; }
+        -:  282:        bool operator!=( const uni_iter& other ) const  { return it != other.it; }
+        -:  283:
+        -:  284:        /// Since the ++ operators advance more than one byte, this is your best
+        -:  285:        /// loop termination test, < end(), not == end().
+        -:  286:        bool operator< ( const uni_iter& other ) const  { return it <  other.it; }
+        -:  287:        bool operator<=( const uni_iter& other ) const  { return it <= other.it; }
+        -:  288:        bool operator> ( const uni_iter& other ) const  { return it >  other.it; }
+        -:  289:        bool operator>=( const uni_iter& other ) const  { return it >= other.it; }
+        -:  290:
+        -:  291:    private:
+        -:  292:        friend class UTF8;
+        -:  293:
+        -:  294:        const unsigned char* it;
+        -:  295:
+        -:  296:        // private constructor
+        -:  297:        uni_iter( const char* start ) :
+        -:  298:            it( (const unsigned char*) start )
+        -:  299:        {
+        -:  300:        }
+        -:  301:    };
+        -:  302:
+        -:  303:    /**
+        -:  304:     * Returns a @a uni_iter initialized to the start of "this" UTF8 byte sequence.
+        -:  305:     */
+        -:  306:    uni_iter ubegin() const
+        -:  307:    {
+        -:  308:        return uni_iter( m_s.data() );
+        -:  309:    }
+        -:  310:
+        -:  311:    /**
+        -:  312:     * Return a @a uni_iter initialized to the end of "this" UTF8 byte sequence.
+        -:  313:     */
+        -:  314:    uni_iter uend() const
+        -:  315:    {
+        -:  316:        return uni_iter( m_s.data() + m_s.size() );
+        -:  317:    }
+        -:  318:
+        -:  319:    /**
+        -:  320:     * Advance over a single UTF8 encoded multibyte character, capturing the Unicode character
+        -:  321:     * as it goes, and returning the number of bytes consumed.
+        -:  322:     *
+        -:  323:     * @param aSequence is the UTF8 byte sequence, must be aligned on start of character.
+        -:  324:     * @param aResult is where to put the unicode character, and may be NULL if no interest.
+        -:  325:     * @return the count of bytes consumed.
+        -:  326:     */
+        -:  327:    static int uni_forward( const unsigned char* aSequence, unsigned* aResult = nullptr );
+        -:  328:#endif  // SWIG
+        -:  329:
+        -:  330:protected:
+        -:  331:    std::string m_s;
+        -:  332:};
+        -:  333:
+        -:  334:
+        -:  335:std::ostream& operator<<( std::ostream& aStream, const UTF8& aRhs );
+        -:  336:
+        -:  337:#endif // UTF8_H_

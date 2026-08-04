@@ -1,0 +1,1135 @@
+        -:    0:Source:/usr/include/wx-3.2/wx/longlong.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1://///////////////////////////////////////////////////////////////////////////
+        -:    2:// Name:        wx/longlong.h
+        -:    3:// Purpose:     declaration of wxLongLong class - best implementation of a 64
+        -:    4://              bit integer for the current platform.
+        -:    5:// Author:      Jeffrey C. Ollie <jeff@ollie.clive.ia.us>, Vadim Zeitlin
+        -:    6:// Modified by:
+        -:    7:// Created:     10.02.99
+        -:    8:// Copyright:   (c) 1998 Vadim Zeitlin <zeitlin@dptmaths.ens-cachan.fr>
+        -:    9:// Licence:     wxWindows licence
+        -:   10://///////////////////////////////////////////////////////////////////////////
+        -:   11:
+        -:   12:#ifndef _WX_LONGLONG_H
+        -:   13:#define _WX_LONGLONG_H
+        -:   14:
+        -:   15:#include "wx/defs.h"
+        -:   16:
+        -:   17:#if wxUSE_LONGLONG
+        -:   18:
+        -:   19:#include "wx/string.h"
+        -:   20:
+        -:   21:#include <limits.h>     // for LONG_MAX
+        -:   22:
+        -:   23:// define this to compile wxLongLongWx in "test" mode: the results of all
+        -:   24:// calculations will be compared with the real results taken from
+        -:   25:// wxLongLongNative -- this is extremely useful to find the bugs in
+        -:   26:// wxLongLongWx class!
+        -:   27:
+        -:   28:// #define wxLONGLONG_TEST_MODE
+        -:   29:
+        -:   30:#ifdef wxLONGLONG_TEST_MODE
+        -:   31:    #define wxUSE_LONGLONG_WX 1
+        -:   32:    #define wxUSE_LONGLONG_NATIVE 1
+        -:   33:#endif // wxLONGLONG_TEST_MODE
+        -:   34:
+        -:   35:// ----------------------------------------------------------------------------
+        -:   36:// decide upon which class we will use
+        -:   37:// ----------------------------------------------------------------------------
+        -:   38:
+        -:   39:#ifndef wxLongLong_t
+        -:   40:    // both warning and pragma warning are not portable, but at least an
+        -:   41:    // unknown pragma should never be an error -- except that, actually, some
+        -:   42:    // broken compilers don't like it, so we have to disable it in this case
+        -:   43:    // <sigh>
+        -:   44:    #ifdef __GNUC__
+        -:   45:        #warning "Your compiler does not appear to support 64 bit "\
+        -:   46:                 "integers, using emulation class instead.\n" \
+        -:   47:                 "Please report your compiler version to " \
+        -:   48:                 "wx-dev@googlegroups.com!"
+        -:   49:    #else
+        -:   50:        #pragma warning "Your compiler does not appear to support 64 bit "\
+        -:   51:                        "integers, using emulation class instead.\n" \
+        -:   52:                        "Please report your compiler version to " \
+        -:   53:                        "wx-dev@googlegroups.com!"
+        -:   54:    #endif
+        -:   55:
+        -:   56:    #define wxUSE_LONGLONG_WX 1
+        -:   57:#endif // compiler
+        -:   58:
+        -:   59:// the user may predefine wxUSE_LONGLONG_NATIVE and/or wxUSE_LONGLONG_NATIVE
+        -:   60:// to disable automatic testing (useful for the test program which defines
+        -:   61:// both classes) but by default we only use one class
+        -:   62:#if (defined(wxUSE_LONGLONG_WX) && wxUSE_LONGLONG_WX) || !defined(wxLongLong_t)
+        -:   63:    // don't use both classes unless wxUSE_LONGLONG_NATIVE was explicitly set:
+        -:   64:    // this is useful in test programs and only there
+        -:   65:    #ifndef wxUSE_LONGLONG_NATIVE
+        -:   66:        #define wxUSE_LONGLONG_NATIVE 0
+        -:   67:    #endif
+        -:   68:
+        -:   69:    class WXDLLIMPEXP_FWD_BASE wxLongLongWx;
+        -:   70:    class WXDLLIMPEXP_FWD_BASE wxULongLongWx;
+        -:   71:#if defined(__VISUALC__) && !defined(__WIN32__)
+        -:   72:    #define wxLongLong wxLongLongWx
+        -:   73:    #define wxULongLong wxULongLongWx
+        -:   74:#else
+        -:   75:    typedef wxLongLongWx wxLongLong;
+        -:   76:    typedef wxULongLongWx wxULongLong;
+        -:   77:#endif
+        -:   78:
+        -:   79:#else
+        -:   80:    // if nothing is defined, use native implementation by default, of course
+        -:   81:    #ifndef wxUSE_LONGLONG_NATIVE
+        -:   82:        #define wxUSE_LONGLONG_NATIVE 1
+        -:   83:    #endif
+        -:   84:#endif
+        -:   85:
+        -:   86:#ifndef wxUSE_LONGLONG_WX
+        -:   87:    #define wxUSE_LONGLONG_WX 0
+        -:   88:    class WXDLLIMPEXP_FWD_BASE wxLongLongNative;
+        -:   89:    class WXDLLIMPEXP_FWD_BASE wxULongLongNative;
+        -:   90:    typedef wxLongLongNative wxLongLong;
+        -:   91:    typedef wxULongLongNative wxULongLong;
+        -:   92:#endif
+        -:   93:
+        -:   94:// NB: if both wxUSE_LONGLONG_WX and NATIVE are defined, the user code should
+        -:   95://     typedef wxLongLong as it wants, we don't do it
+        -:   96:
+        -:   97:// ----------------------------------------------------------------------------
+        -:   98:// choose the appropriate class
+        -:   99:// ----------------------------------------------------------------------------
+        -:  100:
+        -:  101:// we use iostream for wxLongLong output
+        -:  102:#include "wx/iosfwrap.h"
+        -:  103:
+        -:  104:#if wxUSE_LONGLONG_NATIVE
+        -:  105:
+        -:  106:class WXDLLIMPEXP_BASE wxWARN_UNUSED wxLongLongNative
+        -:  107:{
+        -:  108:public:
+        -:  109:    // ctors
+        -:  110:        // default ctor initializes to 0
+        -:  111:    wxLongLongNative() : m_ll(0) { }
+        -:  112:        // from long long
+    #####:  113:    wxLongLongNative(wxLongLong_t ll) : m_ll(ll) { }
+        -:  114:        // from 2 longs
+        -:  115:    wxLongLongNative(wxInt32 hi, wxUint32 lo)
+        -:  116:    {
+        -:  117:        // cast to wxLongLong_t first to avoid precision loss!
+        -:  118:        m_ll = ((wxLongLong_t) hi) << 32;
+        -:  119:        m_ll |= (wxLongLong_t) lo;
+        -:  120:    }
+        -:  121:#if wxUSE_LONGLONG_WX
+        -:  122:    wxLongLongNative(wxLongLongWx ll);
+        -:  123:#endif
+        -:  124:
+        -:  125:    // default copy ctor is ok
+        -:  126:
+        -:  127:    // no dtor
+        -:  128:
+        -:  129:    // assignment operators
+        -:  130:        // from native 64 bit integer
+        -:  131:#ifndef wxLongLongIsLong
+        -:  132:    wxLongLongNative& operator=(wxLongLong_t ll)
+        -:  133:        { m_ll = ll; return *this; }
+        -:  134:    wxLongLongNative& operator=(wxULongLong_t ll)
+        -:  135:        { m_ll = ll; return *this; }
+        -:  136:#endif // !wxLongLongNative
+        -:  137:    wxLongLongNative& operator=(const wxULongLongNative &ll);
+        -:  138:    wxLongLongNative& operator=(int l)
+        -:  139:        { m_ll = l; return *this; }
+        -:  140:    wxLongLongNative& operator=(long l)
+        -:  141:        { m_ll = l; return *this; }
+        -:  142:    wxLongLongNative& operator=(unsigned int l)
+        -:  143:        { m_ll = l; return *this; }
+        -:  144:    wxLongLongNative& operator=(unsigned long l)
+        -:  145:        { m_ll = l; return *this; }
+        -:  146:#if wxUSE_LONGLONG_WX
+        -:  147:    wxLongLongNative& operator=(wxLongLongWx ll);
+        -:  148:    wxLongLongNative& operator=(const class wxULongLongWx &ll);
+        -:  149:#endif
+        -:  150:
+        -:  151:
+        -:  152:        // from double: this one has an explicit name because otherwise we
+        -:  153:        // would have ambiguity with "ll = int" and also because we don't want
+        -:  154:        // to have implicit conversions between doubles and wxLongLongs
+        -:  155:    wxLongLongNative& Assign(double d)
+        -:  156:        { m_ll = (wxLongLong_t)d; return *this; }
+        -:  157:
+        -:  158:    // assignment operators from wxLongLongNative is ok
+        -:  159:
+        -:  160:    // accessors
+        -:  161:        // get high part
+        -:  162:    wxInt32 GetHi() const
+        -:  163:        { return wx_truncate_cast(wxInt32, m_ll >> 32); }
+        -:  164:        // get low part
+        -:  165:    wxUint32 GetLo() const
+        -:  166:        { return wx_truncate_cast(wxUint32, m_ll); }
+        -:  167:
+        -:  168:        // get absolute value
+        -:  169:    wxLongLongNative Abs() const { return wxLongLongNative(*this).Abs(); }
+        -:  170:    wxLongLongNative& Abs() { if ( m_ll < 0 ) m_ll = -m_ll; return *this; }
+        -:  171:
+        -:  172:        // convert to native long long
+    #####:  173:    wxLongLong_t GetValue() const { return m_ll; }
+        -:  174:
+        -:  175:        // convert to long with range checking in debug mode (only!)
+        -:  176:    long ToLong() const
+        -:  177:    {
+        -:  178:        // This assert is useless if long long is the same as long (which is
+        -:  179:        // the case under the standard Unix LP64 model).
+        -:  180:#ifdef wxHAS_LONG_LONG_T_DIFFERENT_FROM_LONG
+        -:  181:        wxASSERT_MSG( (m_ll >= LONG_MIN) && (m_ll <= LONG_MAX),
+        -:  182:                      wxT("wxLongLong to long conversion loss of precision") );
+        -:  183:#endif
+        -:  184:
+        -:  185:        return wx_truncate_cast(long, m_ll);
+        -:  186:    }
+        -:  187:
+        -:  188:        // convert to double
+        -:  189:    double ToDouble() const { return wx_truncate_cast(double, m_ll); }
+        -:  190:
+        -:  191:    // don't provide implicit conversion to wxLongLong_t or we will have an
+        -:  192:    // ambiguity for all arithmetic operations
+        -:  193:    //operator wxLongLong_t() const { return m_ll; }
+        -:  194:
+        -:  195:    // operations
+        -:  196:        // addition
+        -:  197:    wxLongLongNative operator+(const wxLongLongNative& ll) const
+        -:  198:        { return wxLongLongNative(m_ll + ll.m_ll); }
+        -:  199:    wxLongLongNative& operator+=(const wxLongLongNative& ll)
+        -:  200:        { m_ll += ll.m_ll; return *this; }
+        -:  201:
+        -:  202:    wxLongLongNative operator+(const wxLongLong_t ll) const
+        -:  203:        { return wxLongLongNative(m_ll + ll); }
+        -:  204:    wxLongLongNative& operator+=(const wxLongLong_t ll)
+        -:  205:        { m_ll += ll; return *this; }
+        -:  206:
+        -:  207:        // pre increment
+        -:  208:    wxLongLongNative& operator++()
+        -:  209:        { m_ll++; return *this; }
+        -:  210:
+        -:  211:        // post increment
+        -:  212:    wxLongLongNative operator++(int)
+        -:  213:        { wxLongLongNative value(*this); m_ll++; return value; }
+        -:  214:
+        -:  215:        // negation operator
+        -:  216:    wxLongLongNative operator-() const
+        -:  217:        { return wxLongLongNative(-m_ll); }
+        -:  218:    wxLongLongNative& Negate() { m_ll = -m_ll; return *this; }
+        -:  219:
+        -:  220:        // subtraction
+        -:  221:    wxLongLongNative operator-(const wxLongLongNative& ll) const
+        -:  222:        { return wxLongLongNative(m_ll - ll.m_ll); }
+        -:  223:    wxLongLongNative& operator-=(const wxLongLongNative& ll)
+        -:  224:        { m_ll -= ll.m_ll; return *this; }
+        -:  225:
+        -:  226:    wxLongLongNative operator-(const wxLongLong_t ll) const
+        -:  227:        { return wxLongLongNative(m_ll - ll); }
+        -:  228:    wxLongLongNative& operator-=(const wxLongLong_t ll)
+        -:  229:        { m_ll -= ll; return *this; }
+        -:  230:
+        -:  231:        // pre decrement
+        -:  232:    wxLongLongNative& operator--()
+        -:  233:        { m_ll--; return *this; }
+        -:  234:
+        -:  235:        // post decrement
+        -:  236:    wxLongLongNative operator--(int)
+        -:  237:        { wxLongLongNative value(*this); m_ll--; return value; }
+        -:  238:
+        -:  239:    // shifts
+        -:  240:        // left shift
+        -:  241:    wxLongLongNative operator<<(int shift) const
+        -:  242:        { return wxLongLongNative(m_ll << shift); }
+        -:  243:    wxLongLongNative& operator<<=(int shift)
+        -:  244:        { m_ll <<= shift; return *this; }
+        -:  245:
+        -:  246:        // right shift
+        -:  247:    wxLongLongNative operator>>(int shift) const
+        -:  248:        { return wxLongLongNative(m_ll >> shift); }
+        -:  249:    wxLongLongNative& operator>>=(int shift)
+        -:  250:        { m_ll >>= shift; return *this; }
+        -:  251:
+        -:  252:    // bitwise operators
+        -:  253:    wxLongLongNative operator&(const wxLongLongNative& ll) const
+        -:  254:        { return wxLongLongNative(m_ll & ll.m_ll); }
+        -:  255:    wxLongLongNative& operator&=(const wxLongLongNative& ll)
+        -:  256:        { m_ll &= ll.m_ll; return *this; }
+        -:  257:
+        -:  258:    wxLongLongNative operator|(const wxLongLongNative& ll) const
+        -:  259:        { return wxLongLongNative(m_ll | ll.m_ll); }
+        -:  260:    wxLongLongNative& operator|=(const wxLongLongNative& ll)
+        -:  261:        { m_ll |= ll.m_ll; return *this; }
+        -:  262:
+        -:  263:    wxLongLongNative operator^(const wxLongLongNative& ll) const
+        -:  264:        { return wxLongLongNative(m_ll ^ ll.m_ll); }
+        -:  265:    wxLongLongNative& operator^=(const wxLongLongNative& ll)
+        -:  266:        { m_ll ^= ll.m_ll; return *this; }
+        -:  267:
+        -:  268:    // multiplication/division
+        -:  269:    wxLongLongNative operator*(const wxLongLongNative& ll) const
+        -:  270:        { return wxLongLongNative(m_ll * ll.m_ll); }
+        -:  271:    wxLongLongNative operator*(long l) const
+        -:  272:        { return wxLongLongNative(m_ll * l); }
+        -:  273:    wxLongLongNative& operator*=(const wxLongLongNative& ll)
+        -:  274:        { m_ll *= ll.m_ll; return *this; }
+        -:  275:    wxLongLongNative& operator*=(long l)
+        -:  276:        { m_ll *= l; return *this; }
+        -:  277:
+        -:  278:    wxLongLongNative operator/(const wxLongLongNative& ll) const
+        -:  279:        { return wxLongLongNative(m_ll / ll.m_ll); }
+        -:  280:    wxLongLongNative operator/(long l) const
+        -:  281:        { return wxLongLongNative(m_ll / l); }
+        -:  282:    wxLongLongNative& operator/=(const wxLongLongNative& ll)
+        -:  283:        { m_ll /= ll.m_ll; return *this; }
+        -:  284:    wxLongLongNative& operator/=(long l)
+        -:  285:        { m_ll /= l; return *this; }
+        -:  286:
+        -:  287:    wxLongLongNative operator%(const wxLongLongNative& ll) const
+        -:  288:        { return wxLongLongNative(m_ll % ll.m_ll); }
+        -:  289:    wxLongLongNative operator%(long l) const
+        -:  290:        { return wxLongLongNative(m_ll % l); }
+        -:  291:
+        -:  292:    // comparison
+        -:  293:    bool operator==(const wxLongLongNative& ll) const
+        -:  294:        { return m_ll == ll.m_ll; }
+        -:  295:    bool operator==(long l) const
+        -:  296:        { return m_ll == l; }
+    #####:  297:    bool operator!=(const wxLongLongNative& ll) const
+    #####:  298:        { return m_ll != ll.m_ll; }
+        -:  299:    bool operator!=(long l) const
+        -:  300:        { return m_ll != l; }
+        -:  301:    bool operator<(const wxLongLongNative& ll) const
+        -:  302:        { return m_ll < ll.m_ll; }
+        -:  303:    bool operator<(long l) const
+        -:  304:        { return m_ll < l; }
+        -:  305:    bool operator>(const wxLongLongNative& ll) const
+        -:  306:        { return m_ll > ll.m_ll; }
+        -:  307:    bool operator>(long l) const
+        -:  308:        { return m_ll > l; }
+        -:  309:    bool operator<=(const wxLongLongNative& ll) const
+        -:  310:        { return m_ll <= ll.m_ll; }
+        -:  311:    bool operator<=(long l) const
+        -:  312:        { return m_ll <= l; }
+        -:  313:    bool operator>=(const wxLongLongNative& ll) const
+        -:  314:        { return m_ll >= ll.m_ll; }
+        -:  315:    bool operator>=(long l) const
+        -:  316:        { return m_ll >= l; }
+        -:  317:
+        -:  318:    // miscellaneous
+        -:  319:
+        -:  320:        // return the string representation of this number
+        -:  321:    wxString ToString() const;
+        -:  322:
+        -:  323:        // conversion to byte array: returns a pointer to static buffer!
+        -:  324:    void *asArray() const;
+        -:  325:
+        -:  326:#if wxUSE_STD_IOSTREAM
+        -:  327:        // input/output
+        -:  328:    friend WXDLLIMPEXP_BASE
+        -:  329:    wxSTD ostream& operator<<(wxSTD ostream&, const wxLongLongNative&);
+        -:  330:#endif
+        -:  331:
+        -:  332:    friend WXDLLIMPEXP_BASE
+        -:  333:    wxString& operator<<(wxString&, const wxLongLongNative&);
+        -:  334:
+        -:  335:#if wxUSE_STREAMS
+        -:  336:    friend WXDLLIMPEXP_BASE
+        -:  337:    class wxTextOutputStream& operator<<(class wxTextOutputStream&, const wxLongLongNative&);
+        -:  338:    friend WXDLLIMPEXP_BASE
+        -:  339:    class wxTextInputStream& operator>>(class wxTextInputStream&, wxLongLongNative&);
+        -:  340:#endif
+        -:  341:
+        -:  342:private:
+        -:  343:    wxLongLong_t  m_ll;
+        -:  344:};
+        -:  345:
+        -:  346:
+        -:  347:class WXDLLIMPEXP_BASE wxWARN_UNUSED wxULongLongNative
+        -:  348:{
+        -:  349:public:
+        -:  350:    // ctors
+        -:  351:        // default ctor initializes to 0
+        -:  352:    wxULongLongNative() : m_ll(0) { }
+        -:  353:        // from long long
+        -:  354:    wxULongLongNative(wxULongLong_t ll) : m_ll(ll) { }
+        -:  355:        // from 2 longs
+        -:  356:    wxULongLongNative(wxUint32 hi, wxUint32 lo) : m_ll(0)
+        -:  357:    {
+        -:  358:        // cast to wxLongLong_t first to avoid precision loss!
+        -:  359:        m_ll = ((wxULongLong_t) hi) << 32;
+        -:  360:        m_ll |= (wxULongLong_t) lo;
+        -:  361:    }
+        -:  362:
+        -:  363:#if wxUSE_LONGLONG_WX
+        -:  364:    wxULongLongNative(const class wxULongLongWx &ll);
+        -:  365:#endif
+        -:  366:
+        -:  367:    // default copy ctor is ok
+        -:  368:
+        -:  369:    // no dtor
+        -:  370:
+        -:  371:    // assignment operators
+        -:  372:        // from native 64 bit integer
+        -:  373:#ifndef wxLongLongIsLong
+        -:  374:    wxULongLongNative& operator=(wxULongLong_t ll)
+        -:  375:        { m_ll = ll; return *this; }
+        -:  376:    wxULongLongNative& operator=(wxLongLong_t ll)
+        -:  377:        { m_ll = ll; return *this; }
+        -:  378:#endif // !wxLongLongNative
+        -:  379:    wxULongLongNative& operator=(int l)
+        -:  380:        { m_ll = l; return *this; }
+        -:  381:    wxULongLongNative& operator=(long l)
+        -:  382:        { m_ll = l; return *this; }
+        -:  383:    wxULongLongNative& operator=(unsigned int l)
+        -:  384:        { m_ll = l; return *this; }
+        -:  385:    wxULongLongNative& operator=(unsigned long l)
+        -:  386:        { m_ll = l; return *this; }
+        -:  387:    wxULongLongNative& operator=(const wxLongLongNative &ll)
+        -:  388:        { m_ll = ll.GetValue(); return *this; }
+        -:  389:#if wxUSE_LONGLONG_WX
+        -:  390:    wxULongLongNative& operator=(wxLongLongWx ll);
+        -:  391:    wxULongLongNative& operator=(const class wxULongLongWx &ll);
+        -:  392:#endif
+        -:  393:
+        -:  394:    // assignment operators from wxULongLongNative is ok
+        -:  395:
+        -:  396:    // accessors
+        -:  397:        // get high part
+        -:  398:    wxUint32 GetHi() const
+        -:  399:        { return wx_truncate_cast(wxUint32, m_ll >> 32); }
+        -:  400:        // get low part
+        -:  401:    wxUint32 GetLo() const
+        -:  402:        { return wx_truncate_cast(wxUint32, m_ll); }
+        -:  403:
+        -:  404:        // convert to native ulong long
+        -:  405:    wxULongLong_t GetValue() const { return m_ll; }
+        -:  406:
+        -:  407:        // convert to ulong with range checking in debug mode (only!)
+        -:  408:    unsigned long ToULong() const
+        -:  409:    {
+        -:  410:        wxASSERT_MSG( m_ll <= ULONG_MAX,
+        -:  411:                      wxT("wxULongLong to long conversion loss of precision") );
+        -:  412:
+        -:  413:        return wx_truncate_cast(unsigned long, m_ll);
+        -:  414:    }
+        -:  415:
+        -:  416:        // convert to double
+        -:  417:    double ToDouble() const { return wx_truncate_cast(double, m_ll); }
+        -:  418:
+        -:  419:    // operations
+        -:  420:        // addition
+        -:  421:    wxULongLongNative operator+(const wxULongLongNative& ll) const
+        -:  422:        { return wxULongLongNative(m_ll + ll.m_ll); }
+        -:  423:    wxULongLongNative& operator+=(const wxULongLongNative& ll)
+        -:  424:        { m_ll += ll.m_ll; return *this; }
+        -:  425:
+        -:  426:    wxULongLongNative operator+(const wxULongLong_t ll) const
+        -:  427:        { return wxULongLongNative(m_ll + ll); }
+        -:  428:    wxULongLongNative& operator+=(const wxULongLong_t ll)
+        -:  429:        { m_ll += ll; return *this; }
+        -:  430:
+        -:  431:        // pre increment
+        -:  432:    wxULongLongNative& operator++()
+        -:  433:        { m_ll++; return *this; }
+        -:  434:
+        -:  435:        // post increment
+        -:  436:    wxULongLongNative operator++(int)
+        -:  437:        { wxULongLongNative value(*this); m_ll++; return value; }
+        -:  438:
+        -:  439:        // subtraction
+        -:  440:    wxULongLongNative operator-(const wxULongLongNative& ll) const
+        -:  441:        { return wxULongLongNative(m_ll - ll.m_ll); }
+        -:  442:    wxULongLongNative& operator-=(const wxULongLongNative& ll)
+        -:  443:        { m_ll -= ll.m_ll; return *this; }
+        -:  444:
+        -:  445:    wxULongLongNative operator-(const wxULongLong_t ll) const
+        -:  446:        { return wxULongLongNative(m_ll - ll); }
+        -:  447:    wxULongLongNative& operator-=(const wxULongLong_t ll)
+        -:  448:        { m_ll -= ll; return *this; }
+        -:  449:
+        -:  450:        // pre decrement
+        -:  451:    wxULongLongNative& operator--()
+        -:  452:        { m_ll--; return *this; }
+        -:  453:
+        -:  454:        // post decrement
+        -:  455:    wxULongLongNative operator--(int)
+        -:  456:        { wxULongLongNative value(*this); m_ll--; return value; }
+        -:  457:
+        -:  458:    // shifts
+        -:  459:        // left shift
+        -:  460:    wxULongLongNative operator<<(int shift) const
+        -:  461:        { return wxULongLongNative(m_ll << shift); }
+        -:  462:    wxULongLongNative& operator<<=(int shift)
+        -:  463:        { m_ll <<= shift; return *this; }
+        -:  464:
+        -:  465:        // right shift
+        -:  466:    wxULongLongNative operator>>(int shift) const
+        -:  467:        { return wxULongLongNative(m_ll >> shift); }
+        -:  468:    wxULongLongNative& operator>>=(int shift)
+        -:  469:        { m_ll >>= shift; return *this; }
+        -:  470:
+        -:  471:    // bitwise operators
+        -:  472:    wxULongLongNative operator&(const wxULongLongNative& ll) const
+        -:  473:        { return wxULongLongNative(m_ll & ll.m_ll); }
+        -:  474:    wxULongLongNative& operator&=(const wxULongLongNative& ll)
+        -:  475:        { m_ll &= ll.m_ll; return *this; }
+        -:  476:
+        -:  477:    wxULongLongNative operator|(const wxULongLongNative& ll) const
+        -:  478:        { return wxULongLongNative(m_ll | ll.m_ll); }
+        -:  479:    wxULongLongNative& operator|=(const wxULongLongNative& ll)
+        -:  480:        { m_ll |= ll.m_ll; return *this; }
+        -:  481:
+        -:  482:    wxULongLongNative operator^(const wxULongLongNative& ll) const
+        -:  483:        { return wxULongLongNative(m_ll ^ ll.m_ll); }
+        -:  484:    wxULongLongNative& operator^=(const wxULongLongNative& ll)
+        -:  485:        { m_ll ^= ll.m_ll; return *this; }
+        -:  486:
+        -:  487:    // multiplication/division
+        -:  488:    wxULongLongNative operator*(const wxULongLongNative& ll) const
+        -:  489:        { return wxULongLongNative(m_ll * ll.m_ll); }
+        -:  490:    wxULongLongNative operator*(unsigned long l) const
+        -:  491:        { return wxULongLongNative(m_ll * l); }
+        -:  492:    wxULongLongNative& operator*=(const wxULongLongNative& ll)
+        -:  493:        { m_ll *= ll.m_ll; return *this; }
+        -:  494:    wxULongLongNative& operator*=(unsigned long l)
+        -:  495:        { m_ll *= l; return *this; }
+        -:  496:
+        -:  497:    wxULongLongNative operator/(const wxULongLongNative& ll) const
+        -:  498:        { return wxULongLongNative(m_ll / ll.m_ll); }
+        -:  499:    wxULongLongNative operator/(unsigned long l) const
+        -:  500:        { return wxULongLongNative(m_ll / l); }
+        -:  501:    wxULongLongNative& operator/=(const wxULongLongNative& ll)
+        -:  502:        { m_ll /= ll.m_ll; return *this; }
+        -:  503:    wxULongLongNative& operator/=(unsigned long l)
+        -:  504:        { m_ll /= l; return *this; }
+        -:  505:
+        -:  506:    wxULongLongNative operator%(const wxULongLongNative& ll) const
+        -:  507:        { return wxULongLongNative(m_ll % ll.m_ll); }
+        -:  508:    wxULongLongNative operator%(unsigned long l) const
+        -:  509:        { return wxULongLongNative(m_ll % l); }
+        -:  510:
+        -:  511:    // comparison
+        -:  512:    bool operator==(const wxULongLongNative& ll) const
+        -:  513:        { return m_ll == ll.m_ll; }
+        -:  514:    bool operator==(unsigned long l) const
+        -:  515:        { return m_ll == l; }
+        -:  516:    bool operator!=(const wxULongLongNative& ll) const
+        -:  517:        { return m_ll != ll.m_ll; }
+        -:  518:    bool operator!=(unsigned long l) const
+        -:  519:        { return m_ll != l; }
+        -:  520:    bool operator<(const wxULongLongNative& ll) const
+        -:  521:        { return m_ll < ll.m_ll; }
+        -:  522:    bool operator<(unsigned long l) const
+        -:  523:        { return m_ll < l; }
+        -:  524:    bool operator>(const wxULongLongNative& ll) const
+        -:  525:        { return m_ll > ll.m_ll; }
+        -:  526:    bool operator>(unsigned long l) const
+        -:  527:        { return m_ll > l; }
+        -:  528:    bool operator<=(const wxULongLongNative& ll) const
+        -:  529:        { return m_ll <= ll.m_ll; }
+        -:  530:    bool operator<=(unsigned long l) const
+        -:  531:        { return m_ll <= l; }
+        -:  532:    bool operator>=(const wxULongLongNative& ll) const
+        -:  533:        { return m_ll >= ll.m_ll; }
+        -:  534:    bool operator>=(unsigned long l) const
+        -:  535:        { return m_ll >= l; }
+        -:  536:
+        -:  537:    // miscellaneous
+        -:  538:
+        -:  539:        // return the string representation of this number
+        -:  540:    wxString ToString() const;
+        -:  541:
+        -:  542:        // conversion to byte array: returns a pointer to static buffer!
+        -:  543:    void *asArray() const;
+        -:  544:
+        -:  545:#if wxUSE_STD_IOSTREAM
+        -:  546:        // input/output
+        -:  547:    friend WXDLLIMPEXP_BASE
+        -:  548:    wxSTD ostream& operator<<(wxSTD ostream&, const wxULongLongNative&);
+        -:  549:#endif
+        -:  550:
+        -:  551:    friend WXDLLIMPEXP_BASE
+        -:  552:    wxString& operator<<(wxString&, const wxULongLongNative&);
+        -:  553:
+        -:  554:#if wxUSE_STREAMS
+        -:  555:    friend WXDLLIMPEXP_BASE
+        -:  556:    class wxTextOutputStream& operator<<(class wxTextOutputStream&, const wxULongLongNative&);
+        -:  557:    friend WXDLLIMPEXP_BASE
+        -:  558:    class wxTextInputStream& operator>>(class wxTextInputStream&, wxULongLongNative&);
+        -:  559:#endif
+        -:  560:
+        -:  561:private:
+        -:  562:    wxULongLong_t  m_ll;
+        -:  563:};
+        -:  564:
+        -:  565:inline
+        -:  566:wxLongLongNative& wxLongLongNative::operator=(const wxULongLongNative &ll)
+        -:  567:{
+        -:  568:    m_ll = ll.GetValue();
+        -:  569:    return *this;
+        -:  570:}
+        -:  571:
+        -:  572:#endif // wxUSE_LONGLONG_NATIVE
+        -:  573:
+        -:  574:#if wxUSE_LONGLONG_WX
+        -:  575:
+        -:  576:class WXDLLIMPEXP_BASE wxWARN_UNUSED wxLongLongWx
+        -:  577:{
+        -:  578:public:
+        -:  579:    // ctors
+        -:  580:        // default ctor initializes to 0
+        -:  581:    wxLongLongWx()
+        -:  582:    {
+        -:  583:        m_lo = m_hi = 0;
+        -:  584:
+        -:  585:#ifdef wxLONGLONG_TEST_MODE
+        -:  586:        m_ll = 0;
+        -:  587:
+        -:  588:        Check();
+        -:  589:#endif // wxLONGLONG_TEST_MODE
+        -:  590:    }
+        -:  591:        // from long
+        -:  592:    wxLongLongWx(long l) { *this = l; }
+        -:  593:        // from 2 longs
+        -:  594:    wxLongLongWx(long hi, unsigned long lo)
+        -:  595:    {
+        -:  596:        m_hi = hi;
+        -:  597:        m_lo = lo;
+        -:  598:
+        -:  599:#ifdef wxLONGLONG_TEST_MODE
+        -:  600:        m_ll = hi;
+        -:  601:        m_ll <<= 32;
+        -:  602:        m_ll |= lo;
+        -:  603:
+        -:  604:        Check();
+        -:  605:#endif // wxLONGLONG_TEST_MODE
+        -:  606:    }
+        -:  607:
+        -:  608:    // default copy ctor is ok in both cases
+        -:  609:
+        -:  610:    // no dtor
+        -:  611:
+        -:  612:    // assignment operators
+        -:  613:        // from long
+        -:  614:    wxLongLongWx& operator=(long l)
+        -:  615:    {
+        -:  616:        m_lo = l;
+        -:  617:        m_hi = (l < 0 ? -1l : 0l);
+        -:  618:
+        -:  619:#ifdef wxLONGLONG_TEST_MODE
+        -:  620:        m_ll = l;
+        -:  621:
+        -:  622:        Check();
+        -:  623:#endif // wxLONGLONG_TEST_MODE
+        -:  624:
+        -:  625:        return *this;
+        -:  626:    }
+        -:  627:        // from int
+        -:  628:    wxLongLongWx& operator=(int l)
+        -:  629:    {
+        -:  630:        return operator=((long)l);
+        -:  631:    }
+        -:  632:
+        -:  633:    wxLongLongWx& operator=(unsigned long l)
+        -:  634:    {
+        -:  635:        m_lo = l;
+        -:  636:        m_hi = 0;
+        -:  637:
+        -:  638:#ifdef wxLONGLONG_TEST_MODE
+        -:  639:        m_ll = l;
+        -:  640:
+        -:  641:        Check();
+        -:  642:#endif // wxLONGLONG_TEST_MODE
+        -:  643:
+        -:  644:        return *this;
+        -:  645:    }
+        -:  646:
+        -:  647:    wxLongLongWx& operator=(unsigned int l)
+        -:  648:    {
+        -:  649:        return operator=((unsigned long)l);
+        -:  650:    }
+        -:  651:
+        -:  652:    wxLongLongWx& operator=(const class wxULongLongWx &ll);
+        -:  653:
+        -:  654:    // from double
+        -:  655:    wxLongLongWx& Assign(double d);
+        -:  656:        // can't have assignment operator from 2 longs
+        -:  657:
+        -:  658:    // accessors
+        -:  659:        // get high part
+        -:  660:    long GetHi() const { return m_hi; }
+        -:  661:        // get low part
+        -:  662:    unsigned long GetLo() const { return m_lo; }
+        -:  663:
+        -:  664:        // get absolute value
+        -:  665:    wxLongLongWx Abs() const { return wxLongLongWx(*this).Abs(); }
+        -:  666:    wxLongLongWx& Abs()
+        -:  667:    {
+        -:  668:        if ( m_hi < 0 )
+        -:  669:            m_hi = -m_hi;
+        -:  670:
+        -:  671:#ifdef wxLONGLONG_TEST_MODE
+        -:  672:        if ( m_ll < 0 )
+        -:  673:            m_ll = -m_ll;
+        -:  674:
+        -:  675:        Check();
+        -:  676:#endif // wxLONGLONG_TEST_MODE
+        -:  677:
+        -:  678:        return *this;
+        -:  679:    }
+        -:  680:
+        -:  681:        // convert to long with range checking in debug mode (only!)
+        -:  682:    long ToLong() const
+        -:  683:    {
+        -:  684:        wxASSERT_MSG( (m_hi == 0l) || (m_hi == -1l),
+        -:  685:                      wxT("wxLongLong to long conversion loss of precision") );
+        -:  686:
+        -:  687:        return (long)m_lo;
+        -:  688:    }
+        -:  689:
+        -:  690:        // convert to double
+        -:  691:    double ToDouble() const;
+        -:  692:
+        -:  693:    // operations
+        -:  694:        // addition
+        -:  695:    wxLongLongWx operator+(const wxLongLongWx& ll) const;
+        -:  696:    wxLongLongWx& operator+=(const wxLongLongWx& ll);
+        -:  697:    wxLongLongWx operator+(long l) const;
+        -:  698:    wxLongLongWx& operator+=(long l);
+        -:  699:
+        -:  700:        // pre increment operator
+        -:  701:    wxLongLongWx& operator++();
+        -:  702:
+        -:  703:        // post increment operator
+        -:  704:    wxLongLongWx& operator++(int) { return ++(*this); }
+        -:  705:
+        -:  706:        // negation operator
+        -:  707:    wxLongLongWx operator-() const;
+        -:  708:    wxLongLongWx& Negate();
+        -:  709:
+        -:  710:        // subtraction
+        -:  711:    wxLongLongWx operator-(const wxLongLongWx& ll) const;
+        -:  712:    wxLongLongWx& operator-=(const wxLongLongWx& ll);
+        -:  713:
+        -:  714:        // pre decrement operator
+        -:  715:    wxLongLongWx& operator--();
+        -:  716:
+        -:  717:        // post decrement operator
+        -:  718:    wxLongLongWx& operator--(int) { return --(*this); }
+        -:  719:
+        -:  720:    // shifts
+        -:  721:        // left shift
+        -:  722:    wxLongLongWx operator<<(int shift) const;
+        -:  723:    wxLongLongWx& operator<<=(int shift);
+        -:  724:
+        -:  725:        // right shift
+        -:  726:    wxLongLongWx operator>>(int shift) const;
+        -:  727:    wxLongLongWx& operator>>=(int shift);
+        -:  728:
+        -:  729:    // bitwise operators
+        -:  730:    wxLongLongWx operator&(const wxLongLongWx& ll) const;
+        -:  731:    wxLongLongWx& operator&=(const wxLongLongWx& ll);
+        -:  732:    wxLongLongWx operator|(const wxLongLongWx& ll) const;
+        -:  733:    wxLongLongWx& operator|=(const wxLongLongWx& ll);
+        -:  734:    wxLongLongWx operator^(const wxLongLongWx& ll) const;
+        -:  735:    wxLongLongWx& operator^=(const wxLongLongWx& ll);
+        -:  736:    wxLongLongWx operator~() const;
+        -:  737:
+        -:  738:    // comparison
+        -:  739:    bool operator==(const wxLongLongWx& ll) const
+        -:  740:        { return m_lo == ll.m_lo && m_hi == ll.m_hi; }
+        -:  741:#if wxUSE_LONGLONG_NATIVE
+        -:  742:    bool operator==(const wxLongLongNative& ll) const
+        -:  743:        { return m_lo == ll.GetLo() && m_hi == ll.GetHi(); }
+        -:  744:#endif
+        -:  745:    bool operator!=(const wxLongLongWx& ll) const
+        -:  746:        { return !(*this == ll); }
+        -:  747:    bool operator<(const wxLongLongWx& ll) const;
+        -:  748:    bool operator>(const wxLongLongWx& ll) const;
+        -:  749:    bool operator<=(const wxLongLongWx& ll) const
+        -:  750:        { return *this < ll || *this == ll; }
+        -:  751:    bool operator>=(const wxLongLongWx& ll) const
+        -:  752:        { return *this > ll || *this == ll; }
+        -:  753:
+        -:  754:    bool operator<(long l) const { return *this < wxLongLongWx(l); }
+        -:  755:    bool operator>(long l) const { return *this > wxLongLongWx(l); }
+        -:  756:    bool operator==(long l) const
+        -:  757:    {
+        -:  758:        return l >= 0 ? (m_hi == 0 && m_lo == (unsigned long)l)
+        -:  759:                      : (m_hi == -1 && m_lo == (unsigned long)l);
+        -:  760:    }
+        -:  761:
+        -:  762:    bool operator<=(long l) const { return *this < l || *this == l; }
+        -:  763:    bool operator>=(long l) const { return *this > l || *this == l; }
+        -:  764:
+        -:  765:    // multiplication
+        -:  766:    wxLongLongWx operator*(const wxLongLongWx& ll) const;
+        -:  767:    wxLongLongWx& operator*=(const wxLongLongWx& ll);
+        -:  768:
+        -:  769:    // division
+        -:  770:    wxLongLongWx operator/(const wxLongLongWx& ll) const;
+        -:  771:    wxLongLongWx& operator/=(const wxLongLongWx& ll);
+        -:  772:
+        -:  773:    wxLongLongWx operator%(const wxLongLongWx& ll) const;
+        -:  774:
+        -:  775:    void Divide(const wxLongLongWx& divisor,
+        -:  776:                wxLongLongWx& quotient,
+        -:  777:                wxLongLongWx& remainder) const;
+        -:  778:
+        -:  779:    // input/output
+        -:  780:
+        -:  781:    // return the string representation of this number
+        -:  782:    wxString ToString() const;
+        -:  783:
+        -:  784:    void *asArray() const;
+        -:  785:
+        -:  786:#if wxUSE_STD_IOSTREAM
+        -:  787:    friend WXDLLIMPEXP_BASE
+        -:  788:    wxSTD ostream& operator<<(wxSTD ostream&, const wxLongLongWx&);
+        -:  789:#endif // wxUSE_STD_IOSTREAM
+        -:  790:
+        -:  791:    friend WXDLLIMPEXP_BASE
+        -:  792:    wxString& operator<<(wxString&, const wxLongLongWx&);
+        -:  793:
+        -:  794:#if wxUSE_STREAMS
+        -:  795:    friend WXDLLIMPEXP_BASE
+        -:  796:    class wxTextOutputStream& operator<<(class wxTextOutputStream&, const wxLongLongWx&);
+        -:  797:    friend WXDLLIMPEXP_BASE
+        -:  798:    class wxTextInputStream& operator>>(class wxTextInputStream&, wxLongLongWx&);
+        -:  799:#endif
+        -:  800:
+        -:  801:private:
+        -:  802:    // long is at least 32 bits, so represent our 64bit number as 2 longs
+        -:  803:
+        -:  804:    long m_hi;                // signed bit is in the high part
+        -:  805:    unsigned long m_lo;
+        -:  806:
+        -:  807:#ifdef wxLONGLONG_TEST_MODE
+        -:  808:    void Check()
+        -:  809:    {
+        -:  810:        wxASSERT( (m_ll >> 32) == m_hi && (unsigned long)m_ll == m_lo );
+        -:  811:    }
+        -:  812:
+        -:  813:    wxLongLong_t m_ll;
+        -:  814:#endif // wxLONGLONG_TEST_MODE
+        -:  815:};
+        -:  816:
+        -:  817:
+        -:  818:class WXDLLIMPEXP_BASE wxWARN_UNUSED wxULongLongWx
+        -:  819:{
+        -:  820:public:
+        -:  821:    // ctors
+        -:  822:        // default ctor initializes to 0
+        -:  823:    wxULongLongWx()
+        -:  824:    {
+        -:  825:        m_lo = m_hi = 0;
+        -:  826:
+        -:  827:#ifdef wxLONGLONG_TEST_MODE
+        -:  828:        m_ll = 0;
+        -:  829:
+        -:  830:        Check();
+        -:  831:#endif // wxLONGLONG_TEST_MODE
+        -:  832:    }
+        -:  833:        // from ulong
+        -:  834:    wxULongLongWx(unsigned long l) { *this = l; }
+        -:  835:        // from 2 ulongs
+        -:  836:    wxULongLongWx(unsigned long hi, unsigned long lo)
+        -:  837:    {
+        -:  838:        m_hi = hi;
+        -:  839:        m_lo = lo;
+        -:  840:
+        -:  841:#ifdef wxLONGLONG_TEST_MODE
+        -:  842:        m_ll = hi;
+        -:  843:        m_ll <<= 32;
+        -:  844:        m_ll |= lo;
+        -:  845:
+        -:  846:        Check();
+        -:  847:#endif // wxLONGLONG_TEST_MODE
+        -:  848:    }
+        -:  849:
+        -:  850:    // from signed to unsigned
+        -:  851:    wxULongLongWx(wxLongLongWx ll)
+        -:  852:    {
+        -:  853:        wxASSERT(ll.GetHi() >= 0);
+        -:  854:        m_hi = (unsigned long)ll.GetHi();
+        -:  855:        m_lo = ll.GetLo();
+        -:  856:    }
+        -:  857:
+        -:  858:    // default copy ctor is ok in both cases
+        -:  859:
+        -:  860:    // no dtor
+        -:  861:
+        -:  862:    // assignment operators
+        -:  863:        // from long
+        -:  864:    wxULongLongWx& operator=(unsigned long l)
+        -:  865:    {
+        -:  866:        m_lo = l;
+        -:  867:        m_hi = 0;
+        -:  868:
+        -:  869:#ifdef wxLONGLONG_TEST_MODE
+        -:  870:        m_ll = l;
+        -:  871:
+        -:  872:        Check();
+        -:  873:#endif // wxLONGLONG_TEST_MODE
+        -:  874:
+        -:  875:        return *this;
+        -:  876:    }
+        -:  877:    wxULongLongWx& operator=(long l)
+        -:  878:    {
+        -:  879:        m_lo = l;
+        -:  880:        m_hi = (unsigned long) ((l<0) ? -1l : 0);
+        -:  881:
+        -:  882:#ifdef wxLONGLONG_TEST_MODE
+        -:  883:        m_ll = (wxULongLong_t) (wxLongLong_t) l;
+        -:  884:
+        -:  885:        Check();
+        -:  886:#endif // wxLONGLONG_TEST_MODE
+        -:  887:
+        -:  888:        return *this;
+        -:  889:    }
+        -:  890:    wxULongLongWx& operator=(const class wxLongLongWx &ll) {
+        -:  891:        // Should we use an assert like it was before in the constructor?
+        -:  892:        // wxASSERT(ll.GetHi() >= 0);
+        -:  893:        m_hi = (unsigned long)ll.GetHi();
+        -:  894:        m_lo = ll.GetLo();
+        -:  895:        return *this;
+        -:  896:    }
+        -:  897:
+        -:  898:    // can't have assignment operator from 2 longs
+        -:  899:
+        -:  900:    // accessors
+        -:  901:        // get high part
+        -:  902:    unsigned long GetHi() const { return m_hi; }
+        -:  903:        // get low part
+        -:  904:    unsigned long GetLo() const { return m_lo; }
+        -:  905:
+        -:  906:        // convert to long with range checking in debug mode (only!)
+        -:  907:    unsigned long ToULong() const
+        -:  908:    {
+        -:  909:        wxASSERT_MSG( m_hi == 0ul,
+        -:  910:                      wxT("wxULongLong to long conversion loss of precision") );
+        -:  911:
+        -:  912:        return (unsigned long)m_lo;
+        -:  913:    }
+        -:  914:
+        -:  915:        // convert to double
+        -:  916:    double ToDouble() const;
+        -:  917:
+        -:  918:    // operations
+        -:  919:        // addition
+        -:  920:    wxULongLongWx operator+(const wxULongLongWx& ll) const;
+        -:  921:    wxULongLongWx& operator+=(const wxULongLongWx& ll);
+        -:  922:    wxULongLongWx operator+(unsigned long l) const;
+        -:  923:    wxULongLongWx& operator+=(unsigned long l);
+        -:  924:
+        -:  925:        // pre increment operator
+        -:  926:    wxULongLongWx& operator++();
+        -:  927:
+        -:  928:        // post increment operator
+        -:  929:    wxULongLongWx& operator++(int) { return ++(*this); }
+        -:  930:
+        -:  931:        // subtraction
+        -:  932:    wxLongLongWx operator-(const wxULongLongWx& ll) const;
+        -:  933:    wxULongLongWx& operator-=(const wxULongLongWx& ll);
+        -:  934:
+        -:  935:        // pre decrement operator
+        -:  936:    wxULongLongWx& operator--();
+        -:  937:
+        -:  938:        // post decrement operator
+        -:  939:    wxULongLongWx& operator--(int) { return --(*this); }
+        -:  940:
+        -:  941:    // shifts
+        -:  942:        // left shift
+        -:  943:    wxULongLongWx operator<<(int shift) const;
+        -:  944:    wxULongLongWx& operator<<=(int shift);
+        -:  945:
+        -:  946:        // right shift
+        -:  947:    wxULongLongWx operator>>(int shift) const;
+        -:  948:    wxULongLongWx& operator>>=(int shift);
+        -:  949:
+        -:  950:    // bitwise operators
+        -:  951:    wxULongLongWx operator&(const wxULongLongWx& ll) const;
+        -:  952:    wxULongLongWx& operator&=(const wxULongLongWx& ll);
+        -:  953:    wxULongLongWx operator|(const wxULongLongWx& ll) const;
+        -:  954:    wxULongLongWx& operator|=(const wxULongLongWx& ll);
+        -:  955:    wxULongLongWx operator^(const wxULongLongWx& ll) const;
+        -:  956:    wxULongLongWx& operator^=(const wxULongLongWx& ll);
+        -:  957:    wxULongLongWx operator~() const;
+        -:  958:
+        -:  959:    // comparison
+        -:  960:    bool operator==(const wxULongLongWx& ll) const
+        -:  961:        { return m_lo == ll.m_lo && m_hi == ll.m_hi; }
+        -:  962:    bool operator!=(const wxULongLongWx& ll) const
+        -:  963:        { return !(*this == ll); }
+        -:  964:    bool operator<(const wxULongLongWx& ll) const;
+        -:  965:    bool operator>(const wxULongLongWx& ll) const;
+        -:  966:    bool operator<=(const wxULongLongWx& ll) const
+        -:  967:        { return *this < ll || *this == ll; }
+        -:  968:    bool operator>=(const wxULongLongWx& ll) const
+        -:  969:        { return *this > ll || *this == ll; }
+        -:  970:
+        -:  971:    bool operator<(unsigned long l) const { return *this < wxULongLongWx(l); }
+        -:  972:    bool operator>(unsigned long l) const { return *this > wxULongLongWx(l); }
+        -:  973:    bool operator==(unsigned long l) const
+        -:  974:    {
+        -:  975:        return (m_hi == 0 && m_lo == (unsigned long)l);
+        -:  976:    }
+        -:  977:
+        -:  978:    bool operator<=(unsigned long l) const { return *this < l || *this == l; }
+        -:  979:    bool operator>=(unsigned long l) const { return *this > l || *this == l; }
+        -:  980:
+        -:  981:    // multiplication
+        -:  982:    wxULongLongWx operator*(const wxULongLongWx& ll) const;
+        -:  983:    wxULongLongWx& operator*=(const wxULongLongWx& ll);
+        -:  984:
+        -:  985:    // division
+        -:  986:    wxULongLongWx operator/(const wxULongLongWx& ll) const;
+        -:  987:    wxULongLongWx& operator/=(const wxULongLongWx& ll);
+        -:  988:
+        -:  989:    wxULongLongWx operator%(const wxULongLongWx& ll) const;
+        -:  990:
+        -:  991:    void Divide(const wxULongLongWx& divisor,
+        -:  992:                wxULongLongWx& quotient,
+        -:  993:                wxULongLongWx& remainder) const;
+        -:  994:
+        -:  995:    // input/output
+        -:  996:
+        -:  997:    // return the string representation of this number
+        -:  998:    wxString ToString() const;
+        -:  999:
+        -: 1000:    void *asArray() const;
+        -: 1001:
+        -: 1002:#if wxUSE_STD_IOSTREAM
+        -: 1003:    friend WXDLLIMPEXP_BASE
+        -: 1004:    wxSTD ostream& operator<<(wxSTD ostream&, const wxULongLongWx&);
+        -: 1005:#endif // wxUSE_STD_IOSTREAM
+        -: 1006:
+        -: 1007:    friend WXDLLIMPEXP_BASE
+        -: 1008:    wxString& operator<<(wxString&, const wxULongLongWx&);
+        -: 1009:
+        -: 1010:#if wxUSE_STREAMS
+        -: 1011:    friend WXDLLIMPEXP_BASE
+        -: 1012:    class wxTextOutputStream& operator<<(class wxTextOutputStream&, const wxULongLongWx&);
+        -: 1013:    friend WXDLLIMPEXP_BASE
+        -: 1014:    class wxTextInputStream& operator>>(class wxTextInputStream&, wxULongLongWx&);
+        -: 1015:#endif
+        -: 1016:
+        -: 1017:private:
+        -: 1018:    // long is at least 32 bits, so represent our 64bit number as 2 longs
+        -: 1019:
+        -: 1020:    unsigned long m_hi;
+        -: 1021:    unsigned long m_lo;
+        -: 1022:
+        -: 1023:#ifdef wxLONGLONG_TEST_MODE
+        -: 1024:    void Check()
+        -: 1025:    {
+        -: 1026:        wxASSERT( (m_ll >> 32) == m_hi && (unsigned long)m_ll == m_lo );
+        -: 1027:    }
+        -: 1028:
+        -: 1029:    wxULongLong_t m_ll;
+        -: 1030:#endif // wxLONGLONG_TEST_MODE
+        -: 1031:};
+        -: 1032:
+        -: 1033:#endif // wxUSE_LONGLONG_WX
+        -: 1034:
+        -: 1035:// ----------------------------------------------------------------------------
+        -: 1036:// binary operators
+        -: 1037:// ----------------------------------------------------------------------------
+        -: 1038:
+        -: 1039:inline bool operator<(long l, const wxLongLong& ll) { return ll > l; }
+        -: 1040:inline bool operator>(long l, const wxLongLong& ll) { return ll < l; }
+        -: 1041:inline bool operator<=(long l, const wxLongLong& ll) { return ll >= l; }
+        -: 1042:inline bool operator>=(long l, const wxLongLong& ll) { return ll <= l; }
+        -: 1043:inline bool operator==(long l, const wxLongLong& ll) { return ll == l; }
+        -: 1044:inline bool operator!=(long l, const wxLongLong& ll) { return ll != l; }
+        -: 1045:
+        -: 1046:inline wxLongLong operator+(long l, const wxLongLong& ll) { return ll + l; }
+        -: 1047:inline wxLongLong operator-(long l, const wxLongLong& ll)
+        -: 1048:{
+        -: 1049:    return wxLongLong(l) - ll;
+        -: 1050:}
+        -: 1051:
+        -: 1052:inline bool operator<(unsigned long l, const wxULongLong& ull) { return ull > l; }
+        -: 1053:inline bool operator>(unsigned long l, const wxULongLong& ull) { return ull < l; }
+        -: 1054:inline bool operator<=(unsigned long l, const wxULongLong& ull) { return ull >= l; }
+        -: 1055:inline bool operator>=(unsigned long l, const wxULongLong& ull) { return ull <= l; }
+        -: 1056:inline bool operator==(unsigned long l, const wxULongLong& ull) { return ull == l; }
+        -: 1057:inline bool operator!=(unsigned long l, const wxULongLong& ull) { return ull != l; }
+        -: 1058:
+        -: 1059:inline wxULongLong operator+(unsigned long l, const wxULongLong& ull) { return ull + l; }
+        -: 1060:
+        -: 1061:inline wxLongLong operator-(unsigned long l, const wxULongLong& ull)
+        -: 1062:{
+        -: 1063:    const wxULongLong ret = wxULongLong(l) - ull;
+        -: 1064:    return wxLongLong((wxInt32)ret.GetHi(),ret.GetLo());
+        -: 1065:}
+        -: 1066:
+        -: 1067:#if wxUSE_LONGLONG_NATIVE && wxUSE_STREAMS
+        -: 1068:
+        -: 1069:WXDLLIMPEXP_BASE class wxTextOutputStream &operator<<(class wxTextOutputStream &stream, wxULongLong_t value);
+        -: 1070:WXDLLIMPEXP_BASE class wxTextOutputStream &operator<<(class wxTextOutputStream &stream, wxLongLong_t value);
+        -: 1071:
+        -: 1072:WXDLLIMPEXP_BASE class wxTextInputStream &operator>>(class wxTextInputStream &stream, wxULongLong_t &value);
+        -: 1073:WXDLLIMPEXP_BASE class wxTextInputStream &operator>>(class wxTextInputStream &stream, wxLongLong_t &value);
+        -: 1074:
+        -: 1075:#endif
+        -: 1076:
+        -: 1077:// ----------------------------------------------------------------------------
+        -: 1078:// Specialize numeric_limits<> for our long long wrapper classes.
+        -: 1079:// ----------------------------------------------------------------------------
+        -: 1080:
+        -: 1081:#if wxUSE_LONGLONG_NATIVE
+        -: 1082:
+        -: 1083:#include <limits>
+        -: 1084:
+        -: 1085:namespace std
+        -: 1086:{
+        -: 1087:
+        -: 1088:#ifdef __clang__
+        -: 1089:  // libstdc++ (used by Clang) uses struct for numeric_limits; unlike gcc, clang
+        -: 1090:  // warns about this
+        -: 1091:  template<> struct numeric_limits<wxLongLong>  : public numeric_limits<wxLongLong_t> {};
+        -: 1092:  template<> struct numeric_limits<wxULongLong> : public numeric_limits<wxULongLong_t> {};
+        -: 1093:#else
+        -: 1094:  template<> class numeric_limits<wxLongLong>  : public numeric_limits<wxLongLong_t> {};
+        -: 1095:  template<> class numeric_limits<wxULongLong> : public numeric_limits<wxULongLong_t> {};
+        -: 1096:#endif
+        -: 1097:
+        -: 1098:} // namespace std
+        -: 1099:
+        -: 1100:#endif // wxUSE_LONGLONG_NATIVE
+        -: 1101:
+        -: 1102:// ----------------------------------------------------------------------------
+        -: 1103:// Specialize wxArgNormalizer to allow using wxLongLong directly with wx pseudo
+        -: 1104:// vararg functions.
+        -: 1105:// ----------------------------------------------------------------------------
+        -: 1106:
+        -: 1107:// Notice that this must be done here and not in wx/strvararg.h itself because
+        -: 1108:// we can't include wx/longlong.h from there as this header itself includes
+        -: 1109:// wx/string.h which includes wx/strvararg.h too, so to avoid the circular
+        -: 1110:// dependencies we can only do it here (or add another header just for this but
+        -: 1111:// it doesn't seem necessary).
+        -: 1112:#include "wx/strvararg.h"
+        -: 1113:
+        -: 1114:template<>
+        -: 1115:struct WXDLLIMPEXP_BASE wxArgNormalizer<wxLongLong>
+        -: 1116:{
+        -: 1117:     wxArgNormalizer(wxLongLong value,
+        -: 1118:                     const wxFormatString *fmt, unsigned index)
+        -: 1119:         : m_value(value)
+        -: 1120:     {
+        -: 1121:         wxASSERT_ARG_TYPE( fmt, index, wxFormatString::Arg_LongLongInt );
+        -: 1122:     }
+        -: 1123:
+        -: 1124:     wxLongLong_t get() const { return m_value.GetValue(); }
+        -: 1125:
+        -: 1126:     wxLongLong m_value;
+        -: 1127:};
+        -: 1128:
+        -: 1129:#endif // wxUSE_LONGLONG
+        -: 1130:
+        -: 1131:#endif // _WX_LONGLONG_H

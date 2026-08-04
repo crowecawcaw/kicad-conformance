@@ -1,0 +1,187 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_sch_export_bom.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_sch_export_bom.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_sch_export_bom.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2023 Mike Williams <mike@mikebwilliams.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include "command_sch_export_bom.h"
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include "jobs/job_export_sch_bom.h"
+        -:   24:#include <kiface_base.h>
+        -:   25:#include <layer_ids.h>
+        -:   26:#include <string_utils.h>
+        -:   27:#include <wx/crt.h>
+        -:   28:#include <wx/tokenzr.h>
+        -:   29:#include <schematic_settings.h>
+        -:   30:
+        -:   31:#include <macros.h>
+        -:   32:
+        -:   33:
+     1154:   34:CLI::SCH_EXPORT_BOM_COMMAND::SCH_EXPORT_BOM_COMMAND() : COMMAND( "bom" )
+        -:   35:{
+     1154:   36:    m_argParser.add_description( UTF8STDSTR( _( "Generate a Bill of Materials (BOM)" ) ) );
+      577:   37:    addCommonArgs( true, true, IO_TYPE::FILE, IO_TYPE::FILE );
+      577:   38:    addVariantsArg();
+        -:   39:
+        -:   40:    // Preset options
+      577:   41:    m_argParser.add_argument( ARG_PRESET )
+     1154:   42:            .help( UTF8STDSTR( _( ARG_PRESET_DESC ) ) )
+     1154:   43:            .default_value( std::string( "" ) )
+     1154:   44:            .metavar( "PRESET" );
+        -:   45:
+      577:   46:    m_argParser.add_argument( ARG_FMT_PRESET )
+     1154:   47:            .help( UTF8STDSTR( _( ARG_FMT_PRESET_DESC ) ) )
+     1154:   48:            .default_value( std::string( "" ) )
+     1154:   49:            .metavar( "FMT_PRESET" );
+        -:   50:
+        -:   51:    // Field output options
+      577:   52:    m_argParser.add_argument( ARG_FIELDS )
+     1154:   53:            .help( UTF8STDSTR( _( ARG_FIELDS_DESC ) ) )
+     1154:   54:            .default_value( std::string( "Reference,Value,Footprint,QUANTITY,DNP" ) )
+     1154:   55:            .metavar( "FIELDS" );
+        -:   56:
+      577:   57:    m_argParser.add_argument( ARG_LABELS )
+     1154:   58:            .help( UTF8STDSTR( _( ARG_LABELS_DESC ) ) )
+     1154:   59:            .default_value( std::string( "Refs,Value,Footprint,Qty,DNP" ) )
+     1154:   60:            .metavar( "LABELS" );
+        -:   61:
+      577:   62:    m_argParser.add_argument( ARG_GROUP_BY )
+     1154:   63:            .help( UTF8STDSTR( _( ARG_GROUP_BY_DESC ) ) )
+     1154:   64:            .default_value( std::string( "" ) )
+     1154:   65:            .metavar( "GROUP_BY" );
+        -:   66:
+      577:   67:    m_argParser.add_argument( ARG_SORT_FIELD )
+     1154:   68:            .help( UTF8STDSTR( _( ARG_SORT_FIELD_DESC ) ) )
+     1154:   69:            .default_value( std::string( "Reference" ) )
+     1154:   70:            .metavar( "SORT_BY" );
+        -:   71:
+      577:   72:    m_argParser.add_argument( ARG_SORT_ASC )
+     1154:   73:            .help( UTF8STDSTR( _( ARG_SORT_ASC_DESC ) ) )
+      577:   74:            .default_value( true );
+        -:   75:
+      577:   76:    m_argParser.add_argument( ARG_FILTER )
+     1154:   77:            .help( UTF8STDSTR( _( ARG_FILTER_DESC ) ) )
+     1154:   78:            .default_value( std::string( "" ) )
+     1154:   79:            .metavar( "FILTER" );
+        -:   80:
+      577:   81:    m_argParser.add_argument( ARG_EXCLUDE_DNP )
+     1154:   82:            .help( UTF8STDSTR( _( ARG_EXCLUDE_DNP_DESC ) ) )
+      577:   83:            .flag();
+        -:   84:
+      577:   85:    m_argParser.add_argument( DEPRECATED_ARG_INCLUDE_EXCLUDED_FROM_BOM )
+     1154:   86:            .help( UTF8STDSTR( _( DEPRECATED_ARG_INCLUDE_EXCLUDED_FROM_BOM_DESC ) ) )
+      577:   87:            .flag();
+        -:   88:
+        -:   89:    // Output formatting options
+      577:   90:    m_argParser.add_argument( ARG_FIELD_DELIMITER )
+     1154:   91:            .help( UTF8STDSTR( _( ARG_FIELD_DELIMITER_DESC ) ) )
+     1154:   92:            .default_value( std::string( "," ) )
+     1154:   93:            .metavar( "FIELD_DELIM" );
+        -:   94:
+      577:   95:    m_argParser.add_argument( ARG_STRING_DELIMITER )
+     1154:   96:            .help( UTF8STDSTR( _( ARG_STRING_DELIMITER_DESC ) ) )
+     1154:   97:            .default_value( std::string( "\"" ) )
+     1154:   98:            .metavar( "STR_DELIM" );
+        -:   99:
+      577:  100:    m_argParser.add_argument( ARG_REF_DELIMITER )
+     1154:  101:            .help( UTF8STDSTR( _( ARG_REF_DELIMITER_DESC ) ) )
+     1154:  102:            .default_value( std::string( "," ) )
+     1154:  103:            .metavar( "REF_DELIM" );
+        -:  104:
+      577:  105:    m_argParser.add_argument( ARG_REF_RANGE_DELIMITER )
+     1154:  106:            .help( UTF8STDSTR( _( ARG_REF_RANGE_DELIMITER_DESC ) ) )
+     1154:  107:            .default_value( std::string( "-" ) )
+     1154:  108:            .metavar( "REF_RANGE_DELIM" );
+        -:  109:
+      577:  110:    m_argParser.add_argument( ARG_KEEP_TABS )
+     1154:  111:            .help( UTF8STDSTR( _( ARG_KEEP_TABS_DESC ) ) )
+      577:  112:            .flag();
+        -:  113:
+      577:  114:    m_argParser.add_argument( ARG_KEEP_LINE_BREAKS )
+     1154:  115:            .help( UTF8STDSTR( _( ARG_KEEP_LINE_BREAKS_DESC ) ) )
+      577:  116:            .flag();
+      577:  117:}
+        -:  118:
+        -:  119:
+    #####:  120:std::vector<wxString> CLI::SCH_EXPORT_BOM_COMMAND::convertStringList( const wxString& aList )
+        -:  121:{
+    #####:  122:    std::vector<wxString> v;
+        -:  123:
+    #####:  124:    if( !aList.IsEmpty() )
+        -:  125:    {
+    #####:  126:        wxStringTokenizer layerTokens( aList, "," );
+        -:  127:
+    #####:  128:        while( layerTokens.HasMoreTokens() )
+    #####:  129:            v.emplace_back( layerTokens.GetNextToken() );
+    #####:  130:    }
+        -:  131:
+    #####:  132:    return v;
+    =====:  133:}
+        -:  134:
+    #####:  135:int CLI::SCH_EXPORT_BOM_COMMAND::doPerform( KIWAY& aKiway )
+        -:  136:{
+    #####:  137:    std::unique_ptr<JOB_EXPORT_SCH_BOM> bomJob = std::make_unique<JOB_EXPORT_SCH_BOM>();
+        -:  138:
+        -:  139:    // Basic options
+    #####:  140:    bomJob->m_filename = m_argInput;
+    #####:  141:    bomJob->SetConfiguredOutputPath( m_argOutput );
+    #####:  142:    bomJob->m_variantNames = m_argVariantNames;
+        -:  143:
+    #####:  144:    bomJob->m_bomPresetName = From_UTF8( m_argParser.get<std::string>( ARG_PRESET ).c_str() );
+    #####:  145:    bomJob->m_bomFmtPresetName = From_UTF8( m_argParser.get<std::string>( ARG_FMT_PRESET ).c_str() );
+        -:  146:
+        -:  147:    // Format options
+    #####:  148:    bomJob->m_fieldDelimiter = From_UTF8( m_argParser.get<std::string>( ARG_FIELD_DELIMITER ).c_str() );
+    #####:  149:    bomJob->m_stringDelimiter = From_UTF8( m_argParser.get<std::string>( ARG_STRING_DELIMITER ).c_str() );
+    #####:  150:    bomJob->m_refDelimiter = From_UTF8( m_argParser.get<std::string>( ARG_REF_DELIMITER ).c_str() );
+    #####:  151:    bomJob->m_refRangeDelimiter = From_UTF8( m_argParser.get<std::string>( ARG_REF_RANGE_DELIMITER ).c_str() );
+    #####:  152:    bomJob->m_keepTabs = m_argParser.get<bool>( ARG_KEEP_TABS );
+    #####:  153:    bomJob->m_keepLineBreaks = m_argParser.get<bool>( ARG_KEEP_LINE_BREAKS );
+        -:  154:
+        -:  155:    // Output fields options
+    #####:  156:    bomJob->m_fieldsOrdered = convertStringList( From_UTF8( m_argParser.get<std::string>( ARG_FIELDS ).c_str() ) );
+    #####:  157:    bomJob->m_fieldsLabels = convertStringList( From_UTF8( m_argParser.get<std::string>( ARG_LABELS ).c_str() ) );
+        -:  158:
+        -:  159:    // We only apply the default labels if the default fields are used
+    #####:  160:    if( m_argParser.is_used( ARG_FIELDS ) && !m_argParser.is_used( ARG_LABELS ) )
+        -:  161:    {
+    #####:  162:        bomJob->m_fieldsLabels.clear();
+        -:  163:    }
+        -:  164:
+    #####:  165:    bomJob->m_fieldsGroupBy = convertStringList( From_UTF8( m_argParser.get<std::string>( ARG_GROUP_BY ).c_str() ) );
+    #####:  166:    bomJob->m_sortField = From_UTF8( m_argParser.get<std::string>( ARG_SORT_FIELD ).c_str() );
+    #####:  167:    bomJob->m_sortAsc = m_argParser.get<bool>( ARG_SORT_ASC );
+    #####:  168:    bomJob->m_filterString = From_UTF8( m_argParser.get<std::string>( ARG_FILTER ).c_str() );
+    #####:  169:    bomJob->m_excludeDNP = m_argParser.get<bool>( ARG_EXCLUDE_DNP );
+        -:  170:
+    #####:  171:    if( m_argParser.get<bool>( DEPRECATED_ARG_INCLUDE_EXCLUDED_FROM_BOM ) )
+    #####:  172:        wxFprintf( stdout, DEPRECATED_ARG_INCLUDE_EXCLUDED_FROM_BOM_WARNING );
+        -:  173:
+    #####:  174:    if( !wxFile::Exists( bomJob->m_filename ) )
+        -:  175:    {
+    #####:  176:        wxFprintf( stderr, _( "Schematic file does not exist or is not accessible\n" ) );
+    #####:  177:        return EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:  178:    }
+        -:  179:
+    #####:  180:    int exitCode = aKiway.ProcessJob( KIWAY::FACE_SCH, bomJob.get() );
+        -:  181:
+    #####:  182:    return exitCode;
+    #####:  183:}

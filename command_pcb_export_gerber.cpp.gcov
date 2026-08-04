@@ -1,0 +1,155 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_export_gerber.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_gerber.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_gerber.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include "command_pcb_export_gerber.h"
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include "jobs/job_export_pcb_gerber.h"
+        -:   24:#include <wx/crt.h>
+        -:   25:
+        -:   26:#include <macros.h>
+        -:   27:#include <string_utils.h>
+        -:   28:
+        -:   29:
+      577:   30:CLI::PCB_EXPORT_GERBER_COMMAND::PCB_EXPORT_GERBER_COMMAND( const std::string& aName, IO_TYPE aOutputType ) :
+      577:   31:        PCB_EXPORT_BASE_COMMAND( aName, IO_TYPE::FILE, aOutputType )
+        -:   32:{
+      577:   33:    addLayerArg();
+      577:   34:    addCommonLayersArg();
+        -:   35:
+      577:   36:    addDrawingSheetArg();
+      577:   37:    addDefineArg();
+        -:   38:
+     1154:   39:    m_argParser.add_description( UTF8STDSTR( _( "Plot given layers to a single Gerber file" ) ) );
+        -:   40:
+      577:   41:    m_argParser.add_argument( "--erd", ARG_EXCLUDE_REFDES )
+     1154:   42:            .help( UTF8STDSTR( _( "Exclude the reference designator text" ) ) )
+      577:   43:            .flag();
+        -:   44:
+      577:   45:    m_argParser.add_argument( "--ev", ARG_EXCLUDE_VALUE )
+     1154:   46:            .help( UTF8STDSTR( _( "Exclude the value text" ) ) )
+      577:   47:            .flag();
+        -:   48:
+      577:   49:    m_argParser.add_argument( "--ibt", ARG_INCLUDE_BORDER_TITLE )
+     1154:   50:            .help( UTF8STDSTR( _( "Include the border and title block" ) ) )
+      577:   51:            .flag();
+        -:   52:
+      577:   53:    m_argParser.add_argument( "--sp", ARG_SKETCH_PADS_ON_FAB_LAYERS )
+     1154:   54:            .help( UTF8STDSTR( _( ARG_SKETCH_PADS_ON_FAB_LAYERS_DESC ) ) )
+      577:   55:            .flag();
+        -:   56:
+      577:   57:    m_argParser.add_argument( "--hdnp", ARG_HIDE_DNP_FPS_ON_FAB_LAYERS )
+     1154:   58:            .help( UTF8STDSTR( _( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   59:            .flag();
+        -:   60:
+      577:   61:    m_argParser.add_argument( "--sdnp", ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS )
+     1154:   62:            .help( UTF8STDSTR( _( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   63:            .flag();
+        -:   64:
+      577:   65:    m_argParser.add_argument( "--cdnp", ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS )
+     1154:   66:            .help( UTF8STDSTR( _( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   67:            .flag();
+        -:   68:
+      577:   69:    m_argParser.add_argument( ARG_NO_X2 )
+     1154:   70:            .help( UTF8STDSTR( _( "Do not use the extended X2 format" ) ) )
+      577:   71:            .flag();
+        -:   72:
+      577:   73:    m_argParser.add_argument( ARG_NO_NETLIST )
+     1154:   74:            .help( UTF8STDSTR( _( "Do not generate netlist attributes" ) ) )
+      577:   75:            .flag();
+        -:   76:
+      577:   77:    m_argParser.add_argument( ARG_SUBTRACT_SOLDERMASK )
+     1154:   78:            .help( UTF8STDSTR( _( "Subtract soldermask from silkscreen" ) ) )
+      577:   79:            .flag();
+        -:   80:
+      577:   81:    m_argParser.add_argument( ARG_DISABLE_APERTURE_MACROS )
+     1154:   82:            .help( UTF8STDSTR( _( "Disable aperture macros" ) ) )
+      577:   83:            .flag();
+        -:   84:
+      577:   85:    m_argParser.add_argument( ARG_USE_DRILL_FILE_ORIGIN )
+     1154:   86:            .help( UTF8STDSTR( _( "Use drill/place file origin" ) ) )
+      577:   87:            .flag();
+        -:   88:
+      577:   89:    m_argParser.add_argument( ARG_PRECISION )
+     1154:   90:            .help( UTF8STDSTR( _( "Precision of Gerber coordinates, valid options: 5 or 6" ) ) )
+      577:   91:            .scan<'i', int>()
+      577:   92:            .default_value( 6 )
+     1154:   93:            .metavar( "PRECISION" );
+        -:   94:
+      577:   95:    m_argParser.add_argument( ARG_NO_PROTEL_EXTENSION )
+     1154:   96:            .help( UTF8STDSTR( _( "Use KiCad Gerber file extension" ) ) )
+      577:   97:            .flag();
+        -:   98:
+      577:   99:    m_argParser.add_argument( ARG_CHECK_ZONES )
+     1154:  100:            .help( UTF8STDSTR( _( ARG_CHECK_ZONES_DESC ) ) )
+      577:  101:            .flag();
+        -:  102:
+      577:  103:    addVariantsArg();
+      577:  104:}
+        -:  105:
+        -:  106:
+       67:  107:int CLI::PCB_EXPORT_GERBER_COMMAND::populateJob( JOB_EXPORT_PCB_GERBER* aJob )
+        -:  108:{
+       67:  109:    aJob->m_filename = m_argInput;
+       67:  110:    aJob->SetConfiguredOutputPath( m_argOutput );
+       67:  111:    aJob->m_drawingSheet = m_argDrawingSheet;
+       67:  112:    aJob->m_sketchPadsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_PADS_ON_FAB_LAYERS );
+       67:  113:    if( aJob->m_sketchPadsOnFabLayers )
+    #####:  114:        aJob->m_plotPadNumbers = true;
+       67:  115:    aJob->m_hideDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS );
+       67:  116:    aJob->m_sketchDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS );
+       67:  117:    aJob->m_crossoutDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS );
+       67:  118:    aJob->SetVarOverrides( m_argDefineVars );
+        -:  119:
+       67:  120:    if( !m_argVariantNames.empty() )
+    #####:  121:        aJob->m_variant = m_argVariantNames.front();
+        -:  122:
+       67:  123:    aJob->m_plotFootprintValues = !m_argParser.get<bool>( ARG_EXCLUDE_VALUE );
+       67:  124:    aJob->m_plotRefDes = !m_argParser.get<bool>( ARG_EXCLUDE_REFDES );
+       67:  125:    aJob->m_plotDrawingSheet = m_argParser.get<bool>( ARG_INCLUDE_BORDER_TITLE );
+       67:  126:    aJob->m_disableApertureMacros = m_argParser.get<bool>( ARG_DISABLE_APERTURE_MACROS );
+       67:  127:    aJob->m_subtractSolderMaskFromSilk = m_argParser.get<bool>( ARG_SUBTRACT_SOLDERMASK );
+       67:  128:    aJob->m_includeNetlistAttributes = !m_argParser.get<bool>( ARG_NO_NETLIST );
+       67:  129:    aJob->m_useX2Format = !m_argParser.get<bool>( ARG_NO_X2 );
+       67:  130:    aJob->m_useDrillOrigin = m_argParser.get<bool>( ARG_USE_DRILL_FILE_ORIGIN );
+       67:  131:    aJob->m_useProtelFileExtension = !m_argParser.get<bool>( ARG_NO_PROTEL_EXTENSION );
+       67:  132:    aJob->m_precision = m_argParser.get<int>( ARG_PRECISION );
+       67:  133:    aJob->m_checkZonesBeforePlot = m_argParser.get<bool>( ARG_CHECK_ZONES );
+        -:  134:
+       67:  135:    aJob->m_argLayers = From_UTF8( m_argParser.get<std::string>( ARG_LAYERS ).c_str() );
+       67:  136:    aJob->m_argCommonLayers = From_UTF8( m_argParser.get<std::string>( ARG_COMMON_LAYERS ).c_str() );
+        -:  137:
+       67:  138:    if( !wxFile::Exists( aJob->m_filename ) )
+        -:  139:    {
+    #####:  140:        wxFprintf( stderr, _( "Board file does not exist or is not accessible\n" ) );
+    #####:  141:        return EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:  142:    }
+        -:  143:
+       67:  144:    if( aJob->m_precision != 5 && aJob->m_precision != 6 )
+        -:  145:    {
+    #####:  146:        wxFprintf( stderr, _( "Gerber coordinate precision should be either 5 or 6\n" ) );
+    #####:  147:        return EXIT_CODES::ERR_ARGS;
+        -:  148:    }
+        -:  149:
+       67:  150:    return EXIT_CODES::OK;
+        -:  151:}

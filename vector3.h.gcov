@@ -1,0 +1,238 @@
+        -:    0:Source:/src/kicad/libs/kimath/include/math/vector3.h
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_render.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_render.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software: you can redistribute it and/or modify it
+        -:    7: * under the terms of the GNU General Public License as published by the
+        -:    8: * Free Software Foundation, either version 3 of the License, or (at your
+        -:    9: * option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful, but
+        -:   12: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   14: * General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License along
+        -:   17: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   18: */
+        -:   19:
+        -:   20:#ifndef VECTOR3_H_
+        -:   21:#define VECTOR3_H_
+        -:   22:
+        -:   23:#include <iostream>
+        -:   24:#include <stdint.h>
+        -:   25:#include <limits>
+        -:   26:#include <wx/debug.h>
+        -:   27:
+        -:   28:/**
+        -:   29: * Traits class for VECTOR2.
+        -:   30: */
+        -:   31:template <class T>
+        -:   32:struct VECTOR3_TRAITS
+        -:   33:{
+        -:   34:    /// extended range/precision types used by operations involving multiple
+        -:   35:    /// multiplications to prevent overflow.
+        -:   36:    typedef T extended_type;
+        -:   37:};
+        -:   38:
+        -:   39:template <>
+        -:   40:struct VECTOR3_TRAITS<int>
+        -:   41:{
+        -:   42:    typedef int64_t extended_type;
+        -:   43:};
+        -:   44:
+        -:   45:
+        -:   46:/**
+        -:   47: * Define a general 3D-vector.
+        -:   48: *
+        -:   49: * This class uses templates to be universal. Several operators are provided to help
+        -:   50: * easy implementing of linear algebra equations.
+        -:   51: *
+        -:   52: */
+        -:   53:template <class T = int>
+        -:   54:class VECTOR3
+        -:   55:{
+        -:   56:public:
+        -:   57:    typedef typename VECTOR3_TRAITS<T>::extended_type extended_type;
+        -:   58:    typedef T                                         coord_type;
+        -:   59:
+        -:   60:    static constexpr extended_type ECOORD_MAX = std::numeric_limits<extended_type>::max();
+        -:   61:    static constexpr extended_type ECOORD_MIN = std::numeric_limits<extended_type>::min();
+        -:   62:
+        -:   63:    T x{};
+        -:   64:    T y{};
+        -:   65:    T z{};
+        -:   66:
+        -:   67:    /// Construct a 3D-vector with x, y, z = 0
+        -:   68:    VECTOR3() = default;
+        -:   69:
+        -:   70:    /// Construct a vector with given components x, y, z
+        -:   71:    VECTOR3( T x, T y, T z );
+        -:   72:
+        -:   73:    /// Initializes a vector from another specialization. Beware of rounding
+        -:   74:    /// issues.
+        -:   75:    template <typename CastingType>
+        -:   76:    VECTOR3( const VECTOR3<CastingType>& aVec );
+        -:   77:
+        -:   78:    /**
+        -:   79:     * Compute cross product of self with \a aVector
+        -:   80:     */
+        -:   81:    VECTOR3<T> Cross( const VECTOR3<T>& aVector ) const;
+        -:   82:
+        -:   83:    /**
+        -:   84:     * Compute the dot product of self with \a aVector
+        -:   85:     */
+        -:   86:    VECTOR3<T>::extended_type Dot( const VECTOR3<T>& aVector ) const;
+        -:   87:
+        -:   88:    /**
+        -:   89:     * Compute the Euclidean norm of the vector, which is defined as sqrt(x ** 2 + y ** 2).
+        -:   90:     *
+        -:   91:     * It is used to calculate the length of the vector.
+        -:   92:     *
+        -:   93:     * @return Scalar, the euclidean norm
+        -:   94:     */
+        -:   95:    T EuclideanNorm() const;
+        -:   96:
+        -:   97:    /**
+        -:   98:     * Compute the normalized vector.
+        -:   99:     */
+        -:  100:    VECTOR3<T> Normalize();
+        -:  101:
+        -:  102:    /**
+        -:  103:     * Set all elements to \a val
+        -:  104:     */
+        -:  105:    VECTOR3<T> SetAll( T val );
+        -:  106:
+        -:  107:    /// Equality operator
+        -:  108:    bool operator==( const VECTOR3<T>& aVector ) const;
+        -:  109:
+        -:  110:    /// Not equality operator
+        -:  111:    bool operator!=( const VECTOR3<T>& aVector ) const;
+        -:  112:
+        -:  113:    VECTOR3<T>& operator*=( T val );
+        -:  114:    VECTOR3<T>& operator/=( T val );
+        -:  115:};
+        -:  116:
+        -:  117:
+        -:  118:template <class T>
+    #####:  119:VECTOR3<T>::VECTOR3( T aX, T aY, T aZ ) :
+    #####:  120:        x( aX ), y( aY ), z( aZ )
+        -:  121:{
+    #####:  122:}
+        -:  123:
+        -:  124:
+        -:  125:template <class T>
+        -:  126:template <typename CastingType>
+        -:  127:VECTOR3<T>::VECTOR3( const VECTOR3<CastingType>& aVec ) :
+        -:  128:        x( aVec.x ), y( aVec.y ), z( aVec.z )
+        -:  129:{
+        -:  130:}
+        -:  131:
+        -:  132:
+        -:  133:template <class T>
+        -:  134:VECTOR3<T> VECTOR3<T>::Cross( const VECTOR3<T>& aVector ) const
+        -:  135:{
+        -:  136:    return VECTOR3<T>( ( y * aVector.z ) - ( z * aVector.y ),
+        -:  137:                       ( z * aVector.x ) - ( x * aVector.z ),
+        -:  138:                       ( x * aVector.y ) - ( y * aVector.x )
+        -:  139:                     );
+        -:  140:}
+        -:  141:
+        -:  142:
+        -:  143:template <class T>
+        -:  144:typename VECTOR3<T>::extended_type VECTOR3<T>::Dot( const VECTOR3<T>& aVector ) const
+        -:  145:{
+        -:  146:    return extended_type{x} * extended_type{aVector.x}
+        -:  147:            + extended_type{y} * extended_type{aVector.y}
+        -:  148:            + extended_type{z} * extended_type{aVector.z};
+        -:  149:}
+        -:  150:
+        -:  151:
+        -:  152:template <class T>
+        -:  153:T VECTOR3<T>::EuclideanNorm() const
+        -:  154:{
+        -:  155:    return sqrt( (extended_type) x * x + (extended_type) y * y + (extended_type) z * z );
+        -:  156:}
+        -:  157:
+        -:  158:
+        -:  159:template <class T>
+        -:  160:VECTOR3<T> VECTOR3<T>::Normalize()
+        -:  161:{
+        -:  162:    T norm = EuclideanNorm();
+        -:  163:
+        -:  164:    wxCHECK_MSG( norm > T( 0 ), *this, wxT( "Invalid element length 0" ) );
+        -:  165:
+        -:  166:    x /= norm;
+        -:  167:    y /= norm;
+        -:  168:    z /= norm;
+        -:  169:
+        -:  170:    return *this;
+        -:  171:}
+        -:  172:
+        -:  173:
+        -:  174:template <class T>
+        -:  175:VECTOR3<T> VECTOR3<T>::SetAll( T val )
+        -:  176:{
+        -:  177:    x = val;
+        -:  178:    y = val;
+        -:  179:    z = val;
+        -:  180:
+        -:  181:    return *this;
+        -:  182:}
+        -:  183:
+        -:  184:
+        -:  185:template <class T>
+        -:  186:bool VECTOR3<T>::operator==( VECTOR3<T> const& aVector ) const
+        -:  187:{
+        -:  188:    return ( aVector.x == x ) && ( aVector.y == y ) && ( aVector.z == z );
+        -:  189:}
+        -:  190:
+        -:  191:
+        -:  192:template <class T>
+        -:  193:bool VECTOR3<T>::operator!=( VECTOR3<T> const& aVector ) const
+        -:  194:{
+        -:  195:    return ( aVector.x != x ) || ( aVector.y != y ) || ( aVector.z != z );
+        -:  196:}
+        -:  197:
+        -:  198:
+        -:  199:template <class T>
+        -:  200:VECTOR3<T>& VECTOR3<T>::operator*=( T aScalar )
+        -:  201:{
+        -:  202:    x = x * aScalar;
+        -:  203:    y = y * aScalar;
+        -:  204:    z = z * aScalar;
+        -:  205:
+        -:  206:    return *this;
+        -:  207:}
+        -:  208:
+        -:  209:
+        -:  210:template <class T>
+        -:  211:VECTOR3<T>& VECTOR3<T>::operator/=( T aScalar )
+        -:  212:{
+        -:  213:    x = x / aScalar;
+        -:  214:    y = y / aScalar;
+        -:  215:    z = z / aScalar;
+        -:  216:
+        -:  217:    return *this;
+        -:  218:}
+        -:  219:
+        -:  220:
+        -:  221:template <class T>
+        -:  222:std::ostream& operator<<( std::ostream& aStream, const VECTOR3<T>& aVector )
+        -:  223:{
+        -:  224:    aStream << "[ " << aVector.x << " | " << aVector.y << " | " << aVector.z << " ]";
+        -:  225:    return aStream;
+        -:  226:}
+        -:  227:
+        -:  228:
+        -:  229:/* Default specializations */
+        -:  230:typedef VECTOR3<double>       VECTOR3D;
+        -:  231:typedef VECTOR3<int>          VECTOR3I;
+        -:  232:typedef VECTOR3<unsigned int> VECTOR3U;
+        -:  233:
+        -:  234:#endif // VECTOR3_H_

@@ -1,0 +1,288 @@
+        -:    0:Source:/src/kicad/eeschema/symbol.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software; you can redistribute it and/or
+        -:    7: * modify it under the terms of the GNU General Public License
+        -:    8: * as published by the Free Software Foundation; either version 2
+        -:    9: * of the License, or (at your option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful,
+        -:   12: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14: * GNU General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License
+        -:   17: * along with this program; if not, you may find one here:
+        -:   18: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   19: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   20: * or you may write to the Free Software Foundation, Inc.,
+        -:   21: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   22: */
+        -:   23:
+        -:   24:#ifndef SYMBOL_H
+        -:   25:#define SYMBOL_H
+        -:   26:
+        -:   27:#include <lib_id.h>
+        -:   28:#include <sch_item.h>
+        -:   29:#include <sch_field.h>
+        -:   30:#include <sch_pin.h>
+        -:   31:
+        -:   32:// @todo Move this to transform alone with all of the transform manipulation code.
+        -:   33:/// enum used in RotationMiroir()
+        -:   34:enum SYMBOL_ORIENTATION_T
+        -:   35:{
+        -:   36:    SYM_NORMAL,                     // Normal orientation, no rotation or mirror
+        -:   37:    SYM_ROTATE_CLOCKWISE,           // Rotate -90
+        -:   38:    SYM_ROTATE_COUNTERCLOCKWISE,    // Rotate +90
+        -:   39:    SYM_ORIENT_0,                   // No rotation and no mirror id SYM_NORMAL
+        -:   40:    SYM_ORIENT_90,                  // Rotate 90, no mirror
+        -:   41:    SYM_ORIENT_180,                 // Rotate 180, no mirror
+        -:   42:    SYM_ORIENT_270,                 // Rotate -90, no mirror
+        -:   43:    SYM_MIRROR_X = 0x100,           // Mirror around X axis
+        -:   44:    SYM_MIRROR_Y = 0x200            // Mirror around Y axis
+        -:   45:};
+        -:   46:
+        -:   47:
+        -:   48:// Cover for SYMBOL_ORIENTATION_T for property manager (in order to expose only a subset of
+        -:   49:// SYMBOL_ORIENTATION_T's values).
+        -:   50:enum SYMBOL_ORIENTATION_PROP
+        -:   51:{
+        -:   52:    SYMBOL_ANGLE_0   = SYMBOL_ORIENTATION_T::SYM_ORIENT_0,
+        -:   53:    SYMBOL_ANGLE_90  = SYMBOL_ORIENTATION_T::SYM_ORIENT_90,
+        -:   54:    SYMBOL_ANGLE_180 = SYMBOL_ORIENTATION_T::SYM_ORIENT_180,
+        -:   55:    SYMBOL_ANGLE_270 = SYMBOL_ORIENTATION_T::SYM_ORIENT_270
+        -:   56:};
+        -:   57:
+        -:   58:
+        -:   59:/**
+        -:   60: * A base class for #LIB_SYMBOL and #SCH_SYMBOL.
+        -:   61: */
+        -:   62:class SYMBOL : public SCH_ITEM
+        -:   63:{
+        -:   64:public:
+        -:   65:    SYMBOL( KICAD_T idType ) :
+        -:   66:            SYMBOL( nullptr, idType )
+        -:   67:    { }
+        -:   68:
+        -:   69:    SYMBOL( EDA_ITEM* aParent, KICAD_T idType ) :
+        -:   70:            SCH_ITEM( aParent, idType ),
+        -:   71:            m_pinNameOffset( 0 ),
+        -:   72:            m_showPinNames( true ),
+        -:   73:            m_showPinNumbers( true ),
+        -:   74:            m_excludedFromSim( false ),
+        -:   75:            m_excludedFromBOM( false ),
+        -:   76:            m_excludedFromBoard( false ),
+        -:   77:            m_excludedFromPosFiles( false ),
+        -:   78:            m_DNP( false )
+        -:   79:    { }
+        -:   80:
+        -:   81:    SYMBOL( const SYMBOL& base ) :
+        -:   82:            SCH_ITEM( base ),
+        -:   83:            m_pinNameOffset( base.m_pinNameOffset ),
+        -:   84:            m_showPinNames( base.m_showPinNames ),
+        -:   85:            m_showPinNumbers( base.m_showPinNumbers ),
+        -:   86:            m_excludedFromSim( base.m_excludedFromSim ),
+        -:   87:            m_excludedFromBOM( base.m_excludedFromBOM ),
+        -:   88:            m_excludedFromBoard( base.m_excludedFromBoard ),
+        -:   89:            m_excludedFromPosFiles( base.m_excludedFromPosFiles ),
+        -:   90:            m_DNP( base.m_DNP )
+        -:   91:    { }
+        -:   92:
+        -:   93:    SYMBOL& operator=( const SYMBOL& aItem )
+        -:   94:    {
+        -:   95:        SCH_ITEM::operator=( aItem );
+        -:   96:
+        -:   97:        m_pinNameOffset       = aItem.m_pinNameOffset;
+        -:   98:        m_showPinNames        = aItem.m_showPinNames;
+        -:   99:        m_showPinNumbers      = aItem.m_showPinNumbers;
+        -:  100:
+        -:  101:        m_excludedFromSim     = aItem.m_excludedFromSim;
+        -:  102:        m_excludedFromBOM     = aItem.m_excludedFromBOM;
+        -:  103:        m_excludedFromBoard   = aItem.m_excludedFromBoard;
+        -:  104:        m_excludedFromPosFiles = aItem.m_excludedFromPosFiles;
+        -:  105:        m_DNP                 = aItem.m_DNP;
+        -:  106:
+        -:  107:        return *this;
+        -:  108:    };
+        -:  109:
+        -:  110:    ~SYMBOL() override = default;
+        -:  111:
+        -:  112:    virtual const LIB_ID& GetLibId() const = 0;
+        -:  113:    virtual wxString GetDescription() const = 0;
+        -:  114:    virtual wxString GetShownDescription( int aDepth = 0 ) const = 0;
+        -:  115:    virtual wxString GetKeyWords() const = 0;
+        -:  116:    virtual wxString GetShownKeyWords( int aDepth = 0 ) const = 0;
+        -:  117:
+        -:  118:    virtual bool IsGlobalPower() const = 0;
+        -:  119:    virtual bool IsLocalPower() const = 0;
+        -:  120:    virtual bool IsPower() const = 0;
+        -:  121:    virtual bool IsNormal() const = 0;
+        -:  122:
+        -:  123:    /**
+        -:  124:     * @return true if the symbol has multiple units per symbol.
+        -:  125:     */
+        -:  126:    virtual bool IsMultiUnit() const = 0;
+        -:  127:
+        -:  128:    /**
+        -:  129:     * @return the number of units defined for the symbol.
+        -:  130:     */
+        -:  131:    virtual int GetUnitCount() const = 0;
+        -:  132:
+        -:  133:    /**
+        -:  134:     * @return true if the symbol has multiple body styles available.
+        -:  135:     */
+        -:  136:    virtual bool IsMultiBodyStyle() const = 0;
+        -:  137:
+        -:  138:    /**
+        -:  139:     * @return the number of body styles defined for the symbol.
+        -:  140:     */
+        -:  141:    virtual int GetBodyStyleCount() const = 0;
+        -:  142:
+        -:  143:    virtual bool HasDeMorganBodyStyles() const = 0;
+        -:  144:
+        -:  145:    virtual const wxString GetRef( const SCH_SHEET_PATH* aSheet,
+        -:  146:                                   bool aIncludeUnit = false ) const = 0;
+        -:  147:
+        -:  148:    virtual const wxString GetValue( bool aResolve, const SCH_SHEET_PATH* aPath,
+        -:  149:                                     bool aAllowExtraText, const wxString& aVaraintName = wxEmptyString ) const = 0;
+        -:  150:
+        -:  151:    virtual void GetFields( std::vector<SCH_FIELD*>& aVector, bool aVisibleOnly ) const = 0;
+        -:  152:
+        -:  153:    virtual std::vector<SCH_PIN*> GetPins() const = 0;
+        -:  154:
+        -:  155:    /**
+        -:  156:     * Set the offset in mils of the pin name text from the pin symbol.
+        -:  157:     *
+        -:  158:     * Set the offset to 0 to draw the pin name above the pin symbol.
+        -:  159:     *
+        -:  160:     * @param aOffset - The offset in mils.
+        -:  161:     */
+        -:  162:    void SetPinNameOffset( int aOffset ) { m_pinNameOffset = aOffset; }
+        -:  163:    int GetPinNameOffset() const { return m_pinNameOffset; }
+        -:  164:
+        -:  165:    /**
+        -:  166:     * Set or clear the pin name visibility flag.
+        -:  167:     */
+        -:  168:    virtual void SetShowPinNames( bool aShow ) { m_showPinNames = aShow; }
+        -:  169:    virtual bool GetShowPinNames() const { return m_showPinNames; }
+        -:  170:
+        -:  171:    /**
+        -:  172:     * Set or clear the pin number visibility flag.
+        -:  173:     */
+        -:  174:    virtual void SetShowPinNumbers( bool aShow ) { m_showPinNumbers = aShow; }
+        -:  175:    virtual bool GetShowPinNumbers() const { return m_showPinNumbers; }
+        -:  176:
+        -:  177:    /**
+        -:  178:     * Set or clear the exclude from simulation flag.
+        -:  179:     */
+        -:  180:    virtual void SetExcludedFromSim( bool aExcludeFromSim, const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  181:                                     const wxString& aVariantName = wxEmptyString ) override
+        -:  182:    {
+        -:  183:        m_excludedFromSim = aExcludeFromSim;
+        -:  184:    }
+        -:  185:
+        -:  186:    virtual bool GetExcludedFromSim( const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  187:                                     const wxString& aVariantName = wxEmptyString ) const override
+        -:  188:    {
+        -:  189:        return m_excludedFromSim;
+        -:  190:    }
+        -:  191:
+        -:  192:    /**
+        -:  193:     * Set or clear the exclude from schematic bill of materials flag.
+        -:  194:     */
+        -:  195:    virtual void SetExcludedFromBOM( bool aExcludeFromBOM, const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  196:                                     const wxString& aVariantName = wxEmptyString ) override
+        -:  197:    {
+        -:  198:        m_excludedFromBOM = aExcludeFromBOM;
+        -:  199:    }
+        -:  200:
+        -:  201:    virtual bool GetExcludedFromBOM( const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  202:                                     const wxString& aVariantName = wxEmptyString ) const override
+        -:  203:    {
+        -:  204:        return m_excludedFromBOM;
+        -:  205:    }
+        -:  206:
+        -:  207:    /**
+        -:  208:     * Set or clear exclude from board netlist flag.
+        -:  209:     */
+        -:  210:    void SetExcludedFromBoard( bool aExclude, const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  211:                               const wxString& aVariantName = wxEmptyString ) override
+        -:  212:    {
+        -:  213:        m_excludedFromBoard = aExclude;
+        -:  214:    }
+        -:  215:
+        -:  216:    bool GetExcludedFromBoard( const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  217:                               const wxString& aVariantName = wxEmptyString ) const override
+        -:  218:    {
+        -:  219:        return m_excludedFromBoard;
+        -:  220:    }
+        -:  221:
+        -:  222:    /**
+        -:  223:     * Set or clear exclude from position files flag.
+        -:  224:     */
+        -:  225:    void SetExcludedFromPosFiles( bool aExclude, const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  226:                                  const wxString& aVariantName = wxEmptyString ) override
+        -:  227:    {
+        -:  228:        m_excludedFromPosFiles = aExclude;
+        -:  229:    }
+        -:  230:
+        -:  231:    bool GetExcludedFromPosFiles( const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  232:                                  const wxString& aVariantName = wxEmptyString ) const override
+        -:  233:    {
+        -:  234:        return m_excludedFromPosFiles;
+        -:  235:    }
+        -:  236:
+        -:  237:    /**
+        -:  238:     * Set or clear the 'Do Not Populate' flag.
+        -:  239:     */
+        -:  240:    virtual bool GetDNP( const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  241:                         const wxString& aVariantName = wxEmptyString ) const override { return m_DNP; }
+        -:  242:    virtual void SetDNP( bool aDNP, const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  243:                         const wxString& aVariantName = wxEmptyString ) override { m_DNP = aDNP; }
+        -:  244:
+        -:  245:    virtual int GetOrientation() const { return SYM_NORMAL; }
+        -:  246:
+        -:  247:    const TRANSFORM& GetTransform() const { return m_transform; }
+    #####:  248:    TRANSFORM& GetTransform() { return m_transform; }
+        -:  249:    void SetTransform( const TRANSFORM& aTransform ) { m_transform = aTransform; }
+        -:  250:
+        -:  251:    void SetPreviewUnit( int aUnit ) { m_previewUnit = aUnit; }
+        -:  252:    void SetPreviewBodyStyle( int aBodyStyle ) { m_previewBodyStyle = aBodyStyle; }
+        -:  253:
+        -:  254:    /**
+        -:  255:     * Return a bounding box for the symbol body but not the pins or fields.
+        -:  256:     */
+        -:  257:    virtual BOX2I GetBodyBoundingBox() const = 0;
+        -:  258:
+        -:  259:    /**
+        -:  260:     * Return a bounding box for the symbol body and pins but not the fields.
+        -:  261:     */
+        -:  262:    virtual BOX2I GetBodyAndPinsBoundingBox() const = 0;
+        -:  263:
+        -:  264:    std::vector<int> ViewGetLayers() const override;
+        -:  265:
+        -:  266:protected:
+        -:  267:    TRANSFORM     m_transform;             ///< The rotation/mirror transformation.
+        -:  268:
+        -:  269:    int           m_pinNameOffset;         ///< The offset in mils to draw the pin name.  Set to
+        -:  270:                                           ///<   0 to draw the pin name above the pin.
+        -:  271:    bool          m_showPinNames;
+        -:  272:    bool          m_showPinNumbers;
+        -:  273:
+        -:  274:    bool          m_excludedFromSim;
+        -:  275:    bool          m_excludedFromBOM;
+        -:  276:    bool          m_excludedFromBoard;
+        -:  277:    bool          m_excludedFromPosFiles;
+        -:  278:    bool          m_DNP;                   ///< True if symbol is set to 'Do Not Populate'.
+        -:  279:
+        -:  280:    int           m_previewUnit = 1;
+        -:  281:    int           m_previewBodyStyle = 1;
+        -:  282:};
+        -:  283:
+        -:  284:#endif  //  SYMBOL_H

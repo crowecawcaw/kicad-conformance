@@ -1,0 +1,440 @@
+        -:    0:Source:/src/kicad/eeschema/sch_pin.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2015 Jean-Pierre Charras, jaen-pierre.charras at wanadoo.fr
+        -:    5: * Copyright (C) 2015 Wayne Stambaugh <stambaughw@gmail.com>
+        -:    6: * Copyright (C) 2018 CERN
+        -:    7: * Copyright The KiCad Developers, see AUTHOR.txt for contributors.
+        -:    8: * @author Jon Evans <jon@craftyjon.com>
+        -:    9: *
+        -:   10: * This program is free software; you can redistribute it and/or
+        -:   11: * modify it under the terms of the GNU General Public License
+        -:   12: * as published by the Free Software Foundation; either version 2
+        -:   13: * of the License, or (at your option) any later version.
+        -:   14: *
+        -:   15: * This program is distributed in the hope that it will be useful,
+        -:   16: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   17: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   18: * GNU General Public License for more details.
+        -:   19: *
+        -:   20: * You should have received a copy of the GNU General Public License along
+        -:   21: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   22: */
+        -:   23:
+        -:   24:#pragma once
+        -:   25:
+        -:   26:#include <memory>
+        -:   27:#include <vector>
+        -:   28:
+        -:   29:#include <pin_type.h>
+        -:   30:#include <sch_item.h>
+        -:   31:
+        -:   32:class LIB_SYMBOL;
+        -:   33:class SCH_SYMBOL;
+        -:   34:class PIN_LAYOUT_CACHE;
+        -:   35:
+        -:   36:// Circle diameter drawn at the active end of pins:
+        -:   37:#define TARGET_PIN_RADIUS   schIUScale.MilsToIU( 15 )
+        -:   38:
+        -:   39:
+        -:   40:class SCH_PIN : public SCH_ITEM
+        -:   41:{
+        -:   42:public:
+        -:   43:    struct ALT
+        -:   44:    {
+        -:   45:        wxString            m_Name;
+        -:   46:        GRAPHIC_PINSHAPE    m_Shape;         // Shape drawn around pin
+        -:   47:        ELECTRICAL_PINTYPE  m_Type;          // Electrical type of the pin.
+        -:   48:    };
+        -:   49:
+        -:   50:    SCH_PIN( LIB_SYMBOL* aParentSymbol );
+        -:   51:
+        -:   52:    SCH_PIN( LIB_SYMBOL* aParentSymbol, const wxString& aName, const wxString& aNumber,
+        -:   53:             PIN_ORIENTATION aOrientation, ELECTRICAL_PINTYPE aPinType, int aLength,
+        -:   54:             int aNameTextSize, int aNumTextSize, int aBodyStyle, const VECTOR2I& aPos, int aUnit );
+        -:   55:
+        -:   56:    SCH_PIN( SCH_SYMBOL* aParentSymbol, SCH_PIN* aLibPin );
+        -:   57:
+        -:   58:    /**
+        -:   59:     * Create a proxy pin from an alternate pin designation.
+        -:   60:     *
+        -:   61:     * The #SCH_PIN data will be filled in when the pin is resolved.
+        -:   62:     *
+        -:   63:     * @see SCH_SYMBOL::UpdatePins().
+        -:   64:     */
+        -:   65:    SCH_PIN( SCH_SYMBOL* aParentSymbol, const wxString& aNumber, const wxString& aAlt,
+        -:   66:             const KIID& aUuid );
+        -:   67:
+        -:   68:    SCH_PIN( const SCH_PIN& aPin );
+        -:   69:
+        -:   70:    ~SCH_PIN();
+        -:   71:
+        -:   72:    SCH_PIN& operator=( const SCH_PIN& aPin );
+        -:   73:
+        -:   74:    wxString GetClass() const override
+        -:   75:    {
+        -:   76:        return wxT( "SCH_PIN" );
+        -:   77:    }
+        -:   78:
+        -:   79:    static bool ClassOf( const EDA_ITEM* aItem )
+        -:   80:    {
+        -:   81:        return aItem && aItem->Type() == SCH_PIN_T;
+        -:   82:    }
+        -:   83:
+        -:   84:    wxString GetFriendlyName() const override
+        -:   85:    {
+        -:   86:        return _( "Pin" );
+        -:   87:    }
+        -:   88:
+        -:   89:    SCH_PIN* GetLibPin() const { return m_libPin; }
+        -:   90:    void SetLibPin( SCH_PIN* aLibPin ) { m_libPin = aLibPin; }
+        -:   91:
+        -:   92:    PIN_ORIENTATION GetOrientation() const;
+        -:   93:    void SetOrientation( PIN_ORIENTATION aOrientation ) { m_orientation = aOrientation; }
+        -:   94:
+        -:   95:    GRAPHIC_PINSHAPE GetShape() const;
+        -:   96:    void SetShape( GRAPHIC_PINSHAPE aShape ) { m_shape = aShape; }
+        -:   97:
+        -:   98:    int GetLength() const;
+        -:   99:    void SetLength( int aLength ) { m_length = aLength; }
+        -:  100:
+        -:  101:    /**
+        -:  102:     * Change the length of a pin and adjust its position based on orientation.
+        -:  103:     *
+        -:  104:     * @param aLength New length of pin
+        -:  105:     */
+        -:  106:    void ChangeLength( int aLength );
+        -:  107:
+        -:  108:    ELECTRICAL_PINTYPE GetType() const;
+        -:  109:    void SetType( ELECTRICAL_PINTYPE aType );
+        -:  110:    wxString GetCanonicalElectricalTypeName() const;
+        -:  111:    wxString GetElectricalTypeName() const;
+        -:  112:
+        -:  113:    bool IsVisible() const;
+        -:  114:    void SetVisible( bool aVisible ) { m_hidden = !aVisible; }
+        -:  115:
+        -:  116:    const wxString& GetName() const;
+        -:  117:    const wxString& GetShownName() const;
+        -:  118:    void            SetName( const wxString& aName );
+        -:  119:    /**
+        -:  120:     * Get the name without any alternates
+        -:  121:     */
+        -:  122:    const wxString& GetBaseName() const;
+        -:  123:
+    #####:  124:    const wxString&       GetNumber() const { return m_number; }
+        -:  125:    const wxString&       GetShownNumber() const;
+        -:  126:    std::vector<wxString> GetStackedPinNumbers( bool* aValid = nullptr ) const;
+        -:  127:
+        -:  128:    /**
+        -:  129:     * Return the count of logical pins represented by this pin's stacked notation.
+        -:  130:     *
+        -:  131:     * This is a fast alternative to GetStackedPinNumbers().size() that avoids
+        -:  132:     * allocating and populating a vector of strings.
+        -:  133:     *
+        -:  134:     * @param aValid Optional pointer to bool that will be set to indicate if the
+        -:  135:     *               stacked notation is valid (true) or malformed (false).
+        -:  136:     * @return The number of logical pins represented (always >= 1).
+        -:  137:     */
+        -:  138:    int GetStackedPinCount( bool* aValid = nullptr ) const;
+        -:  139:
+        -:  140:    /**
+        -:  141:     * Return the smallest logical pin number if this pin uses stacked
+        -:  142:     * notation and it is valid.  Otherwise returns std::nullopt.
+        -:  143:     */
+        -:  144:    std::optional<wxString> GetSmallestLogicalNumber() const;
+        -:  145:
+        -:  146:    /**
+        -:  147:     * Return the pin number to be used for deterministic operations such as
+        -:  148:     * auto‑generated net names.  For stacked pins this is the smallest logical
+        -:  149:     * number; otherwise it is the shown number.
+        -:  150:     */
+        -:  151:    wxString GetEffectivePadNumber() const;
+        -:  152:    void SetNumber( const wxString& aNumber );
+        -:  153:
+        -:  154:    int GetNameTextSize() const;
+        -:  155:    void SetNameTextSize( int aSize );
+        -:  156:
+        -:  157:    int GetNumberTextSize() const;
+        -:  158:    void SetNumberTextSize( int aSize );
+        -:  159:
+        -:  160:    const std::map<wxString, ALT>& GetAlternates() const
+        -:  161:    {
+        -:  162:        if( m_libPin )
+        -:  163:            return m_libPin->GetAlternates();
+        -:  164:
+        -:  165:        return m_alternates;
+        -:  166:    }
+        -:  167:
+        -:  168:    std::map<wxString, ALT>& GetAlternates()
+        -:  169:    {
+        -:  170:        return const_cast<std::map<wxString, ALT>&>(
+        -:  171:                static_cast<const SCH_PIN*>( this )->GetAlternates() );
+        -:  172:    }
+        -:  173:
+        -:  174:    ALT GetAlt( const wxString& aAlt )
+        -:  175:    {
+        -:  176:        return GetAlternates()[ aAlt ];
+        -:  177:    }
+        -:  178:
+        -:  179:    wxString GetAlt() const { return m_alt; }
+        -:  180:
+        -:  181:    /**
+        -:  182:     * Set the name of the alternate pin.
+        -:  183:     *
+        -:  184:     * @note If the alternate pin is the same as the default pin name or does not exist in the
+        -:  185:     *       list of pin alternates, it's set to an empty string which results in the alternate
+        -:  186:     *       being set to the default pin.
+        -:  187:     *
+        -:  188:     * @param is the name of the pin alternate in #m_alternates.
+        -:  189:     */
+        -:  190:    void SetAlt( const wxString& aAlt );
+        -:  191:
+        -:  192:    /**
+        -:  193:     * Return the pin real orientation (PIN_UP, PIN_DOWN, PIN_RIGHT, PIN_LEFT),
+        -:  194:     * according to its orientation and the matrix transform (rot, mirror) \a aTransform.
+        -:  195:     *
+        -:  196:     * @param aTransform Transform matrix
+        -:  197:     */
+        -:  198:    PIN_ORIENTATION PinDrawOrient( const TRANSFORM& aTransform ) const;
+        -:  199:
+        -:  200:    /**
+        -:  201:     * Return true when \a aTransform maps the side the stacked number block is drawn on
+        -:  202:     * (above horizontal pins, left of vertical pins) onto the opposite side.
+        -:  203:     */
+        -:  204:    bool StackedTextSideFlipped( const TRANSFORM& aTransform ) const;
+        -:  205:
+        -:  206:#if defined(DEBUG)
+        -:  207:    void Show( int nestLevel, std::ostream& os ) const override;
+        -:  208:#endif
+        -:  209:
+        -:  210:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  211:
+        -:  212:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  213:
+        -:  214:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:  215:
+        -:  216:    const BOX2I ViewBBox() const override;
+        -:  217:
+        -:  218:    std::vector<int> ViewGetLayers() const override;
+        -:  219:
+        -:  220:    /* Cannot use a default parameter here as it will not be compatible with the virtual. */
+        -:  221:    const BOX2I GetBoundingBox() const override
+        -:  222:    {
+        -:  223:        return GetBoundingBox( false, true, m_flags & SHOW_ELEC_TYPE );
+        -:  224:    }
+        -:  225:
+        -:  226:    /**
+        -:  227:     * @param aIncludeLabelsOnInvisiblePins - if false, do not include labels for invisible pins
+        -:  228:     *                                       in the calculation.
+        -:  229:     */
+        -:  230:    BOX2I GetBoundingBox( bool aIncludeLabelsOnInvisiblePins, bool aIncludeNameAndNumber,
+        -:  231:                          bool aIncludeElectricalType ) const;
+        -:  232:
+        -:  233:    /**
+        -:  234:     * Return whether this pin forms a global power connection: i.e., is part of a power symbol
+        -:  235:     * and of type POWER_IN, or is a legacy invisible global power pin on a symbol.
+        -:  236:     */
+        -:  237:    bool IsGlobalPower() const;
+        -:  238:
+        -:  239:    /**
+        -:  240:     * Local power pin is the same except that it is sheet-local and it does not support the legacy
+        -:  241:     * hidden pin mode
+        -:  242:     */
+        -:  243:    bool IsLocalPower() const;
+        -:  244:
+        -:  245:    /**
+        -:  246:     * Check if the pin is _either_ a global or local power pin.
+        -:  247:     * @see IsGlobalPower() and IsLocalPower()
+        -:  248:     */
+        -:  249:    bool IsPower() const;
+        -:  250:
+        -:  251:    int GetPenWidth() const override { return 0; }
+        -:  252:
+        -:  253:    void Move( const VECTOR2I& aOffset ) override;
+        -:  254:
+        -:  255:    VECTOR2I GetPosition() const override;
+        -:  256:    VECTOR2I GetLocalPosition() const { return m_position; }
+        -:  257:    void SetPosition( const VECTOR2I& aPos ) override { m_position = aPos; }
+        -:  258:
+        -:  259:    // For properties system
+        -:  260:    int GetX() const { return m_position.x; }
+        -:  261:    void SetX( int aX ) { m_position.x = aX; }
+        -:  262:    int GetY() const { return m_position.y; }
+        -:  263:    void SetY( int aY ) { m_position.y = aY; }
+        -:  264:
+        -:  265:    VECTOR2I GetPinRoot() const;
+        -:  266:
+        -:  267:    /**
+        -:  268:     * These transforms have effect only if the pin has a #LIB_SYMBOL as parent.
+        -:  269:     */
+        -:  270:    void MirrorHorizontally( int aCenter ) override;
+        -:  271:    void MirrorVertically( int aCenter ) override;
+        -:  272:    void Rotate( const VECTOR2I& aCenter, bool aRotateCCW = true ) override;
+        -:  273:
+        -:  274:    /**
+        -:  275:     * These transforms have always effects.
+        -:  276:     */
+        -:  277:    void MirrorHorizontallyPin( int aCenter );
+        -:  278:    void MirrorVerticallyPin( int aCenter );
+        -:  279:    void RotatePin( const VECTOR2I& aCenter, bool aRotateCCW = true );
+        -:  280:
+        -:  281:    /**
+        -:  282:     * Plot the pin name and number.
+        -:  283:     *
+        -:  284:     * @param aTextInside - draw the names & numbers inside the symbol body (ie: in the opposite
+        -:  285:     *                      direction of \a aPinOrient).
+        -:  286:     */
+        -:  287:    void PlotPinTexts( PLOTTER *aPlotter, const VECTOR2I &aPinPos, PIN_ORIENTATION aPinOrient,
+        -:  288:                       int aTextInside, bool aDrawPinNum, bool aDrawPinName, bool aDimmed ) const;
+        -:  289:
+        -:  290:    void PlotPinType( PLOTTER *aPlotter, const VECTOR2I &aPosition, PIN_ORIENTATION aOrientation,
+        -:  291:                      bool aDimmed ) const;
+        -:  292:
+        -:  293:    void Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& aPlotOpts,
+        -:  294:               int aUnit, int aBodyStyle, const VECTOR2I& aOffset, bool aDimmed ) override;
+        -:  295:
+        -:  296:    BITMAPS GetMenuImage() const override;
+        -:  297:
+        -:  298:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  299:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, ALT* aAlt ) const;
+        -:  300:
+        -:  301:    EDA_ITEM* Clone() const override;
+        -:  302:
+        -:  303:    void CalcEdit( const VECTOR2I& aPosition ) override;
+        -:  304:
+        -:  305:    bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const override;
+        -:  306:
+        -:  307:    bool Replace( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) override;
+        -:  308:
+        -:  309:    /**
+        -:  310:     * Return a string giving the electrical type of a pin.
+        -:  311:     *
+        -:  312:     * Can be used when a known, not translated name is needed (for instance in net lists)
+        -:  313:     *
+        -:  314:     * @param aType is the electrical type (see enum ELECTRICAL_PINTYPE )
+        -:  315:     * @return The electrical name for a pin type (see enun MsgPinElectricType for names).
+        -:  316:     */
+        -:  317:    static wxString GetCanonicalElectricalTypeName( ELECTRICAL_PINTYPE aType );
+        -:  318:
+        -:  319:    bool IsConnectable() const override { return true; }
+        -:  320:
+        -:  321:    bool HasConnectivityChanges( const SCH_ITEM* aItem,
+        -:  322:                                 const SCH_SHEET_PATH* aInstance = nullptr ) const override;
+        -:  323:
+        -:  324:    void ClearDefaultNetName( const SCH_SHEET_PATH* aPath );
+        -:  325:    wxString GetDefaultNetName( const SCH_SHEET_PATH& aPath, bool aForceNoConnect = false );
+        -:  326:
+        -:  327:    bool IsDangling() const override;
+        -:  328:    void SetIsDangling( bool aIsDangling );
+        -:  329:
+        -:  330:    /**
+        -:  331:     * @param aPin Comparison Pin
+        -:  332:     * @return True if aPin is stacked with this pin
+        -:  333:     */
+        -:  334:    bool IsStacked( const SCH_PIN* aPin ) const;
+        -:  335:
+        -:  336:    bool IsPointClickableAnchor( const VECTOR2I& aPos ) const override
+        -:  337:    {
+        -:  338:        return m_isDangling && GetPosition() == aPos;
+        -:  339:    }
+        -:  340:
+        -:  341:    bool ConnectionPropagatesTo( const EDA_ITEM* aItem ) const override;
+        -:  342:
+        -:  343:    const wxString& GetOperatingPoint() const { return m_operatingPoint; }
+        -:  344:    void SetOperatingPoint( const wxString& aText ) { m_operatingPoint = aText; }
+        -:  345:
+        -:  346:    /**
+        -:  347:     * Transient, render-only hint that the symbol transform mirrors the stacked number
+        -:  348:     * block side.  Set by the painter on its pre-transformed temp pins.  Never serialized.
+        -:  349:     */
+        -:  350:    bool GetFlipStackedTextSide() const { return m_flipStackedTextSide; }
+        -:  351:    void SetFlipStackedTextSide( bool aFlip ) { m_flipStackedTextSide = aFlip; }
+        -:  352:
+        -:  353:    double Similarity( const SCH_ITEM& aOther ) const override;
+        -:  354:
+        -:  355:    bool operator>( const SCH_ITEM& aRhs ) const { return compare( aRhs, EQUALITY ) > 0; }
+        -:  356:
+        -:  357:    /**
+        -:  358:     * Get the layout cache associated with this pin.
+        -:  359:     *
+        -:  360:     * If you need more information about how elements of the pin are physically
+        -:  361:     * laid out than just the bounding box, you can use this. The SCH_PAINTER,
+        -:  362:     * for example, can use this to avoid having to duplicate text extent calcs.
+        -:  363:     */
+        -:  364:    PIN_LAYOUT_CACHE& GetLayoutCache() const;
+        -:  365:
+        -:  366:protected:
+        -:  367:    wxString getItemDescription( ALT* aAlt ) const;
+        -:  368:
+        -:  369:    struct EXTENTS_CACHE
+        -:  370:    {
+        -:  371:        KIFONT::FONT* m_Font = nullptr;
+        -:  372:        int           m_FontSize = 0;
+        -:  373:        VECTOR2I      m_Extents;
+        -:  374:    };
+        -:  375:
+        -:  376:    void validateExtentsCache( KIFONT::FONT* aFont, int aSize, const wxString& aText,
+        -:  377:                               EXTENTS_CACHE* aCache ) const;
+        -:  378:
+        -:  379:    std::ostream& operator<<( std::ostream& aStream );
+        -:  380:
+        -:  381:private:
+        -:  382:    /**
+        -:  383:     * The pin specific sort order is as follows:
+        -:  384:     *      - The result of #SCH_ITEM::compare()
+        -:  385:     *      - Number
+        -:  386:     *      - Name, case sensitive compare
+        -:  387:     *      - Horizontal (X) position
+        -:  388:     *      - Vertical (Y) position
+        -:  389:     *      - Length
+        -:  390:     *      - Orientation
+        -:  391:     *      - Shape
+        -:  392:     *      - Electrical type
+        -:  393:     *      - Visibility (true > false)
+        -:  394:     *      - Number text size
+        -:  395:     *      - Name text size
+        -:  396:     *      - Alternates, name, type shape
+        -:  397:     */
+        -:  398:    int compare( const SCH_ITEM& aOther, int aCompareFlags = 0 ) const override;
+        -:  399:
+        -:  400:protected:
+        -:  401:    SCH_PIN*                m_libPin;          // The corresponding pin in the LIB_SYMBOL
+        -:  402:                                               //   (nullptr for a pin *in* the LIB_SYMBOL)
+        -:  403:
+        -:  404:    std::map<wxString, ALT> m_alternates;      // Map of alternate name to ALT structure
+        -:  405:                                               //   (only valid for pins in LIB_SYMBOLS)
+        -:  406:
+        -:  407:    VECTOR2I                m_position;        // Position of the pin.
+        -:  408:    std::optional<int>      m_length;          // Length of the pin.
+        -:  409:    PIN_ORIENTATION         m_orientation;     // Pin orientation (Up, Down, Left, Right)
+        -:  410:    GRAPHIC_PINSHAPE        m_shape;           // Shape drawn around pin
+        -:  411:    ELECTRICAL_PINTYPE      m_type;            // Electrical type of the pin.
+        -:  412:    std::optional<bool>     m_hidden;
+        -:  413:    wxString                m_name;
+        -:  414:    wxString                m_number;
+        -:  415:    std::optional<int>      m_numTextSize;     // Pin num and Pin name sizes
+        -:  416:    std::optional<int>      m_nameTextSize;
+        -:  417:    wxString                m_alt;             // The current alternate for an instance
+        -:  418:
+        -:  419:    wxString                m_operatingPoint;
+        -:  420:
+        -:  421:    /// Render-only stacked block side hint, see GetFlipStackedTextSide().  Not saved.
+        -:  422:    bool m_flipStackedTextSide = false;
+        -:  423:
+        -:  424:    bool                    m_isDangling;
+        -:  425:
+        -:  426:    /**
+        -:  427:     * The layout cache for this pin.
+        -:  428:     *
+        -:  429:     * #SCH_PIN doesn't *have* to own this, it could be part a central cache.
+        -:  430:     */
+        -:  431:    mutable std::unique_ptr<PIN_LAYOUT_CACHE> m_layoutCache;
+        -:  432:
+        -:  433:    /// The name that this pin connection will drive onto a net.
+        -:  434:    std::recursive_mutex                                      m_netmap_mutex;
+        -:  435:    std::map<const SCH_SHEET_PATH, std::pair<wxString, bool>> m_net_name_map;
+        -:  436:};

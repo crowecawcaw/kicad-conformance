@@ -1,0 +1,373 @@
+        -:    0:Source:/src/kicad/include/rc_item.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software; you can redistribute it and/or
+        -:    7: * modify it under the terms of the GNU General Public License
+        -:    8: * as published by the Free Software Foundation; either version 2
+        -:    9: * of the License, or (at your option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful,
+        -:   12: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14: * GNU General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License
+        -:   17: * along with this program; if not, you may find one here:
+        -:   18: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   19: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   20: * or you may write to the Free Software Foundation, Inc.,
+        -:   21: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   22: */
+        -:   23:
+        -:   24:#ifndef RC_ITEM_H
+        -:   25:#define RC_ITEM_H
+        -:   26:
+        -:   27:#include <memory>
+        -:   28:#include <vector>
+        -:   29:
+        -:   30:#include <wx/dataview.h>
+        -:   31:#include <units_provider.h>
+        -:   32:#include <kiid.h>
+        -:   33:#include <reporter.h>
+        -:   34:#include <math/vector2d.h>
+        -:   35:
+        -:   36:class MARKER_BASE;
+        -:   37:class EDA_BASE_FRAME;
+        -:   38:class RC_ITEM;
+        -:   39:class EDA_ITEM;
+        -:   40:class EDA_DRAW_FRAME;
+        -:   41:
+        -:   42:namespace RC_JSON
+        -:   43:{
+        -:   44:struct VIOLATION;
+        -:   45:}
+        -:   46:
+        -:   47:/**
+        -:   48: * Provide an abstract interface of a RC_ITEM* list manager.
+        -:   49: *
+        -:   50: * The details of the actual list architecture are hidden from the caller.  Any class that
+        -:   51: * implements this interface can then be used by a RC_TREE_MODEL class without it knowing
+        -:   52: * the actual architecture of the list.
+        -:   53: */
+        -:   54:class RC_ITEMS_PROVIDER
+        -:   55:{
+        -:   56:public:
+        -:   57:    virtual void SetSeverities( int aSeverities ) = 0;
+        -:   58:
+        -:   59:    virtual int GetSeverities() const = 0;
+        -:   60:
+        -:   61:    virtual int GetCount( int aSeverity = -1 ) const = 0;
+        -:   62:
+        -:   63:    /**
+        -:   64:     * Retrieve a RC_ITEM by index.
+        -:   65:     */
+        -:   66:    virtual std::shared_ptr<RC_ITEM> GetItem( int aIndex ) const = 0;
+        -:   67:
+        -:   68:    /**
+        -:   69:     * Remove (and optionally deletes) the indexed item from the list.
+        -:   70:     * @param aDeep If true, the source item should be deleted as well as its entry in the list.
+        -:   71:     */
+        -:   72:    virtual void DeleteItem( int aIndex, bool aDeep ) = 0;
+        -:   73:
+        -:   74:    virtual ~RC_ITEMS_PROVIDER() { }
+        -:   75:};
+        -:   76:
+        -:   77:
+        -:   78:/**
+        -:   79: * A holder for a rule check item, DRC in Pcbnew or ERC in Eeschema.
+        -:   80: *
+        -:   81: * RC_ITEMs can have zero, one, or two related EDA_ITEMs.
+        -:   82: */
+        -:   83:class RC_ITEM
+        -:   84:{
+        -:   85:public:
+        -:   86:    typedef std::vector<KIID> KIIDS;
+        -:   87:
+        -:   88:    RC_ITEM() :
+        -:   89:        m_errorCode( 0 ),
+        -:   90:        m_parent( nullptr )
+        -:   91:    {
+        -:   92:    }
+        -:   93:
+        -:   94:    RC_ITEM( const std::shared_ptr<RC_ITEM>& aItem )
+        -:   95:    {
+        -:   96:        m_errorCode    = aItem->m_errorCode;
+        -:   97:        m_errorMessage = aItem->m_errorMessage;
+        -:   98:        m_errorTitle   = aItem->m_errorTitle;
+        -:   99:        m_settingsKey  = aItem->m_settingsKey;
+        -:  100:        m_parent       = aItem->m_parent;
+        -:  101:        m_ids          = aItem->m_ids;
+        -:  102:    }
+        -:  103:
+        -:  104:    virtual ~RC_ITEM() { }
+        -:  105:
+    #####:  106:    void SetErrorMessage( const wxString& aMessage ) { m_errorMessage = aMessage; }
+        -:  107:
+        -:  108:    void SetErrorDetail( const wxString& aMsg ) { SetErrorMessage( GetErrorText( true ) + wxS( " " ) + aMsg ); }
+        -:  109:
+        -:  110:    void SetItems( const KIIDS& aIds ) { m_ids = aIds; }
+        -:  111:
+        -:  112:    void AddItem( EDA_ITEM* aItem );
+        -:  113:
+        -:  114:    void SetItems( const EDA_ITEM* aItem, const EDA_ITEM* bItem = nullptr,
+        -:  115:                   const EDA_ITEM* cItem = nullptr, const EDA_ITEM* dItem = nullptr );
+        -:  116:
+        -:  117:    void SetItems( const KIID& aItem, const KIID& bItem = niluuid, const KIID& cItem = niluuid,
+        -:  118:                   const KIID& dItem = niluuid )
+        -:  119:    {
+        -:  120:        m_ids.clear();
+        -:  121:
+        -:  122:        m_ids.push_back( aItem );
+        -:  123:        m_ids.push_back( bItem );
+        -:  124:        m_ids.push_back( cItem );
+        -:  125:        m_ids.push_back( dItem );
+        -:  126:    }
+        -:  127:
+        -:  128:    virtual KIID GetMainItemID() const { return m_ids.size() > 0 ? m_ids[0] : niluuid; }
+        -:  129:    virtual KIID GetAuxItemID() const { return m_ids.size() > 1 ? m_ids[1] : niluuid; }
+        -:  130:    virtual KIID GetAuxItem2ID() const { return m_ids.size() > 2 ? m_ids[2] : niluuid; }
+        -:  131:    virtual KIID GetAuxItem3ID() const { return m_ids.size() > 3 ? m_ids[3] : niluuid; }
+        -:  132:
+        -:  133:    std::vector<KIID> GetIDs() const { return m_ids; }
+        -:  134:
+        -:  135:    void SetParent( MARKER_BASE* aMarker ) { m_parent = aMarker; }
+        -:  136:    MARKER_BASE* GetParent() const { return m_parent; }
+        -:  137:
+        -:  138:
+        -:  139:    /**
+        -:  140:     * Translate this object into a text string suitable for saving to disk in a report.
+        -:  141:     *
+        -:  142:     * @return wxString - the simple multi-line report text.
+        -:  143:     */
+        -:  144:    virtual wxString ShowReport( UNITS_PROVIDER* aUnitsProvider, SEVERITY aSeverity,
+        -:  145:                                 const std::map<KIID, EDA_ITEM*>& aItemMap ) const;
+        -:  146:
+        -:  147:    /**
+        -:  148:     * Translate this object into an RC_JSON::VIOLATION object
+        -:  149:     *
+        -:  150:     * @param aViolation is the violation to be populated by info from this item
+        -:  151:     * @param aUnitsProvider is the units provider that will be used to output coordinates
+        -:  152:     * @param aSeverity is the severity of this item
+        -:  153:     * @param aItemMap is a map allowing the lookup of items from KIIDs
+        -:  154:     *
+        -:  155:     * @return None
+        -:  156:     */
+        -:  157:    virtual void GetJsonViolation( RC_JSON::VIOLATION& aViolation, UNITS_PROVIDER* aUnitsProvider,
+        -:  158:                                   SEVERITY aSeverity,
+        -:  159:                                   const std::map<KIID, EDA_ITEM*>& aItemMap ) const;
+        -:  160:
+        -:  161:    int GetErrorCode() const { return m_errorCode; }
+        -:  162:    void SetErrorCode( int aCode ) { m_errorCode = aCode; }
+        -:  163:
+        -:  164:    /**
+        -:  165:     * @return the error message describing the specific details of a RC_ITEM.  For instance,
+        -:  166:     * "Clearance violation (netclass '100ohm' clearance 0.4000mm; actual 0.3200mm)"
+        -:  167:     */
+        -:  168:    virtual wxString GetErrorMessage( bool aTranslate ) const;
+        -:  169:
+        -:  170:    /**
+        -:  171:     * @return the error text for the class of error of this RC_ITEM represents.  For instance,
+        -:  172:     * "Clearance violation".
+        -:  173:     */
+        -:  174:    wxString GetErrorText( bool aTranslate ) const
+        -:  175:    {
+        -:  176:        if( aTranslate )
+        -:  177:            return wxGetTranslation( m_errorTitle );
+        -:  178:        else
+        -:  179:            return m_errorTitle;
+        -:  180:    }
+        -:  181:
+        -:  182:    wxString GetSettingsKey() const
+        -:  183:    {
+        -:  184:        return m_settingsKey;
+        -:  185:    }
+        -:  186:
+        -:  187:    virtual wxString GetViolatingRuleDesc( bool aTranslate ) const
+        -:  188:    {
+        -:  189:        return wxEmptyString;
+        -:  190:    }
+        -:  191:
+        -:  192:protected:
+        -:  193:    static wxString getSeverityString( SEVERITY aSeverity );
+        -:  194:
+        -:  195:    /**
+        -:  196:     * Resolve the description string used for an affected item in ShowReport and
+        -:  197:     * GetJsonViolation.  Subclasses that need per-context formatting (e.g. ERC's
+        -:  198:     * per-sheet-instance symbol references) override this rather than reimplementing
+        -:  199:     * the surrounding report layout.
+        -:  200:     *
+        -:  201:     * @param aItem is the affected item being described
+        -:  202:     * @param aIndex is 0 for the main item and 1 for the aux item
+        -:  203:     */
+        -:  204:    virtual wxString getItemDescription( EDA_ITEM* aItem, int aIndex,
+        -:  205:                                         UNITS_PROVIDER* aUnitsProvider ) const;
+        -:  206:
+        -:  207:    int           m_errorCode;         ///< The error code's numeric value
+        -:  208:    wxString      m_errorMessage;      ///< A message describing the details of this specific error
+        -:  209:    wxString      m_errorTitle;        ///< The string describing the type of error
+        -:  210:    wxString      m_settingsKey;       ///< The key used to describe this type of error in settings
+        -:  211:    MARKER_BASE*  m_parent;            ///< The marker this item belongs to, if any
+        -:  212:
+        -:  213:    KIIDS         m_ids;
+        -:  214:
+        -:  215:};
+        -:  216:
+        -:  217:
+        -:  218:class RC_TREE_NODE
+        -:  219:{
+        -:  220:public:
+        -:  221:    enum NODE_TYPE
+        -:  222:    {
+        -:  223:        MARKER,
+        -:  224:        MAIN_ITEM,
+        -:  225:        AUX_ITEM,
+        -:  226:        AUX_ITEM2,
+        -:  227:        AUX_ITEM3,
+        -:  228:        COMMENT
+        -:  229:    };
+        -:  230:
+        -:  231:    RC_TREE_NODE( RC_TREE_NODE* aParent, const std::shared_ptr<RC_ITEM>& aRcItem,
+        -:  232:                  NODE_TYPE aType ) :
+        -:  233:            m_Type( aType ),
+        -:  234:            m_RcItem( aRcItem ),
+        -:  235:            m_Parent( aParent )
+        -:  236:    {}
+        -:  237:
+        -:  238:    ~RC_TREE_NODE()
+        -:  239:    {
+        -:  240:        for( RC_TREE_NODE* child : m_Children )
+        -:  241:            delete child;
+        -:  242:    }
+        -:  243:
+        -:  244:    // We own at least one list of raw pointers.  Don't let the compiler fill in copy c'tors that
+        -:  245:    // will only land us in trouble.
+        -:  246:    RC_TREE_NODE( const RC_TREE_NODE& ) = delete;
+        -:  247:    RC_TREE_NODE& operator=( const RC_TREE_NODE& ) = delete;
+        -:  248:
+        -:  249:    NODE_TYPE                  m_Type;
+        -:  250:    std::shared_ptr<RC_ITEM>   m_RcItem;
+        -:  251:
+        -:  252:    struct HANDLE
+        -:  253:    {
+        -:  254:        RC_TREE_NODE* m_Node = nullptr;
+        -:  255:    };
+        -:  256:
+        -:  257:    HANDLE*                    m_Handle = nullptr;
+        -:  258:    RC_TREE_NODE*              m_Parent;
+        -:  259:    std::vector<RC_TREE_NODE*> m_Children;
+        -:  260:};
+        -:  261:
+        -:  262:
+        -:  263:class RC_TREE_MODEL : public wxDataViewModel, public wxEvtHandler
+        -:  264:{
+        -:  265:public:
+        -:  266:    static wxDataViewItem ToItem( RC_TREE_NODE const* aNode )
+        -:  267:    {
+        -:  268:        return aNode && aNode->m_Handle ? wxDataViewItem( aNode->m_Handle ) : wxDataViewItem();
+        -:  269:    }
+        -:  270:
+        -:  271:    static RC_TREE_NODE* ToNode( wxDataViewItem aItem )
+        -:  272:    {
+        -:  273:        auto* handle = static_cast<RC_TREE_NODE::HANDLE*>( aItem.GetID() );
+        -:  274:        return handle ? handle->m_Node : nullptr;
+        -:  275:    }
+        -:  276:
+        -:  277:    const wxDataViewCtrl* GetView() const { return m_view; }
+        -:  278:
+        -:  279:    static KIID ToUUID( wxDataViewItem aItem );
+        -:  280:
+        -:  281:    RC_TREE_MODEL( EDA_DRAW_FRAME* aParentFrame, wxDataViewCtrl* aView );
+        -:  282:
+        -:  283:    ~RC_TREE_MODEL();
+        -:  284:
+        -:  285:    // We own at least one list of raw pointers.  Don't let the compiler fill in copy c'tors that
+        -:  286:    // will only land us in trouble.
+        -:  287:    RC_TREE_MODEL( const RC_TREE_MODEL& ) = delete;
+        -:  288:    RC_TREE_MODEL& operator=( const RC_TREE_MODEL& ) = delete;
+        -:  289:
+        -:  290:    void Update( std::shared_ptr<RC_ITEMS_PROVIDER> aProvider, int aSeverities );
+        -:  291:
+        -:  292:    void ExpandAll();
+        -:  293:
+        -:  294:    void PrevMarker();
+        -:  295:    void NextMarker();
+        -:  296:    void SelectMarker( const MARKER_BASE* aMarker );
+        -:  297:    void CenterMarker( const MARKER_BASE* aMarker );
+        -:  298:
+        -:  299:    bool IsContainer( wxDataViewItem const& aItem ) const override;
+        -:  300:
+        -:  301:    wxDataViewItem GetParent( wxDataViewItem const& aItem ) const override;
+        -:  302:
+        -:  303:    unsigned int GetChildren( wxDataViewItem const& aItem,
+        -:  304:                              wxDataViewItemArray&  aChildren ) const override;
+        -:  305:
+        -:  306:    // Simple, single-text-column model
+        -:  307:    unsigned int GetColumnCount() const override { return 1; }
+        -:  308:    wxString GetColumnType( unsigned int aCol ) const override { return "string"; }
+        -:  309:    bool HasContainerColumns( wxDataViewItem const& aItem ) const override { return true; }
+        -:  310:
+        -:  311:    bool HasValue( const wxDataViewItem& item, unsigned col ) const override
+        -:  312:    {
+        -:  313:        if( m_tree.empty() )
+        -:  314:            return false;
+        -:  315:        else
+        -:  316:            return wxDataViewModel::HasValue( item, col );
+        -:  317:    }
+        -:  318:
+        -:  319:    /**
+        -:  320:     * Called by the wxDataView to fetch an item's value.
+        -:  321:     */
+        -:  322:    void GetValue( wxVariant& aVariant, wxDataViewItem const& aItem,
+        -:  323:                   unsigned int aCol ) const override;
+        -:  324:
+        -:  325:    /**
+        -:  326:     * Called by the wxDataView to edit an item's content.
+        -:  327:     */
+        -:  328:    bool SetValue( wxVariant const& aVariant, wxDataViewItem const& aItem,
+        -:  329:                   unsigned int aCol ) override
+        -:  330:    {
+        -:  331:        // Editing not supported
+        -:  332:        return false;
+        -:  333:    }
+        -:  334:
+        -:  335:    /**
+        -:  336:     * Called by the wxDataView to fetch an item's formatting.  Return true if the
+        -:  337:     * item has non-default attributes.
+        -:  338:     */
+        -:  339:    bool GetAttr( wxDataViewItem const& aItem, unsigned int aCol,
+        -:  340:                  wxDataViewItemAttr& aAttr ) const override;
+        -:  341:
+        -:  342:    void ValueChanged( RC_TREE_NODE* aNode );
+        -:  343:
+        -:  344:    void DeleteCurrentItem( bool aDeep );
+        -:  345:
+        -:  346:    /**
+        -:  347:     * Delete the current item or all items.
+        -:  348:     *
+        -:  349:     * If all, \a aIncludeExclusions determines whether or not exclusions are also deleted.
+        -:  350:     */
+        -:  351:    void DeleteItems( bool aCurrentOnly, bool aIncludeExclusions, bool aDeep );
+        -:  352:
+        -:  353:protected:
+        -:  354:    RC_TREE_NODE* createNode( RC_TREE_NODE* aParent, const std::shared_ptr<RC_ITEM>& aRcItem,
+        -:  355:                              RC_TREE_NODE::NODE_TYPE aType );
+        -:  356:    void          retireNodeTree( RC_TREE_NODE* aNode );
+        -:  357:    void          deleteNodeTree( RC_TREE_NODE* aNode );
+        -:  358:    void     rebuildModel( std::shared_ptr<RC_ITEMS_PROVIDER> aProvider, int aSeverities );
+        -:  359:
+        -:  360:    EDA_DRAW_FRAME*                    m_editFrame;
+        -:  361:    wxDataViewCtrl*                    m_view;
+        -:  362:    int                                m_severities;
+        -:  363:    std::shared_ptr<RC_ITEMS_PROVIDER> m_rcItemsProvider;
+        -:  364:
+        -:  365:    std::vector<std::unique_ptr<RC_TREE_NODE::HANDLE>> m_handles;   // Stable wx item IDs
+        -:  366:    std::vector<RC_TREE_NODE*>         m_tree;              // I own this
+        -:  367:};
+        -:  368:
+        -:  369:#endif      // RC_ITEM_H

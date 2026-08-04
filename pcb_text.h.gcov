@@ -1,0 +1,212 @@
+        -:    0:Source:/src/kicad/pcbnew/pcb_text.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:465
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2004 Jean-Pierre Charras, jaen-pierre.charras@gipsa-lab.inpg.com
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#ifndef PCB_TEXT_H
+        -:   26:#define PCB_TEXT_H
+        -:   27:
+        -:   28:#include <memory>
+        -:   29:
+        -:   30:#include <eda_text.h>
+        -:   31:#include <board_item.h>
+        -:   32:
+        -:   33:
+        -:   34:class LINE_READER;
+        -:   35:class MSG_PANEL_ITEM;
+        -:   36:class FOOTPRINT;
+        -:   37:class HTML_MESSAGE_BOX;
+        -:   38:
+        -:   39:
+        -:   40:struct PCB_TEXT_KNOCKOUT_CACHE_DATA
+        -:   41:{
+        -:   42:    wxString        text;
+        -:   43:    TEXT_ATTRIBUTES text_attrs;
+        -:   44:    EDA_ANGLE       angle;
+        -:   45:    VECTOR2I        pos;
+        -:   46:    SHAPE_POLY_SET  cache;
+        -:   47:};
+        -:   48:
+        -:   49:
+        -:   50:class PCB_TEXT : public BOARD_ITEM, public EDA_TEXT
+        -:   51:{
+        -:   52:public:
+        -:   53:    PCB_TEXT( BOARD_ITEM* parent, KICAD_T idtype = PCB_TEXT_T );
+        -:   54:
+        -:   55:    PCB_TEXT( FOOTPRINT* aParent, KICAD_T idtype = PCB_TEXT_T );
+        -:   56:
+        -:   57:    PCB_TEXT( const PCB_TEXT& aOther );
+        -:   58:    PCB_TEXT& operator=( const PCB_TEXT& aOther );
+        -:   59:
+        -:   60:    PCB_TEXT( PCB_TEXT&& ) noexcept = default;
+    #####:   61:    PCB_TEXT& operator=( PCB_TEXT&& ) noexcept = default;
+        -:   62:
+        -:   63:    ~PCB_TEXT();
+        -:   64:
+        -:   65:    void CopyFrom( const BOARD_ITEM* aOther ) override;
+        -:   66:
+        -:   67:    static inline bool ClassOf( const EDA_ITEM* aItem ) { return aItem && PCB_TEXT_T == aItem->Type(); }
+        -:   68:
+        -:   69:    bool IsType( const std::vector<KICAD_T>& aScanTypes ) const override
+        -:   70:    {
+        -:   71:        if( BOARD_ITEM::IsType( aScanTypes ) )
+        -:   72:            return true;
+        -:   73:
+        -:   74:        for( KICAD_T scanType : aScanTypes )
+        -:   75:        {
+        -:   76:            if( scanType == PCB_LOCATE_TEXT_T )
+        -:   77:                return true;
+        -:   78:        }
+        -:   79:
+        -:   80:        return false;
+        -:   81:    }
+        -:   82:
+        -:   83:    void Serialize( google::protobuf::Any& aContainer ) const override;
+        -:   84:    bool Deserialize( const google::protobuf::Any& aContainer ) override;
+        -:   85:
+        -:   86:    void StyleFromSettings( const BOARD_DESIGN_SETTINGS& settings, bool aCheckSide ) override;
+        -:   87:
+        -:   88:    /**
+        -:   89:     * Called when rotating the parent footprint.
+        -:   90:     */
+        -:   91:    void KeepUpright();
+        -:   92:
+        -:   93:    wxString GetShownText( bool aAllowExtraText, int aDepth = 0 ) const override;
+        -:   94:
+        -:   95:    bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const override;
+        -:   96:
+        -:   97:    virtual VECTOR2I GetPosition() const override { return EDA_TEXT::GetTextPos(); }
+        -:   98:
+        -:   99:    virtual void SetPosition( const VECTOR2I& aPos ) override { EDA_TEXT::SetTextPos( aPos ); }
+        -:  100:
+        -:  101:    void Move( const VECTOR2I& aMoveVector ) override { EDA_TEXT::Offset( aMoveVector ); }
+        -:  102:
+        -:  103:    void Rotate( const VECTOR2I& aRotCentre, const EDA_ANGLE& aAngle ) override;
+        -:  104:
+        -:  105:    void Mirror( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection ) override;
+        -:  106:
+        -:  107:    void Flip( const VECTOR2I& aCentre, FLIP_DIRECTION aFlipDirection ) override;
+        -:  108:
+        -:  109:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:  110:
+        -:  111:    bool TextHitTest( const VECTOR2I& aPoint, int aAccuracy = 0 ) const override;
+        -:  112:    bool TextHitTest( const BOX2I& aRect, bool aContains, int aAccuracy = 0 ) const override;
+        -:  113:    bool TextHitTest( const SHAPE_LINE_CHAIN& aPoly, bool aContained ) const;
+        -:  114:
+        -:  115:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy ) const override
+        -:  116:    {
+        -:  117:        return TextHitTest( aPosition, aAccuracy );
+        -:  118:    }
+        -:  119:
+        -:  120:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override
+        -:  121:    {
+        -:  122:        return TextHitTest( aRect, aContained, aAccuracy );
+        -:  123:    }
+        -:  124:
+        -:  125:    bool HitTest( const SHAPE_LINE_CHAIN& aPoly, bool aContained ) const override
+        -:  126:    {
+        -:  127:        return TextHitTest( aPoly, aContained );
+        -:  128:    }
+        -:  129:
+        -:  130:    wxString GetClass() const override { return wxT( "PCB_TEXT" ); }
+        -:  131:
+        -:  132:    /**
+        -:  133:     * Function TransformTextToPolySet
+        -:  134:     * Convert the text to a polygonSet describing the actual character strokes (one per segment).
+        -:  135:     * Circles and arcs are approximated by segments.
+        -:  136:     * @param aBuffer SHAPE_POLY_SET to store the polygon corners
+        -:  137:     * @param aClearance the clearance around the text
+        -:  138:     * @param aMaxError the maximum error to allow when approximating curves
+        -:  139:     */
+        -:  140:    void TransformTextToPolySet( SHAPE_POLY_SET& aBuffer, int aClearance, int aMaxError, ERROR_LOC aErrorLoc ) const;
+        -:  141:
+        -:  142:    void TransformShapeToPolygon( SHAPE_POLY_SET& aBuffer, PCB_LAYER_ID aLayer, int aClearance, int aMaxError,
+        -:  143:                                  ERROR_LOC aErrorLoc, bool aIgnoreLineWidth = false ) const override;
+        -:  144:
+        -:  145:    // @copydoc BOARD_ITEM::GetEffectiveShape
+        -:  146:    virtual std::shared_ptr<SHAPE> GetEffectiveShape( PCB_LAYER_ID aLayer = UNDEFINED_LAYER,
+        -:  147:                                                      FLASHING     aFlash = FLASHING::DEFAULT ) const override;
+        -:  148:
+        -:  149:    const SHAPE_POLY_SET& GetKnockoutCache( const KIFONT::FONT* aFont, const wxString& forResolvedText, int aMaxError ) const;
+        -:  150:
+        -:  151:    virtual wxString GetTextTypeDescription() const;
+        -:  152:
+        -:  153:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  154:
+        -:  155:    BITMAPS GetMenuImage() const override;
+        -:  156:
+        -:  157:    /**
+        -:  158:     * Display a syntax help window for text variables and expressions.
+        -:  159:     * @param aParentWindow Parent window for the help dialog
+        -:  160:     * @return Pointer to the modeless help dialog
+        -:  161:     */
+        -:  162:    static HTML_MESSAGE_BOX* ShowSyntaxHelp( wxWindow* aParentWindow );
+        -:  163:
+        -:  164:    /**
+        -:  165:     * @return the text rotation for drawings and plotting the footprint rotation is taken
+        -:  166:     *         in account.
+        -:  167:     */
+        -:  168:    EDA_ANGLE GetDrawRotation() const override;
+        -:  169:
+        -:  170:    const BOX2I ViewBBox() const override;
+        -:  171:
+        -:  172:    std::vector<int> ViewGetLayers() const override;
+        -:  173:
+        -:  174:    ///< @copydoc VIEW_ITEM::ViewGetLOD
+        -:  175:    double ViewGetLOD( int aLayer, const KIGFX::VIEW* aView ) const override;
+        -:  176:
+        -:  177:    // Virtual function
+        -:  178:    const BOX2I GetBoundingBox() const override;
+        -:  179:
+        -:  180:    EDA_ITEM* Clone() const override;
+        -:  181:
+        -:  182:    double Similarity( const BOARD_ITEM& aBoardItem ) const override;
+        -:  183:
+        -:  184:    bool operator==( const PCB_TEXT& aOther ) const;
+        -:  185:    bool operator==( const BOARD_ITEM& aBoardItem ) const override;
+        -:  186:
+        -:  187:#if defined( DEBUG )
+        -:  188:    virtual void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
+        -:  189:#endif
+        -:  190:
+        -:  191:protected:
+        -:  192:    /**
+        -:  193:     * Build a nominally rectangular bounding box for the rendered text.  (It's not a BOX2I
+        -:  194:     * because it will be a diamond shape for non-cardinally rotated text.)
+        -:  195:     */
+        -:  196:    void buildBoundingHull( SHAPE_POLY_SET* aBuffer, const SHAPE_POLY_SET& aRenderedText, int aClearance ) const;
+        -:  197:
+        -:  198:    virtual void swapData( BOARD_ITEM* aImage ) override;
+        -:  199:
+        -:  200:    int getKnockoutMargin() const;
+        -:  201:
+        -:  202:    const KIFONT::METRICS& getFontMetrics() const override { return GetFontMetrics(); }
+        -:  203:
+        -:  204:private:
+        -:  205:    mutable std::unique_ptr<PCB_TEXT_KNOCKOUT_CACHE_DATA> m_knockout_cache;
+        -:  206:};
+        -:  207:
+        -:  208:#endif // #define PCB_TEXT_H

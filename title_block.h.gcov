@@ -1,0 +1,159 @@
+        -:    0:Source:/src/kicad/include/title_block.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Author: Dick Hollenbeck
+        -:    5: *
+        -:    6: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    7: *
+        -:    8: * This program is free software; you can redistribute it and/or
+        -:    9: * modify it under the terms of the GNU General Public License
+        -:   10: * as published by the Free Software Foundation; either version 2
+        -:   11: * of the License, or (at your option) any later version.
+        -:   12: *
+        -:   13: * This program is distributed in the hope that it will be useful,
+        -:   14: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   16: * GNU General Public License for more details.
+        -:   17: *
+        -:   18: * You should have received a copy of the GNU General Public License
+        -:   19: * along with this program; if not, you may find one here:
+        -:   20: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   21: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   22: * or you may write to the Free Software Foundation, Inc.,
+        -:   23: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   24: */
+        -:   25:
+        -:   26:#ifndef TITLE_BLOCK_H
+        -:   27:#define TITLE_BLOCK_H
+        -:   28:
+        -:   29:#include <wx/string.h>
+        -:   30:#include <wx/arrstr.h>
+        -:   31:#include <ki_exception.h>
+        -:   32:
+        -:   33:class OUTPUTFORMATTER;
+        -:   34:class PROJECT;
+        -:   35:
+        -:   36:/**
+        -:   37: * Hold the information shown in the lower right corner of a plot, printout, or
+        -:   38: * editing view.
+        -:   39: */
+        -:   40:class KICOMMON_API TITLE_BLOCK
+        -:   41:{
+        -:   42:    // Texts are stored in wxArraystring.
+        -:   43:    // TEXTS_IDX gives the index of known texts in this array
+        -:   44:    enum TEXTS_IDX
+        -:   45:    {
+        -:   46:        TITLE_IDX = 0,
+        -:   47:        DATE_IDX,
+        -:   48:        REVISION_IDX,
+        -:   49:        COMPANY_IDX,
+        -:   50:        COMMENT1_IDX    // idx of the first comment: one can have more than 1 comment
+        -:   51:    };
+        -:   52:
+        -:   53:public:
+        -:   54:    TITLE_BLOCK() {};
+        -:   55:    virtual ~TITLE_BLOCK() {};      // a virtual dtor seems needed to build
+        -:   56:                                    // python lib without warning
+        -:   57:
+        -:   58:    void SetTitle( const wxString& aTitle )
+        -:   59:    {
+        -:   60:        setTbText( TITLE_IDX, aTitle );
+        -:   61:    }
+        -:   62:
+        -:   63:    const wxString& GetTitle() const
+        -:   64:    {
+        -:   65:        return getTbText( TITLE_IDX );
+        -:   66:    }
+        -:   67:
+        -:   68:    /**
+        -:   69:     * Set the date field, and defaults to the current time and date.
+        -:   70:     */
+        -:   71:    void SetDate( const wxString& aDate )
+        -:   72:    {
+        -:   73:        setTbText( DATE_IDX, aDate );
+        -:   74:    }
+        -:   75:
+        -:   76:    const wxString& GetDate() const
+        -:   77:    {
+        -:   78:        return getTbText( DATE_IDX );
+        -:   79:    }
+        -:   80:
+        -:   81:    void SetRevision( const wxString& aRevision )
+        -:   82:    {
+        -:   83:        setTbText( REVISION_IDX, aRevision );
+        -:   84:    }
+        -:   85:
+        -:   86:    const wxString& GetRevision() const
+        -:   87:    {
+        -:   88:        return getTbText( REVISION_IDX );
+        -:   89:    }
+        -:   90:
+        -:   91:    void SetCompany( const wxString& aCompany )
+        -:   92:    {
+        -:   93:        setTbText( COMPANY_IDX, aCompany );
+        -:   94:    }
+        -:   95:
+        -:   96:    const wxString& GetCompany() const
+        -:   97:    {
+        -:   98:        return getTbText( COMPANY_IDX );
+        -:   99:    }
+        -:  100:
+        -:  101:    void SetComment( int aIdx, const wxString& aComment )
+        -:  102:    {
+        -:  103:        aIdx += COMMENT1_IDX;
+        -:  104:        return setTbText( aIdx, aComment );
+        -:  105:    }
+        -:  106:
+        -:  107:    const wxString& GetComment( int aIdx ) const
+        -:  108:    {
+        -:  109:        aIdx += COMMENT1_IDX;
+        -:  110:        return getTbText( aIdx );
+        -:  111:    }
+        -:  112:
+        -:  113:    void Clear()
+        -:  114:    {
+        -:  115:        m_tbTexts.Clear();
+        -:  116:    }
+        -:  117:
+        -:  118:    static void GetContextualTextVars( wxArrayString* aVars );
+        -:  119:    bool TextVarResolver( wxString* aToken, const PROJECT* aProject, int aFlags = 0 ) const;
+        -:  120:
+        -:  121:    /**
+        -:  122:     * Output the object to \a aFormatter in s-expression form.
+        -:  123:     *
+        -:  124:     * @param aFormatter The #OUTPUTFORMATTER object to write to.
+        -:  125:     * @throw IO_ERROR on write error.
+        -:  126:     */
+        -:  127:    virtual void Format( OUTPUTFORMATTER* aFormatter ) const;
+        -:  128:
+        -:  129:    static wxString GetCurrentDate();
+        -:  130:    static wxString GetCurrentTimeHHMMSS();
+        -:  131:    static wxString GetCurrentTimeLocale();
+        -:  132:
+        -:  133:private:
+        -:  134:    wxArrayString m_tbTexts;
+        -:  135:
+        -:  136:    void setTbText( int aIdx, const wxString& aText )
+        -:  137:    {
+        -:  138:        if( (int)m_tbTexts.GetCount() <= aIdx )
+        -:  139:            m_tbTexts.Add( wxEmptyString, aIdx + 1 - m_tbTexts.GetCount() );
+        -:  140:
+        -:  141:        m_tbTexts[aIdx] = aText;
+        -:  142:    }
+        -:  143:
+        -:  144:    const wxString& getTbText( int aIdx ) const
+        -:  145:    {
+       38:  146:        static const wxString m_emptytext;
+        -:  147:
+        -:  148:        if( (int)m_tbTexts.GetCount() > aIdx )
+        -:  149:            return m_tbTexts[aIdx];
+        -:  150:        else
+        -:  151:            return m_emptytext;
+        -:  152:    }
+        -:  153:};
+        -:  154:
+        -:  155:#endif // TITLE_BLOCK_H

@@ -1,0 +1,159 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_sch_erc.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_sch_erc.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_sch_erc.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include "command_sch_erc.h"
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include "jobs/job_sch_erc.h"
+        -:   24:#include <kiface_base.h>
+        -:   25:#include <layer_ids.h>
+        -:   26:#include <string_utils.h>
+        -:   27:#include <wx/crt.h>
+        -:   28:
+        -:   29:#include <macros.h>
+        -:   30:#include <wx/tokenzr.h>
+        -:   31:
+        -:   32:#define ARG_FORMAT "--format"
+        -:   33:#define ARG_UNITS "--units"
+        -:   34:#define ARG_SEVERITY_ALL "--severity-all"
+        -:   35:#define ARG_SEVERITY_ERROR "--severity-error"
+        -:   36:#define ARG_SEVERITY_WARNING "--severity-warning"
+        -:   37:#define ARG_SEVERITY_EXCLUSIONS "--severity-exclusions"
+        -:   38:#define ARG_EXIT_CODE_VIOLATIONS "--exit-code-violations"
+        -:   39:
+     1154:   40:CLI::SCH_ERC_COMMAND::SCH_ERC_COMMAND() : COMMAND( "erc" )
+        -:   41:{
+      577:   42:    addCommonArgs( true, true, IO_TYPE::FILE, IO_TYPE::FILE );
+      577:   43:    addDefineArg();
+        -:   44:
+     1154:   45:    m_argParser.add_description( UTF8STDSTR( _( "Runs the Electrical Rules Check (ERC) on the "
+        -:   46:                                                "schematic and creates a report" ) ) );
+        -:   47:
+      577:   48:    m_argParser.add_argument( ARG_FORMAT )
+      577:   49:            .default_value( std::string( "report" ) )
+      577:   50:            .help( UTF8STDSTR( _( "Output file format, options: json, report" ) ) );
+        -:   51:
+      577:   52:    m_argParser.add_argument( ARG_UNITS )
+      577:   53:            .default_value( std::string( "mm" ) )
+      577:   54:            .help( UTF8STDSTR(
+        -:   55:                    _( "Report units; valid options: in, mm, mils" ) ) );
+        -:   56:
+      577:   57:    m_argParser.add_argument( ARG_SEVERITY_ALL )
+     1154:   58:            .help( UTF8STDSTR( _( "Report all ERC violations, this is equivalent to including "
+        -:   59:                                  "all the other severity arguments" ) ) )
+      577:   60:            .flag();
+        -:   61:
+      577:   62:    m_argParser.add_argument( ARG_SEVERITY_ERROR )
+     1154:   63:            .help( UTF8STDSTR( _( "Report all ERC error level violations, this can be combined "
+        -:   64:                                  "with the other severity arguments" ) ) )
+      577:   65:            .flag();
+        -:   66:
+      577:   67:    m_argParser.add_argument( ARG_SEVERITY_WARNING )
+     1154:   68:            .help( UTF8STDSTR( _( "Report all ERC warning level violations, this can be combined "
+        -:   69:                                  "with the other severity arguments" ) ) )
+      577:   70:            .flag();
+        -:   71:
+      577:   72:    m_argParser.add_argument( ARG_SEVERITY_EXCLUSIONS )
+     1154:   73:            .help( UTF8STDSTR( _( "Report all excluded ERC violations, this can be combined "
+        -:   74:                                  "with the other severity arguments" ) ) )
+      577:   75:            .flag();
+        -:   76:
+      577:   77:    m_argParser.add_argument( ARG_EXIT_CODE_VIOLATIONS )
+     1154:   78:            .help( UTF8STDSTR( _( "Return a nonzero exit code if ERC violations exist" ) ) )
+      577:   79:            .flag();
+      577:   80:}
+        -:   81:
+        -:   82:
+       19:   83:int CLI::SCH_ERC_COMMAND::doPerform( KIWAY& aKiway )
+        -:   84:{
+      19*:   85:    std::unique_ptr<JOB_SCH_ERC> ercJob( new JOB_SCH_ERC() );
+        -:   86:
+       19:   87:    ercJob->SetConfiguredOutputPath( m_argOutput );
+       19:   88:    ercJob->m_filename = m_argInput;
+       19:   89:    ercJob->m_exitCodeViolations = m_argParser.get<bool>( ARG_EXIT_CODE_VIOLATIONS );
+       19:   90:    ercJob->SetVarOverrides( m_argDefineVars );
+        -:   91:
+       19:   92:    int severity = 0;
+       19:   93:    if( m_argParser.get<bool>( ARG_SEVERITY_ALL ) )
+        -:   94:    {
+       19:   95:        severity = RPT_SEVERITY_ERROR | RPT_SEVERITY_WARNING | RPT_SEVERITY_EXCLUSION;
+        -:   96:    }
+        -:   97:
+       19:   98:    if( m_argParser.get<bool>( ARG_SEVERITY_ERROR ) )
+        -:   99:    {
+    #####:  100:        severity |= RPT_SEVERITY_ERROR;
+        -:  101:    }
+        -:  102:
+       19:  103:    if( m_argParser.get<bool>( ARG_SEVERITY_WARNING ) )
+        -:  104:    {
+    #####:  105:        severity |= RPT_SEVERITY_WARNING;
+        -:  106:    }
+        -:  107:
+       19:  108:    if( m_argParser.get<bool>( ARG_SEVERITY_EXCLUSIONS ) )
+        -:  109:    {
+    #####:  110:        severity |= RPT_SEVERITY_EXCLUSION;
+        -:  111:    }
+        -:  112:
+       19:  113:    if( severity ) // override the default only if something we configured
+       19:  114:        ercJob->m_severity = severity;
+        -:  115:
+       19:  116:    wxString units = From_UTF8( m_argParser.get<std::string>( ARG_UNITS ).c_str() );
+        -:  117:
+       19:  118:    if( units == wxS( "mm" ) )
+        -:  119:    {
+       19:  120:        ercJob->m_units = JOB_SCH_ERC::UNITS::MM;
+        -:  121:    }
+    #####:  122:    else if( units == wxS( "in" ) )
+        -:  123:    {
+    #####:  124:        ercJob->m_units = JOB_SCH_ERC::UNITS::INCH;
+        -:  125:    }
+    #####:  126:    else if( units == wxS( "mils" ) )
+        -:  127:    {
+    #####:  128:        ercJob->m_units = JOB_SCH_ERC::UNITS::MILS;
+        -:  129:    }
+    #####:  130:    else if( !units.IsEmpty() )
+        -:  131:    {
+    #####:  132:        wxFprintf( stderr, _( "Invalid units specified\n" ) );
+    #####:  133:        return EXIT_CODES::ERR_ARGS;
+        -:  134:    }
+        -:  135:
+       19:  136:    wxString format = From_UTF8( m_argParser.get<std::string>( ARG_FORMAT ).c_str() );
+        -:  137:
+       19:  138:    if( format == "report" )
+        -:  139:    {
+    #####:  140:        ercJob->m_format = JOB_SCH_ERC::OUTPUT_FORMAT::REPORT;
+        -:  141:    }
+       19:  142:    else if( format == "json" )
+        -:  143:    {
+       19:  144:        ercJob->m_format = JOB_SCH_ERC::OUTPUT_FORMAT::JSON;
+        -:  145:    }
+        -:  146:    else
+        -:  147:    {
+    #####:  148:        wxFprintf( stderr, _( "Invalid report format\n" ) );
+    #####:  149:        return EXIT_CODES::ERR_ARGS;
+        -:  150:    }
+        -:  151:
+      19*:  152:    int exitCode = aKiway.ProcessJob( KIWAY::FACE_SCH, ercJob.get() );
+        -:  153:
+    #####:  154:    return exitCode;
+      57*:  155:}

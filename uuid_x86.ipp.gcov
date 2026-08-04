@@ -1,0 +1,137 @@
+        -:    0:Source:/usr/include/boost/uuid/detail/uuid_x86.ipp
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: *          Copyright Andrey Semashev 2013, 2022.
+        -:    3: * Distributed under the Boost Software License, Version 1.0.
+        -:    4: *    (See accompanying file LICENSE_1_0.txt or copy at
+        -:    5: *          https://www.boost.org/LICENSE_1_0.txt)
+        -:    6: */
+        -:    7:/*!
+        -:    8: * \file   uuid/detail/uuid_x86.ipp
+        -:    9: *
+        -:   10: * \brief  This header contains optimized SSE implementation of \c boost::uuid operations.
+        -:   11: */
+        -:   12:
+        -:   13:#ifndef BOOST_UUID_DETAIL_UUID_X86_IPP_INCLUDED_
+        -:   14:#define BOOST_UUID_DETAIL_UUID_X86_IPP_INCLUDED_
+        -:   15:
+        -:   16:// MSVC does not always have immintrin.h (at least, not up to MSVC 10), so include the appropriate header for each instruction set
+        -:   17:#if defined(BOOST_UUID_USE_SSE41)
+        -:   18:#include <smmintrin.h>
+        -:   19:#elif defined(BOOST_UUID_USE_SSE3)
+        -:   20:#include <pmmintrin.h>
+        -:   21:#else
+        -:   22:#include <emmintrin.h>
+        -:   23:#endif
+        -:   24:
+        -:   25:#if defined(BOOST_MSVC) && defined(_M_X64) && (BOOST_MSVC < 1900 /* Fixed in Visual Studio 2015 */ )
+        -:   26:// At least MSVC 9 (VS2008) and 12 (VS2013) have an optimizer bug that sometimes results in incorrect SIMD code
+        -:   27:// generated in Release x64 mode. In particular, it affects operator==, where the compiler sometimes generates
+        -:   28:// pcmpeqd with a memory opereand instead of movdqu followed by pcmpeqd. The problem is that uuid can be
+        -:   29:// not aligned to 16 bytes and pcmpeqd causes alignment violation in this case. We cannot be sure that other
+        -:   30:// MSVC versions are not affected so we apply the workaround for all versions, except VS2015 on up where
+        -:   31:// the bug has been fixed.
+        -:   32://
+        -:   33:// https://svn.boost.org/trac/boost/ticket/8509#comment:3
+        -:   34:// https://connect.microsoft.com/VisualStudio/feedbackdetail/view/981648#tabs
+        -:   35:#define BOOST_UUID_DETAIL_MSVC_BUG981648
+        -:   36:#if BOOST_MSVC >= 1600
+        -:   37:extern "C" void _ReadWriteBarrier(void);
+        -:   38:#pragma intrinsic(_ReadWriteBarrier)
+        -:   39:#endif
+        -:   40:#endif
+        -:   41:
+        -:   42:namespace boost {
+        -:   43:namespace uuids {
+        -:   44:namespace detail {
+        -:   45:
+        -:   46:BOOST_FORCEINLINE __m128i load_unaligned_si128(const uint8_t* p) BOOST_NOEXCEPT
+        -:   47:{
+        -:   48:#if !defined(BOOST_UUID_DETAIL_MSVC_BUG981648) || defined(BOOST_UUID_USE_AVX)
+    #####:   49:    return _mm_loadu_si128(reinterpret_cast< const __m128i* >(p));
+        -:   50:#elif defined(BOOST_MSVC) && BOOST_MSVC >= 1600
+        -:   51:    __m128i mm = _mm_loadu_si128(reinterpret_cast< const __m128i* >(p));
+        -:   52:    // Make sure this load doesn't get merged with the subsequent instructions
+        -:   53:    _ReadWriteBarrier();
+        -:   54:    return mm;
+        -:   55:#else
+        -:   56:    // VS2008 x64 doesn't respect _ReadWriteBarrier above, so we have to generate this crippled code to load unaligned data
+        -:   57:    return _mm_unpacklo_epi64(_mm_loadl_epi64(reinterpret_cast< const __m128i* >(p)), _mm_loadl_epi64(reinterpret_cast< const __m128i* >(p + 8)));
+        -:   58:#endif
+        -:   59:}
+        -:   60:
+        -:   61:} // namespace detail
+        -:   62:
+        -:   63:inline bool uuid::is_nil() const BOOST_NOEXCEPT
+        -:   64:{
+        -:   65:    __m128i mm = uuids::detail::load_unaligned_si128(data);
+        -:   66:#if defined(BOOST_UUID_USE_SSE41)
+        -:   67:    return _mm_test_all_zeros(mm, mm) != 0;
+        -:   68:#else
+        -:   69:    mm = _mm_cmpeq_epi32(mm, _mm_setzero_si128());
+        -:   70:    return _mm_movemask_epi8(mm) == 0xFFFF;
+        -:   71:#endif
+        -:   72:}
+        -:   73:
+        -:   74:inline void uuid::swap(uuid& rhs) BOOST_NOEXCEPT
+        -:   75:{
+        -:   76:    __m128i mm_this = uuids::detail::load_unaligned_si128(data);
+        -:   77:    __m128i mm_rhs = uuids::detail::load_unaligned_si128(rhs.data);
+        -:   78:    _mm_storeu_si128(reinterpret_cast< __m128i* >(rhs.data), mm_this);
+        -:   79:    _mm_storeu_si128(reinterpret_cast< __m128i* >(data), mm_rhs);
+        -:   80:}
+        -:   81:
+    #####:   82:inline bool operator== (uuid const& lhs, uuid const& rhs) BOOST_NOEXCEPT
+        -:   83:{
+    #####:   84:    __m128i mm_left = uuids::detail::load_unaligned_si128(lhs.data);
+    #####:   85:    __m128i mm_right = uuids::detail::load_unaligned_si128(rhs.data);
+        -:   86:
+        -:   87:#if defined(BOOST_UUID_USE_SSE41)
+        -:   88:    __m128i mm = _mm_xor_si128(mm_left, mm_right);
+        -:   89:    return _mm_test_all_zeros(mm, mm) != 0;
+        -:   90:#else
+    #####:   91:    __m128i mm_cmp = _mm_cmpeq_epi32(mm_left, mm_right);
+    #####:   92:    return _mm_movemask_epi8(mm_cmp) == 0xFFFF;
+        -:   93:#endif
+        -:   94:}
+        -:   95:
+    #####:   96:inline bool operator< (uuid const& lhs, uuid const& rhs) BOOST_NOEXCEPT
+        -:   97:{
+    #####:   98:    __m128i mm_left = uuids::detail::load_unaligned_si128(lhs.data);
+    #####:   99:    __m128i mm_right = uuids::detail::load_unaligned_si128(rhs.data);
+        -:  100:
+        -:  101:    // To emulate lexicographical_compare behavior we have to perform two comparisons - the forward and reverse one.
+        -:  102:    // Then we know which bytes are equivalent and which ones are different, and for those different the comparison results
+        -:  103:    // will be opposite. Then we'll be able to find the first differing comparison result (for both forward and reverse ways),
+        -:  104:    // and depending on which way it is for, this will be the result of the operation. There are a few notes to consider:
+        -:  105:    //
+        -:  106:    // 1. Due to little endian byte order the first bytes go into the lower part of the xmm registers,
+        -:  107:    //    so the comparison results in the least significant bits will actually be the most signigicant for the final operation result.
+        -:  108:    //    This means we have to determine which of the comparison results have the least significant bit on, and this is achieved with
+        -:  109:    //    the "(x - 1) ^ x" trick.
+        -:  110:    // 2. Because there is only signed comparison in SSE/AVX, we have to invert byte comparison results whenever signs of the corresponding
+        -:  111:    //    bytes are different. I.e. in signed comparison it's -1 < 1, but in unsigned it is the opposite (255 > 1). To do that we XOR left and right,
+        -:  112:    //    making the most significant bit of each byte 1 if the signs are different, and later apply this mask with another XOR to the comparison results.
+        -:  113:    // 3. pcmpgtw compares for "greater" relation, so we swap the arguments to get what we need.
+        -:  114:
+    #####:  115:    const __m128i mm_signs_mask = _mm_xor_si128(mm_left, mm_right);
+        -:  116:
+    #####:  117:    __m128i mm_cmp = _mm_cmpgt_epi8(mm_right, mm_left), mm_rcmp = _mm_cmpgt_epi8(mm_left, mm_right);
+        -:  118:
+    #####:  119:    mm_cmp = _mm_xor_si128(mm_signs_mask, mm_cmp);
+    #####:  120:    mm_rcmp = _mm_xor_si128(mm_signs_mask, mm_rcmp);
+        -:  121:
+    #####:  122:    uint32_t cmp = static_cast< uint32_t >(_mm_movemask_epi8(mm_cmp)), rcmp = static_cast< uint32_t >(_mm_movemask_epi8(mm_rcmp));
+        -:  123:
+    #####:  124:    cmp = (cmp - 1u) ^ cmp;
+    #####:  125:    rcmp = (rcmp - 1u) ^ rcmp;
+        -:  126:
+    #####:  127:    return cmp < rcmp;
+        -:  128:}
+        -:  129:
+        -:  130:} // namespace uuids
+        -:  131:} // namespace boost
+        -:  132:
+        -:  133:#endif // BOOST_UUID_DETAIL_UUID_X86_IPP_INCLUDED_

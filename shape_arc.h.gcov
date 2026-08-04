@@ -1,0 +1,346 @@
+        -:    0:Source:/src/kicad/libs/kimath/include/geometry/shape_arc.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2018 CERN
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
+        -:    7: *
+        -:    8: * This program is free software; you can redistribute it and/or
+        -:    9: * modify it under the terms of the GNU General Public License
+        -:   10: * as published by the Free Software Foundation; either version 2
+        -:   11: * of the License, or (at your option) any later version.
+        -:   12: *
+        -:   13: * This program is distributed in the hope that it will be useful,
+        -:   14: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   16: * GNU General Public License for more details.
+        -:   17: *
+        -:   18: * You should have received a copy of the GNU General Public License
+        -:   19: * along with this program; if not, you may find one here:
+        -:   20: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   21: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   22: * or you may write to the Free Software Foundation, Inc.,
+        -:   23: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   24: */
+        -:   25:
+        -:   26:#pragma once
+        -:   27:
+        -:   28:#include <core/mirror.h>     // for FLIP_DIRECTION
+        -:   29:#include <geometry/shape.h>
+        -:   30:#include <base_units.h>
+        -:   31:#include <math/vector2d.h>   // for VECTOR2I
+        -:   32:#include <geometry/eda_angle.h>
+        -:   33:
+        -:   34:class CIRCLE;
+        -:   35:class SHAPE_CIRCLE;
+        -:   36:class SHAPE_LINE_CHAIN;
+        -:   37:class SHAPE_RECT;
+        -:   38:
+        -:   39:class SHAPE_ARC : public SHAPE
+        -:   40:{
+        -:   41:public:
+        -:   42:
+        -:   43:    SHAPE_ARC() :
+        -:   44:        SHAPE( SH_ARC ),
+        -:   45:        m_width( 0 ),
+        -:   46:        m_radius( 0 )
+        -:   47:    {};
+        -:   48:
+        -:   49:    /**
+        -:   50:     * Construct and arc using center, start, angle.
+        -:   51:     *
+        -:   52:     * Center and angle are used to calculate the mid and end points of the arc, and are not
+        -:   53:     * stored.
+        -:   54:     *
+        -:   55:     * @param aArcCenter is the arc center.
+        -:   56:     * @param aArcStartPoint is the arc start point.
+        -:   57:     * @param aCenterAngle is the arc angle.
+        -:   58:     * @param aWidth is the arc line thickness.
+        -:   59:     */
+        -:   60:    SHAPE_ARC( const VECTOR2I& aArcCenter, const VECTOR2I& aArcStartPoint,
+        -:   61:               const EDA_ANGLE& aCenterAngle, int aWidth = 0 );
+        -:   62:
+        -:   63:    /**
+        -:   64:     * @param aArcStart is the arc start point.
+        -:   65:     * @param aArcEnd is the arc end point.
+        -:   66:     * @param aArcMid is the arc mid point.
+        -:   67:     * @param aWidth is the arc line thickness.
+        -:   68:     */
+        -:   69:    SHAPE_ARC( const VECTOR2I& aArcStart, const VECTOR2I& aArcMid, const VECTOR2I& aArcEnd,
+        -:   70:               int aWidth );
+        -:   71:
+        -:   72:    /**
+        -:   73:     * Build a SHAPE_ARC which is tangent to two segments and a given radius.
+        -:   74:     *
+        -:   75:     * @param aSegmentA is the first segment
+        -:   76:     * @param aSegmentB is the second segment
+        -:   77:     * @param aRadius is the arc radius
+        -:   78:     * @param aWidth is the arc line thickness
+        -:   79:     */
+        -:   80:    SHAPE_ARC( const SEG& aSegmentA, const SEG& aSegmentB, int aRadius, int aWidth = 0 );
+        -:   81:
+        -:   82:    SHAPE_ARC( const SHAPE_ARC& aOther );
+        -:   83:
+        -:   84:    SHAPE_ARC( const SHAPE_ARC& aOther, int aWidth );
+        -:   85:
+        -:   86:    virtual ~SHAPE_ARC() {}
+        -:   87:
+        -:   88:    SHAPE* Clone() const override
+        -:   89:    {
+        -:   90:        return new SHAPE_ARC( *this );
+        -:   91:    }
+        -:   92:
+        -:   93:    /**
+        -:   94:     * Construct this arc from the given start, end and angle.
+        -:   95:     *
+        -:   96:     * @param aStart is the arc starting point
+        -:   97:     * @param aEnd is the arc endpoint
+        -:   98:     * @param aAngle is the arc included angle
+        -:   99:     * @param aWidth is the arc line thickness
+        -:  100:     * @return this arc.
+        -:  101:     */
+        -:  102:    SHAPE_ARC& ConstructFromStartEndAngle( const VECTOR2I& aStart, const VECTOR2I& aEnd,
+        -:  103:                                           const EDA_ANGLE& aAngle, double aWidth = 0 );
+        -:  104:
+        -:  105:    /**
+        -:  106:     * Constructs this arc from the given start, end and center.
+        -:  107:     * @param aStart is the arc starting point
+        -:  108:     * @param aEnd is the arc endpoint
+        -:  109:     * @param aCenter is the arc center
+        -:  110:     * @param aClockwise determines which of the two solutions to construct
+        -:  111:     * @param aWidth is the arc line thickness
+        -:  112:     * @return *this
+        -:  113:     */
+        -:  114:    SHAPE_ARC& ConstructFromStartEndCenter( const VECTOR2I& aStart, const VECTOR2I& aEnd,
+        -:  115:                                            const VECTOR2I& aCenter, bool aClockwise = false,
+        -:  116:                                            double aWidth = 0 );
+        -:  117:
+    #####:  118:    const VECTOR2I& GetP0() const { return m_start; }
+    #####:  119:    const VECTOR2I& GetP1() const { return m_end; }
+    #####:  120:    const VECTOR2I& GetArcMid() const { return m_mid; }
+        -:  121:    const VECTOR2I& GetCenter() const;
+        -:  122:
+        -:  123:    const BOX2I BBox( int aClearance = 0 ) const override;
+        -:  124:
+        -:  125:    VECTOR2I NearestPoint( const VECTOR2I& aP ) const;
+        -:  126:
+        -:  127:    /**
+        -:  128:      * Compute closest points between this arc and \a aArc.
+        -:  129:      *
+        -:  130:      * @param aPtA point on this arc (output)
+        -:  131:      * @param aPtB point on the other arc (output)
+        -:  132:      * @param aDistSq squared distance between points (output)
+        -:  133:      * @return true if the operation was successful
+        -:  134:      */
+        -:  135:    bool NearestPoints( const SHAPE_ARC& aArc, VECTOR2I& aPtA, VECTOR2I& aPtB, int64_t& aDistSq ) const;
+        -:  136:
+        -:  137:    /**
+        -:  138:      * Compute closest points between this arc and \a aCircle.
+        -:  139:      *
+        -:  140:      * @param aPtA point on this arc (output)
+        -:  141:      * @param aPtB point on the circle (output)
+        -:  142:      * @param aDistSq squared distance between points (output)
+        -:  143:      * @return true if the operation was successful
+        -:  144:      */
+        -:  145:    bool NearestPoints( const SHAPE_CIRCLE& aCircle, VECTOR2I& aPtA, VECTOR2I& aPtB, int64_t& aDistSq ) const;
+        -:  146:
+        -:  147:    /**
+        -:  148:      * Compute closest points between this arc and \a aSeg.
+        -:  149:      *
+        -:  150:      * @param aPtA point on this arc (output)
+        -:  151:      * @param aPtB point on the segment (output)
+        -:  152:      * @param aDistSq squared distance between points (output)
+        -:  153:      * @return true if the operation was successful
+        -:  154:      */
+        -:  155:    bool NearestPoints( const SEG& aSeg, VECTOR2I& aPtA, VECTOR2I& aPtB, int64_t& aDistSq ) const;
+        -:  156:
+        -:  157:    /**
+        -:  158:      * Compute closest points between this arc and \a aRect.
+        -:  159:      *
+        -:  160:      * @param aPtA point on this arc (output)
+        -:  161:      * @param aPtB point on the rectangle (output)
+        -:  162:      * @param aDistSq squared distance between points (output)
+        -:  163:      * @return true if the operation was successful
+        -:  164:      */
+        -:  165:    bool NearestPoints( const SHAPE_RECT& aRect, VECTOR2I& aPtA, VECTOR2I& aPtB, int64_t& aDistSq ) const;
+        -:  166:
+        -:  167:    bool Collide( const SEG& aSeg, int aClearance = 0, int* aActual = nullptr,
+        -:  168:                  VECTOR2I* aLocation = nullptr ) const override;
+        -:  169:    bool Collide( const VECTOR2I& aP, int aClearance = 0, int* aActual = nullptr,
+        -:  170:                  VECTOR2I* aLocation = nullptr ) const override;
+        -:  171:
+        -:  172:
+        -:  173:    bool Collide( const SHAPE* aShape, int aClearance = 0, int* aActual = nullptr,
+        -:  174:                  VECTOR2I* aLocation = nullptr ) const override
+        -:  175:    {
+        -:  176:        return SHAPE::Collide( aShape, aClearance, aActual, aLocation );
+        -:  177:    }
+        -:  178:
+        -:  179:    /**
+        -:  180:     * Find intersection points between this arc and aSeg, treating aSeg as an infinite line.
+        -:  181:     * Ignores arc width.
+        -:  182:     *
+        -:  183:     * @param aSeg Line to intersect against (treated as an infinite line)
+        -:  184:     * @param aIpsBuffer Buffer to store the resulting intersection points (if any)
+        -:  185:     * @return Number of intersection points found
+        -:  186:     */
+        -:  187:    int IntersectLine( const SEG& aSeg, std::vector<VECTOR2I>* aIpsBuffer ) const;
+        -:  188:
+        -:  189:    /**
+        -:  190:     * Find intersection points between this arc and a CIRCLE. Ignores arc width.
+        -:  191:     *
+        -:  192:     * @param aCircle Circle to intersect against
+        -:  193:     * @param aIpsBuffer Buffer to store the resulting intersection points (if any)
+        -:  194:     * @return Number of intersection points found
+        -:  195:     */
+        -:  196:    int Intersect( const CIRCLE& aArc, std::vector<VECTOR2I>* aIpsBuffer ) const;
+        -:  197:
+        -:  198:    /**
+        -:  199:     * Find intersection points between this arc and another arc. Ignores arc width.
+        -:  200:     *
+        -:  201:     * @param aArc Arc to intersect against
+        -:  202:     * @param aIpsBuffer Buffer to store the resulting intersection points (if any)
+        -:  203:     * @return Number of intersection points found
+        -:  204:     */
+        -:  205:    int Intersect( const SHAPE_ARC& aArc, std::vector<VECTOR2I>* aIpsBuffer ) const;
+        -:  206:
+        -:  207:    VECTOR2I GetStart() const override { return m_start; }
+        -:  208:    VECTOR2I GetEnd() const override { return m_end; }
+        -:  209:
+        -:  210:    void SetWidth( int aWidth ) override
+        -:  211:    {
+        -:  212:        m_width = aWidth;
+        -:  213:    }
+        -:  214:
+        -:  215:    int GetWidth() const override
+        -:  216:    {
+        -:  217:        return m_width;
+        -:  218:    }
+        -:  219:
+        -:  220:    bool IsSolid() const override
+        -:  221:    {
+        -:  222:        return true;
+        -:  223:    }
+        -:  224:
+        -:  225:    bool IsEffectiveLine() const;
+        -:  226:
+        -:  227:    void Move( const VECTOR2I& aVector ) override;
+        -:  228:
+        -:  229:    /**
+        -:  230:     * Rotate the arc by a given angle about a point.
+        -:  231:     *
+        -:  232:     * @param aCenter is the rotation center.
+        -:  233:     * @param aAngle rotation angle.
+        -:  234:     */
+        -:  235:    void Rotate( const EDA_ANGLE& aAngle, const VECTOR2I& aCenter ) override;
+        -:  236:
+        -:  237:    void Mirror( const VECTOR2I& aRef, FLIP_DIRECTION aFlipDirection );
+        -:  238:
+        -:  239:    void Mirror( const SEG& axis );
+        -:  240:
+        -:  241:    void Reverse();
+        -:  242:
+        -:  243:    SHAPE_ARC Reversed() const;
+        -:  244:
+        -:  245:    double GetRadius() const;
+        -:  246:
+        -:  247:    SEG GetChord() const
+        -:  248:    {
+        -:  249:        return SEG( m_start, m_end );
+        -:  250:    }
+        -:  251:
+        -:  252:    /**
+        -:  253:     * Get the "central angle" of the arc - this is the angle at the point of the "pie slice".
+        -:  254:     *
+        -:  255:     * @return the central angle of the arc shape, normalized between -360..360 deg.
+        -:  256:     */
+        -:  257:    EDA_ANGLE GetCentralAngle() const;
+        -:  258:
+        -:  259:    /**
+        -:  260:     * @return the start angle of the arc shape, normalized between 0..360 deg.
+        -:  261:     */
+        -:  262:    EDA_ANGLE GetStartAngle() const;
+        -:  263:
+        -:  264:    /**
+        -:  265:     * @return the end angle of the arc shape, normalized between 0..360 deg.
+        -:  266:     */
+        -:  267:    EDA_ANGLE GetEndAngle() const;
+        -:  268:
+        -:  269:    /**
+        -:  270:     * @return the length of the arc shape.
+        -:  271:     */
+        -:  272:    double GetLength() const;
+        -:  273:
+        -:  274:    /**
+        -:  275:     * @note The default is #ARC_HIGH_DEF in Pcbnew units.  This is to allow common geometry
+        -:  276:     *       collision functions.  Other programs should call this using explicit accuracy
+        -:  277:     *       values.
+        -:  278:     *
+        -:  279:     * @todo Unify KiCad internal units.
+        -:  280:     *
+        -:  281:     * @return a default accuracy value for ConvertToPolyline() to build the polyline.
+        -:  282:     */
+        -:  283:    static int DefaultAccuracyForPCB() { return ARC_HIGH_DEF; }
+        -:  284:
+        -:  285:    /**
+        -:  286:     * Construct a SHAPE_LINE_CHAIN of segments from a given arc.
+        -:  287:     *
+        -:  288:     * @note The default is #ARC_HIGH_DEF in Pcbnew units.  This is to allow common geometry
+        -:  289:     *       collision functions.  Other programs should call this using explicit accuracy
+        -:  290:     *       values.
+        -:  291:     *
+        -:  292:     * @todo Unify KiCad internal units.
+        -:  293:     *
+        -:  294:     * @param aMaxError maximum divergence from true arc given in internal units.
+        -:  295:     * @param aActualError is the actual divergence from true arc given.
+        -:  296:     *                     the approximation error is between -aActualError/2 and
+        -:  297:     *                     +aActualError/2 in internal units
+        -:  298:     * @return a #SHAPE_LINE_CHAIN.
+        -:  299:     */
+        -:  300:    const SHAPE_LINE_CHAIN ConvertToPolyline( int aMaxError = DefaultAccuracyForPCB(),
+        -:  301:                                              int* aActualError = nullptr ) const;
+        -:  302:
+        -:  303:    bool operator==( SHAPE_ARC const& aArc ) const
+        -:  304:    {
+        -:  305:        return ( aArc.m_start == m_start ) && ( aArc.m_end == m_end ) && ( aArc.m_mid == m_mid )
+        -:  306:               && ( aArc.m_width == m_width );
+        -:  307:    }
+        -:  308:
+        -:  309:    void TransformToPolygon( SHAPE_POLY_SET& aBuffer, int aMaxError, ERROR_LOC aErrorLoc ) const override;
+        -:  310:
+        -:  311:    /**
+        -:  312:     * @return true if the arc is counter-clockwise.
+        -:  313:     */
+        -:  314:    bool IsCCW() const
+        -:  315:    {
+        -:  316:        VECTOR2L mid = m_mid;
+        -:  317:        VECTOR2L v1 = m_end - mid;
+        -:  318:        VECTOR2L v2 = m_start - mid;
+        -:  319:
+        -:  320:        return v1.Cross( v2 ) > 0;
+        -:  321:    }
+        -:  322:
+        -:  323:    bool IsClockwise() const { return !IsCCW(); }
+        -:  324:
+        -:  325:private:
+        -:  326:    void update_values();
+        -:  327:
+        -:  328:    bool sliceContainsPoint( const VECTOR2I& p ) const;
+        -:  329:
+        -:  330:private:
+        -:  331:    VECTOR2I m_start;
+        -:  332:    VECTOR2I m_mid;
+        -:  333:    VECTOR2I m_end;
+        -:  334:    int      m_width;
+        -:  335:
+        -:  336:    BOX2I    m_bbox;   // Calculated value
+        -:  337:    VECTOR2I m_center; // Calculated value
+        -:  338:    double   m_radius; // Calculated value
+        -:  339:};
+        -:  340:
+        -:  341:// Required for Boost Test BOOST_CHECK_EQUAL:
+        -:  342:std::ostream& operator<<( std::ostream& aStream, const SHAPE_ARC& aArc );

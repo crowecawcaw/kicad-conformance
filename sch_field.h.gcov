@@ -1,0 +1,495 @@
+        -:    0:Source:/src/kicad/eeschema/sch_field.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+        -:    5: * Copyright (C) 2022 CERN
+        -:    6: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    7: *
+        -:    8: * This program is free software; you can redistribute it and/or
+        -:    9: * modify it under the terms of the GNU General Public License
+        -:   10: * as published by the Free Software Foundation; either version 2
+        -:   11: * of the License, or (at your option) any later version.
+        -:   12: *
+        -:   13: * This program is distributed in the hope that it will be useful,
+        -:   14: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   16: * GNU General Public License for more details.
+        -:   17: *
+        -:   18: * You should have received a copy of the GNU General Public License
+        -:   19: * along with this program; if not, you may find one here:
+        -:   20: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   21: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   22: * or you may write to the Free Software Foundation, Inc.,
+        -:   23: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   24: */
+        -:   25:
+        -:   26:#pragma once
+        -:   27:
+        -:   28:
+        -:   29:#include <eda_text.h>
+        -:   30:#include <sch_item.h>
+        -:   31:#include <template_fieldnames.h>
+        -:   32:#include <general.h>
+        -:   33:#include <string_utils.h>
+        -:   34:#include "scintilla_tricks.h"
+        -:   35:#include <algorithm>
+        -:   36:
+        -:   37:class SCH_EDIT_FRAME;
+        -:   38:class SCH_TEXT;
+        -:   39:
+        -:   40:
+        -:   41:struct SCH_FIELD_RENDER_CACHE_DATA
+        -:   42:{
+        -:   43:    VECTOR2I                                    pos;
+        -:   44:    std::vector<std::unique_ptr<KIFONT::GLYPH>> glyphs;
+        -:   45:};
+        -:   46:
+        -:   47:
+        -:   48:class SCH_FIELD : public SCH_ITEM, public EDA_TEXT
+        -:   49:{
+        -:   50:public:
+        -:   51:    SCH_FIELD();    // For std::map::operator[]
+        -:   52:
+        -:   53:    explicit SCH_FIELD( SCH_ITEM* aParent, FIELD_T aFieldId = FIELD_T::USER, const wxString& aName = wxEmptyString );
+        -:   54:
+        -:   55:    explicit SCH_FIELD( SCH_ITEM* aParent, SCH_TEXT* aText );
+        -:   56:
+        -:   57:    SCH_FIELD( const SCH_FIELD& aText );
+        -:   58:
+        -:   59:    ~SCH_FIELD() override
+        -:   60:    { }
+        -:   61:
+        -:   62:    SCH_FIELD& operator=( const SCH_FIELD& aField );
+        -:   63:
+        -:   64:    static bool ClassOf( const EDA_ITEM* aItem )
+        -:   65:    {
+        -:   66:        return aItem && SCH_FIELD_T == aItem->Type();
+        -:   67:    }
+        -:   68:
+        -:   69:    wxString GetClass() const override
+        -:   70:    {
+        -:   71:        return wxT( "SCH_FIELD" );
+        -:   72:    }
+        -:   73:
+        -:   74:    bool IsType( const std::vector<KICAD_T>& aScanTypes ) const override
+        -:   75:    {
+        -:   76:        if( SCH_ITEM::IsType( aScanTypes ) )
+        -:   77:            return true;
+        -:   78:
+        -:   79:        for( KICAD_T scanType : aScanTypes )
+        -:   80:        {
+        -:   81:            if( scanType == SCH_FIELD_LOCATE_REFERENCE_T && m_id == FIELD_T::REFERENCE )
+        -:   82:                return true;
+        -:   83:            else if ( scanType == SCH_FIELD_LOCATE_VALUE_T && m_id == FIELD_T::VALUE )
+        -:   84:                return true;
+        -:   85:            else if ( scanType == SCH_FIELD_LOCATE_FOOTPRINT_T && m_id == FIELD_T::FOOTPRINT )
+        -:   86:                return true;
+        -:   87:            else if ( scanType == SCH_FIELD_LOCATE_DATASHEET_T && m_id == FIELD_T::DATASHEET )
+        -:   88:                return true;
+        -:   89:        }
+        -:   90:
+        -:   91:        return false;
+        -:   92:    }
+        -:   93:
+        -:   94:    wxString GetFriendlyName() const override
+        -:   95:    {
+        -:   96:        return _( "Field" );
+        -:   97:    }
+        -:   98:
+        -:   99:    bool HasHypertext() const override;
+        -:  100:
+        -:  101:    void DoHypertextAction( EDA_DRAW_FRAME* aFrame, const VECTOR2I& aMousePos ) const override;
+        -:  102:
+        -:  103:    /**
+        -:  104:     * Return the field name (not translated).
+        -:  105:     *
+        -:  106:     * @param aUseDefaultName If true return the default field name if the field name is empty.
+        -:  107:     * @return the name of the field.
+        -:  108:     */
+        -:  109:    wxString GetName( bool aUseDefaultName = true ) const;
+        -:  110:
+        -:  111:    /**
+        -:  112:     * Get a non-language-specific name for a field which can be used for storage, variable look-up, etc.
+        -:  113:     */
+        -:  114:    wxString GetCanonicalName() const;
+        -:  115:
+        -:  116:    /**
+        -:  117:     * Test whether @a aName is one of the known translations of the directive-label net class
+        -:  118:     * field name (used to recognise legacy/cross-locale files where the field name was saved as
+        -:  119:     * a translated string instead of the canonical "Netclass" token).
+        -:  120:     */
+        -:  121:    static bool IsNetclassLabelFieldName( const wxString& aName );
+        -:  122:
+        -:  123:    void SetName( const wxString& aName );
+        -:  124:
+        -:  125:    void SetText( const wxString& aText ) override;
+        -:  126:
+        -:  127:    void SetText( const wxString& aText, const SCH_SHEET_PATH* aPath, const wxString& aVariantName = wxEmptyString );
+        -:  128:
+        -:  129:    virtual const wxString& GetText() const override { return EDA_TEXT::GetText(); }
+        -:  130:
+        -:  131:    wxString GetText( const SCH_SHEET_PATH* aPath, const wxString& aVariantName = wxEmptyString ) const;
+        -:  132:
+    #####:  133:    FIELD_T GetId() const { return m_id; }
+        -:  134:
+        -:  135:    int GetOrdinal() const
+        -:  136:    {
+        -:  137:        return IsMandatory() ? (int) m_id : m_ordinal;
+        -:  138:    }
+        -:  139:    void SetOrdinal( int aOrdinal )
+        -:  140:    {
+        -:  141:        m_id = FIELD_T::USER;
+        -:  142:        m_ordinal = aOrdinal;
+        -:  143:    }
+        -:  144:
+        -:  145:    /**
+        -:  146:     * Get the field's name as displayed on the schematic or in the symbol fields table. This is
+        -:  147:     * either the same as GetName() or if the field has a variable for name, the variable name
+        -:  148:     * with the ${} stripped.
+        -:  149:     */
+        -:  150:    wxString GetShownName() const;
+        -:  151:    wxString GetShownText( const SCH_SHEET_PATH* aPath, bool aAllowExtraText, int aDepth = 0,
+        -:  152:                           const wxString& aVariantName = wxEmptyString ) const;
+        -:  153:
+        -:  154:    wxString GetShownText( bool aAllowExtraText, int aDepth = 0 ) const override;
+        -:  155:
+        -:  156:    /**
+        -:  157:     * Return the text of a field.
+        -:  158:     *
+        -:  159:     * If the field is the reference field, the unit number is used to create a pseudo reference
+        -:  160:     * text.  If the base reference field is U, the string U?A will be returned for unit = 1.
+        -:  161:     *
+        -:  162:     * @param unit - The package unit number.  Only effects reference field.
+        -:  163:     * @return Field text.
+        -:  164:     */
+        -:  165:    wxString GetFullText( int unit = 1 ) const;
+        -:  166:
+        -:  167:    /**
+        -:  168:     * Return true if both the name and value of the field are empty.
+        -:  169:     *
+        -:  170:     * Whitespace does not count as non-empty.
+        -:  171:     */
+        -:  172:    bool IsEmpty()
+        -:  173:    {
+        -:  174:        wxString name( m_name );
+        -:  175:        wxString value( GetText() );
+        -:  176:
+        -:  177:        return name.Trim().empty() && value.Trim().empty();
+        -:  178:    }
+        -:  179:
+        -:  180:    int GetSchTextSize() const { return GetTextWidth(); }
+        -:  181:    void SetSchTextSize( int aSize ) { SetTextSize( VECTOR2I( aSize, aSize ) ); }
+        -:  182:
+        -:  183:    COLOR4D GetFieldColor() const;
+        -:  184:
+        -:  185:    void SetLastResolvedState( const SCH_ITEM* aItem ) override
+        -:  186:    {
+        -:  187:        const SCH_FIELD* aField = dynamic_cast<const SCH_FIELD*>( aItem );
+        -:  188:
+        -:  189:        if( aField )
+        -:  190:            m_lastResolvedColor = aField->m_lastResolvedColor;
+        -:  191:    }
+        -:  192:
+        -:  193:    std::vector<int> ViewGetLayers() const override;
+        -:  194:
+        -:  195:    SCH_LAYER_ID GetDefaultLayer() const;
+        -:  196:
+        -:  197:    /**
+        -:  198:     * Adjusters to allow EDA_TEXT to draw/print/etc. text in absolute coords.
+        -:  199:     */
+        -:  200:    EDA_ANGLE GetDrawRotation() const override;
+        -:  201:
+        -:  202:    KIFONT::FONT* GetDrawFont( const RENDER_SETTINGS* aSettings ) const override;
+        -:  203:
+        -:  204:    const BOX2I GetBoundingBox() const override;
+        -:  205:
+        -:  206:    /**
+        -:  207:     * Return whether the field will be rendered with the horizontal justification
+        -:  208:     * inverted due to rotation or mirroring of the parent.
+        -:  209:     */
+        -:  210:    bool IsHorizJustifyFlipped() const;
+        -:  211:    bool IsVertJustifyFlipped() const;
+        -:  212:
+        -:  213:    GR_TEXT_H_ALIGN_T GetEffectiveHorizJustify() const;
+        -:  214:    GR_TEXT_V_ALIGN_T GetEffectiveVertJustify() const;
+        -:  215:
+        -:  216:    void SetEffectiveHorizJustify( GR_TEXT_H_ALIGN_T );
+        -:  217:    void SetEffectiveVertJustify( GR_TEXT_V_ALIGN_T );
+        -:  218:
+        -:  219:    bool IsNameShown() const { return m_showName; }
+    #####:  220:    void SetNameShown( bool aShown = true ) { m_showName = aShown; }
+        -:  221:
+        -:  222:    /**
+        -:  223:     * Generated fields are fields whose names are variables like ${VAR}.
+        -:  224:     *
+        -:  225:     * The shown name of these fields is VAR and the value is resolved from
+        -:  226:     * ${VAR}
+        -:  227:     */
+        -:  228:    bool IsGeneratedField() const { return m_isGeneratedField; }
+        -:  229:
+        -:  230:    bool CanAutoplace() const { return m_allowAutoPlace; }
+    #####:  231:    void SetCanAutoplace( bool aCanPlace ) { m_allowAutoPlace = aCanPlace; }
+        -:  232:
+        -:  233:    void swapData( SCH_ITEM* aItem ) override;
+        -:  234:
+        -:  235:    int GetPenWidth() const override;
+        -:  236:
+        -:  237:    bool IsAutoAdded() const { return m_autoAdded; }
+        -:  238:    void SetAutoAdded( bool aAutoAdded ) { m_autoAdded = aAutoAdded; }
+        -:  239:
+        -:  240:    bool ShowInChooser() const { return m_showInChooser; }
+        -:  241:    void SetShowInChooser( bool aShow = true ) { m_showInChooser = aShow; }
+        -:  242:
+        -:  243:    void ClearCaches() override;
+        -:  244:    void ClearRenderCache() override;
+        -:  245:
+        -:  246:    std::vector<std::unique_ptr<KIFONT::GLYPH>>*
+        -:  247:    GetRenderCache( const wxString& forResolvedText, const VECTOR2I& forPosition, TEXT_ATTRIBUTES& aAttrs ) const;
+        -:  248:
+        -:  249:    void Move( const VECTOR2I& aMoveVector ) override
+        -:  250:    {
+        -:  251:        Offset( aMoveVector );
+        -:  252:    }
+        -:  253:
+        -:  254:    void Rotate( const VECTOR2I& aCenter, bool aRotateCCW ) override;
+        -:  255:
+        -:  256:    void MirrorVertically( int aCenter ) override;
+        -:  257:    void MirrorHorizontally( int aCenter ) override;
+        -:  258:
+        -:  259:    void BeginEdit( const VECTOR2I& aStartPoint ) override;
+        -:  260:    void CalcEdit( const VECTOR2I& aPosition ) override;
+        -:  261:
+        -:  262:    void OnScintillaCharAdded( SCINTILLA_TRICKS* aScintillaTricks, wxStyledTextEvent &aEvent ) const;
+        -:  263:
+        -:  264:    bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const override;
+        -:  265:
+        -:  266:    bool Replace( const EDA_SEARCH_DATA& aSearchData, void* aAuxData = nullptr ) override;
+        -:  267:
+        -:  268:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  269:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:  270:
+        -:  271:    BITMAPS GetMenuImage() const override;
+        -:  272:
+        -:  273:    bool IsReplaceable() const override;
+        -:  274:
+        -:  275:    VECTOR2I GetLibPosition() const { return EDA_TEXT::GetTextPos(); }
+        -:  276:
+        -:  277:    VECTOR2I GetPosition() const override;
+        -:  278:    void     SetPosition( const VECTOR2I& aPosition ) override;
+        -:  279:
+        -:  280:    VECTOR2I GetParentPosition() const;
+        -:  281:
+        -:  282:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  283:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  284:    bool HitTest( const SHAPE_LINE_CHAIN& aPoly, bool aContained ) const override;
+        -:  285:
+        -:  286:    void Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& aPlotOpts,
+        -:  287:               int aUnit, int aBodyStyle, const VECTOR2I& aOffset, bool aDimmed ) override;
+        -:  288:
+        -:  289:    EDA_ITEM* Clone() const override;
+        -:  290:
+        -:  291:    /**
+        -:  292:     * Copy parameters from a SCH_FIELD source.
+        -:  293:     *
+        -:  294:     * @note Pointers and specific values (position) are not copied.
+        -:  295:     *
+        -:  296:     * @param aSource is the SCH_FIELD to read.
+        -:  297:     */
+        -:  298:    void ImportValues( const SCH_FIELD& aSource );
+        -:  299:
+        -:  300:    /**
+        -:  301:     * Copy parameters of this field to another field.
+        -:  302:     *
+        -:  303:     * @note Pointers are not copied.
+        -:  304:     *
+        -:  305:     * @param aTarget Target field to copy values to.
+        -:  306:     */
+        -:  307:    void Copy( SCH_FIELD* aTarget ) const;
+        -:  308:
+        -:  309:    bool IsMandatory() const;
+        -:  310:
+        -:  311:    bool operator <( const SCH_ITEM& aItem ) const override;
+        -:  312:
+        -:  313:    double Similarity( const SCH_ITEM& aItem ) const override;
+        -:  314:
+        -:  315:    bool operator==( const SCH_ITEM& aItem ) const override;
+        -:  316:    bool operator==( const SCH_FIELD& aItem ) const;
+        -:  317:
+        -:  318:    /**
+        -:  319:     * Test if this field has the same name, content and presentation as another field,
+        -:  320:     * ignoring the owning item and ordinal that operator== compares.
+        -:  321:     */
+        -:  322:    bool HasSameContent( const SCH_FIELD& aOther ) const;
+        -:  323:
+        -:  324:#if defined(DEBUG)
+        -:  325:    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
+        -:  326:#endif
+        -:  327:
+        -:  328:protected:
+        -:  329:    friend class SCH_IO_KICAD_SEXPR_PARSER;
+        -:  330:
+        -:  331:    const KIFONT::METRICS& getFontMetrics() const override { return GetFontMetrics(); }
+        -:  332:
+        -:  333:    /**
+        -:  334:     * @copydoc SCH_ITEM::compare()
+        -:  335:     *
+        -:  336:     * The field specific sort order is as follows:
+        -:  337:     *
+        -:  338:     *      - Field ID, REFERENCE, VALUE, etc.
+        -:  339:     *      - Field string, case insensitive compare.
+        -:  340:     *      - Field horizontal (X) position.
+        -:  341:     *      - Field vertical (Y) position.
+        -:  342:     *      - Field width.
+        -:  343:     *      - Field height.
+        -:  344:     */
+        -:  345:    int compare( const SCH_ITEM& aOther, int aCompareFlags = 0 ) const override;
+        -:  346:
+        -:  347:    void setId( FIELD_T aId );
+        -:  348:
+        -:  349:    wxString getUnescapedText( const SCH_SHEET_PATH* aPath = nullptr,
+        -:  350:                               const wxString& aVariantName = wxEmptyString ) const;
+        -:  351:
+        -:  352:private:
+        -:  353:    FIELD_T  m_id;               ///< Field id, @see enum FIELD_T
+        -:  354:    int      m_ordinal;          ///< Sort order for non-mandatory fields
+        -:  355:    wxString m_name;
+        -:  356:
+        -:  357:    bool     m_showName;         ///< Render the field name in addition to its value
+        -:  358:    bool     m_allowAutoPlace;   ///< This field can be autoplaced
+        -:  359:    bool     m_isGeneratedField; ///< If the field name is a variable name (e.g. ${DNP}) then
+        -:  360:                                 ///<   the value field is forced to be the same as the name
+        -:  361:
+        -:  362:    bool     m_autoAdded;        ///< Was this field automatically added to a LIB_SYMBOL?
+        -:  363:    bool     m_showInChooser;    ///< This field is available as a data column for the chooser
+        -:  364:
+        -:  365:    mutable std::unique_ptr<SCH_FIELD_RENDER_CACHE_DATA> m_renderCache;
+        -:  366:
+        -:  367:    mutable COLOR4D                                     m_lastResolvedColor;
+        -:  368:};
+        -:  369:
+        -:  370:
+        -:  371:inline int NextFieldOrdinal( const std::vector<SCH_FIELD>& aFields )
+        -:  372:{
+        -:  373:    int ordinal = 42;     // Arbitrarily larger than any mandatory FIELD_T id
+        -:  374:
+        -:  375:    for( const SCH_FIELD& field : aFields )
+        -:  376:        ordinal = std::max( ordinal, field.GetOrdinal() + 1 );
+        -:  377:
+        -:  378:    return ordinal;
+        -:  379:}
+        -:  380:
+        -:  381:
+    #####:  382:inline const SCH_FIELD* FindField( const std::vector<SCH_FIELD>& aFields, FIELD_T aFieldId )
+        -:  383:{
+    #####:  384:    for( const SCH_FIELD& field : aFields )
+        -:  385:    {
+    #####:  386:        if( field.GetId() == aFieldId )
+    #####:  387:            return &field;
+        -:  388:    }
+        -:  389:
+    #####:  390:    return nullptr;
+        -:  391:}
+        -:  392:
+        -:  393:
+    #####:  394:inline SCH_FIELD* FindField( std::vector<SCH_FIELD>& aFields, FIELD_T aFieldId )
+        -:  395:{
+    #####:  396:    const std::vector<SCH_FIELD>& constFields = const_cast<const std::vector<SCH_FIELD>&>( aFields );
+    #####:  397:    return const_cast<SCH_FIELD*>( FindField( constFields, aFieldId ) );
+        -:  398:}
+        -:  399:
+        -:  400:
+        -:  401:inline const SCH_FIELD* FindField( const std::vector<SCH_FIELD>& aFields, const wxString& aFieldName )
+        -:  402:{
+        -:  403:    for( const SCH_FIELD& field : aFields )
+        -:  404:    {
+        -:  405:        if( field.GetName() == aFieldName )
+        -:  406:            return &field;
+        -:  407:    }
+        -:  408:
+        -:  409:    return nullptr;
+        -:  410:}
+        -:  411:
+        -:  412:
+        -:  413:inline SCH_FIELD* FindField( std::vector<SCH_FIELD>& aFields, const wxString& aFieldName )
+        -:  414:{
+        -:  415:    const std::vector<SCH_FIELD>& constFields = const_cast<const std::vector<SCH_FIELD>&>( aFields );
+        -:  416:    return const_cast<SCH_FIELD*>( FindField( constFields, aFieldName ) );
+        -:  417:}
+        -:  418:
+        -:  419:
+        -:  420:inline wxString GetFieldValue( const std::vector<SCH_FIELD>* aFields, FIELD_T aFieldType )
+        -:  421:{
+        -:  422:    if( !aFields )
+        -:  423:        return wxEmptyString;
+        -:  424:
+        -:  425:    if( const SCH_FIELD* field = FindField( *aFields, aFieldType ) )
+        -:  426:        return field->GetText();
+        -:  427:
+        -:  428:    return wxEmptyString;
+        -:  429:}
+        -:  430:
+        -:  431:
+        -:  432:inline std::string GetFieldValue( const std::vector<SCH_FIELD>* aFields, const wxString& aFieldName,
+        -:  433:                                  bool aResolve, int aDepth )
+        -:  434:{
+        -:  435:    if( !aFields )
+        -:  436:        return "";
+        -:  437:
+        -:  438:    if( const SCH_FIELD* field = FindField( *aFields, aFieldName ) )
+        -:  439:        return ( aResolve ? field->GetShownText( false, aDepth ) : field->GetText() ).ToStdString();
+        -:  440:
+        -:  441:    return "";
+        -:  442:}
+        -:  443:
+        -:  444:
+        -:  445:inline void SetFieldValue( std::vector<SCH_FIELD>& aFields, const wxString& aFieldName,
+        -:  446:                           const std::string& aValue, bool aIsVisible = true,
+        -:  447:                           const SCH_SHEET_PATH* aSheetPath = nullptr, const wxString& aVariantName = wxEmptyString )
+        -:  448:{
+        -:  449:    if( !aSheetPath || aVariantName.empty() )
+        -:  450:    {
+        -:  451:        // Without a sheet path this is a local write (usually to the Symbol Properties dialog's copy of the
+        -:  452:        // fields).  Variant handling will apply only when the local fields are written back to the symbol.
+        -:  453:
+        -:  454:        if( aValue == "" )
+        -:  455:        {
+        -:  456:            std::erase_if( aFields, [&]( const SCH_FIELD& field )
+        -:  457:                                     {
+        -:  458:                                         return field.GetName() == aFieldName;
+        -:  459:                                     } );
+        -:  460:            return;
+        -:  461:        }
+        -:  462:
+        -:  463:        if( SCH_FIELD* field = FindField( aFields, aFieldName ) )
+        -:  464:        {
+        -:  465:            field->SetText( aValue );
+        -:  466:            return;
+        -:  467:        }
+        -:  468:
+        -:  469:        SCH_ITEM* parent = static_cast<SCH_ITEM*>( aFields.at( 0 ).GetParent() );
+        -:  470:        aFields.emplace_back( parent, FIELD_T::USER, aFieldName );
+        -:  471:
+        -:  472:        aFields.back().SetText( aValue );
+        -:  473:        aFields.back().SetVisible( aIsVisible );
+        -:  474:        return;
+        -:  475:    }
+        -:  476:
+        -:  477:    if( SCH_FIELD* field = FindField( aFields, aFieldName ) )
+        -:  478:    {
+        -:  479:        field->SetText( aValue, aSheetPath, aVariantName );
+        -:  480:        return;
+        -:  481:    }
+        -:  482:
+        -:  483:    SCH_ITEM* parent = static_cast<SCH_ITEM*>( aFields.at( 0 ).GetParent() );
+        -:  484:    aFields.emplace_back( parent, FIELD_T::USER, aFieldName );
+        -:  485:
+        -:  486:    // Since the default variant doesn't have this field at all, we're going to set it to the same value
+        -:  487:    // and visibility as specified for the variant.  We therefore don't really have a variant at all, so we
+        -:  488:    // can ignore variant processing here.
+        -:  489:    aFields.back().SetText( aValue );
+        -:  490:    aFields.back().SetVisible( aIsVisible );
+        -:  491:}

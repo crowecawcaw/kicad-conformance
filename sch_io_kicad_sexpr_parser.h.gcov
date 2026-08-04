@@ -1,0 +1,311 @@
+        -:    0:Source:/src/kicad/eeschema/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2020 CERN
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * @author Wayne Stambaugh <stambaughw@gmail.com>
+        -:    8: *
+        -:    9: * This program is free software; you can redistribute it and/or
+        -:   10: * modify it under the terms of the GNU General Public License
+        -:   11: * as published by the Free Software Foundation; either version 2
+        -:   12: * of the License, or (at your option) any later version.
+        -:   13: *
+        -:   14: * This program is distributed in the hope that it will be useful,
+        -:   15: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   16: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   17: * GNU General Public License for more details.
+        -:   18: *
+        -:   19: * You should have received a copy of the GNU General Public License
+        -:   20: * along with this program; if not, you may find one here:
+        -:   21: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   22: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   23: * or you may write to the Free Software Foundation, Inc.,
+        -:   24: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   25: */
+        -:   26:
+        -:   27:/**
+        -:   28: * @brief Schematic and symbol library s-expression file format parser definitions.
+        -:   29: */
+        -:   30:
+        -:   31:#ifndef SCH_IO_KICAD_SEXPR_PARSER_H_
+        -:   32:#define SCH_IO_KICAD_SEXPR_PARSER_H_
+        -:   33:
+        -:   34:#include <symbol_library_common.h>
+        -:   35:#include <progress_reporter.h>
+        -:   36:#include <schematic_lexer.h>
+        -:   37:#include <sch_file_versions.h>
+        -:   38:#include <default_values.h>    // For some default values
+        -:   39:
+        -:   40:
+        -:   41:class SCH_PIN;
+        -:   42:class PAGE_INFO;
+        -:   43:class SCH_BITMAP;
+        -:   44:class SCH_BUS_WIRE_ENTRY;
+        -:   45:class SCH_SYMBOL;
+        -:   46:class SCH_FIELD;
+        -:   47:class SCH_ITEM;
+        -:   48:class SCH_SHAPE;
+        -:   49:class SCH_RULE_AREA;
+        -:   50:class SCH_JUNCTION;
+        -:   51:class SCH_LINE;
+        -:   52:class SCH_NO_CONNECT;
+        -:   53:class SCH_SCREEN;
+        -:   54:class SCH_SHEET;
+        -:   55:class SCH_SHEET_PIN;
+        -:   56:class SCH_TEXT;
+        -:   57:class SCH_TEXTBOX;
+        -:   58:class SCH_TABLE;
+        -:   59:class SCH_TABLECELL;
+        -:   60:class TITLE_BLOCK;
+        -:   61:
+        -:   62:
+        -:   63:/**
+        -:   64: * Simple container to manage fill parameters.
+        -:   65: */
+        -:   66:class FILL_PARAMS
+        -:   67:{
+        -:   68:public:
+        -:   69:    FILL_T  m_FillType;
+        -:   70:    COLOR4D m_Color;
+        -:   71:};
+        -:   72:
+        -:   73:
+        -:   74:/**
+        -:   75: * Object to parser s-expression symbol library and schematic file formats.
+        -:   76: */
+        -:   77:class SCH_IO_KICAD_SEXPR_PARSER : public SCHEMATIC_LEXER
+        -:   78:{
+        -:   79:public:
+        -:   80:    SCH_IO_KICAD_SEXPR_PARSER( LINE_READER* aLineReader = nullptr,
+        -:   81:                      PROGRESS_REPORTER* aProgressReporter = nullptr, unsigned aLineCount = 0,
+        -:   82:                      SCH_SHEET* aRootSheet = nullptr, bool aIsAppending = false );
+        -:   83:
+        -:   84:    void ParseLib( LIB_SYMBOL_MAP& aSymbolLibMap );
+        -:   85:
+        -:   86:    /**
+        -:   87:     * Parse internal #LINE_READER object into symbols and return all found.
+        -:   88:     */
+        -:   89:    LIB_SYMBOL* ParseSymbol( LIB_SYMBOL_MAP& aSymbolLibMap,
+        -:   90:                             int aFileVersion = SEXPR_SYMBOL_LIB_FILE_VERSION );
+        -:   91:
+        -:   92:    SCH_ITEM* ParseSymbolDrawItem();
+        -:   93:
+        -:   94:    /**
+        -:   95:     * Parse the internal #LINE_READER object into \a aSheet.
+        -:   96:     *
+        -:   97:     * When \a aIsCopyableOnly is true, only schematic objects that are viewable on the canvas
+        -:   98:     * for copy and paste purposes are parsed.  Other schematic content such as bus definitions
+        -:   99:     * or instance data will throw an #IO_ERROR exception.
+        -:  100:     *
+        -:  101:     * When \a aIsCopyableOnly is false, full schematic file parsing is performed.
+        -:  102:     *
+        -:  103:     * @note This does not load any sub-sheets or decent complex sheet hierarchies.
+        -:  104:     *
+        -:  105:     * @param aSheet The #SCH_SHEET object to store the parsed schematic file.
+        -:  106:     * @param aIsCopyableOnly Load only the schematic objects that can be copied into \a aSheet
+        -:  107:     *                        if true.  Otherwise, load the full schematic file format.
+        -:  108:     * @param aFileVersion The schematic file version to parser.  Defaults to the schematic
+        -:  109:     *                     file being parsed when \a aIsCopyableOnly is false.
+        -:  110:     */
+        -:  111:    void ParseSchematic( SCH_SHEET* aSheet, bool aIsCopyablyOnly = false,
+        -:  112:                         int aFileVersion = SEXPR_SCHEMATIC_FILE_VERSION );
+        -:  113:
+        -:  114:    int GetParsedRequiredVersion() const { return m_requiredVersion; }
+        -:  115:
+        -:  116:    /**
+        -:  117:     * Return any non-fatal parse warnings that occurred during parsing.
+        -:  118:     * These are errors that were handled gracefully but should be reported to the user.
+        -:  119:     */
+        -:  120:    const std::vector<wxString>& GetParseWarnings() const { return m_parseWarnings; }
+        -:  121:
+        -:  122:private:
+        -:  123:    // Group membership info refers to other Uuids in the file.
+        -:  124:    // We don't want to rely on group declarations being last in the file, so
+        -:  125:    // we store info about the group declarations here during parsing and then resolve
+        -:  126:    // them into BOARD_ITEM* after we've parsed the rest of the file.
+        -:  127:    struct GROUP_INFO
+        -:  128:    {
+    #####:  129:        virtual ~GROUP_INFO() = default; // Make polymorphic
+------------------
+SCH_IO_KICAD_SEXPR_PARSER::GROUP_INFO::~GROUP_INFO():
+    #####:  129:        virtual ~GROUP_INFO() = default; // Make polymorphic
+------------------
+SCH_IO_KICAD_SEXPR_PARSER::GROUP_INFO::~GROUP_INFO():
+    #####:  129:        virtual ~GROUP_INFO() = default; // Make polymorphic
+------------------
+        -:  130:
+        -:  131:        wxString          name;
+        -:  132:        KIID              uuid;
+        -:  133:        LIB_ID            libId;
+        -:  134:        std::vector<KIID> memberUuids;
+        -:  135:    };
+        -:  136:
+        -:  137:    void checkpoint();
+        -:  138:
+        -:  139:    KIID parseKIID();
+        -:  140:
+        -:  141:    void parseHeader( TSCHEMATIC_T::T aHeaderType, int aFileVersion );
+        -:  142:
+        -:  143:    inline long parseHex()
+        -:  144:    {
+        -:  145:        NextTok();
+        -:  146:        return strtol( CurText(), nullptr, 16 );
+        -:  147:    }
+        -:  148:
+      527:  149:    inline int parseInt()
+        -:  150:    {
+      527:  151:        return (int)strtol( CurText(), nullptr, 10 );
+        -:  152:    }
+        -:  153:
+      527:  154:    inline int parseInt( const char* aExpected )
+        -:  155:    {
+      527:  156:        NeedNUMBER( aExpected );
+      527:  157:        return parseInt();
+        -:  158:    }
+        -:  159:
+        -:  160:    int parseInternalUnits();
+        -:  161:
+        -:  162:    int parseInternalUnits( const char* aExpected );
+        -:  163:
+        -:  164:    int parseInternalUnits( TSCHEMATIC_T::T aToken )
+        -:  165:    {
+        -:  166:        return parseInternalUnits( GetTokenText( aToken ) );
+        -:  167:    }
+        -:  168:
+     1260:  169:    VECTOR2I parseXY( bool aInvertY = false )
+        -:  170:    {
+     1260:  171:        VECTOR2I xy;
+        -:  172:
+     1260:  173:        xy.x = parseInternalUnits( "X coordinate" );
+     1260:  174:        xy.y = aInvertY ? -parseInternalUnits( "Y coordinate" )
+      657:  175:                        :  parseInternalUnits( "Y coordinate" );
+        -:  176:
+     1260:  177:        return xy;
+        -:  178:    }
+        -:  179:
+        -:  180:    bool parseBool();
+        -:  181:
+        -:  182:    /**
+        -:  183:     * Parses a boolean flag inside a list that existed before boolean normalization.
+        -:  184:     *
+        -:  185:     * For example, this will handle both (legacy_teardrops) and (legacy_teardrops yes).
+        -:  186:     * Call this after parsing the T_legacy_teardrops, and aDefaultValue will be returned for the
+        -:  187:     * first case, or true will be returned for the second case.
+        -:  188:     *
+        -:  189:     * @param aDefaultValue will be returned if the end of the list is encountered as the next token
+        -:  190:     * @return the parsed boolean
+        -:  191:     */
+        -:  192:    bool parseMaybeAbsentBool( bool aDefaultValue );
+        -:  193:
+        -:  194:    LIB_SYMBOL* parseLibSymbol( LIB_SYMBOL_MAP& aSymbolLibMap );
+        -:  195:
+        -:  196:    /**
+        -:  197:     * Parse stroke definition \a aStroke.
+        -:  198:     *
+        -:  199:     * @param aStrokeDef A reference to the #STROKE_PARAMS structure to write to.
+        -:  200:     */
+        -:  201:    void parseStroke( STROKE_PARAMS& aStroke );
+        -:  202:
+        -:  203:    void parseFill( FILL_PARAMS& aFill );
+        -:  204:
+        2:  205:    void parseMargins( int& aLeft, int& aTop, int& aRight, int& aBottom )
+        -:  206:    {
+        2:  207:        aLeft = parseInternalUnits( "left margin" );
+        2:  208:        aTop = parseInternalUnits( "top margin" );
+        2:  209:        aRight = parseInternalUnits( "right margin" );
+        2:  210:        aBottom = parseInternalUnits( "bottom margin" );
+        2:  211:    }
+        -:  212:
+        -:  213:    void parseEDA_TEXT( EDA_TEXT* aText, bool aConvertOverbarSyntax, bool aEnforceMinTextSize = true );
+        -:  214:    void parseBodyStyles( std::unique_ptr<LIB_SYMBOL>& aSymbol );
+        -:  215:    void parsePinNames( std::unique_ptr<LIB_SYMBOL>& aSymbol );
+        -:  216:    void parsePinNumbers( std::unique_ptr<LIB_SYMBOL>& aSymbol );
+        -:  217:
+        -:  218:    SCH_FIELD* parseProperty( std::unique_ptr<LIB_SYMBOL>& aSymbol );
+        -:  219:
+        -:  220:    SCH_SHAPE* parseSymbolArc();
+        -:  221:    SCH_SHAPE* parseSymbolBezier();
+        -:  222:    SCH_SHAPE* parseSymbolCircle();
+        -:  223:    SCH_PIN* parseSymbolPin();
+        -:  224:    SCH_SHAPE* parseSymbolPolyLine();
+        -:  225:    SCH_SHAPE* parseSymbolRectangle();
+        -:  226:    SCH_ITEM* parseSymbolText();
+        -:  227:    SCH_TEXTBOX* parseSymbolTextBox();
+        -:  228:
+        -:  229:    void parsePAGE_INFO( PAGE_INFO& aPageInfo );
+        -:  230:    void parseTITLE_BLOCK( TITLE_BLOCK& aTitleBlock );
+        -:  231:    void parseSchSymbolInstances( SCH_SCREEN* aScreen );
+        -:  232:    void parseSchSheetInstances( SCH_SHEET* aRootSheet, SCH_SCREEN* aScreen );
+        -:  233:
+        -:  234:    void parseGroup();
+        -:  235:    void parseGroupMembers( GROUP_INFO& aGroupInfo );
+        -:  236:
+        -:  237:    SCH_SHEET_PIN* parseSchSheetPin( SCH_SHEET* aSheet );
+        -:  238:    SCH_FIELD* parseSchField( SCH_ITEM* aParent );
+        -:  239:    SCH_SYMBOL* parseSchematicSymbol();
+        -:  240:    SCH_BITMAP* parseImage();
+        -:  241:    SCH_SHEET* parseSheet();
+        -:  242:    SCH_JUNCTION* parseJunction();
+        -:  243:    SCH_NO_CONNECT* parseNoConnect();
+        -:  244:    SCH_BUS_WIRE_ENTRY* parseBusEntry();
+        -:  245:    SCH_LINE* parseLine();
+        -:  246:    SCH_SHAPE* parseSchPolyLine();
+        -:  247:    SCH_SHAPE* parseSchArc();
+        -:  248:    SCH_SHAPE* parseSchCircle();
+        -:  249:    SCH_SHAPE* parseSchRectangle();
+        -:  250:    SCH_SHAPE* parseSchBezier();
+        -:  251:    SCH_RULE_AREA* parseSchRuleArea();
+        -:  252:    SCH_TEXT* parseSchText();
+        -:  253:    SCH_TEXTBOX* parseSchTextBox();
+        -:  254:    void parseSchTextBoxContent( SCH_TEXTBOX* aTextBox );
+        -:  255:    SCH_TABLECELL* parseSchTableCell();
+        -:  256:    SCH_TABLE* parseSchTable();
+        -:  257:    void parseBusAlias( SCH_SCREEN* aScreen );
+        -:  258:
+        -:  259:    void resolveGroups( SCH_SCREEN* aParent );
+        -:  260:
+        -:  261:    /**
+        -:  262:     * Skip tokens until we reach the end of the current S-expression block.
+        -:  263:     *
+        -:  264:     * This is used for error recovery when parsing fails mid-symbol.
+        -:  265:     * The parser will consume tokens until the matching closing parenthesis
+        -:  266:     * is found, allowing parsing to continue with the next symbol.
+        -:  267:     *
+        -:  268:     * @param aDepth The initial nesting depth (1 = inside one open paren)
+        -:  269:     */
+        -:  270:    void skipToBlockEnd( int aDepth = 1 );
+        -:  271:
+        -:  272:private:
+        -:  273:    int      m_requiredVersion;   ///< Set to the symbol library file version required.
+        -:  274:    wxString m_generatorVersion;
+        -:  275:    int      m_unit;              ///< The current unit being parsed.
+        -:  276:    int      m_bodyStyle;         ///< The current body style being parsed.
+        -:  277:    wxString m_symbolName;        ///< The current symbol name.
+        -:  278:    bool     m_appending;         ///< Appending load status.
+        -:  279:
+        -:  280:    std::set<KIID>     m_uuids;
+        -:  281:
+        -:  282:    PROGRESS_REPORTER* m_progressReporter;  // optional; may be nullptr
+        -:  283:    const LINE_READER* m_lineReader;        // for progress reporting
+        -:  284:    unsigned           m_lastProgressLine;
+        -:  285:    unsigned           m_lineCount;         // for progress reporting
+        -:  286:
+        -:  287:    KIID               m_rootUuid;          // The UUID of the root schematic.
+        -:  288:
+        -:  289:    /// The rootsheet for full project loads or null for importing a schematic.
+        -:  290:    SCH_SHEET*         m_rootSheet;
+        -:  291:
+        -:  292:    /// Max deviation allowed when approximating bezier curves
+        -:  293:    int                m_maxError;
+        -:  294:
+        -:  295:    std::vector<GROUP_INFO> m_groupInfos;
+        -:  296:
+        -:  297:    std::vector<wxString>   m_parseWarnings;    ///< Non-fatal warnings collected during parsing
+        -:  298:};
+        -:  299:
+        -:  300:#endif    // SCH_IO_KICAD_SEXPR_PARSER_H_

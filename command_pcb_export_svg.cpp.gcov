@@ -1,0 +1,210 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_export_svg.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_svg.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_svg.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright (C) 2016 Cirilo Bernardo <cirilo.bernardo@gmail.com>
+        -:    6: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    7: *
+        -:    8: * This program is free software: you can redistribute it and/or modify it
+        -:    9: * under the terms of the GNU General Public License as published by the
+        -:   10: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   11: * option) any later version.
+        -:   12: *
+        -:   13: * This program is distributed in the hope that it will be useful, but
+        -:   14: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   16: * General Public License for more details.
+        -:   17: *
+        -:   18: * You should have received a copy of the GNU General Public License along
+        -:   19: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   20: */
+        -:   21:
+        -:   22:#include "command_pcb_export_svg.h"
+        -:   23:#include <cli/exit_codes.h>
+        -:   24:#include "command_pcb_export_base.h"
+        -:   25:#include "jobs/job_export_pcb_svg.h"
+        -:   26:#include <kiface_base.h>
+        -:   27:#include <string_utils.h>
+        -:   28:#include <regex>
+        -:   29:#include <wx/crt.h>
+        -:   30:
+        -:   31:
+        -:   32:#define ARG_EXCLUDE_DRAWING_SHEET "--exclude-drawing-sheet"
+        -:   33:#define ARG_PAGE_SIZE "--page-size-mode"
+        -:   34:#define ARG_FIT_PAGE_TO_BOARD "--fit-page-to-board"
+        -:   35:#define ARG_MODE_SINGLE "--mode-single"
+        -:   36:#define ARG_MODE_MULTI "--mode-multi"
+        -:   37:
+      577:   38:CLI::PCB_EXPORT_SVG_COMMAND::PCB_EXPORT_SVG_COMMAND() :
+     1154:   39:        PCB_EXPORT_BASE_COMMAND( "svg", IO_TYPE::FILE, IO_TYPE::DIRECTORY )
+        -:   40:{
+     1154:   41:    m_argParser.add_description( UTF8STDSTR( _( "Generate SVG outputs of a given layer list" ) ) );
+        -:   42:
+      577:   43:    addLayerArg();
+      577:   44:    addCommonLayersArg();
+      577:   45:    addDrawingSheetArg();
+      577:   46:    addDefineArg();
+        -:   47:
+      577:   48:    m_argParser.add_argument( ARG_SUBTRACT_SOLDERMASK )
+     1154:   49:            .help( UTF8STDSTR( _( "Subtract soldermask from silkscreen" ) ) )
+      577:   50:            .flag();
+        -:   51:
+      577:   52:    m_argParser.add_argument( "-m", ARG_MIRROR )
+     1154:   53:            .help( UTF8STDSTR( _( "Mirror the board (useful for trying to show bottom layers)" ) ) )
+      577:   54:            .flag();
+        -:   55:
+      577:   56:    m_argParser.add_argument( "-t", ARG_THEME )
+      577:   57:            .default_value( std::string() )
+     1154:   58:            .help( UTF8STDSTR( _( "Color theme to use (will default to PCB editor settings)" ) ) )
+     1154:   59:            .metavar( "THEME_NAME" );
+        -:   60:
+      577:   61:    m_argParser.add_argument( ARG_NEGATIVE_SHORT, ARG_NEGATIVE )
+     1154:   62:            .help( UTF8STDSTR( _( ARG_NEGATIVE_DESC ) ) )
+      577:   63:            .flag();
+        -:   64:
+      577:   65:    m_argParser.add_argument( ARG_BLACKANDWHITE )
+     1154:   66:            .help( UTF8STDSTR( _( ARG_BLACKANDWHITE_DESC ) ) )
+      577:   67:            .flag();
+        -:   68:
+      577:   69:    m_argParser.add_argument( "--sp", ARG_SKETCH_PADS_ON_FAB_LAYERS )
+     1154:   70:            .help( UTF8STDSTR( _( ARG_SKETCH_PADS_ON_FAB_LAYERS_DESC ) ) )
+      577:   71:            .flag();
+        -:   72:
+      577:   73:    m_argParser.add_argument( "--hdnp", ARG_HIDE_DNP_FPS_ON_FAB_LAYERS )
+     1154:   74:            .help( UTF8STDSTR( _( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   75:            .flag();
+        -:   76:
+      577:   77:    m_argParser.add_argument( "--sdnp", ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS )
+     1154:   78:            .help( UTF8STDSTR( _( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   79:            .flag();
+        -:   80:
+      577:   81:    m_argParser.add_argument( "--cdnp", ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS )
+     1154:   82:            .help( UTF8STDSTR( _( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   83:            .flag();
+        -:   84:
+      577:   85:    m_argParser.add_argument( ARG_PAGE_SIZE )
+     1154:   86:            .help( UTF8STDSTR( _( "Set page sizing mode (0 = page with frame and title block, 1 = "
+        -:   87:                                "current page size, 2 = board area only)" ) ) )
+      577:   88:            .scan<'i', int>()
+      577:   89:            .default_value( 0 )
+     1154:   90:            .metavar( "MODE" );
+        -:   91:
+      577:   92:    m_argParser.add_argument( ARG_FIT_PAGE_TO_BOARD )
+     1154:   93:            .help( UTF8STDSTR( _( "Fit the page to the board" ) ) )
+      577:   94:            .flag();
+        -:   95:
+      577:   96:    m_argParser.add_argument( ARG_EXCLUDE_DRAWING_SHEET )
+     1154:   97:            .help( UTF8STDSTR( _( "No drawing sheet" ) ) )
+      577:   98:            .flag();
+        -:   99:
+      577:  100:    m_argParser.add_argument( ARG_DRILL_SHAPE_OPTION )
+     1154:  101:            .help( UTF8STDSTR( _( ARG_DRILL_SHAPE_OPTION_DESC ) ) )
+      577:  102:            .scan<'i', int>()
+      577:  103:            .default_value( 2 )
+     1154:  104:            .metavar( "SHAPE_OPTION" );
+        -:  105:
+      577:  106:    m_argParser.add_argument( ARG_MODE_SINGLE )
+     1154:  107:            .help( UTF8STDSTR(
+        -:  108:                    _( "Generates a single file with the output arg path acting as the complete "
+        -:  109:                       "directory and filename path. COMMON_LAYER_LIST does not function in this "
+        -:  110:                       "mode. Instead LAYER_LIST controls all layers plotted." ) ) )
+      577:  111:            .flag();
+        -:  112:
+      577:  113:    m_argParser.add_argument( ARG_MODE_MULTI )
+     1154:  114:            .help( UTF8STDSTR( _( "Generates one or more files with behavior similar to the KiCad "
+        -:  115:                                  "GUI plotting. The given output path specifies a directory in "
+        -:  116:                                  "which files may be output." ) ) )
+      577:  117:            .flag();
+        -:  118:
+      577:  119:    m_argParser.add_argument( ARG_SCALE )
+     1154:  120:            .help( UTF8STDSTR( _( ARG_SCALE_DESC ) ) )
+      577:  121:            .scan<'g', double>()
+      577:  122:            .default_value( 1.0 )
+     1154:  123:            .metavar( "SCALE" );
+        -:  124:
+      577:  125:    m_argParser.add_argument( ARG_CHECK_ZONES )
+     1154:  126:            .help( UTF8STDSTR( _( ARG_CHECK_ZONES_DESC ) ) )
+      577:  127:            .flag();
+        -:  128:
+      577:  129:    addVariantsArg();
+      577:  130:}
+        -:  131:
+        -:  132:
+       67:  133:int CLI::PCB_EXPORT_SVG_COMMAND::doPerform( KIWAY& aKiway )
+        -:  134:{
+      67*:  135:    std::unique_ptr<JOB_EXPORT_PCB_SVG> svgJob( new JOB_EXPORT_PCB_SVG() );
+        -:  136:
+       67:  137:    svgJob->m_mirror = m_argParser.get<bool>( ARG_MIRROR );
+       67:  138:    svgJob->m_blackAndWhite = m_argParser.get<bool>( ARG_BLACKANDWHITE );
+       67:  139:    svgJob->m_negative = m_argParser.get<bool>( ARG_NEGATIVE );
+       67:  140:    svgJob->m_sketchPadsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_PADS_ON_FAB_LAYERS );
+       67:  141:    if( svgJob->m_sketchPadsOnFabLayers )
+    #####:  142:        svgJob->m_plotPadNumbers = true;
+       67:  143:    svgJob->m_hideDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS );
+       67:  144:    svgJob->m_sketchDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS );
+       67:  145:    svgJob->m_crossoutDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS );
+       67:  146:    int drillShape = m_argParser.get<int>( ARG_DRILL_SHAPE_OPTION );
+       67:  147:    svgJob->m_drillShapeOption = static_cast<DRILL_MARKS>( drillShape );
+       67:  148:    svgJob->m_drawingSheet = m_argDrawingSheet;
+       67:  149:    svgJob->m_subtractSolderMaskFromSilk = m_argParser.get<bool>( ARG_SUBTRACT_SOLDERMASK );
+       67:  150:    svgJob->m_scale = m_argParser.get<double>( ARG_SCALE );
+       67:  151:    svgJob->m_checkZonesBeforePlot = m_argParser.get<bool>( ARG_CHECK_ZONES );
+        -:  152:
+       67:  153:    svgJob->m_fitPageToBoard = m_argParser.get<bool>( ARG_FIT_PAGE_TO_BOARD );
+        -:  154:
+        -:  155:    // legacy compat, should eliminate this arg eventually
+       67:  156:    int legacyPageSizeMode = m_argParser.get<int>( ARG_PAGE_SIZE );
+        -:  157:
+       67:  158:    if( legacyPageSizeMode == 0 )
+        -:  159:    {
+    #####:  160:        svgJob->m_plotDrawingSheet = true;
+        -:  161:    }
+       67:  162:    else if( legacyPageSizeMode == 1 )
+        -:  163:    {
+    #####:  164:        svgJob->m_plotDrawingSheet = false;
+        -:  165:    }
+       67:  166:    else if( legacyPageSizeMode == 2 )
+        -:  167:    {
+       67:  168:        svgJob->m_fitPageToBoard = true;
+       67:  169:        svgJob->m_plotDrawingSheet = false;
+        -:  170:    }
+        -:  171:
+       67:  172:    svgJob->m_filename = m_argInput;
+       67:  173:    svgJob->SetConfiguredOutputPath( m_argOutput );
+       67:  174:    svgJob->m_colorTheme = From_UTF8( m_argParser.get<std::string>( ARG_THEME ).c_str() );
+       67:  175:    svgJob->m_plotDrawingSheet = !m_argParser.get<bool>( ARG_EXCLUDE_DRAWING_SHEET );
+       67:  176:    svgJob->SetVarOverrides( m_argDefineVars );
+        -:  177:
+       67:  178:    if( !m_argVariantNames.empty() )
+    #####:  179:        svgJob->m_variant = m_argVariantNames.front();
+        -:  180:
+       67:  181:    svgJob->m_argLayers = From_UTF8( m_argParser.get<std::string>( ARG_LAYERS ).c_str() );
+       67:  182:    svgJob->m_argCommonLayers = From_UTF8( m_argParser.get<std::string>( ARG_COMMON_LAYERS ).c_str() );
+        -:  183:
+       67:  184:    if( !wxFile::Exists( svgJob->m_filename ) )
+        -:  185:    {
+    #####:  186:        wxFprintf( stderr, _( "Board file does not exist or is not accessible\n" ) );
+    #####:  187:        return EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:  188:    }
+        -:  189:
+       67:  190:    if( m_argParser.get<bool>( ARG_MODE_MULTI ) )
+    #####:  191:        svgJob->m_genMode = JOB_EXPORT_PCB_SVG::GEN_MODE::MULTI;
+       67:  192:    else if( m_argParser.get<bool>( ARG_MODE_SINGLE ) )
+    #####:  193:        svgJob->m_genMode = JOB_EXPORT_PCB_SVG::GEN_MODE::SINGLE;
+       67:  194:    else if( svgJob->m_genMode == JOB_EXPORT_PCB_SVG::GEN_MODE::SINGLE )
+        -:  195:    {
+        -:  196:        // TODO remove this block when changing the default for JOB_EXPORT_PCB_SVG::m_genMode
+       67:  197:        wxFprintf( stdout, wxT( "\033[33;1m%s\033[0m\n" ),
+      134:  198:                   _( "This command has deprecated behavior as of KiCad 9.0, the default behavior "
+        -:  199:                      "of this command will change in a future release." ) );
+        -:  200:
+       67:  201:        wxFprintf( stdout, wxT( "\033[33;1m%s\033[0m\n" ),
+      134:  202:                   _( "The new behavior will match --mode-multi" ) );
+        -:  203:    }
+        -:  204:
+       67:  205:    return aKiway.ProcessJob( KIWAY::FACE_PCB, svgJob.get() );
+       67:  206:}

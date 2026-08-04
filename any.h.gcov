@@ -1,0 +1,1893 @@
+        -:    0:Source:/usr/include/wx-3.2/wx/any.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1://///////////////////////////////////////////////////////////////////////////
+        -:    2:// Name:        wx/any.h
+        -:    3:// Purpose:     wxAny class
+        -:    4:// Author:      Jaakko Salli
+        -:    5:// Modified by:
+        -:    6:// Created:     07/05/2009
+        -:    7:// Copyright:   (c) wxWidgets team
+        -:    8:// Licence:     wxWindows licence
+        -:    9://///////////////////////////////////////////////////////////////////////////
+        -:   10:
+        -:   11:#ifndef _WX_ANY_H_
+        -:   12:#define _WX_ANY_H_
+        -:   13:
+        -:   14:#include "wx/defs.h"
+        -:   15:
+        -:   16:#if wxUSE_ANY
+        -:   17:
+        -:   18:#include <new> // for placement new
+        -:   19:#include "wx/string.h"
+        -:   20:#include "wx/meta/if.h"
+        -:   21:#include "wx/typeinfo.h"
+        -:   22:#include "wx/list.h"
+        -:   23:
+        -:   24:// Size of the wxAny value buffer.
+        -:   25:enum
+        -:   26:{
+        -:   27:    WX_ANY_VALUE_BUFFER_SIZE = 16
+        -:   28:};
+        -:   29:
+        -:   30:union wxAnyValueBuffer
+        -:   31:{
+        -:   32:    union Alignment
+        -:   33:    {
+        -:   34:    #if wxHAS_INT64
+        -:   35:        wxInt64 m_int64;
+        -:   36:    #endif
+        -:   37:        long double m_longDouble;
+        -:   38:        void ( *m_funcPtr )(void);
+        -:   39:        void ( wxAnyValueBuffer::*m_mFuncPtr )(void);
+        -:   40:    } m_alignment;
+        -:   41:
+        -:   42:    void*   m_ptr;
+        -:   43:    wxByte  m_buffer[WX_ANY_VALUE_BUFFER_SIZE];
+        -:   44:
+    #####:   45:    wxAnyValueBuffer()
+    #####:   46:    {
+    #####:   47:        m_ptr = NULL;
+    #####:   48:    }
+        -:   49:};
+        -:   50:
+        -:   51://
+        -:   52:// wxAnyValueType is base class for value type functionality for C++ data
+        -:   53:// types used with wxAny. Usually the default template (wxAnyValueTypeImpl<>)
+        -:   54:// will create a satisfactory wxAnyValueType implementation for a data type.
+        -:   55://
+        -:   56:class WXDLLIMPEXP_BASE wxAnyValueType
+        -:   57:{
+        -:   58:    WX_DECLARE_ABSTRACT_TYPEINFO(wxAnyValueType)
+        -:   59:public:
+        -:   60:    /**
+        -:   61:        Default constructor.
+        -:   62:    */
+    #####:   63:    wxAnyValueType()
+    #####:   64:    {
+    #####:   65:    }
+        -:   66:
+        -:   67:    /**
+        -:   68:        Destructor.
+        -:   69:    */
+    #####:   70:    virtual ~wxAnyValueType()
+    #####:   71:    {
+    #####:   72:    }
+------------------
+wxAnyValueType::~wxAnyValueType():
+    #####:   70:    virtual ~wxAnyValueType()
+        -:   71:    {
+    #####:   72:    }
+------------------
+wxAnyValueType::~wxAnyValueType():
+    #####:   70:    virtual ~wxAnyValueType()
+    #####:   71:    {
+    #####:   72:    }
+------------------
+        -:   73:
+        -:   74:    /**
+        -:   75:        This function is used for internal type matching.
+        -:   76:    */
+        -:   77:    virtual bool IsSameType(const wxAnyValueType* otherType) const = 0;
+        -:   78:
+        -:   79:    /**
+        -:   80:        This function is called every time the data in wxAny
+        -:   81:        buffer needs to be freed.
+        -:   82:    */
+        -:   83:    virtual void DeleteValue(wxAnyValueBuffer& buf) const = 0;
+        -:   84:
+        -:   85:    /**
+        -:   86:        Implement this for buffer-to-buffer copy.
+        -:   87:
+        -:   88:        @param src
+        -:   89:            This is the source data buffer.
+        -:   90:
+        -:   91:        @param dst
+        -:   92:            This is the destination data buffer that is in either
+        -:   93:            uninitialized or freed state.
+        -:   94:    */
+        -:   95:    virtual void CopyBuffer(const wxAnyValueBuffer& src,
+        -:   96:                            wxAnyValueBuffer& dst) const = 0;
+        -:   97:
+        -:   98:    /**
+        -:   99:        Convert value into buffer of different type. Return false if
+        -:  100:        not possible.
+        -:  101:    */
+        -:  102:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  103:                              wxAnyValueType* dstType,
+        -:  104:                              wxAnyValueBuffer& dst) const = 0;
+        -:  105:
+        -:  106:    /**
+        -:  107:        Use this template function for checking if wxAnyValueType represents
+        -:  108:        a specific C++ data type.
+        -:  109:
+        -:  110:        @see wxAny::CheckType()
+        -:  111:    */
+        -:  112:    template <typename T>
+        -:  113:    bool CheckType() const;
+        -:  114:
+        -:  115:#if wxUSE_EXTENDED_RTTI
+        -:  116:    virtual const wxTypeInfo* GetTypeInfo() const = 0;
+        -:  117:#endif
+        -:  118:private:
+        -:  119:};
+        -:  120:
+        -:  121:
+        -:  122://
+        -:  123:// We need to allocate wxAnyValueType instances in heap, and need to use
+        -:  124:// scoped ptr to properly deallocate them in dynamic library use cases.
+        -:  125:// Here we have a minimal specialized scoped ptr implementation to deal
+        -:  126:// with various compiler-specific problems with template class' static
+        -:  127:// member variable of template type with explicit constructor which
+        -:  128:// is initialized in global scope.
+        -:  129://
+        -:  130:class wxAnyValueTypeScopedPtr
+        -:  131:{
+        -:  132:public:
+    #####:  133:    wxAnyValueTypeScopedPtr(wxAnyValueType* ptr) : m_ptr(ptr) { }
+    #####:  134:    ~wxAnyValueTypeScopedPtr() { delete m_ptr; }
+    #####:  135:    wxAnyValueType* get() const { return m_ptr; }
+        -:  136:private:
+        -:  137:    wxAnyValueType* m_ptr;
+        -:  138:};
+        -:  139:
+        -:  140:
+        -:  141:// Deprecated macro for checking the type which was originally introduced for
+        -:  142:// MSVC6 compatibility and is not needed any longer now that this compiler is
+        -:  143:// not supported any more.
+        -:  144:#define wxANY_VALUE_TYPE_CHECK_TYPE(valueTypePtr, T) \
+        -:  145:    wxAnyValueTypeImpl<T>::IsSameClass(valueTypePtr)
+        -:  146:
+        -:  147:
+        -:  148:/**
+        -:  149:    Helper macro for defining user value types.
+        -:  150:
+        -:  151:    Even though C++ RTTI would be fully available to use, we'd have to
+        -:  152:    facilitate sub-type system which allows, for instance, wxAny with
+        -:  153:    signed short '15' to be treated equal to wxAny with signed long long '15'.
+        -:  154:    Having sm_instance is important here.
+        -:  155:
+        -:  156:    NB: We really need to have wxAnyValueType instances allocated
+        -:  157:        in heap. They are stored as static template member variables,
+        -:  158:        and with them we just can't be too careful (eg. not allocating
+        -:  159:        them in heap broke the type identification in GCC).
+        -:  160:*/
+        -:  161:#define WX_DECLARE_ANY_VALUE_TYPE(CLS) \
+        -:  162:    friend class wxAny; \
+        -:  163:    WX_DECLARE_TYPEINFO_INLINE(CLS) \
+        -:  164:public: \
+        -:  165:    static bool IsSameClass(const wxAnyValueType* otherType) \
+        -:  166:    { \
+        -:  167:        return AreSameClasses(*sm_instance.get(), *otherType); \
+        -:  168:    } \
+        -:  169:    virtual bool IsSameType(const wxAnyValueType* otherType) const wxOVERRIDE \
+        -:  170:    { \
+        -:  171:        return IsSameClass(otherType); \
+        -:  172:    } \
+        -:  173:private: \
+        -:  174:    static bool AreSameClasses(const wxAnyValueType& a, const wxAnyValueType& b) \
+        -:  175:    { \
+        -:  176:        return wxTypeId(a) == wxTypeId(b); \
+        -:  177:    } \
+        -:  178:    static wxAnyValueTypeScopedPtr sm_instance; \
+        -:  179:public: \
+        -:  180:    static wxAnyValueType* GetInstance() \
+        -:  181:    { \
+        -:  182:        return sm_instance.get(); \
+        -:  183:    }
+        -:  184:
+        -:  185:
+        -:  186:#define WX_IMPLEMENT_ANY_VALUE_TYPE(CLS) \
+        -:  187:wxAnyValueTypeScopedPtr CLS::sm_instance(new CLS());
+        -:  188:
+        -:  189:
+        -:  190:/**
+        -:  191:    Following are helper classes for the wxAnyValueTypeImplBase.
+        -:  192:*/
+        -:  193:namespace wxPrivate
+        -:  194:{
+        -:  195:
+        -:  196:template<typename T>
+        -:  197:class wxAnyValueTypeOpsInplace
+        -:  198:{
+        -:  199:public:
+    #####:  200:    static void DeleteValue(wxAnyValueBuffer& buf)
+        -:  201:    {
+    #####:  202:        GetValue(buf).~T();
+    #####:  203:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsInplace<std::optional<int> >::DeleteValue(wxAnyValueBuffer&):
+    #####:  200:    static void DeleteValue(wxAnyValueBuffer& buf)
+        -:  201:    {
+    #####:  202:        GetValue(buf).~T();
+    #####:  203:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsInplace<std::optional<double> >::DeleteValue(wxAnyValueBuffer&):
+    #####:  200:    static void DeleteValue(wxAnyValueBuffer& buf)
+        -:  201:    {
+    #####:  202:        GetValue(buf).~T();
+    #####:  203:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsInplace<VECTOR2<int> >::DeleteValue(wxAnyValueBuffer&):
+    #####:  200:    static void DeleteValue(wxAnyValueBuffer& buf)
+        -:  201:    {
+    #####:  202:        GetValue(buf).~T();
+    #####:  203:    }
+------------------
+        -:  204:
+    #####:  205:    static void SetValue(const T& value,
+        -:  206:                         wxAnyValueBuffer& buf)
+        -:  207:    {
+        -:  208:        // Use placement new, taking care to avoid running into problems with
+        -:  209:        // "new" redefinition in wx/msw/msvcrt.h.
+        -:  210:#ifdef WXDEBUG_NEW
+        -:  211:    #undef new
+        -:  212:#endif
+        -:  213:
+    #####:  214:        void* const place = buf.m_buffer;
+    #####:  215:        ::new(place) T(value);
+        -:  216:
+        -:  217:#ifdef WXDEBUG_NEW
+        -:  218:    #define new WXDEBUG_NEW
+        -:  219:#endif
+    #####:  220:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsInplace<VECTOR2<int> >::SetValue(VECTOR2<int> const&, wxAnyValueBuffer&):
+    #####:  205:    static void SetValue(const T& value,
+        -:  206:                         wxAnyValueBuffer& buf)
+        -:  207:    {
+        -:  208:        // Use placement new, taking care to avoid running into problems with
+        -:  209:        // "new" redefinition in wx/msw/msvcrt.h.
+        -:  210:#ifdef WXDEBUG_NEW
+        -:  211:    #undef new
+        -:  212:#endif
+        -:  213:
+    #####:  214:        void* const place = buf.m_buffer;
+    #####:  215:        ::new(place) T(value);
+        -:  216:
+        -:  217:#ifdef WXDEBUG_NEW
+        -:  218:    #define new WXDEBUG_NEW
+        -:  219:#endif
+    #####:  220:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsInplace<std::optional<double> >::SetValue(std::optional<double> const&, wxAnyValueBuffer&):
+    #####:  205:    static void SetValue(const T& value,
+        -:  206:                         wxAnyValueBuffer& buf)
+        -:  207:    {
+        -:  208:        // Use placement new, taking care to avoid running into problems with
+        -:  209:        // "new" redefinition in wx/msw/msvcrt.h.
+        -:  210:#ifdef WXDEBUG_NEW
+        -:  211:    #undef new
+        -:  212:#endif
+        -:  213:
+    #####:  214:        void* const place = buf.m_buffer;
+    #####:  215:        ::new(place) T(value);
+        -:  216:
+        -:  217:#ifdef WXDEBUG_NEW
+        -:  218:    #define new WXDEBUG_NEW
+        -:  219:#endif
+    #####:  220:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsInplace<std::optional<int> >::SetValue(std::optional<int> const&, wxAnyValueBuffer&):
+    #####:  205:    static void SetValue(const T& value,
+        -:  206:                         wxAnyValueBuffer& buf)
+        -:  207:    {
+        -:  208:        // Use placement new, taking care to avoid running into problems with
+        -:  209:        // "new" redefinition in wx/msw/msvcrt.h.
+        -:  210:#ifdef WXDEBUG_NEW
+        -:  211:    #undef new
+        -:  212:#endif
+        -:  213:
+    #####:  214:        void* const place = buf.m_buffer;
+    #####:  215:        ::new(place) T(value);
+        -:  216:
+        -:  217:#ifdef WXDEBUG_NEW
+        -:  218:    #define new WXDEBUG_NEW
+        -:  219:#endif
+    #####:  220:    }
+------------------
+        -:  221:
+    #####:  222:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  223:    {
+        -:  224:        // Use a union to avoid undefined behaviour (and gcc -Wstrict-alias
+        -:  225:        // warnings about it) which would occur if we just casted a wxByte
+        -:  226:        // pointer to a T one.
+        -:  227:        union
+        -:  228:        {
+        -:  229:            const T* ptr;
+        -:  230:            const wxByte *buf;
+    #####:  231:        } u;
+    #####:  232:        u.buf = buf.m_buffer;
+        -:  233:
+    #####:  234:        return *u.ptr;
+        -:  235:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsInplace<std::optional<double> >::GetValue(wxAnyValueBuffer const&):
+    #####:  222:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  223:    {
+        -:  224:        // Use a union to avoid undefined behaviour (and gcc -Wstrict-alias
+        -:  225:        // warnings about it) which would occur if we just casted a wxByte
+        -:  226:        // pointer to a T one.
+        -:  227:        union
+        -:  228:        {
+        -:  229:            const T* ptr;
+        -:  230:            const wxByte *buf;
+    #####:  231:        } u;
+    #####:  232:        u.buf = buf.m_buffer;
+        -:  233:
+    #####:  234:        return *u.ptr;
+        -:  235:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsInplace<std::optional<int> >::GetValue(wxAnyValueBuffer const&):
+    #####:  222:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  223:    {
+        -:  224:        // Use a union to avoid undefined behaviour (and gcc -Wstrict-alias
+        -:  225:        // warnings about it) which would occur if we just casted a wxByte
+        -:  226:        // pointer to a T one.
+        -:  227:        union
+        -:  228:        {
+        -:  229:            const T* ptr;
+        -:  230:            const wxByte *buf;
+    #####:  231:        } u;
+    #####:  232:        u.buf = buf.m_buffer;
+        -:  233:
+    #####:  234:        return *u.ptr;
+        -:  235:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsInplace<VECTOR2<int> >::GetValue(wxAnyValueBuffer const&):
+    #####:  222:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  223:    {
+        -:  224:        // Use a union to avoid undefined behaviour (and gcc -Wstrict-alias
+        -:  225:        // warnings about it) which would occur if we just casted a wxByte
+        -:  226:        // pointer to a T one.
+        -:  227:        union
+        -:  228:        {
+        -:  229:            const T* ptr;
+        -:  230:            const wxByte *buf;
+    #####:  231:        } u;
+    #####:  232:        u.buf = buf.m_buffer;
+        -:  233:
+    #####:  234:        return *u.ptr;
+        -:  235:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsInplace<bool>::GetValue(wxAnyValueBuffer const&):
+    #####:  222:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  223:    {
+        -:  224:        // Use a union to avoid undefined behaviour (and gcc -Wstrict-alias
+        -:  225:        // warnings about it) which would occur if we just casted a wxByte
+        -:  226:        // pointer to a T one.
+        -:  227:        union
+        -:  228:        {
+        -:  229:            const T* ptr;
+        -:  230:            const wxByte *buf;
+    #####:  231:        } u;
+    #####:  232:        u.buf = buf.m_buffer;
+        -:  233:
+    #####:  234:        return *u.ptr;
+        -:  235:    }
+------------------
+        -:  236:};
+        -:  237:
+        -:  238:
+        -:  239:template<typename T>
+        -:  240:class wxAnyValueTypeOpsGeneric
+        -:  241:{
+        -:  242:public:
+        -:  243:    template<typename T2>
+        -:  244:    class DataHolder
+        -:  245:    {
+        -:  246:    public:
+    #####:  247:        DataHolder(const T2& value)
+    #####:  248:            : m_value(value)
+        -:  249:        {
+    #####:  250:        }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<SHAPE_LINE_CHAIN>::DataHolder<SHAPE_LINE_CHAIN>::DataHolder(SHAPE_LINE_CHAIN const&):
+    #####:  247:        DataHolder(const T2& value)
+    #####:  248:            : m_value(value)
+        -:  249:        {
+    #####:  250:        }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::DataHolder<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::DataHolder(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&):
+    #####:  247:        DataHolder(const T2& value)
+    #####:  248:            : m_value(value)
+        -:  249:        {
+    #####:  250:        }
+------------------
+    #####:  251:        virtual ~DataHolder() { }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<SHAPE_LINE_CHAIN>::DataHolder<SHAPE_LINE_CHAIN>::~DataHolder():
+    #####:  251:        virtual ~DataHolder() { }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<SHAPE_LINE_CHAIN>::DataHolder<SHAPE_LINE_CHAIN>::~DataHolder():
+    #####:  251:        virtual ~DataHolder() { }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::DataHolder<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::~DataHolder():
+    #####:  251:        virtual ~DataHolder() { }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::DataHolder<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::~DataHolder():
+    #####:  251:        virtual ~DataHolder() { }
+------------------
+        -:  252:
+        -:  253:        T2   m_value;
+        -:  254:    private:
+        -:  255:        wxDECLARE_NO_COPY_CLASS(DataHolder);
+        -:  256:    };
+        -:  257:
+    #####:  258:    static void DeleteValue(wxAnyValueBuffer& buf)
+        -:  259:    {
+    #####:  260:        DataHolder<T>* holder = static_cast<DataHolder<T>*>(buf.m_ptr);
+    #####:  261:        delete holder;
+    #####:  262:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<SHAPE_LINE_CHAIN>::DeleteValue(wxAnyValueBuffer&):
+    #####:  258:    static void DeleteValue(wxAnyValueBuffer& buf)
+        -:  259:    {
+    #####:  260:        DataHolder<T>* holder = static_cast<DataHolder<T>*>(buf.m_ptr);
+    #####:  261:        delete holder;
+    #####:  262:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::DeleteValue(wxAnyValueBuffer&):
+    #####:  258:    static void DeleteValue(wxAnyValueBuffer& buf)
+        -:  259:    {
+    #####:  260:        DataHolder<T>* holder = static_cast<DataHolder<T>*>(buf.m_ptr);
+    #####:  261:        delete holder;
+    #####:  262:    }
+------------------
+        -:  263:
+    #####:  264:    static void SetValue(const T& value,
+        -:  265:                         wxAnyValueBuffer& buf)
+        -:  266:    {
+    #####:  267:        DataHolder<T>* holder = new DataHolder<T>(value);
+    #####:  268:        buf.m_ptr = holder;
+    #####:  269:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<SHAPE_LINE_CHAIN>::SetValue(SHAPE_LINE_CHAIN const&, wxAnyValueBuffer&):
+    #####:  264:    static void SetValue(const T& value,
+        -:  265:                         wxAnyValueBuffer& buf)
+        -:  266:    {
+    #####:  267:        DataHolder<T>* holder = new DataHolder<T>(value);
+    #####:  268:        buf.m_ptr = holder;
+    #####:  269:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::SetValue(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, wxAnyValueBuffer&):
+    #####:  264:    static void SetValue(const T& value,
+        -:  265:                         wxAnyValueBuffer& buf)
+        -:  266:    {
+    #####:  267:        DataHolder<T>* holder = new DataHolder<T>(value);
+    #####:  268:        buf.m_ptr = holder;
+    #####:  269:    }
+------------------
+        -:  270:
+    #####:  271:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  272:    {
+    #####:  273:        DataHolder<T>* holder = static_cast<DataHolder<T>*>(buf.m_ptr);
+    #####:  274:        return holder->m_value;
+        -:  275:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::GetValue(wxAnyValueBuffer const&):
+    #####:  271:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  272:    {
+    #####:  273:        DataHolder<T>* holder = static_cast<DataHolder<T>*>(buf.m_ptr);
+    #####:  274:        return holder->m_value;
+        -:  275:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<SHAPE_LINE_CHAIN>::GetValue(wxAnyValueBuffer const&):
+    #####:  271:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  272:    {
+    #####:  273:        DataHolder<T>* holder = static_cast<DataHolder<T>*>(buf.m_ptr);
+    #####:  274:        return holder->m_value;
+        -:  275:    }
+------------------
+wxPrivate::wxAnyValueTypeOpsGeneric<wxString>::GetValue(wxAnyValueBuffer const&):
+    #####:  271:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  272:    {
+    #####:  273:        DataHolder<T>* holder = static_cast<DataHolder<T>*>(buf.m_ptr);
+    #####:  274:        return holder->m_value;
+        -:  275:    }
+------------------
+        -:  276:};
+        -:  277:
+        -:  278:
+        -:  279:template <typename T>
+        -:  280:struct wxAnyAsImpl;
+        -:  281:
+        -:  282:} // namespace wxPrivate
+        -:  283:
+        -:  284:
+        -:  285:/**
+        -:  286:    Intermediate template for the generic value type implementation.
+        -:  287:    We can derive from this same value type for multiple actual types
+        -:  288:    (for instance, we can have wxAnyValueTypeImplInt for all signed
+        -:  289:    integer types), and also easily implement specialized templates
+        -:  290:    with specific dynamic type conversion.
+        -:  291:*/
+        -:  292:template<typename T>
+        -:  293:class wxAnyValueTypeImplBase : public wxAnyValueType
+        -:  294:{
+        -:  295:    typedef typename wxIf< sizeof(T) <= WX_ANY_VALUE_BUFFER_SIZE,
+        -:  296:                           wxPrivate::wxAnyValueTypeOpsInplace<T>,
+        -:  297:                           wxPrivate::wxAnyValueTypeOpsGeneric<T> >::value
+        -:  298:            Ops;
+        -:  299:
+        -:  300:public:
+      57*:  301:    wxAnyValueTypeImplBase() : wxAnyValueType() { }
+------------------
+wxAnyValueTypeImplBase<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::wxAnyValueTypeImplBase():
+       19:  301:    wxAnyValueTypeImplBase() : wxAnyValueType() { }
+------------------
+wxAnyValueTypeImplBase<SHAPE_LINE_CHAIN>::wxAnyValueTypeImplBase():
+       19:  301:    wxAnyValueTypeImplBase() : wxAnyValueType() { }
+------------------
+wxAnyValueTypeImplBase<VECTOR2<int> >::wxAnyValueTypeImplBase():
+       19:  301:    wxAnyValueTypeImplBase() : wxAnyValueType() { }
+------------------
+wxAnyValueTypeImplBase<std::optional<double> >::wxAnyValueTypeImplBase():
+    #####:  301:    wxAnyValueTypeImplBase() : wxAnyValueType() { }
+------------------
+wxAnyValueTypeImplBase<std::optional<int> >::wxAnyValueTypeImplBase():
+    #####:  301:    wxAnyValueTypeImplBase() : wxAnyValueType() { }
+------------------
+      57*:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+wxAnyValueTypeImplBase<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::~wxAnyValueTypeImplBase():
+    #####:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+wxAnyValueTypeImplBase<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::~wxAnyValueTypeImplBase():
+       19:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+wxAnyValueTypeImplBase<SHAPE_LINE_CHAIN>::~wxAnyValueTypeImplBase():
+    #####:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+wxAnyValueTypeImplBase<SHAPE_LINE_CHAIN>::~wxAnyValueTypeImplBase():
+       19:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+wxAnyValueTypeImplBase<VECTOR2<int> >::~wxAnyValueTypeImplBase():
+    #####:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+wxAnyValueTypeImplBase<VECTOR2<int> >::~wxAnyValueTypeImplBase():
+       19:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+wxAnyValueTypeImplBase<std::optional<double> >::~wxAnyValueTypeImplBase():
+    #####:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+wxAnyValueTypeImplBase<std::optional<double> >::~wxAnyValueTypeImplBase():
+    #####:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+wxAnyValueTypeImplBase<std::optional<int> >::~wxAnyValueTypeImplBase():
+    #####:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+wxAnyValueTypeImplBase<std::optional<int> >::~wxAnyValueTypeImplBase():
+    #####:  302:    virtual ~wxAnyValueTypeImplBase() { }
+------------------
+        -:  303:
+    #####:  304:    virtual void DeleteValue(wxAnyValueBuffer& buf) const wxOVERRIDE
+        -:  305:    {
+    #####:  306:        Ops::DeleteValue(buf);
+    #####:  307:    }
+------------------
+wxAnyValueTypeImplBase<std::optional<int> >::DeleteValue(wxAnyValueBuffer&) const:
+    #####:  304:    virtual void DeleteValue(wxAnyValueBuffer& buf) const wxOVERRIDE
+        -:  305:    {
+    #####:  306:        Ops::DeleteValue(buf);
+    #####:  307:    }
+------------------
+wxAnyValueTypeImplBase<std::optional<double> >::DeleteValue(wxAnyValueBuffer&) const:
+    #####:  304:    virtual void DeleteValue(wxAnyValueBuffer& buf) const wxOVERRIDE
+        -:  305:    {
+    #####:  306:        Ops::DeleteValue(buf);
+    #####:  307:    }
+------------------
+wxAnyValueTypeImplBase<VECTOR2<int> >::DeleteValue(wxAnyValueBuffer&) const:
+    #####:  304:    virtual void DeleteValue(wxAnyValueBuffer& buf) const wxOVERRIDE
+        -:  305:    {
+    #####:  306:        Ops::DeleteValue(buf);
+    #####:  307:    }
+------------------
+wxAnyValueTypeImplBase<SHAPE_LINE_CHAIN>::DeleteValue(wxAnyValueBuffer&) const:
+    #####:  304:    virtual void DeleteValue(wxAnyValueBuffer& buf) const wxOVERRIDE
+        -:  305:    {
+    #####:  306:        Ops::DeleteValue(buf);
+    #####:  307:    }
+------------------
+wxAnyValueTypeImplBase<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::DeleteValue(wxAnyValueBuffer&) const:
+    #####:  304:    virtual void DeleteValue(wxAnyValueBuffer& buf) const wxOVERRIDE
+        -:  305:    {
+    #####:  306:        Ops::DeleteValue(buf);
+    #####:  307:    }
+------------------
+        -:  308:
+    #####:  309:    virtual void CopyBuffer(const wxAnyValueBuffer& src,
+        -:  310:                            wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  311:    {
+    #####:  312:        Ops::SetValue(Ops::GetValue(src), dst);
+    #####:  313:    }
+------------------
+wxAnyValueTypeImplBase<std::optional<int> >::CopyBuffer(wxAnyValueBuffer const&, wxAnyValueBuffer&) const:
+    #####:  309:    virtual void CopyBuffer(const wxAnyValueBuffer& src,
+        -:  310:                            wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  311:    {
+    #####:  312:        Ops::SetValue(Ops::GetValue(src), dst);
+    #####:  313:    }
+------------------
+wxAnyValueTypeImplBase<std::optional<double> >::CopyBuffer(wxAnyValueBuffer const&, wxAnyValueBuffer&) const:
+    #####:  309:    virtual void CopyBuffer(const wxAnyValueBuffer& src,
+        -:  310:                            wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  311:    {
+    #####:  312:        Ops::SetValue(Ops::GetValue(src), dst);
+    #####:  313:    }
+------------------
+wxAnyValueTypeImplBase<VECTOR2<int> >::CopyBuffer(wxAnyValueBuffer const&, wxAnyValueBuffer&) const:
+    #####:  309:    virtual void CopyBuffer(const wxAnyValueBuffer& src,
+        -:  310:                            wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  311:    {
+    #####:  312:        Ops::SetValue(Ops::GetValue(src), dst);
+    #####:  313:    }
+------------------
+wxAnyValueTypeImplBase<SHAPE_LINE_CHAIN>::CopyBuffer(wxAnyValueBuffer const&, wxAnyValueBuffer&) const:
+    #####:  309:    virtual void CopyBuffer(const wxAnyValueBuffer& src,
+        -:  310:                            wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  311:    {
+    #####:  312:        Ops::SetValue(Ops::GetValue(src), dst);
+    #####:  313:    }
+------------------
+wxAnyValueTypeImplBase<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::CopyBuffer(wxAnyValueBuffer const&, wxAnyValueBuffer&) const:
+    #####:  309:    virtual void CopyBuffer(const wxAnyValueBuffer& src,
+        -:  310:                            wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  311:    {
+    #####:  312:        Ops::SetValue(Ops::GetValue(src), dst);
+    #####:  313:    }
+------------------
+        -:  314:
+        -:  315:    /**
+        -:  316:        It is important to reimplement this in any specialized template
+        -:  317:        classes that inherit from wxAnyValueTypeImplBase.
+        -:  318:    */
+        -:  319:    static void SetValue(const T& value,
+        -:  320:                         wxAnyValueBuffer& buf)
+        -:  321:    {
+        -:  322:        Ops::SetValue(value, buf);
+        -:  323:    }
+        -:  324:
+        -:  325:    /**
+        -:  326:        It is important to reimplement this in any specialized template
+        -:  327:        classes that inherit from wxAnyValueTypeImplBase.
+        -:  328:    */
+    #####:  329:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  330:    {
+    #####:  331:        return Ops::GetValue(buf);
+        -:  332:    }
+------------------
+wxAnyValueTypeImplBase<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::GetValue(wxAnyValueBuffer const&):
+    #####:  329:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  330:    {
+    #####:  331:        return Ops::GetValue(buf);
+        -:  332:    }
+------------------
+wxAnyValueTypeImplBase<SHAPE_LINE_CHAIN>::GetValue(wxAnyValueBuffer const&):
+    #####:  329:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  330:    {
+    #####:  331:        return Ops::GetValue(buf);
+        -:  332:    }
+------------------
+wxAnyValueTypeImplBase<VECTOR2<int> >::GetValue(wxAnyValueBuffer const&):
+    #####:  329:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  330:    {
+    #####:  331:        return Ops::GetValue(buf);
+        -:  332:    }
+------------------
+wxAnyValueTypeImplBase<bool>::GetValue(wxAnyValueBuffer const&):
+    #####:  329:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  330:    {
+    #####:  331:        return Ops::GetValue(buf);
+        -:  332:    }
+------------------
+wxAnyValueTypeImplBase<wxString>::GetValue(wxAnyValueBuffer const&):
+    #####:  329:    static const T& GetValue(const wxAnyValueBuffer& buf)
+        -:  330:    {
+    #####:  331:        return Ops::GetValue(buf);
+        -:  332:    }
+------------------
+        -:  333:#if wxUSE_EXTENDED_RTTI
+        -:  334:    virtual const wxTypeInfo* GetTypeInfo() const
+        -:  335:    {
+        -:  336:        return wxGetTypeInfo((T*)NULL);
+        -:  337:    }
+        -:  338:#endif
+        -:  339:};
+        -:  340:
+        -:  341:
+        -:  342:/*
+        -:  343:    Generic value type template. Note that bulk of the implementation
+        -:  344:    resides in wxAnyValueTypeImplBase.
+        -:  345:*/
+        -:  346:template<typename T>
+        -:  347:class wxAnyValueTypeImpl : public wxAnyValueTypeImplBase<T>
+        -:  348:{
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<std::optional<int> >::IsSameType(wxAnyValueType const*) const:
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<std::optional<double> >::IsSameType(wxAnyValueType const*) const:
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<VECTOR2<int> >::IsSameType(wxAnyValueType const*) const:
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<SHAPE_LINE_CHAIN>::IsSameType(wxAnyValueType const*) const:
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::IsSameType(wxAnyValueType const*) const:
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<std::optional<double> >::AreSameClasses(wxAnyValueType const&, wxAnyValueType const&):
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<std::optional<int> >::AreSameClasses(wxAnyValueType const&, wxAnyValueType const&):
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<std::optional<double> >::IsSameClass(wxAnyValueType const*):
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<std::optional<int> >::IsSameClass(wxAnyValueType const*):
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::AreSameClasses(wxAnyValueType const&, wxAnyValueType const&):
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<SHAPE_LINE_CHAIN>::AreSameClasses(wxAnyValueType const&, wxAnyValueType const&):
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<VECTOR2<int> >::AreSameClasses(wxAnyValueType const&, wxAnyValueType const&):
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::IsSameClass(wxAnyValueType const*):
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<SHAPE_LINE_CHAIN>::IsSameClass(wxAnyValueType const*):
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+wxAnyValueTypeImpl<VECTOR2<int> >::IsSameClass(wxAnyValueType const*):
+    #####:  349:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<T>)
+------------------
+        -:  350:public:
+      57*:  351:    wxAnyValueTypeImpl() : wxAnyValueTypeImplBase<T>() { }
+------------------
+wxAnyValueTypeImpl<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::wxAnyValueTypeImpl():
+       19:  351:    wxAnyValueTypeImpl() : wxAnyValueTypeImplBase<T>() { }
+------------------
+wxAnyValueTypeImpl<SHAPE_LINE_CHAIN>::wxAnyValueTypeImpl():
+       19:  351:    wxAnyValueTypeImpl() : wxAnyValueTypeImplBase<T>() { }
+------------------
+wxAnyValueTypeImpl<VECTOR2<int> >::wxAnyValueTypeImpl():
+       19:  351:    wxAnyValueTypeImpl() : wxAnyValueTypeImplBase<T>() { }
+------------------
+wxAnyValueTypeImpl<std::optional<double> >::wxAnyValueTypeImpl():
+    #####:  351:    wxAnyValueTypeImpl() : wxAnyValueTypeImplBase<T>() { }
+------------------
+wxAnyValueTypeImpl<std::optional<int> >::wxAnyValueTypeImpl():
+    #####:  351:    wxAnyValueTypeImpl() : wxAnyValueTypeImplBase<T>() { }
+------------------
+     114*:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+wxAnyValueTypeImpl<std::optional<int> >::~wxAnyValueTypeImpl():
+    #####:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+wxAnyValueTypeImpl<std::optional<int> >::~wxAnyValueTypeImpl():
+    #####:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+wxAnyValueTypeImpl<std::optional<double> >::~wxAnyValueTypeImpl():
+    #####:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+wxAnyValueTypeImpl<std::optional<double> >::~wxAnyValueTypeImpl():
+    #####:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+wxAnyValueTypeImpl<VECTOR2<int> >::~wxAnyValueTypeImpl():
+       19:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+wxAnyValueTypeImpl<VECTOR2<int> >::~wxAnyValueTypeImpl():
+       19:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+wxAnyValueTypeImpl<SHAPE_LINE_CHAIN>::~wxAnyValueTypeImpl():
+       19:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+wxAnyValueTypeImpl<SHAPE_LINE_CHAIN>::~wxAnyValueTypeImpl():
+       19:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+wxAnyValueTypeImpl<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::~wxAnyValueTypeImpl():
+       19:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+wxAnyValueTypeImpl<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::~wxAnyValueTypeImpl():
+       19:  352:    virtual ~wxAnyValueTypeImpl() { }
+------------------
+        -:  353:
+    #####:  354:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  355:                              wxAnyValueType* dstType,
+        -:  356:                              wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  357:    {
+    #####:  358:        wxUnusedVar(src);
+    #####:  359:        wxUnusedVar(dstType);
+    #####:  360:        wxUnusedVar(dst);
+    #####:  361:        return false;
+        -:  362:    }
+------------------
+wxAnyValueTypeImpl<std::optional<int> >::ConvertValue(wxAnyValueBuffer const&, wxAnyValueType*, wxAnyValueBuffer&) const:
+    #####:  354:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  355:                              wxAnyValueType* dstType,
+        -:  356:                              wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  357:    {
+    #####:  358:        wxUnusedVar(src);
+    #####:  359:        wxUnusedVar(dstType);
+    #####:  360:        wxUnusedVar(dst);
+    #####:  361:        return false;
+        -:  362:    }
+------------------
+wxAnyValueTypeImpl<std::optional<double> >::ConvertValue(wxAnyValueBuffer const&, wxAnyValueType*, wxAnyValueBuffer&) const:
+    #####:  354:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  355:                              wxAnyValueType* dstType,
+        -:  356:                              wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  357:    {
+    #####:  358:        wxUnusedVar(src);
+    #####:  359:        wxUnusedVar(dstType);
+    #####:  360:        wxUnusedVar(dst);
+    #####:  361:        return false;
+        -:  362:    }
+------------------
+wxAnyValueTypeImpl<VECTOR2<int> >::ConvertValue(wxAnyValueBuffer const&, wxAnyValueType*, wxAnyValueBuffer&) const:
+    #####:  354:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  355:                              wxAnyValueType* dstType,
+        -:  356:                              wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  357:    {
+    #####:  358:        wxUnusedVar(src);
+    #####:  359:        wxUnusedVar(dstType);
+    #####:  360:        wxUnusedVar(dst);
+    #####:  361:        return false;
+        -:  362:    }
+------------------
+wxAnyValueTypeImpl<SHAPE_LINE_CHAIN>::ConvertValue(wxAnyValueBuffer const&, wxAnyValueType*, wxAnyValueBuffer&) const:
+    #####:  354:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  355:                              wxAnyValueType* dstType,
+        -:  356:                              wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  357:    {
+    #####:  358:        wxUnusedVar(src);
+    #####:  359:        wxUnusedVar(dstType);
+    #####:  360:        wxUnusedVar(dst);
+    #####:  361:        return false;
+        -:  362:    }
+------------------
+wxAnyValueTypeImpl<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >::ConvertValue(wxAnyValueBuffer const&, wxAnyValueType*, wxAnyValueBuffer&) const:
+    #####:  354:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  355:                              wxAnyValueType* dstType,
+        -:  356:                              wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  357:    {
+    #####:  358:        wxUnusedVar(src);
+    #####:  359:        wxUnusedVar(dstType);
+    #####:  360:        wxUnusedVar(dst);
+    #####:  361:        return false;
+        -:  362:    }
+------------------
+        -:  363:};
+        -:  364:
+        -:  365:template<typename T>
+        -:  366:wxAnyValueTypeScopedPtr wxAnyValueTypeImpl<T>::sm_instance = new wxAnyValueTypeImpl<T>();
+        -:  367:
+        -:  368:
+        -:  369://
+        -:  370:// Helper macro for using same base value type implementation for multiple
+        -:  371:// actual C++ data types.
+        -:  372://
+        -:  373:#define _WX_ANY_DEFINE_SUB_TYPE(T, CLSTYPE) \
+        -:  374:template<> \
+        -:  375:class wxAnyValueTypeImpl<T> : public wxAnyValueTypeImpl##CLSTYPE \
+        -:  376:{ \
+        -:  377:    typedef wxAnyBase##CLSTYPE##Type UseDataType; \
+        -:  378:public: \
+        -:  379:    wxAnyValueTypeImpl() : wxAnyValueTypeImpl##CLSTYPE() { } \
+        -:  380:    virtual ~wxAnyValueTypeImpl() { } \
+        -:  381:    static void SetValue(const T& value, wxAnyValueBuffer& buf) \
+        -:  382:    { \
+        -:  383:        void* voidPtr = reinterpret_cast<void*>(&buf.m_buffer[0]); \
+        -:  384:        UseDataType* dptr = reinterpret_cast<UseDataType*>(voidPtr); \
+        -:  385:        *dptr = static_cast<UseDataType>(value); \
+        -:  386:    } \
+        -:  387:    static T GetValue(const wxAnyValueBuffer& buf) \
+        -:  388:    { \
+        -:  389:        const void* voidPtr = \
+        -:  390:            reinterpret_cast<const void*>(&buf.m_buffer[0]); \
+        -:  391:        const UseDataType* sptr = \
+        -:  392:            reinterpret_cast<const UseDataType*>(voidPtr); \
+        -:  393:        return static_cast<T>(*sptr); \
+        -:  394:    }
+        -:  395:
+        -:  396:#if wxUSE_EXTENDED_RTTI
+        -:  397:#define WX_ANY_DEFINE_SUB_TYPE(T, CLSTYPE) \
+        -:  398:_WX_ANY_DEFINE_SUB_TYPE(T, CLSTYPE)\
+        -:  399:    virtual const wxTypeInfo* GetTypeInfo() const  \
+        -:  400:    { \
+        -:  401:        return wxGetTypeInfo((T*)NULL); \
+        -:  402:    } \
+        -:  403:};
+        -:  404:#else
+        -:  405:#define WX_ANY_DEFINE_SUB_TYPE(T, CLSTYPE) \
+        -:  406:_WX_ANY_DEFINE_SUB_TYPE(T, CLSTYPE)\
+        -:  407:};
+        -:  408:#endif
+        -:  409:
+        -:  410://
+        -:  411://  Integer value types
+        -:  412://
+        -:  413:
+        -:  414:#ifdef wxLongLong_t
+        -:  415:    typedef wxLongLong_t wxAnyBaseIntType;
+        -:  416:    typedef wxULongLong_t wxAnyBaseUintType;
+        -:  417:#else
+        -:  418:    typedef long wxAnyBaseIntType;
+        -:  419:    typedef unsigned long wxAnyBaseUintType;
+        -:  420:#endif
+        -:  421:
+        -:  422:
+        -:  423:class WXDLLIMPEXP_BASE wxAnyValueTypeImplInt :
+        -:  424:    public wxAnyValueTypeImplBase<wxAnyBaseIntType>
+        -:  425:{
+    #####:  426:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImplInt)
+------------------
+wxAnyValueTypeImplInt::AreSameClasses(wxAnyValueType const&, wxAnyValueType const&):
+    #####:  426:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImplInt)
+------------------
+wxAnyValueTypeImplInt::IsSameClass(wxAnyValueType const*):
+    #####:  426:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImplInt)
+------------------
+        -:  427:public:
+        -:  428:    wxAnyValueTypeImplInt() :
+        -:  429:        wxAnyValueTypeImplBase<wxAnyBaseIntType>() { }
+        -:  430:    virtual ~wxAnyValueTypeImplInt() { }
+        -:  431:
+        -:  432:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  433:                              wxAnyValueType* dstType,
+        -:  434:                              wxAnyValueBuffer& dst) const wxOVERRIDE;
+        -:  435:};
+        -:  436:
+        -:  437:
+        -:  438:class WXDLLIMPEXP_BASE wxAnyValueTypeImplUint :
+        -:  439:    public wxAnyValueTypeImplBase<wxAnyBaseUintType>
+        -:  440:{
+        -:  441:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImplUint)
+        -:  442:public:
+        -:  443:    wxAnyValueTypeImplUint() :
+        -:  444:        wxAnyValueTypeImplBase<wxAnyBaseUintType>() { }
+        -:  445:    virtual ~wxAnyValueTypeImplUint() { }
+        -:  446:
+        -:  447:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  448:                              wxAnyValueType* dstType,
+        -:  449:                              wxAnyValueBuffer& dst) const wxOVERRIDE;
+        -:  450:};
+        -:  451:
+        -:  452:
+        -:  453:WX_ANY_DEFINE_SUB_TYPE(signed long, Int)
+        -:  454:WX_ANY_DEFINE_SUB_TYPE(signed int, Int)
+        -:  455:WX_ANY_DEFINE_SUB_TYPE(signed short, Int)
+        -:  456:WX_ANY_DEFINE_SUB_TYPE(signed char, Int)
+        -:  457:#ifdef wxLongLong_t
+        -:  458:WX_ANY_DEFINE_SUB_TYPE(wxLongLong_t, Int)
+        -:  459:#endif
+        -:  460:
+        -:  461:WX_ANY_DEFINE_SUB_TYPE(unsigned long, Uint)
+        -:  462:WX_ANY_DEFINE_SUB_TYPE(unsigned int, Uint)
+        -:  463:WX_ANY_DEFINE_SUB_TYPE(unsigned short, Uint)
+        -:  464:WX_ANY_DEFINE_SUB_TYPE(unsigned char, Uint)
+        -:  465:#ifdef wxLongLong_t
+        -:  466:WX_ANY_DEFINE_SUB_TYPE(wxULongLong_t, Uint)
+        -:  467:#endif
+        -:  468:
+        -:  469:
+        -:  470://
+        -:  471:// This macro is used in header, but then in source file we must have:
+        -:  472:// WX_IMPLEMENT_ANY_VALUE_TYPE(wxAnyValueTypeImpl##TYPENAME)
+        -:  473://
+        -:  474:#define _WX_ANY_DEFINE_CONVERTIBLE_TYPE(T, TYPENAME, CONVFUNC, GV) \
+        -:  475:class WXDLLIMPEXP_BASE wxAnyValueTypeImpl##TYPENAME : \
+        -:  476:    public wxAnyValueTypeImplBase<T> \
+        -:  477:{ \
+        -:  478:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl##TYPENAME) \
+        -:  479:public: \
+        -:  480:    wxAnyValueTypeImpl##TYPENAME() : \
+        -:  481:        wxAnyValueTypeImplBase<T>() { } \
+        -:  482:    virtual ~wxAnyValueTypeImpl##TYPENAME() { } \
+        -:  483:    virtual bool ConvertValue(const wxAnyValueBuffer& src, \
+        -:  484:                              wxAnyValueType* dstType, \
+        -:  485:                              wxAnyValueBuffer& dst) const wxOVERRIDE \
+        -:  486:    { \
+        -:  487:        GV value = GetValue(src); \
+        -:  488:        return CONVFUNC(value, dstType, dst); \
+        -:  489:    } \
+        -:  490:}; \
+        -:  491:template<> \
+        -:  492:class wxAnyValueTypeImpl<T> : public wxAnyValueTypeImpl##TYPENAME \
+        -:  493:{ \
+        -:  494:public: \
+        -:  495:    wxAnyValueTypeImpl() : wxAnyValueTypeImpl##TYPENAME() { } \
+        -:  496:    virtual ~wxAnyValueTypeImpl() { } \
+        -:  497:};
+        -:  498:
+        -:  499:#define WX_ANY_DEFINE_CONVERTIBLE_TYPE(T, TYPENAME, CONVFUNC, BT) \
+        -:  500:_WX_ANY_DEFINE_CONVERTIBLE_TYPE(T, TYPENAME, CONVFUNC, BT) \
+        -:  501:
+        -:  502:#define WX_ANY_DEFINE_CONVERTIBLE_TYPE_BASE(T, TYPENAME, CONVFUNC) \
+        -:  503:_WX_ANY_DEFINE_CONVERTIBLE_TYPE(T, TYPENAME, \
+        -:  504:                                CONVFUNC, const T&) \
+        -:  505:
+        -:  506://
+        -:  507:// String value type
+        -:  508://
+        -:  509:
+        -:  510:// Convert wxString to destination wxAny value type
+        -:  511:extern WXDLLIMPEXP_BASE bool wxAnyConvertString(const wxString& value,
+        -:  512:                                                wxAnyValueType* dstType,
+        -:  513:                                                wxAnyValueBuffer& dst);
+        -:  514:
+    #####:  515:WX_ANY_DEFINE_CONVERTIBLE_TYPE_BASE(wxString, wxString, wxAnyConvertString)
+------------------
+wxAnyValueTypeImplwxString::AreSameClasses(wxAnyValueType const&, wxAnyValueType const&):
+    #####:  515:WX_ANY_DEFINE_CONVERTIBLE_TYPE_BASE(wxString, wxString, wxAnyConvertString)
+------------------
+wxAnyValueTypeImplwxString::IsSameClass(wxAnyValueType const*):
+    #####:  515:WX_ANY_DEFINE_CONVERTIBLE_TYPE_BASE(wxString, wxString, wxAnyConvertString)
+------------------
+        -:  516:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  517:WX_ANY_DEFINE_CONVERTIBLE_TYPE(const char*, ConstCharPtr,
+        -:  518:                               wxAnyConvertString, wxString)
+        -:  519:#endif
+        -:  520:WX_ANY_DEFINE_CONVERTIBLE_TYPE(const wchar_t*, ConstWchar_tPtr,
+        -:  521:                               wxAnyConvertString, wxString)
+        -:  522:
+        -:  523://
+        -:  524:// Bool value type
+        -:  525://
+        -:  526:template<>
+        -:  527:class WXDLLIMPEXP_BASE wxAnyValueTypeImpl<bool> :
+        -:  528:    public wxAnyValueTypeImplBase<bool>
+        -:  529:{
+    #####:  530:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<bool>)
+------------------
+wxAnyValueTypeImpl<bool>::AreSameClasses(wxAnyValueType const&, wxAnyValueType const&):
+    #####:  530:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<bool>)
+------------------
+wxAnyValueTypeImpl<bool>::IsSameClass(wxAnyValueType const*):
+    #####:  530:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<bool>)
+------------------
+        -:  531:public:
+        -:  532:    wxAnyValueTypeImpl() :
+        -:  533:        wxAnyValueTypeImplBase<bool>() { }
+        -:  534:    virtual ~wxAnyValueTypeImpl() { }
+        -:  535:
+        -:  536:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  537:                              wxAnyValueType* dstType,
+        -:  538:                              wxAnyValueBuffer& dst) const wxOVERRIDE;
+        -:  539:};
+        -:  540:
+        -:  541://
+        -:  542:// Floating point value type
+        -:  543://
+        -:  544:class WXDLLIMPEXP_BASE wxAnyValueTypeImplDouble :
+        -:  545:    public wxAnyValueTypeImplBase<double>
+        -:  546:{
+    #####:  547:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImplDouble)
+------------------
+wxAnyValueTypeImplDouble::AreSameClasses(wxAnyValueType const&, wxAnyValueType const&):
+    #####:  547:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImplDouble)
+------------------
+wxAnyValueTypeImplDouble::IsSameClass(wxAnyValueType const*):
+    #####:  547:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImplDouble)
+------------------
+        -:  548:public:
+        -:  549:    wxAnyValueTypeImplDouble() :
+        -:  550:        wxAnyValueTypeImplBase<double>() { }
+        -:  551:    virtual ~wxAnyValueTypeImplDouble() { }
+        -:  552:
+        -:  553:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  554:                              wxAnyValueType* dstType,
+        -:  555:                              wxAnyValueBuffer& dst) const wxOVERRIDE;
+        -:  556:};
+        -:  557:
+        -:  558:// WX_ANY_DEFINE_SUB_TYPE requires this
+        -:  559:typedef double wxAnyBaseDoubleType;
+        -:  560:
+        -:  561:WX_ANY_DEFINE_SUB_TYPE(float, Double)
+    #####:  562:WX_ANY_DEFINE_SUB_TYPE(double, Double)
+        -:  563:
+        -:  564:
+        -:  565://
+        -:  566:// Defines a dummy wxAnyValueTypeImpl<> with given export
+        -:  567:// declaration. This is needed if a class is used with
+        -:  568:// wxAny in both user shared library and application.
+        -:  569://
+        -:  570:#define wxDECLARE_ANY_TYPE(CLS, DECL) \
+        -:  571:template<> \
+        -:  572:class DECL wxAnyValueTypeImpl<CLS> : \
+        -:  573:    public wxAnyValueTypeImplBase<CLS> \
+        -:  574:{ \
+        -:  575:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImpl<CLS>) \
+        -:  576:public: \
+        -:  577:    wxAnyValueTypeImpl() : \
+        -:  578:        wxAnyValueTypeImplBase<CLS>() { } \
+        -:  579:    virtual ~wxAnyValueTypeImpl() { } \
+        -:  580: \
+        -:  581:    virtual bool ConvertValue(const wxAnyValueBuffer& src, \
+        -:  582:                              wxAnyValueType* dstType, \
+        -:  583:                              wxAnyValueBuffer& dst) const wxOVERRIDE \
+        -:  584:    { \
+        -:  585:        wxUnusedVar(src); \
+        -:  586:        wxUnusedVar(dstType); \
+        -:  587:        wxUnusedVar(dst); \
+        -:  588:        return false; \
+        -:  589:    } \
+        -:  590:};
+        -:  591:
+        -:  592:
+        -:  593:// Make sure some of wx's own types get the right wxAnyValueType export
+        -:  594:// (this is needed only for types that are referred to from wxBase.
+        -:  595:// currently we may not use any of these types from there, but let's
+        -:  596:// use the macro on at least one to make sure it compiles since we can't
+        -:  597:// really test it properly in unit tests since a separate DLL would
+        -:  598:// be needed).
+        -:  599:#if wxUSE_DATETIME
+        -:  600:    #include "wx/datetime.h"
+        -:  601:    wxDECLARE_ANY_TYPE(wxDateTime, WXDLLIMPEXP_BASE)
+        -:  602:#endif
+        -:  603:
+        -:  604://#include "wx/object.h"
+        -:  605://wxDECLARE_ANY_TYPE(wxObject*, WXDLLIMPEXP_BASE)
+        -:  606:
+        -:  607://#include "wx/arrstr.h"
+        -:  608://wxDECLARE_ANY_TYPE(wxArrayString, WXDLLIMPEXP_BASE)
+        -:  609:
+        -:  610:
+        -:  611:#if wxUSE_VARIANT
+        -:  612:
+        -:  613:class WXDLLIMPEXP_FWD_BASE wxAnyToVariantRegistration;
+        -:  614:
+        -:  615:// Because of header inter-dependencies, cannot include this earlier
+        -:  616:#include "wx/variant.h"
+        -:  617:
+        -:  618://
+        -:  619:// wxVariantData* data type implementation. For cases when appropriate
+        -:  620:// wxAny<->wxVariant conversion code is missing.
+        -:  621://
+        -:  622:
+        -:  623:class WXDLLIMPEXP_BASE wxAnyValueTypeImplVariantData :
+        -:  624:    public wxAnyValueTypeImplBase<wxVariantData*>
+        -:  625:{
+        -:  626:    WX_DECLARE_ANY_VALUE_TYPE(wxAnyValueTypeImplVariantData)
+        -:  627:public:
+        -:  628:    wxAnyValueTypeImplVariantData() :
+        -:  629:        wxAnyValueTypeImplBase<wxVariantData*>() { }
+        -:  630:    virtual ~wxAnyValueTypeImplVariantData() { }
+        -:  631:
+        -:  632:    virtual void DeleteValue(wxAnyValueBuffer& buf) const wxOVERRIDE
+        -:  633:    {
+        -:  634:        wxVariantData* data = static_cast<wxVariantData*>(buf.m_ptr);
+        -:  635:        if ( data )
+        -:  636:            data->DecRef();
+        -:  637:    }
+        -:  638:
+        -:  639:    virtual void CopyBuffer(const wxAnyValueBuffer& src,
+        -:  640:                            wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  641:    {
+        -:  642:        wxVariantData* data = static_cast<wxVariantData*>(src.m_ptr);
+        -:  643:        if ( data )
+        -:  644:            data->IncRef();
+        -:  645:        dst.m_ptr = data;
+        -:  646:    }
+        -:  647:
+        -:  648:    static void SetValue(wxVariantData* value,
+        -:  649:                         wxAnyValueBuffer& buf)
+        -:  650:    {
+        -:  651:        value->IncRef();
+        -:  652:        buf.m_ptr = value;
+        -:  653:    }
+        -:  654:
+        -:  655:    static wxVariantData* GetValue(const wxAnyValueBuffer& buf)
+        -:  656:    {
+        -:  657:        return static_cast<wxVariantData*>(buf.m_ptr);
+        -:  658:    }
+        -:  659:
+        -:  660:    virtual bool ConvertValue(const wxAnyValueBuffer& src,
+        -:  661:                              wxAnyValueType* dstType,
+        -:  662:                              wxAnyValueBuffer& dst) const wxOVERRIDE
+        -:  663:    {
+        -:  664:        wxUnusedVar(src);
+        -:  665:        wxUnusedVar(dstType);
+        -:  666:        wxUnusedVar(dst);
+        -:  667:        return false;
+        -:  668:    }
+        -:  669:};
+        -:  670:
+        -:  671:template<>
+        -:  672:class wxAnyValueTypeImpl<wxVariantData*> :
+        -:  673:    public wxAnyValueTypeImplVariantData
+        -:  674:{
+        -:  675:public:
+        -:  676:    wxAnyValueTypeImpl() : wxAnyValueTypeImplVariantData() { }
+        -:  677:    virtual ~wxAnyValueTypeImpl() { }
+        -:  678:};
+        -:  679:
+        -:  680:#endif // wxUSE_VARIANT
+        -:  681:
+        -:  682:
+        -:  683:/*
+        -:  684:    Let's define a discrete Null value so we don't have to really
+        -:  685:    ever check if wxAny.m_type pointer is NULL or not. This is an
+        -:  686:    optimization, mostly. Implementation of this value type is
+        -:  687:    "hidden" in the source file.
+        -:  688:*/
+        -:  689:extern WXDLLIMPEXP_DATA_BASE(wxAnyValueType*) wxAnyNullValueType;
+        -:  690:
+        -:  691:
+        -:  692://
+        -:  693:// We need to implement custom signed/unsigned int equals operators
+        -:  694:// for signed/unsigned (eg. wxAny(128UL) == 128L) comparisons to work.
+        -:  695:#define WXANY_IMPLEMENT_INT_EQ_OP(TS, TUS) \
+        -:  696:bool operator==(TS value) const \
+        -:  697:{ \
+        -:  698:    if ( wxAnyValueTypeImpl<TS>::IsSameClass(m_type) ) \
+        -:  699:        return (value == static_cast<TS> \
+        -:  700:                (wxAnyValueTypeImpl<TS>::GetValue(m_buffer))); \
+        -:  701:    if ( wxAnyValueTypeImpl<TUS>::IsSameClass(m_type) ) \
+        -:  702:        return (value == static_cast<TS> \
+        -:  703:                (wxAnyValueTypeImpl<TUS>::GetValue(m_buffer))); \
+        -:  704:    return false; \
+        -:  705:} \
+        -:  706:bool operator==(TUS value) const \
+        -:  707:{ \
+        -:  708:    if ( wxAnyValueTypeImpl<TUS>::IsSameClass(m_type) ) \
+        -:  709:        return (value == static_cast<TUS> \
+        -:  710:                (wxAnyValueTypeImpl<TUS>::GetValue(m_buffer))); \
+        -:  711:    if ( wxAnyValueTypeImpl<TS>::IsSameClass(m_type) ) \
+        -:  712:        return (value == static_cast<TUS> \
+        -:  713:                (wxAnyValueTypeImpl<TS>::GetValue(m_buffer))); \
+        -:  714:    return false; \
+        -:  715:}
+        -:  716:
+        -:  717:
+        -:  718:#if wxUSE_VARIANT
+        -:  719:
+        -:  720:// Note that the following functions are implemented outside wxAny class
+        -:  721:// so that it can reside entirely in header and lack the export declaration.
+        -:  722:
+        -:  723:// Helper function used to associate wxAnyValueType with a wxVariantData.
+        -:  724:extern WXDLLIMPEXP_BASE void
+        -:  725:wxPreRegisterAnyToVariant(wxAnyToVariantRegistration* reg);
+        -:  726:
+        -:  727:// This function performs main wxAny to wxVariant conversion duties.
+        -:  728:extern WXDLLIMPEXP_BASE bool
+        -:  729:wxConvertAnyToVariant(const wxAny& any, wxVariant* variant);
+        -:  730:
+        -:  731:#endif // wxUSE_VARIANT
+        -:  732:
+        -:  733://
+        -:  734:// The wxAny class represents a container for any type. A variant's value
+        -:  735:// can be changed at run time, possibly to a different type of value.
+        -:  736://
+        -:  737:// As standard, wxAny can store value of almost any type, in a fairly
+        -:  738:// optimal manner even.
+        -:  739://
+        -:  740:class wxAny
+        -:  741:{
+        -:  742:public:
+        -:  743:    /**
+        -:  744:        Default constructor.
+        -:  745:    */
+        -:  746:    wxAny()
+        -:  747:    {
+        -:  748:        m_type = wxAnyNullValueType;
+        -:  749:    }
+        -:  750:
+        -:  751:    /**
+        -:  752:        Destructor.
+        -:  753:    */
+    #####:  754:    ~wxAny()
+        -:  755:    {
+    #####:  756:        m_type->DeleteValue(m_buffer);
+    #####:  757:    }
+        -:  758:
+        -:  759:    //@{
+        -:  760:    /**
+        -:  761:        Various constructors.
+        -:  762:    */
+        -:  763:    template<typename T>
+        -:  764:    wxAny(const T& value)
+        -:  765:    {
+        -:  766:        m_type = wxAnyValueTypeImpl<T>::sm_instance.get();
+        -:  767:        wxAnyValueTypeImpl<T>::SetValue(value, m_buffer);
+        -:  768:    }
+        -:  769:
+        -:  770:    // These two constructors are needed to deal with string literals
+        -:  771:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  772:    wxAny(const char* value)
+        -:  773:    {
+        -:  774:        m_type = wxAnyValueTypeImpl<const char*>::sm_instance.get();
+        -:  775:        wxAnyValueTypeImpl<const char*>::SetValue(value, m_buffer);
+        -:  776:    }
+        -:  777:#endif
+        -:  778:    wxAny(const wchar_t* value)
+        -:  779:    {
+        -:  780:        m_type = wxAnyValueTypeImpl<const wchar_t*>::sm_instance.get();
+        -:  781:        wxAnyValueTypeImpl<const wchar_t*>::SetValue(value, m_buffer);
+        -:  782:    }
+        -:  783:
+        -:  784:    wxAny(const wxAny& any)
+        -:  785:    {
+        -:  786:        m_type = wxAnyNullValueType;
+        -:  787:        AssignAny(any);
+        -:  788:    }
+        -:  789:
+        -:  790:#if wxUSE_VARIANT
+        -:  791:    wxAny(const wxVariant& variant)
+        -:  792:    {
+        -:  793:        m_type = wxAnyNullValueType;
+        -:  794:        AssignVariant(variant);
+        -:  795:    }
+        -:  796:#endif
+        -:  797:
+        -:  798:    //@}
+        -:  799:
+        -:  800:    /**
+        -:  801:        Use this template function for checking if this wxAny holds
+        -:  802:        a specific C++ data type.
+        -:  803:
+        -:  804:        @see wxAnyValueType::CheckType()
+        -:  805:    */
+        -:  806:    template <typename T>
+    #####:  807:    bool CheckType() const
+        -:  808:    {
+    #####:  809:        return m_type->CheckType<T>();
+        -:  810:    }
+------------------
+bool wxAny::CheckType<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >() const:
+    #####:  807:    bool CheckType() const
+        -:  808:    {
+    #####:  809:        return m_type->CheckType<T>();
+        -:  810:    }
+------------------
+bool wxAny::CheckType<wxString>() const:
+    #####:  807:    bool CheckType() const
+        -:  808:    {
+    #####:  809:        return m_type->CheckType<T>();
+        -:  810:    }
+------------------
+bool wxAny::CheckType<SHAPE_LINE_CHAIN>() const:
+    #####:  807:    bool CheckType() const
+        -:  808:    {
+    #####:  809:        return m_type->CheckType<T>();
+        -:  810:    }
+------------------
+bool wxAny::CheckType<VECTOR2<int> >() const:
+    #####:  807:    bool CheckType() const
+        -:  808:    {
+    #####:  809:        return m_type->CheckType<T>();
+        -:  810:    }
+------------------
+bool wxAny::CheckType<bool>() const:
+    #####:  807:    bool CheckType() const
+        -:  808:    {
+    #####:  809:        return m_type->CheckType<T>();
+        -:  810:    }
+------------------
+bool wxAny::CheckType<long long>() const:
+    #####:  807:    bool CheckType() const
+        -:  808:    {
+    #####:  809:        return m_type->CheckType<T>();
+        -:  810:    }
+------------------
+bool wxAny::CheckType<long>() const:
+    #####:  807:    bool CheckType() const
+        -:  808:    {
+    #####:  809:        return m_type->CheckType<T>();
+        -:  810:    }
+------------------
+bool wxAny::CheckType<int>() const:
+    #####:  807:    bool CheckType() const
+        -:  808:    {
+    #####:  809:        return m_type->CheckType<T>();
+        -:  810:    }
+------------------
+bool wxAny::CheckType<double>() const:
+    #####:  807:    bool CheckType() const
+        -:  808:    {
+    #####:  809:        return m_type->CheckType<T>();
+        -:  810:    }
+------------------
+        -:  811:
+        -:  812:    /**
+        -:  813:        Returns the value type as wxAnyValueType instance.
+        -:  814:
+        -:  815:        @remarks You cannot reliably test whether two wxAnys are of
+        -:  816:                 same value type by simply comparing return values
+        -:  817:                 of wxAny::GetType(). Instead, use wxAny::HasSameType().
+        -:  818:
+        -:  819:        @see HasSameType()
+        -:  820:    */
+        -:  821:    const wxAnyValueType* GetType() const
+        -:  822:    {
+        -:  823:        return m_type;
+        -:  824:    }
+        -:  825:
+        -:  826:    /**
+        -:  827:        Returns @true if this and another wxAny have the same
+        -:  828:        value type.
+        -:  829:    */
+        -:  830:    bool HasSameType(const wxAny& other) const
+        -:  831:    {
+        -:  832:        return GetType()->IsSameType(other.GetType());
+        -:  833:    }
+        -:  834:
+        -:  835:    /**
+        -:  836:        Tests if wxAny is null (that is, whether there is no data).
+        -:  837:    */
+        -:  838:    bool IsNull() const
+        -:  839:    {
+        -:  840:        return (m_type == wxAnyNullValueType);
+        -:  841:    }
+        -:  842:
+        -:  843:    /**
+        -:  844:        Makes wxAny null (that is, clears it).
+        -:  845:    */
+        -:  846:    void MakeNull()
+        -:  847:    {
+        -:  848:        m_type->DeleteValue(m_buffer);
+        -:  849:        m_type = wxAnyNullValueType;
+        -:  850:    }
+        -:  851:
+        -:  852:    //@{
+        -:  853:    /**
+        -:  854:        Assignment operators.
+        -:  855:    */
+        -:  856:    template<typename T>
+        -:  857:    wxAny& operator=(const T &value)
+        -:  858:    {
+        -:  859:        m_type->DeleteValue(m_buffer);
+        -:  860:        m_type = wxAnyValueTypeImpl<T>::sm_instance.get();
+        -:  861:        wxAnyValueTypeImpl<T>::SetValue(value, m_buffer);
+        -:  862:        return *this;
+        -:  863:    }
+        -:  864:
+        -:  865:    wxAny& operator=(const wxAny &any)
+        -:  866:    {
+        -:  867:        if (this != &any)
+        -:  868:            AssignAny(any);
+        -:  869:        return *this;
+        -:  870:    }
+        -:  871:
+        -:  872:#if wxUSE_VARIANT
+        -:  873:    wxAny& operator=(const wxVariant &variant)
+        -:  874:    {
+        -:  875:        AssignVariant(variant);
+        -:  876:        return *this;
+        -:  877:    }
+        -:  878:#endif
+        -:  879:
+        -:  880:    // These two operators are needed to deal with string literals
+        -:  881:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  882:    wxAny& operator=(const char* value)
+        -:  883:    {
+        -:  884:        Assign(value);
+        -:  885:        return *this;
+        -:  886:    }
+        -:  887:#endif
+        -:  888:    wxAny& operator=(const wchar_t* value)
+        -:  889:    {
+        -:  890:        Assign(value);
+        -:  891:        return *this;
+        -:  892:    }
+        -:  893:
+        -:  894:    //@{
+        -:  895:    /**
+        -:  896:        Equality operators.
+        -:  897:    */
+        -:  898:    bool operator==(const wxString& value) const
+        -:  899:    {
+        -:  900:        wxString value2;
+        -:  901:        if ( !GetAs(&value2) )
+        -:  902:            return false;
+        -:  903:        return value == value2;
+        -:  904:    }
+        -:  905:
+        -:  906:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  907:    bool operator==(const char* value) const
+        -:  908:        { return (*this) == wxString(value); }
+        -:  909:#endif // wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  910:    bool operator==(const wchar_t* value) const
+        -:  911:        { return (*this) == wxString(value); }
+        -:  912:
+        -:  913:    //
+        -:  914:    // We need to implement custom signed/unsigned int equals operators
+        -:  915:    // for signed/unsigned (eg. wxAny(128UL) == 128L) comparisons to work.
+        -:  916:    WXANY_IMPLEMENT_INT_EQ_OP(signed char, unsigned char)
+        -:  917:    WXANY_IMPLEMENT_INT_EQ_OP(signed short, unsigned short)
+        -:  918:    WXANY_IMPLEMENT_INT_EQ_OP(signed int, unsigned int)
+        -:  919:    WXANY_IMPLEMENT_INT_EQ_OP(signed long, unsigned long)
+        -:  920:#ifdef wxLongLong_t
+        -:  921:    WXANY_IMPLEMENT_INT_EQ_OP(wxLongLong_t, wxULongLong_t)
+        -:  922:#endif
+        -:  923:
+        -:  924:    wxGCC_WARNING_SUPPRESS(float-equal)
+        -:  925:
+        -:  926:    bool operator==(float value) const
+        -:  927:    {
+        -:  928:        if ( !wxAnyValueTypeImpl<float>::IsSameClass(m_type) )
+        -:  929:            return false;
+        -:  930:
+        -:  931:        return value ==
+        -:  932:            static_cast<float>
+        -:  933:                (wxAnyValueTypeImpl<float>::GetValue(m_buffer));
+        -:  934:    }
+        -:  935:
+        -:  936:    bool operator==(double value) const
+        -:  937:    {
+        -:  938:        if ( !wxAnyValueTypeImpl<double>::IsSameClass(m_type) )
+        -:  939:            return false;
+        -:  940:
+        -:  941:        return value ==
+        -:  942:            static_cast<double>
+        -:  943:                (wxAnyValueTypeImpl<double>::GetValue(m_buffer));
+        -:  944:    }
+        -:  945:
+        -:  946:    wxGCC_WARNING_RESTORE(float-equal)
+        -:  947:
+        -:  948:    bool operator==(bool value) const
+        -:  949:    {
+        -:  950:        if ( !wxAnyValueTypeImpl<bool>::IsSameClass(m_type) )
+        -:  951:            return false;
+        -:  952:
+        -:  953:        return value == (wxAnyValueTypeImpl<bool>::GetValue(m_buffer));
+        -:  954:    }
+        -:  955:
+        -:  956:    //@}
+        -:  957:
+        -:  958:    //@{
+        -:  959:    /**
+        -:  960:        Inequality operators (implement as template).
+        -:  961:    */
+        -:  962:    template<typename T>
+        -:  963:    bool operator!=(const T& value) const
+        -:  964:        { return !((*this) == value); }
+        -:  965:    //@}
+        -:  966:
+        -:  967:    /**
+        -:  968:        This template function converts wxAny into given type. In most cases
+        -:  969:        no type conversion is performed, so if the type is incorrect an
+        -:  970:        assertion failure will occur.
+        -:  971:
+        -:  972:        @remarks For convenience, conversion is done when T is wxString. This
+        -:  973:                 is useful when a string literal (which are treated as
+        -:  974:                 const char* and const wchar_t*) has been assigned to wxAny.
+        -:  975:    */
+        -:  976:    template <typename T>
+        -:  977:    T As(T* = NULL) const
+        -:  978:    {
+        -:  979:        return wxPrivate::wxAnyAsImpl<T>::DoAs(*this);
+        -:  980:    }
+        -:  981:
+        -:  982:    // Semi private helper: get the value without coercion, for all types.
+        -:  983:    template <typename T>
+        -:  984:    T RawAs() const
+        -:  985:    {
+        -:  986:        if ( !wxAnyValueTypeImpl<T>::IsSameClass(m_type) )
+        -:  987:        {
+        -:  988:            wxFAIL_MSG("Incorrect or non-convertible data type");
+        -:  989:        }
+        -:  990:
+        -:  991:        return static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(m_buffer));
+        -:  992:    }
+        -:  993:
+        -:  994:#if wxUSE_EXTENDED_RTTI
+        -:  995:    const wxTypeInfo* GetTypeInfo() const
+        -:  996:    {
+        -:  997:        return m_type->GetTypeInfo();
+        -:  998:    }
+        -:  999:#endif
+        -: 1000:    /**
+        -: 1001:        Template function that retrieves and converts the value of this
+        -: 1002:        variant to the type that T* value is.
+        -: 1003:
+        -: 1004:        @return Returns @true if conversion was successful.
+        -: 1005:    */
+        -: 1006:    template<typename T>
+    #####: 1007:    bool GetAs(T* value) const
+        -: 1008:    {
+    #####: 1009:        if ( !wxAnyValueTypeImpl<T>::IsSameClass(m_type) )
+        -: 1010:        {
+    #####: 1011:            wxAnyValueType* otherType =
+    #####: 1012:                wxAnyValueTypeImpl<T>::sm_instance.get();
+    #####: 1013:            wxAnyValueBuffer temp_buf;
+        -: 1014:
+    #####: 1015:            if ( !m_type->ConvertValue(m_buffer, otherType, temp_buf) )
+    #####: 1016:                return false;
+        -: 1017:
+    #####: 1018:            *value =
+    #####: 1019:                static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(temp_buf));
+    #####: 1020:            otherType->DeleteValue(temp_buf);
+        -: 1021:
+    #####: 1022:            return true;
+        -: 1023:        }
+    #####: 1024:        *value = static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(m_buffer));
+    #####: 1025:        return true;
+        -: 1026:    }
+------------------
+bool wxAny::GetAs<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >*) const:
+    #####: 1007:    bool GetAs(T* value) const
+        -: 1008:    {
+    #####: 1009:        if ( !wxAnyValueTypeImpl<T>::IsSameClass(m_type) )
+        -: 1010:        {
+    #####: 1011:            wxAnyValueType* otherType =
+    #####: 1012:                wxAnyValueTypeImpl<T>::sm_instance.get();
+    #####: 1013:            wxAnyValueBuffer temp_buf;
+        -: 1014:
+    #####: 1015:            if ( !m_type->ConvertValue(m_buffer, otherType, temp_buf) )
+    #####: 1016:                return false;
+        -: 1017:
+    #####: 1018:            *value =
+    #####: 1019:                static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(temp_buf));
+    #####: 1020:            otherType->DeleteValue(temp_buf);
+        -: 1021:
+    #####: 1022:            return true;
+        -: 1023:        }
+    #####: 1024:        *value = static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(m_buffer));
+    #####: 1025:        return true;
+        -: 1026:    }
+------------------
+bool wxAny::GetAs<SHAPE_LINE_CHAIN>(SHAPE_LINE_CHAIN*) const:
+    #####: 1007:    bool GetAs(T* value) const
+        -: 1008:    {
+    #####: 1009:        if ( !wxAnyValueTypeImpl<T>::IsSameClass(m_type) )
+        -: 1010:        {
+    #####: 1011:            wxAnyValueType* otherType =
+    #####: 1012:                wxAnyValueTypeImpl<T>::sm_instance.get();
+    #####: 1013:            wxAnyValueBuffer temp_buf;
+        -: 1014:
+    #####: 1015:            if ( !m_type->ConvertValue(m_buffer, otherType, temp_buf) )
+    #####: 1016:                return false;
+        -: 1017:
+    #####: 1018:            *value =
+    #####: 1019:                static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(temp_buf));
+    #####: 1020:            otherType->DeleteValue(temp_buf);
+        -: 1021:
+    #####: 1022:            return true;
+        -: 1023:        }
+    #####: 1024:        *value = static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(m_buffer));
+    #####: 1025:        return true;
+        -: 1026:    }
+------------------
+bool wxAny::GetAs<VECTOR2<int> >(VECTOR2<int>*) const:
+    #####: 1007:    bool GetAs(T* value) const
+        -: 1008:    {
+    #####: 1009:        if ( !wxAnyValueTypeImpl<T>::IsSameClass(m_type) )
+        -: 1010:        {
+    #####: 1011:            wxAnyValueType* otherType =
+    #####: 1012:                wxAnyValueTypeImpl<T>::sm_instance.get();
+    #####: 1013:            wxAnyValueBuffer temp_buf;
+        -: 1014:
+    #####: 1015:            if ( !m_type->ConvertValue(m_buffer, otherType, temp_buf) )
+    #####: 1016:                return false;
+        -: 1017:
+    #####: 1018:            *value =
+    #####: 1019:                static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(temp_buf));
+    #####: 1020:            otherType->DeleteValue(temp_buf);
+        -: 1021:
+    #####: 1022:            return true;
+        -: 1023:        }
+    #####: 1024:        *value = static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(m_buffer));
+    #####: 1025:        return true;
+        -: 1026:    }
+------------------
+bool wxAny::GetAs<bool>(bool*) const:
+    #####: 1007:    bool GetAs(T* value) const
+        -: 1008:    {
+    #####: 1009:        if ( !wxAnyValueTypeImpl<T>::IsSameClass(m_type) )
+        -: 1010:        {
+    #####: 1011:            wxAnyValueType* otherType =
+    #####: 1012:                wxAnyValueTypeImpl<T>::sm_instance.get();
+    #####: 1013:            wxAnyValueBuffer temp_buf;
+        -: 1014:
+    #####: 1015:            if ( !m_type->ConvertValue(m_buffer, otherType, temp_buf) )
+    #####: 1016:                return false;
+        -: 1017:
+    #####: 1018:            *value =
+    #####: 1019:                static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(temp_buf));
+    #####: 1020:            otherType->DeleteValue(temp_buf);
+        -: 1021:
+    #####: 1022:            return true;
+        -: 1023:        }
+    #####: 1024:        *value = static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(m_buffer));
+    #####: 1025:        return true;
+        -: 1026:    }
+------------------
+bool wxAny::GetAs<double>(double*) const:
+    #####: 1007:    bool GetAs(T* value) const
+        -: 1008:    {
+    #####: 1009:        if ( !wxAnyValueTypeImpl<T>::IsSameClass(m_type) )
+        -: 1010:        {
+    #####: 1011:            wxAnyValueType* otherType =
+    #####: 1012:                wxAnyValueTypeImpl<T>::sm_instance.get();
+    #####: 1013:            wxAnyValueBuffer temp_buf;
+        -: 1014:
+    #####: 1015:            if ( !m_type->ConvertValue(m_buffer, otherType, temp_buf) )
+    #####: 1016:                return false;
+        -: 1017:
+    #####: 1018:            *value =
+    #####: 1019:                static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(temp_buf));
+    #####: 1020:            otherType->DeleteValue(temp_buf);
+        -: 1021:
+    #####: 1022:            return true;
+        -: 1023:        }
+    #####: 1024:        *value = static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(m_buffer));
+    #####: 1025:        return true;
+        -: 1026:    }
+------------------
+bool wxAny::GetAs<wxString>(wxString*) const:
+    #####: 1007:    bool GetAs(T* value) const
+        -: 1008:    {
+    #####: 1009:        if ( !wxAnyValueTypeImpl<T>::IsSameClass(m_type) )
+        -: 1010:        {
+    #####: 1011:            wxAnyValueType* otherType =
+    #####: 1012:                wxAnyValueTypeImpl<T>::sm_instance.get();
+    #####: 1013:            wxAnyValueBuffer temp_buf;
+        -: 1014:
+    #####: 1015:            if ( !m_type->ConvertValue(m_buffer, otherType, temp_buf) )
+    #####: 1016:                return false;
+        -: 1017:
+    #####: 1018:            *value =
+    #####: 1019:                static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(temp_buf));
+    #####: 1020:            otherType->DeleteValue(temp_buf);
+        -: 1021:
+    #####: 1022:            return true;
+        -: 1023:        }
+    #####: 1024:        *value = static_cast<T>(wxAnyValueTypeImpl<T>::GetValue(m_buffer));
+    #####: 1025:        return true;
+        -: 1026:    }
+------------------
+        -: 1027:
+        -: 1028:#if wxUSE_VARIANT
+        -: 1029:    // GetAs() wxVariant specialization
+        -: 1030:    bool GetAs(wxVariant* value) const
+        -: 1031:    {
+        -: 1032:        return wxConvertAnyToVariant(*this, value);
+        -: 1033:    }
+        -: 1034:#endif
+        -: 1035:
+        -: 1036:private:
+        -: 1037:#ifdef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -: 1038:    wxAny(const char*);  // Disabled
+        -: 1039:    wxAny& operator=(const char *&value); // Disabled
+        -: 1040:    wxAny& operator=(const char value[]); // Disabled
+        -: 1041:    wxAny& operator==(const char *value); // Disabled
+        -: 1042:#endif
+        -: 1043:
+        -: 1044:    // Assignment functions
+        -: 1045:    void AssignAny(const wxAny& any)
+        -: 1046:    {
+        -: 1047:        // Must delete value - CopyBuffer() never does that
+        -: 1048:        m_type->DeleteValue(m_buffer);
+        -: 1049:
+        -: 1050:        wxAnyValueType* newType = any.m_type;
+        -: 1051:
+        -: 1052:        if ( !newType->IsSameType(m_type) )
+        -: 1053:            m_type = newType;
+        -: 1054:
+        -: 1055:        newType->CopyBuffer(any.m_buffer, m_buffer);
+        -: 1056:    }
+        -: 1057:
+        -: 1058:#if wxUSE_VARIANT
+        -: 1059:    void AssignVariant(const wxVariant& variant)
+        -: 1060:    {
+        -: 1061:        wxVariantData* data = variant.GetData();
+        -: 1062:
+        -: 1063:        if ( data && data->GetAsAny(this) )
+        -: 1064:            return;
+        -: 1065:
+        -: 1066:        m_type->DeleteValue(m_buffer);
+        -: 1067:
+        -: 1068:        if ( variant.IsNull() )
+        -: 1069:        {
+        -: 1070:            // Init as Null
+        -: 1071:            m_type = wxAnyNullValueType;
+        -: 1072:        }
+        -: 1073:        else
+        -: 1074:        {
+        -: 1075:            // If everything else fails, wrap the whole wxVariantData
+        -: 1076:            m_type = wxAnyValueTypeImpl<wxVariantData*>::sm_instance.get();
+        -: 1077:            wxAnyValueTypeImpl<wxVariantData*>::SetValue(data, m_buffer);
+        -: 1078:        }
+        -: 1079:    }
+        -: 1080:#endif
+        -: 1081:
+        -: 1082:    template<typename T>
+        -: 1083:    void Assign(const T &value)
+        -: 1084:    {
+        -: 1085:        m_type->DeleteValue(m_buffer);
+        -: 1086:        m_type = wxAnyValueTypeImpl<T>::sm_instance.get();
+        -: 1087:        wxAnyValueTypeImpl<T>::SetValue(value, m_buffer);
+        -: 1088:    }
+        -: 1089:
+        -: 1090:    // Data
+        -: 1091:    wxAnyValueBuffer    m_buffer;
+        -: 1092:    wxAnyValueType*     m_type;
+        -: 1093:};
+        -: 1094:
+        -: 1095:
+        -: 1096:namespace wxPrivate
+        -: 1097:{
+        -: 1098:
+        -: 1099:// Dispatcher for template wxAny::As() implementation which is different for
+        -: 1100:// wxString and all the other types: the generic implementation check if the
+        -: 1101:// value is of the right type and returns it.
+        -: 1102:template <typename T>
+        -: 1103:struct wxAnyAsImpl
+        -: 1104:{
+        -: 1105:    static T DoAs(const wxAny& any)
+        -: 1106:    {
+        -: 1107:        return any.RawAs<T>();
+        -: 1108:    }
+        -: 1109:};
+        -: 1110:
+        -: 1111:// Specialization for wxString does coercion.
+        -: 1112:template <>
+        -: 1113:struct wxAnyAsImpl<wxString>
+        -: 1114:{
+        -: 1115:    static wxString DoAs(const wxAny& any)
+        -: 1116:    {
+        -: 1117:        wxString value;
+        -: 1118:        if ( !any.GetAs(&value) )
+        -: 1119:        {
+        -: 1120:            wxFAIL_MSG("Incorrect or non-convertible data type");
+        -: 1121:        }
+        -: 1122:        return value;
+        -: 1123:    }
+        -: 1124:};
+        -: 1125:
+        -: 1126:}
+        -: 1127:
+        -: 1128:// See comment for wxANY_VALUE_TYPE_CHECK_TYPE.
+        -: 1129:#define wxANY_CHECK_TYPE(any, T) \
+        -: 1130:    wxANY_VALUE_TYPE_CHECK_TYPE((any).GetType(), T)
+        -: 1131:
+        -: 1132:
+        -: 1133:// This macro shouldn't be used any longer for the same reasons as
+        -: 1134:// wxANY_VALUE_TYPE_CHECK_TYPE(), just call As() directly.
+        -: 1135:#define wxANY_AS(any, T) \
+        -: 1136:    (any).As(static_cast<T*>(NULL))
+        -: 1137:
+        -: 1138:
+        -: 1139:template<typename T>
+    #####: 1140:inline bool wxAnyValueType::CheckType() const
+        -: 1141:{
+    #####: 1142:    return wxAnyValueTypeImpl<T>::IsSameClass(this);
+        -: 1143:}
+        -: 1144:
+        -: 1145:WX_DECLARE_LIST_WITH_DECL(wxAny, wxAnyList, class WXDLLIMPEXP_BASE);
+        -: 1146:
+        -: 1147:#endif // wxUSE_ANY
+        -: 1148:
+        -: 1149:#endif // _WX_ANY_H_

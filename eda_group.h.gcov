@@ -1,0 +1,90 @@
+        -:    0:Source:/src/kicad/common/eda_group.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software; you can redistribute it and/or
+        -:    7: * modify it under the terms of the GNU General Public License
+        -:    8: * as published by the Free Software Foundation; either version 2
+        -:    9: * of the License, or (at your option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful,
+        -:   12: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14: * GNU General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License
+        -:   17: * along with this program; if not, you may find one here:
+        -:   18: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   19: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   20: * or you may write to the Free Software Foundation, Inc.,
+        -:   21: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   22: */
+        -:   23:
+        -:   24:#ifndef EDA_GROUP_H
+        -:   25:#define EDA_GROUP_H
+        -:   26:
+        -:   27:#include <eda_item.h>
+        -:   28:#include <lib_id.h>
+        -:   29:#include <lset.h>
+        -:   30:#include <unordered_set>
+        -:   31:
+        -:   32:namespace KIGFX
+        -:   33:{
+        -:   34:class VIEW;
+        -:   35:}
+        -:   36:
+        -:   37:/**
+        -:   38: * A set of EDA_ITEMs (i.e., without duplicates).
+        -:   39: *
+        -:   40: * The group parent is always board/sheet, not logical parent group. The group is transparent
+        -:   41: * container - e.g., its position is derived from the position of its members.  A selection
+        -:   42: * containing a group implicitly contains its members. However other operations on sets of
+        -:   43: * items, like committing, updating the view, etc the set is explicit.
+        -:   44: */
+        -:   45:class EDA_GROUP
+        -:   46:{
+        -:   47:public:
+        -:   48:    virtual EDA_ITEM* AsEdaItem() = 0;
+        -:   49:    virtual ~EDA_GROUP() = default;
+        -:   50:
+    #####:   51:    wxString GetName() const { return m_name; }
+        -:   52:    void     SetName( const wxString& aName ) { m_name = aName; }
+        -:   53:
+        -:   54:    std::unordered_set<EDA_ITEM*>& GetItems() { return m_items; }
+    #####:   55:    const std::unordered_set<EDA_ITEM*>& GetItems() const { return m_items; }
+        -:   56:
+        -:   57:    /**
+        -:   58:     * Test if an item is a direct or nested member of this group.
+        -:   59:     */
+        -:   60:    bool ContainsItem( const EDA_ITEM* aItem ) const;
+        -:   61:
+        -:   62:    /**
+        -:   63:     * Add item to group. Does not take ownership of item.
+        -:   64:     */
+        -:   65:    void AddItem( EDA_ITEM* aItem );
+        -:   66:
+        -:   67:    /**
+        -:   68:     * Remove item from group.
+        -:   69:     */
+        -:   70:    void RemoveItem( EDA_ITEM* aItem );
+        -:   71:    void RemoveAll();
+        -:   72:
+        -:   73:    KIID_VECT_LIST GetGroupMemberIds() const;
+        -:   74:
+    #####:   75:    bool HasDesignBlockLink() const { return m_designBlockLibId.IsValid(); }
+        -:   76:
+        -:   77:    void SetDesignBlockLibId( const LIB_ID& aLibId ) { m_designBlockLibId = aLibId; }
+    #####:   78:    const LIB_ID& GetDesignBlockLibId() const { return m_designBlockLibId; }
+        -:   79:
+        -:   80:protected:
+        -:   81:    std::unordered_set<EDA_ITEM*> m_items;             // Members of the group (no ownership)
+        -:   82:    wxString                      m_name;              // Optional group name
+        -:   83:    LIB_ID                        m_designBlockLibId;  // Optional link to a design block
+        -:   84:};
+        -:   85:
+        -:   86:#endif // CLASS_PCB_GROUP_H_

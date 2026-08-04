@@ -1,0 +1,217 @@
+        -:    0:Source:/src/kicad/include/ki_exception.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2007-2016 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#ifndef KI_EXCEPTION_H_
+        -:   26:#define KI_EXCEPTION_H_
+        -:   27:
+        -:   28:#include <kicommon.h>
+        -:   29:#include <wx/string.h>
+        -:   30:
+        -:   31:
+        -:   32:/**
+        -:   33: * @ingroup exception_types
+        -:   34: * @{
+        -:   35: */
+        -:   36:
+        -:   37:
+        -:   38:/// macro which captures the "call site" values of __FILE_, __FUNCTION__ & __LINE__
+        -:   39:#define THROW_IO_ERROR( msg )   throw IO_ERROR( msg, __FILE__, __FUNCTION__, __LINE__ )
+        -:   40:
+        -:   41:/**
+        -:   42: * Hold a translatable error message and may be used when throwing exceptions containing a
+        -:   43: * translated error message.
+        -:   44: */
+        -:   45:class KICOMMON_API KI_PARAM_ERROR // similar to std::invalid_argument for instance
+        -:   46:{
+        -:   47:public:
+        -:   48:    /**
+        -:   49:     * Constructor
+        -:   50:     */
+        -:   51:    KI_PARAM_ERROR( const wxString& aMessage )
+        -:   52:    {
+        -:   53:        m_message = aMessage;
+        -:   54:    }
+        -:   55:
+        -:   56:    KI_PARAM_ERROR() {}
+        -:   57:
+        -:   58:    const wxString What() const
+        -:   59:    {
+        -:   60:        return m_message;
+        -:   61:    }
+        -:   62:
+        -:   63:    virtual ~KI_PARAM_ERROR() throw () {}
+        -:   64:
+        -:   65:private:
+        -:   66:    wxString    m_message;
+        -:   67:};
+        -:   68:
+        -:   69:
+        -:   70:/**
+        -:   71: * Hold an error message and may be used when throwing exceptions containing meaningful
+        -:   72: * error messages.
+        -:   73: *
+        -:   74: * @author Dick Hollenbeck
+        -:   75: */
+        -:   76:class KICOMMON_API IO_ERROR : public std::exception
+        -:   77:{
+        -:   78:public:
+        -:   79:    /**
+        -:   80:     * Use macro #THROW_IO_ERROR() to wrap a call to this constructor at the call site.
+        -:   81:     *
+        -:   82:     * @param aProblem is Problem() text.
+        -:   83:     * @param aThrowersFile is the __FILE__ preprocessor macro but generated at the source
+        -:   84:     *                      file of thrower.
+        -:   85:     * @param aThrowersFunction is the function name at the throw site.
+        -:   86:     * @param aThrowersLineNumber is the source code line number of the throw.
+        -:   87:     */
+    #####:   88:    IO_ERROR( const wxString& aProblem, const char* aThrowersFile,
+        -:   89:              const char* aThrowersFunction, int aThrowersLineNumber )
+    #####:   90:    {
+    #####:   91:        init( aProblem, aThrowersFile, aThrowersFunction, aThrowersLineNumber );
+    #####:   92:    }
+        -:   93:
+    #####:   94:    IO_ERROR() = default;
+    #####:   95:    ~IO_ERROR() throw() {}
+------------------
+IO_ERROR::~IO_ERROR():
+    #####:   95:    ~IO_ERROR() throw() {}
+------------------
+IO_ERROR::~IO_ERROR():
+    #####:   95:    ~IO_ERROR() throw() {}
+------------------
+        -:   96:
+        -:   97:    void init( const wxString& aProblem, const char* aThrowersFile,
+        -:   98:               const char* aThrowersFunction, int aThrowersLineNumber );
+        -:   99:
+        -:  100:    virtual const wxString Problem() const;         ///< what was the problem?
+        -:  101:    virtual const wxString Where() const;           ///< where did the Problem() occur?
+        -:  102:
+        -:  103:    virtual const char*    what() const throw() override; ///< std::exception interface, returned as UTF-8
+        -:  104:    virtual const wxString What() const;            ///< A composite of Problem() and Where()
+        -:  105:
+        -:  106:protected:
+        -:  107:    wxString    problem;
+        -:  108:    wxString    where;
+        -:  109:};
+        -:  110:
+        -:  111:
+        -:  112:/**
+        -:  113: * A filename or source description, a problem input line, a line number, a byte
+        -:  114: * offset, and an error message which contains the caller's report and his call
+        -:  115: * site information: CPP source file, function, and line number.
+        -:  116: *
+        -:  117: * @author Dick Hollenbeck
+        -:  118: */
+        -:  119:struct KICOMMON_API PARSE_ERROR : public IO_ERROR
+        -:  120:{
+        -:  121:    int         lineNumber;     ///< at which line number, 1 based index.
+        -:  122:    int         byteIndex;      ///< at which byte offset within the line, 1 based index
+        -:  123:
+        -:  124:    /// problem line of input [say, from a LINE_READER].
+        -:  125:    /// this is brought up in original byte format rather than wxString form, in case
+        -:  126:    /// there was a problem with the encoding, in which case converting to wxString is
+        -:  127:    /// not reliable in this context.
+        -:  128:    std::string inputLine;
+        -:  129:
+        -:  130:    /**
+        -:  131:     * Normally called via the macro #THROW_PARSE_ERROR so that __FILE__, __FUNCTION__,
+        -:  132:     * and __LINE__ can be captured from the call site.
+        -:  133:     */
+    #####:  134:    PARSE_ERROR( const wxString& aProblem, const char* aThrowersFile,
+        -:  135:                 const char* aThrowersFunction, int aThrowersLineNumber,
+        -:  136:                 const wxString& aSource, const char* aInputLine,
+    #####:  137:                 int aLineNumber, int aByteIndex ) :
+    #####:  138:        IO_ERROR()
+        -:  139:    {
+    #####:  140:        init( aProblem, aThrowersFile, aThrowersFunction, aThrowersLineNumber,
+        -:  141:              aSource, aInputLine, aLineNumber, aByteIndex );
+    #####:  142:    }
+        -:  143:
+        -:  144:    void init( const wxString& aProblem, const char* aThrowersFile,
+        -:  145:               const char* aThrowersFunction, int aThrowersLineNumber,
+        -:  146:               const wxString& aSource, const char* aInputLine,
+        -:  147:               int aLineNumber, int aByteIndex );
+        -:  148:
+    #####:  149:    ~PARSE_ERROR() throw () {}
+------------------
+PARSE_ERROR::~PARSE_ERROR():
+    #####:  149:    ~PARSE_ERROR() throw () {}
+------------------
+PARSE_ERROR::~PARSE_ERROR():
+    #####:  149:    ~PARSE_ERROR() throw () {}
+------------------
+        -:  150:
+        -:  151:    const wxString ParseProblem() { return parseProblem; }
+        -:  152:
+        -:  153:protected:
+        -:  154:    PARSE_ERROR() :
+        -:  155:        IO_ERROR(),
+        -:  156:        lineNumber( 0 ),
+        -:  157:        byteIndex( 0 )
+        -:  158:    {}
+        -:  159:
+        -:  160:protected:
+        -:  161:    wxString parseProblem;
+        -:  162:};
+        -:  163:
+        -:  164:
+        -:  165:#define THROW_PARSE_ERROR( aProblem, aSource, aInputLine, aLineNumber, aByteIndex )      \
+        -:  166:    throw PARSE_ERROR( aProblem, __FILE__, __FUNCTION__, __LINE__, aSource, aInputLine,  \
+        -:  167:                       aLineNumber, aByteIndex )
+        -:  168:
+        -:  169:
+        -:  170:/**
+        -:  171: * Variant of #PARSE_ERROR indicating that a syntax or related error was likely caused
+        -:  172: * by a file generated by a newer version of KiCad than this. This can be used to generate
+        -:  173: * more informative error messages.
+        -:  174: */
+        -:  175:struct KICOMMON_API FUTURE_FORMAT_ERROR : public PARSE_ERROR
+        -:  176:{
+        -:  177:    wxString requiredVersion;   ///< Date of KiCad file format required to open file
+        -:  178:    wxString requiredGenerator; ///< Version of KiCad required to open file
+        -:  179:
+        -:  180:    FUTURE_FORMAT_ERROR( const wxString& aRequiredVersion,
+        -:  181:                         const wxString& aRequiredGenerator = wxEmptyString );
+        -:  182:    FUTURE_FORMAT_ERROR( const PARSE_ERROR& aParseError, const wxString& aRequiredVersion,
+        -:  183:                         const wxString& aRequiredGenerator = wxEmptyString );
+    #####:  184:    ~FUTURE_FORMAT_ERROR() throw () {}
+------------------
+FUTURE_FORMAT_ERROR::~FUTURE_FORMAT_ERROR():
+    #####:  184:    ~FUTURE_FORMAT_ERROR() throw () {}
+------------------
+FUTURE_FORMAT_ERROR::~FUTURE_FORMAT_ERROR():
+    #####:  184:    ~FUTURE_FORMAT_ERROR() throw () {}
+------------------
+        -:  185:
+        -:  186:    void init( const wxString& aRequiredVersion,
+        -:  187:               const wxString& aRequiredGenerator = wxEmptyString );
+        -:  188:};
+        -:  189:
+        -:  190:/** @} exception_types */
+        -:  191:
+        -:  192:#endif // KI_EXCEPTION_H_

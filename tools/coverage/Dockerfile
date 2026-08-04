@@ -245,6 +245,24 @@ RUN --mount=type=cache,target=/ccache,sharing=locked \
 #     kicad-cli        the executable (kicad/CMakeLists.txt:120)
 #     pcbnew_kiface     -> _pcbnew.kiface   (pcbnew/CMakeLists.txt:854)
 #     eeschema_kiface   -> _eeschema.kiface (eeschema/CMakeLists.txt:639)
+#     cvpcb_kiface      -> _cvpcb.kiface    (cvpcb/CMakeLists.txt:59)
+#
+# THE THIRD ONE IS NOT OPTIONAL, and leaving it out silently killed every ERC case
+# in the 2026-08-04 run (docs/COVERAGE.md §2c). `sch erc` is not self-contained:
+# `eeschema/eeschema_jobs_handler.cpp:1353` calls
+#     ercTester.RunTests( drawingSheet.get(), nullptr,
+#                         m_kiway->KiFACE( KIWAY::FACE_CVPCB ), ... )
+# UNCONDITIONALLY -- cvpcb owns the footprint-link tester that
+# `ERC_TESTER::TestFootprintLinkIssues` calls through
+# `aCvPcb->IfaceOrAddress( KIFACE_TEST_FOOTPRINT_LINK )` (erc.cpp:1816-1831). With
+# `_cvpcb.kiface` absent, `KIWAY::KiFACE()` throws `IO_ERROR: Failed to load kiface
+# library` (kiway.cpp:284) BEFORE any ERC test runs, kicad-cli exits 255, and
+# `eeschema/erc/**` reads ~0% no matter how many ERC cases the suite has. The
+# failure is loud in stderr but exits with a code the runner reports as CRASH, so
+# it is easy to mistake for a suite problem rather than an image problem.
+# Adding it took the build from 2009 to 2032 ninja edges -- 23 edges, 22 of them
+# `Building CXX object cvpcb/...` plus the link, counted in the 2026-08-04 build log.
+# A rounding error, for the difference between eeschema/erc/** at 5.5% and at 56.0%.
 #
 # Confirmed by reading the CMake graph, not guessed:
 #   - `add_dependencies( pcbnew pcbnew_kiface )` / `add_dependencies( eeschema
@@ -257,7 +275,8 @@ RUN --mount=type=cache,target=/ccache,sharing=locked \
 #     on in the first failed attempt) is not in PCBNEW_KIFACE_LIBRARIES, so it is
 #     never built at all with this target list.
 #   - Verified with `ninja -n kicad-cli pcbnew_kiface eeschema_kiface`: 2010 edges
-#     vs 2354 for the default `all` target (~15% smaller). The saving is modest,
+#     vs 2354 for the default `all` target (~15% smaller); 2032 once cvpcb_kiface
+#     joined the list, which is still ~14% smaller. The saving is modest,
 #     not the ~60% one might hope for, because pcbnew_kiface's own dependency
 #     closure (3d-viewer, connectivity, every pcb_io/sch_io format plugin, the
 #     SWIG-generated pcbnew_wrap.cxx -- KiCad 10 has no build switch to omit that
@@ -284,7 +303,7 @@ RUN --mount=type=cache,target=/ccache,sharing=locked \
 # commit.
 # ---------------------------------------------------------------------------
 ARG BUILD_JOBS=8
-ARG KICAD_TARGETS="kicad-cli pcbnew_kiface eeschema_kiface"
+ARG KICAD_TARGETS="kicad-cli pcbnew_kiface eeschema_kiface cvpcb_kiface"
 RUN --mount=type=cache,target=/ccache,sharing=locked \
     set -eux; \
     ccache --zero-stats; \
@@ -318,6 +337,9 @@ RUN set -eux; \
     install -m755 /src/build/kicad/kicad-cli "${KICAD_PREFIX}/bin/kicad-cli"; \
     install -m755 /src/build/pcbnew/_pcbnew.kiface "${KICAD_PREFIX}/bin/_pcbnew.kiface"; \
     install -m755 /src/build/eeschema/_eeschema.kiface "${KICAD_PREFIX}/bin/_eeschema.kiface"; \
+    install -m755 /src/build/cvpcb/_cvpcb.kiface "${KICAD_PREFIX}/bin/_cvpcb.kiface"; \
+    test -x "${KICAD_PREFIX}/bin/_cvpcb.kiface" \
+        || { echo "FATAL: _cvpcb.kiface missing -- every 'sch erc' invocation will exit 255 and eeschema/erc/** will read 0%; see the note above target 4"; exit 1; }; \
     du -sh /src/build "${KICAD_PREFIX}"
 
 # ---------------------------------------------------------------------------

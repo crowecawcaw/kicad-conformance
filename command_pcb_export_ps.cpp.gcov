@@ -1,0 +1,208 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_export_ps.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_ps.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_ps.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include <base_units.h>
+        -:   22:#include "command_pcb_export_ps.h"
+        -:   23:#include <cli/exit_codes.h>
+        -:   24:#include "jobs/job_export_pcb_ps.h"
+        -:   25:#include <kiface_base.h>
+        -:   26:#include <string_utils.h>
+        -:   27:#include <wx/crt.h>
+        -:   28:
+        -:   29:#define ARG_MODE_SINGLE "--mode-single"
+        -:   30:#define ARG_MODE_MULTI "--mode-multi"
+        -:   31:#define ARG_TRACK_WIDTH_CORRECTION "--track-width-correction"
+        -:   32:#define ARG_X_SCALE_FACTOR "--x-scale-factor"
+        -:   33:#define ARG_Y_SCALE_FACTOR "--y-scale-factor"
+        -:   34:#define ARG_FORCE_A4 "--force-a4"
+        -:   35:
+      577:   36:CLI::PCB_EXPORT_PS_COMMAND::PCB_EXPORT_PS_COMMAND() :
+     1154:   37:        PCB_EXPORT_BASE_COMMAND( "ps", IO_TYPE::FILE, IO_TYPE::DIRECTORY )
+        -:   38:{
+     1154:   39:    m_argParser.add_description( UTF8STDSTR( _( "Generate Postscript from a list of layers" ) ) );
+        -:   40:
+      577:   41:    addLayerArg();
+      577:   42:    addCommonLayersArg();
+      577:   43:    addDrawingSheetArg();
+      577:   44:    addDefineArg();
+        -:   45:
+      577:   46:    m_argParser.add_argument( "-m", ARG_MIRROR )
+     1154:   47:            .help( UTF8STDSTR( _( "Mirror the board (useful for trying to show bottom layers)" ) ) )
+      577:   48:            .flag();
+        -:   49:
+      577:   50:    m_argParser.add_argument( "--erd", ARG_EXCLUDE_REFDES )
+     1154:   51:            .help( UTF8STDSTR( _( "Exclude the reference designator text" ) ) )
+      577:   52:            .flag();
+        -:   53:
+      577:   54:    m_argParser.add_argument( "--ev", ARG_EXCLUDE_VALUE )
+     1154:   55:            .help( UTF8STDSTR( _( "Exclude the value text" ) ) )
+      577:   56:            .flag();
+        -:   57:
+      577:   58:    m_argParser.add_argument( "--ibt", ARG_INCLUDE_BORDER_TITLE )
+     1154:   59:            .help( UTF8STDSTR( _( "Include the border and title block" ) ) )
+      577:   60:            .flag();
+        -:   61:
+      577:   62:    m_argParser.add_argument( ARG_SUBTRACT_SOLDERMASK )
+     1154:   63:            .help( UTF8STDSTR( _( "Subtract soldermask from silkscreen" ) ) )
+      577:   64:            .flag();
+        -:   65:
+      577:   66:    m_argParser.add_argument( "--sp", ARG_SKETCH_PADS_ON_FAB_LAYERS )
+     1154:   67:            .help( UTF8STDSTR( _( ARG_SKETCH_PADS_ON_FAB_LAYERS_DESC ) ) )
+      577:   68:            .flag();
+        -:   69:
+      577:   70:    m_argParser.add_argument( "--hdnp", ARG_HIDE_DNP_FPS_ON_FAB_LAYERS )
+     1154:   71:            .help( UTF8STDSTR( _( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   72:            .flag();
+        -:   73:
+      577:   74:    m_argParser.add_argument( "--sdnp", ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS )
+     1154:   75:            .help( UTF8STDSTR( _( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   76:            .flag();
+        -:   77:
+      577:   78:    m_argParser.add_argument( "--cdnp", ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS )
+     1154:   79:            .help( UTF8STDSTR( _( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   80:            .flag();
+        -:   81:
+      577:   82:    m_argParser.add_argument( ARG_NEGATIVE_SHORT, ARG_NEGATIVE )
+     1154:   83:            .help( UTF8STDSTR( _( ARG_NEGATIVE_DESC ) ) )
+      577:   84:            .flag();
+        -:   85:
+      577:   86:    m_argParser.add_argument( ARG_BLACKANDWHITE )
+     1154:   87:            .help( UTF8STDSTR( _( ARG_BLACKANDWHITE_DESC ) ) )
+      577:   88:            .flag();
+        -:   89:
+      577:   90:    m_argParser.add_argument( "-t", ARG_THEME )
+      577:   91:            .default_value( std::string() )
+     1154:   92:            .help( UTF8STDSTR( _( "Color theme to use (will default to PCB Editor settings)" ) ) )
+     1154:   93:            .metavar( "THEME_NAME" );
+        -:   94:
+      577:   95:    m_argParser.add_argument( ARG_DRILL_SHAPE_OPTION )
+     1154:   96:            .help( UTF8STDSTR( _( ARG_DRILL_SHAPE_OPTION_DESC ) ) )
+      577:   97:            .scan<'i', int>()
+      577:   98:            .default_value( 2 );
+        -:   99:
+      577:  100:    m_argParser.add_argument( ARG_MODE_SINGLE )
+     1154:  101:            .help( UTF8STDSTR(
+        -:  102:                    _( "Generates a single file with the output arg path acting as the complete "
+        -:  103:                       "directory and filename path. COMMON_LAYER_LIST does not function in this "
+        -:  104:                       "mode. Instead LAYER_LIST controls all layers plotted." ) ) )
+      577:  105:            .flag();
+        -:  106:
+      577:  107:    m_argParser.add_argument( ARG_MODE_MULTI )
+     1154:  108:            .help( UTF8STDSTR( _( "Generates one or more files with behavior similar to the KiCad "
+        -:  109:                                  "GUI plotting. The given output path specifies a directory in "
+        -:  110:                                  "which files may be output." ) ) )
+      577:  111:            .flag();
+        -:  112:
+      577:  113:    m_argParser.add_argument( "-C", ARG_TRACK_WIDTH_CORRECTION )
+     1154:  114:            .help( UTF8STDSTR( _( "Track width correction [mm]. Used to compensate errors in "
+        -:  115:                                  "track widths, pad and via sizes." ) ) )
+      577:  116:            .scan<'g', double>()
+      577:  117:            .default_value( 0.0 )
+     1154:  118:            .metavar( "TRACK_COR" );
+        -:  119:
+      577:  120:    m_argParser.add_argument( "-X", ARG_X_SCALE_FACTOR )
+     1154:  121:            .help( UTF8STDSTR( _( "X scale adjust for exact scale." ) ) )
+      577:  122:            .scan<'g', double>()
+      577:  123:            .default_value( 1.0 )
+     1154:  124:            .metavar( "X_SCALE" );
+        -:  125:
+      577:  126:    m_argParser.add_argument( "-Y", ARG_Y_SCALE_FACTOR )
+     1154:  127:            .help( UTF8STDSTR( _( "Y scale adjust for exact scale." ) ) )
+      577:  128:            .scan<'g', double>()
+      577:  129:            .default_value( 1.0 )
+     1154:  130:            .metavar( "Y_SCALE" );
+        -:  131:
+      577:  132:    m_argParser.add_argument( "-A", ARG_FORCE_A4 )
+     1154:  133:            .help( UTF8STDSTR( _( "Force A4 paper size." ) ) )
+      577:  134:            .flag();
+        -:  135:
+      577:  136:    m_argParser.add_argument( ARG_SCALE )
+     1154:  137:            .help( UTF8STDSTR( _( ARG_SCALE_DESC ) ) )
+      577:  138:            .scan<'g', double>()
+      577:  139:            .default_value( 1.0 )
+     1154:  140:            .metavar( "SCALE" );
+        -:  141:
+      577:  142:    m_argParser.add_argument( ARG_CHECK_ZONES )
+     1154:  143:            .help( UTF8STDSTR( _( ARG_CHECK_ZONES_DESC ) ) )
+      577:  144:            .flag();
+        -:  145:
+      577:  146:    addVariantsArg();
+      577:  147:}
+        -:  148:
+        -:  149:
+    #####:  150:int CLI::PCB_EXPORT_PS_COMMAND::doPerform( KIWAY& aKiway )
+        -:  151:{
+    #####:  152:    std::unique_ptr<JOB_EXPORT_PCB_PS> psJob( new JOB_EXPORT_PCB_PS() );
+        -:  153:
+    #####:  154:    psJob->m_filename = m_argInput;
+    #####:  155:    psJob->SetConfiguredOutputPath( m_argOutput );
+    #####:  156:    psJob->m_drawingSheet = m_argDrawingSheet;
+    #####:  157:    psJob->SetVarOverrides( m_argDefineVars );
+        -:  158:
+    #####:  159:    if( !m_argVariantNames.empty() )
+    #####:  160:        psJob->m_variant = m_argVariantNames.front();
+        -:  161:
+    #####:  162:    if( !wxFile::Exists( psJob->m_filename ) )
+        -:  163:    {
+    #####:  164:        wxFprintf( stderr, _( "Board file does not exist or is not accessible\n" ) );
+    #####:  165:        return EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:  166:    }
+        -:  167:
+    #####:  168:    psJob->m_plotFootprintValues = !m_argParser.get<bool>( ARG_EXCLUDE_VALUE );
+    #####:  169:    psJob->m_plotRefDes = !m_argParser.get<bool>( ARG_EXCLUDE_REFDES );
+        -:  170:
+    #####:  171:    psJob->m_plotDrawingSheet = m_argParser.get<bool>( ARG_INCLUDE_BORDER_TITLE );
+    #####:  172:    psJob->m_subtractSolderMaskFromSilk = m_argParser.get<bool>( ARG_SUBTRACT_SOLDERMASK );
+    #####:  173:    psJob->m_mirror = m_argParser.get<bool>( ARG_MIRROR );
+    #####:  174:    psJob->m_blackAndWhite = m_argParser.get<bool>( ARG_BLACKANDWHITE );
+    #####:  175:    psJob->m_colorTheme = From_UTF8( m_argParser.get<std::string>( ARG_THEME ).c_str() );
+    #####:  176:    psJob->m_negative = m_argParser.get<bool>( ARG_NEGATIVE );
+    #####:  177:    psJob->m_scale = m_argParser.get<double>( ARG_SCALE );
+    #####:  178:    psJob->m_checkZonesBeforePlot = m_argParser.get<bool>( ARG_CHECK_ZONES );
+        -:  179:
+    #####:  180:    psJob->m_sketchPadsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_PADS_ON_FAB_LAYERS );
+    #####:  181:    if( psJob->m_sketchPadsOnFabLayers )
+    #####:  182:        psJob->m_plotPadNumbers = true;
+    #####:  183:    psJob->m_hideDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS );
+    #####:  184:    psJob->m_sketchDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS );
+    #####:  185:    psJob->m_crossoutDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS );
+        -:  186:
+    #####:  187:    int drillShape = m_argParser.get<int>( ARG_DRILL_SHAPE_OPTION );
+    #####:  188:    psJob->m_drillShapeOption = static_cast<DRILL_MARKS>( drillShape );
+        -:  189:
+    #####:  190:    psJob->m_argLayers = From_UTF8( m_argParser.get<std::string>( ARG_LAYERS ).c_str() );
+    #####:  191:    psJob->m_argCommonLayers = From_UTF8( m_argParser.get<std::string>( ARG_COMMON_LAYERS ).c_str() );
+        -:  192:
+    #####:  193:    if( m_argParser.get<bool>( ARG_MODE_MULTI ) )
+    #####:  194:        psJob->m_genMode = JOB_EXPORT_PCB_PS::GEN_MODE::MULTI;
+    #####:  195:    else if( m_argParser.get<bool>( ARG_MODE_SINGLE ) )
+    #####:  196:        psJob->m_genMode = JOB_EXPORT_PCB_PS::GEN_MODE::SINGLE;
+        -:  197:
+    #####:  198:    psJob->m_trackWidthCorrection = m_argParser.get<double>( ARG_TRACK_WIDTH_CORRECTION );
+    #####:  199:    psJob->m_XScaleAdjust = m_argParser.get<double>( ARG_X_SCALE_FACTOR );
+    #####:  200:    psJob->m_YScaleAdjust = m_argParser.get<double>( ARG_Y_SCALE_FACTOR );
+    #####:  201:    psJob->m_forceA4 = m_argParser.get<bool>( ARG_FORCE_A4 );
+        -:  202:
+    #####:  203:    return aKiway.ProcessJob( KIWAY::FACE_PCB, psJob.get() );
+    #####:  204:}

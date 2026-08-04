@@ -1,0 +1,424 @@
+        -:    0:Source:/src/kicad/libs/kimath/include/geometry/eda_angle.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software: you can redistribute it and/or modify it
+        -:    7: * under the terms of the GNU General Public License as published by the
+        -:    8: * Free Software Foundation, either version 3 of the License, or (at your
+        -:    9: * option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful, but
+        -:   12: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   14: * General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License along
+        -:   17: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   18: */
+        -:   19:
+        -:   20:#ifndef EDA_ANGLE_H
+        -:   21:#define EDA_ANGLE_H
+        -:   22:
+        -:   23:#include <cassert>
+        -:   24:#include <cmath>
+        -:   25:#include <math/vector2d.h>  // for VECTOR2I
+        -:   26:
+        -:   27:
+        -:   28:enum EDA_ANGLE_T
+        -:   29:{
+        -:   30:    TENTHS_OF_A_DEGREE_T,
+        -:   31:    DEGREES_T,
+        -:   32:    RADIANS_T
+        -:   33:};
+        -:   34:
+        -:   35:
+        -:   36:class EDA_ANGLE
+        -:   37:{
+        -:   38:public:
+        -:   39:    /**
+        -:   40:     * Angles can be created in degrees, 1/10ths of a degree, or radians, and read as any of
+        -:   41:     * the angle types.
+        -:   42:     *
+        -:   43:     * Angle type must be explicitly specified at creation, because there is no other way of
+        -:   44:     * knowing what an int or a double represents.
+        -:   45:     */
+    #####:   46:    EDA_ANGLE( double aValue, EDA_ANGLE_T aAngleType )
+    #####:   47:    {
+    #####:   48:        switch( aAngleType )
+        -:   49:        {
+    #####:   50:        case RADIANS_T:
+    #####:   51:            m_value = aValue / DEGREES_TO_RADIANS;
+    #####:   52:            break;
+        -:   53:
+    #####:   54:        case TENTHS_OF_A_DEGREE_T:
+    #####:   55:            m_value = aValue / 10.0;
+    #####:   56:            break;
+        -:   57:
+    #####:   58:        default:
+    #####:   59:            m_value = aValue;
+        -:   60:        }
+    #####:   61:    }
+        -:   62:
+        -:   63:    /**
+        -:   64:     * Construct an EDA_ANGLE in degrees.  This is really only for the statically-defined
+        -:   65:     * global angles.  All other code should use EDA_ANGLE( xxx, DEGREES_T ).
+        -:   66:     * @param aAngleInDegrees
+        -:   67:     */
+        -:   68:    constexpr explicit EDA_ANGLE( double aAngleInDegrees ) :
+        -:   69:            m_value( aAngleInDegrees )
+        -:   70:    {}
+        -:   71:
+        -:   72:    explicit EDA_ANGLE( const VECTOR2D& aVector )
+        -:   73:    {
+        -:   74:        if( aVector.x == 0.0 && aVector.y == 0.0 )
+        -:   75:        {
+        -:   76:            m_value = 0.0;
+        -:   77:        }
+        -:   78:        else if( aVector.y == 0.0 )
+        -:   79:        {
+        -:   80:            if( aVector.x >= 0 )
+        -:   81:                m_value = 0.0;
+        -:   82:            else
+        -:   83:                m_value = -180.0;
+        -:   84:        }
+        -:   85:        else if( aVector.x == 0.0 )
+        -:   86:        {
+        -:   87:            if( aVector.y >= 0.0 )
+        -:   88:                m_value = 90.0;
+        -:   89:            else
+        -:   90:                m_value = -90.0;
+        -:   91:        }
+        -:   92:        else if( aVector.x == aVector.y )
+        -:   93:        {
+        -:   94:            if( aVector.x >= 0.0 )
+        -:   95:                m_value = 45.0;
+        -:   96:            else
+        -:   97:                m_value = -180.0 + 45.0;
+        -:   98:        }
+        -:   99:        else if( aVector.x == -aVector.y )
+        -:  100:        {
+        -:  101:            if( aVector.x >= 0.0 )
+        -:  102:                m_value = -45.0;
+        -:  103:            else
+        -:  104:                m_value = 180.0 - 45.0;
+        -:  105:        }
+        -:  106:        else
+        -:  107:        {
+        -:  108:            *this = EDA_ANGLE( atan2( aVector.y, aVector.x ), RADIANS_T );
+        -:  109:        }
+        -:  110:    }
+        -:  111:
+        -:  112:    EDA_ANGLE() :
+        -:  113:            m_value( 0.0 )
+        -:  114:    {}
+        -:  115:
+    #####:  116:    inline double AsDegrees() const { return m_value; }
+        -:  117:
+        -:  118:    inline int AsTenthsOfADegree() const { return KiROUND( m_value * 10.0 ); }
+        -:  119:
+        -:  120:    inline double AsRadians() const { return m_value * DEGREES_TO_RADIANS; }
+        -:  121:
+        -:  122:    static constexpr double DEGREES_TO_RADIANS = M_PI / 180.0;
+        -:  123:
+        -:  124:    /**
+        -:  125:     * @return true if angle is one of the four cardinal directions (0/90/180/270 degrees),
+        -:  126:     *         otherwise false
+        -:  127:     */
+        -:  128:    bool IsCardinal() const;
+        -:  129:
+        -:  130:    /**
+        -:  131:     * @return true if angle is one of the two cardinal directions (90/270 degrees),
+        -:  132:     *         otherwise false
+        -:  133:     */
+        -:  134:    bool IsCardinal90() const;
+        -:  135:
+    #####:  136:    bool IsZero() const
+        -:  137:    {
+    #####:  138:        return m_value == 0.0;
+        -:  139:        // return equals( m_value, 0.0 );
+        -:  140:    }
+        -:  141:
+        -:  142:    bool IsHorizontal() const
+        -:  143:    {
+        -:  144:        return m_value == 0.0 || m_value == 180.0;
+        -:  145:        // return equals( m_value, 0.0 ) || equals( m_value, 180.0 );
+        -:  146:    }
+        -:  147:
+        -:  148:    bool IsVertical() const
+        -:  149:    {
+        -:  150:        return m_value == 90.0 || m_value == 270.0;
+        -:  151:        //return equals( m_value, 90.0 ) || equals( m_value, 270.0 );
+        -:  152:    }
+        -:  153:
+        -:  154:    bool IsParallelTo( EDA_ANGLE aAngle ) const
+        -:  155:    {
+        -:  156:        EDA_ANGLE thisNormalized = *this;
+        -:  157:
+        -:  158:        // Normalize90 is inclusive on both ends [-90, +90]
+        -:  159:        // but we need it to be (-90, +90] for this test to work
+        -:  160:        thisNormalized.Normalize90();
+        -:  161:
+        -:  162:        if( equals( thisNormalized.AsDegrees(), -90.0 ) )
+        -:  163:            thisNormalized = EDA_ANGLE( 90.0, DEGREES_T );
+        -:  164:
+        -:  165:        aAngle.Normalize90();
+        -:  166:
+        -:  167:        if( equals( aAngle.AsDegrees(), -90.0 ) )
+        -:  168:            aAngle = EDA_ANGLE( 90.0, DEGREES_T );
+        -:  169:
+        -:  170:        return ( equals( thisNormalized.AsDegrees(), aAngle.AsDegrees() ) );
+        -:  171:    }
+        -:  172:
+    #####:  173:    EDA_ANGLE Invert() const
+        -:  174:    {
+    #####:  175:        return EDA_ANGLE( -AsDegrees(), DEGREES_T );
+        -:  176:    }
+        -:  177:
+        -:  178:    double Sin() const
+        -:  179:    {
+        -:  180:        EDA_ANGLE test = *this;
+        -:  181:        test.Normalize();
+        -:  182:
+        -:  183:        if( test.m_value == 0.0 || test.m_value == 180.0 )
+        -:  184:            return 0.0;
+        -:  185:        else if( test.m_value == 45.0 || test.m_value == 135.0 )
+        -:  186:            return M_SQRT1_2; // sqrt(2)/2
+        -:  187:        else if( test.m_value == 225.0 || test.m_value == 315.0 )
+        -:  188:            return -M_SQRT1_2;
+        -:  189:        else if( test.m_value == 90.0 )
+        -:  190:            return 1.0;
+        -:  191:        else if( test.m_value == 270.0 )
+        -:  192:            return -1.0;
+        -:  193:        else
+        -:  194:            return sin( AsRadians() );
+        -:  195:    }
+        -:  196:
+        -:  197:    double Cos() const
+        -:  198:    {
+        -:  199:        EDA_ANGLE test = *this;
+        -:  200:        test.Normalize();
+        -:  201:
+        -:  202:        if( test.m_value == 0.0 )
+        -:  203:            return 1.0;
+        -:  204:        else if( test.m_value == 180.0 )
+        -:  205:            return -1.0;
+        -:  206:        else if( test.m_value == 90.0 || test.m_value == 270.0 )
+        -:  207:            return 0.0;
+        -:  208:        else if( test.m_value == 45.0 || test.m_value == 315.0 )
+        -:  209:            return M_SQRT1_2; // sqrt(2)/2
+        -:  210:        else if( test.m_value == 135.0 || test.m_value == 225.0 )
+        -:  211:            return -M_SQRT1_2;
+        -:  212:        else
+        -:  213:            return cos( AsRadians() );
+        -:  214:    }
+        -:  215:
+        -:  216:    double Tan() const { return tan( AsRadians() ); }
+        -:  217:
+        -:  218:    static EDA_ANGLE Arccos( double x ) { return EDA_ANGLE( acos( x ), RADIANS_T ); }
+        -:  219:
+        -:  220:    static EDA_ANGLE Arcsin( double x ) { return EDA_ANGLE( asin( x ), RADIANS_T ); }
+        -:  221:
+        -:  222:    static EDA_ANGLE Arctan( double x ) { return EDA_ANGLE( atan( x ), RADIANS_T ); }
+        -:  223:
+        -:  224:    static EDA_ANGLE Arctan2( double y, double x )
+        -:  225:    {
+        -:  226:        return EDA_ANGLE( atan2( y, x ), RADIANS_T );
+        -:  227:    }
+        -:  228:
+        -:  229:    inline EDA_ANGLE Normalize()
+        -:  230:    {
+        -:  231:        while( m_value < -0.0 )
+        -:  232:            m_value += 360.0;
+        -:  233:
+        -:  234:        while( m_value >= 360.0 )
+        -:  235:            m_value -= 360.0;
+        -:  236:
+        -:  237:        return *this;
+        -:  238:    }
+        -:  239:
+        -:  240:    EDA_ANGLE Normalized() const
+        -:  241:    {
+        -:  242:        EDA_ANGLE ret( *this );
+        -:  243:        return ret.Normalize();
+        -:  244:    }
+        -:  245:
+        -:  246:    inline EDA_ANGLE NormalizeNegative()
+        -:  247:    {
+        -:  248:        while( m_value <= -360.0 )
+        -:  249:            m_value += 360.0;
+        -:  250:
+        -:  251:        while( m_value > 0.0 )
+        -:  252:            m_value -= 360.0;
+        -:  253:
+        -:  254:        return *this;
+        -:  255:    }
+        -:  256:
+        -:  257:    inline EDA_ANGLE Normalize90()
+        -:  258:    {
+        -:  259:        while( m_value < -90.0 )
+        -:  260:            m_value += 180.0;
+        -:  261:
+        -:  262:        while( m_value > 90.0 )
+        -:  263:            m_value -= 180.0;
+        -:  264:
+        -:  265:        return *this;
+        -:  266:    }
+        -:  267:
+        -:  268:    inline EDA_ANGLE Normalize180()
+        -:  269:    {
+        -:  270:        while( m_value <= -180.0 )
+        -:  271:            m_value += 360.0;
+        -:  272:
+        -:  273:        while( m_value > 180.0 )
+        -:  274:            m_value -= 360.0;
+        -:  275:
+        -:  276:        return *this;
+        -:  277:    }
+        -:  278:
+    #####:  279:    inline EDA_ANGLE Normalize720()
+        -:  280:    {
+    #####:  281:        while( m_value < -360.0 )
+    #####:  282:            m_value += 360.0;
+        -:  283:
+    #####:  284:        while( m_value >= 360.0 )
+    #####:  285:            m_value -= 360.0;
+        -:  286:
+    #####:  287:        return *this;
+        -:  288:    }
+        -:  289:
+        -:  290:    EDA_ANGLE KeepUpright() const;
+        -:  291:
+        -:  292:    EDA_ANGLE Round( int digits ) const
+        -:  293:    {
+        -:  294:        EDA_ANGLE angle( *this );
+        -:  295:        double rounded = KiROUND( angle.AsDegrees() * pow( 10.0, digits ) ) / pow( 10.0, digits );
+        -:  296:        angle = EDA_ANGLE( rounded, DEGREES_T );
+        -:  297:        return angle;
+        -:  298:    }
+        -:  299:
+        -:  300:    EDA_ANGLE& operator+=( const EDA_ANGLE& aAngle )
+        -:  301:    {
+        -:  302:        *this = EDA_ANGLE( AsDegrees() + aAngle.AsDegrees(), DEGREES_T );
+        -:  303:        return *this;
+        -:  304:    }
+        -:  305:
+    #####:  306:    EDA_ANGLE& operator-=( const EDA_ANGLE& aAngle )
+        -:  307:    {
+    #####:  308:        *this = EDA_ANGLE( AsDegrees() - aAngle.AsDegrees(), DEGREES_T );
+    #####:  309:        return *this;
+        -:  310:    }
+        -:  311:
+        -:  312:private:
+        -:  313:    double  m_value;           ///< value in degrees
+        -:  314:
+        -:  315:};
+        -:  316:
+        -:  317:
+    #####:  318:inline EDA_ANGLE operator-( const EDA_ANGLE& aAngle )
+        -:  319:{
+    #####:  320:    return aAngle.Invert();
+        -:  321:}
+        -:  322:
+        -:  323:
+        -:  324:inline EDA_ANGLE operator-( const EDA_ANGLE& aAngleA, const EDA_ANGLE& aAngleB )
+        -:  325:{
+        -:  326:    return EDA_ANGLE( aAngleA.AsDegrees() - aAngleB.AsDegrees(), DEGREES_T );
+        -:  327:}
+        -:  328:
+        -:  329:
+        -:  330:inline EDA_ANGLE operator+( const EDA_ANGLE& aAngleA, const EDA_ANGLE& aAngleB )
+        -:  331:{
+        -:  332:    return EDA_ANGLE( aAngleA.AsDegrees() + aAngleB.AsDegrees(), DEGREES_T );
+        -:  333:}
+        -:  334:
+        -:  335:
+        -:  336:inline EDA_ANGLE operator*( const EDA_ANGLE& aAngleA, double aOperator )
+        -:  337:{
+        -:  338:    return EDA_ANGLE( aAngleA.AsDegrees() * aOperator, DEGREES_T );
+        -:  339:}
+        -:  340:
+        -:  341:
+        -:  342:inline EDA_ANGLE operator/( const EDA_ANGLE& aAngleA, double aOperator )
+        -:  343:{
+        -:  344:    return EDA_ANGLE( aAngleA.AsDegrees() / aOperator, DEGREES_T );
+        -:  345:}
+        -:  346:
+        -:  347:
+        -:  348:inline double operator/( const EDA_ANGLE& aAngleA, const EDA_ANGLE& aOperator )
+        -:  349:{
+        -:  350:    return aAngleA.AsDegrees() / aOperator.AsDegrees();
+        -:  351:}
+        -:  352:
+        -:  353:
+        -:  354:inline bool operator==( const EDA_ANGLE& aAngleA, const EDA_ANGLE& aAngleB )
+        -:  355:{
+        -:  356:    return aAngleA.AsDegrees() == aAngleB.AsDegrees();
+        -:  357:    //return equals( aAngleA.AsDegrees(), aAngleB.AsDegrees() );
+        -:  358:}
+        -:  359:
+        -:  360:
+    #####:  361:inline bool operator!=( const EDA_ANGLE& aAngleA, const EDA_ANGLE& aAngleB )
+        -:  362:{
+    #####:  363:    return aAngleA.AsDegrees() != aAngleB.AsDegrees();
+        -:  364:    // return !equals( aAngleA.AsDegrees(), aAngleB.AsDegrees() );
+        -:  365:}
+        -:  366:
+        -:  367:
+        -:  368:inline bool operator>( const EDA_ANGLE& aAngleA, const EDA_ANGLE& aAngleB )
+        -:  369:{
+        -:  370:    return aAngleA.AsDegrees() > aAngleB.AsDegrees();
+        -:  371:}
+        -:  372:
+        -:  373:
+        -:  374:inline bool operator<( const EDA_ANGLE& aAngleA, const EDA_ANGLE& aAngleB )
+        -:  375:{
+        -:  376:    return aAngleA.AsDegrees() < aAngleB.AsDegrees();
+        -:  377:}
+        -:  378:
+        -:  379:
+        -:  380:inline bool operator<=( const EDA_ANGLE& aAngleA, const EDA_ANGLE& aAngleB )
+        -:  381:{
+        -:  382:    return aAngleA.AsDegrees() <= aAngleB.AsDegrees();
+        -:  383:}
+        -:  384:
+        -:  385:
+        -:  386:inline bool operator>=( const EDA_ANGLE& aAngleA, const EDA_ANGLE& aAngleB )
+        -:  387:{
+        -:  388:    return aAngleA.AsDegrees() >= aAngleB.AsDegrees();
+        -:  389:}
+        -:  390:
+        -:  391:
+        -:  392:inline std::ostream& operator<<( std::ostream& aStream, const EDA_ANGLE& aAngle )
+        -:  393:{
+        -:  394:    return aStream << aAngle.AsDegrees();
+        -:  395:}
+        -:  396:
+        -:  397:
+        -:  398:namespace std
+        -:  399:{
+        -:  400:inline EDA_ANGLE abs( const EDA_ANGLE& aAngle )
+        -:  401:{
+        -:  402:    return EDA_ANGLE( std::abs( aAngle.AsDegrees() ), DEGREES_T );
+        -:  403:}
+        -:  404:}
+        -:  405:
+        -:  406:
+        -:  407:static constexpr EDA_ANGLE ANGLE_HORIZONTAL{ 0 };
+        -:  408:static constexpr EDA_ANGLE ANGLE_VERTICAL{ 90 };
+        -:  409:static constexpr EDA_ANGLE FULL_CIRCLE{ 360 };
+        -:  410:
+        -:  411:static constexpr EDA_ANGLE ANGLE_0{ 0 };
+        -:  412:static constexpr EDA_ANGLE ANGLE_45{ 45 };
+        -:  413:static constexpr EDA_ANGLE ANGLE_90{ 90 };
+        -:  414:static constexpr EDA_ANGLE ANGLE_135{ 135 };
+        -:  415:static constexpr EDA_ANGLE ANGLE_180{ 180 };
+        -:  416:static constexpr EDA_ANGLE ANGLE_270{ 270 };
+        -:  417:static constexpr EDA_ANGLE ANGLE_360{ 360 };
+        -:  418:
+        -:  419:
+        -:  420:#endif // EDA_ANGLE_H

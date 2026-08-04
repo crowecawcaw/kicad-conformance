@@ -1,0 +1,239 @@
+        -:    0:Source:/usr/include/c++/14/utility
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_fp_export_svg.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_fp_export_svg.cpp.gcda
+        -:    0:Runs:577
+        -:    1:// <utility> -*- C++ -*-
+        -:    2:
+        -:    3:// Copyright (C) 2001-2024 Free Software Foundation, Inc.
+        -:    4://
+        -:    5:// This file is part of the GNU ISO C++ Library.  This library is free
+        -:    6:// software; you can redistribute it and/or modify it under the
+        -:    7:// terms of the GNU General Public License as published by the
+        -:    8:// Free Software Foundation; either version 3, or (at your option)
+        -:    9:// any later version.
+        -:   10:
+        -:   11:// This library is distributed in the hope that it will be useful,
+        -:   12:// but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13:// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14:// GNU General Public License for more details.
+        -:   15:
+        -:   16:// Under Section 7 of GPL version 3, you are granted additional
+        -:   17:// permissions described in the GCC Runtime Library Exception, version
+        -:   18:// 3.1, as published by the Free Software Foundation.
+        -:   19:
+        -:   20:// You should have received a copy of the GNU General Public License and
+        -:   21:// a copy of the GCC Runtime Library Exception along with this program;
+        -:   22:// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+        -:   23:// <http://www.gnu.org/licenses/>.
+        -:   24:
+        -:   25:/*
+        -:   26: *
+        -:   27: * Copyright (c) 1994
+        -:   28: * Hewlett-Packard Company
+        -:   29: *
+        -:   30: * Permission to use, copy, modify, distribute and sell this software
+        -:   31: * and its documentation for any purpose is hereby granted without fee,
+        -:   32: * provided that the above copyright notice appear in all copies and
+        -:   33: * that both that copyright notice and this permission notice appear
+        -:   34: * in supporting documentation.  Hewlett-Packard Company makes no
+        -:   35: * representations about the suitability of this software for any
+        -:   36: * purpose.  It is provided "as is" without express or implied warranty.
+        -:   37: *
+        -:   38: *
+        -:   39: * Copyright (c) 1996,1997
+        -:   40: * Silicon Graphics Computer Systems, Inc.
+        -:   41: *
+        -:   42: * Permission to use, copy, modify, distribute and sell this software
+        -:   43: * and its documentation for any purpose is hereby granted without fee,
+        -:   44: * provided that the above copyright notice appear in all copies and
+        -:   45: * that both that copyright notice and this permission notice appear
+        -:   46: * in supporting documentation.  Silicon Graphics makes no
+        -:   47: * representations about the suitability of this software for any
+        -:   48: * purpose.  It is provided "as is" without express or implied warranty.
+        -:   49: */
+        -:   50:
+        -:   51:/** @file include/utility
+        -:   52: *  This is a Standard C++ Library header.
+        -:   53: */
+        -:   54:
+        -:   55:#ifndef _GLIBCXX_UTILITY
+        -:   56:#define _GLIBCXX_UTILITY 1
+        -:   57:
+        -:   58:#pragma GCC system_header
+        -:   59:
+        -:   60:/**
+        -:   61: * @defgroup utilities Utilities
+        -:   62: *
+        -:   63: * Basic function and class templates used with the rest of the library.
+        -:   64: * Includes pair, swap, forward/move helpers, declval, integer_sequence.
+        -:   65: */
+        -:   66:
+        -:   67:#include <bits/c++config.h>
+        -:   68:#include <bits/stl_relops.h>
+        -:   69:#include <bits/stl_pair.h>
+        -:   70:
+        -:   71:#if __cplusplus >= 201103L
+        -:   72:
+        -:   73:#include <initializer_list>
+        -:   74:#include <type_traits>
+        -:   75:#include <bits/move.h>
+        -:   76:#include <bits/utility.h>
+        -:   77:
+        -:   78:#if __cplusplus >= 202002L
+        -:   79:#include <ext/numeric_traits.h> // __is_standard_integer, __int_traits
+        -:   80:#endif
+        -:   81:
+        -:   82:#define __glibcxx_want_addressof_constexpr
+        -:   83:#define __glibcxx_want_as_const
+        -:   84:#define __glibcxx_want_constexpr_algorithms
+        -:   85:#define __glibcxx_want_constexpr_utility
+        -:   86:#define __glibcxx_want_exchange_function
+        -:   87:#define __glibcxx_want_forward_like
+        -:   88:#define __glibcxx_want_integer_comparison_functions
+        -:   89:#define __glibcxx_want_integer_sequence
+        -:   90:#define __glibcxx_want_ranges_zip
+        -:   91:#define __glibcxx_want_to_underlying
+        -:   92:#define __glibcxx_want_tuple_element_t
+        -:   93:#define __glibcxx_want_tuples_by_type
+        -:   94:#define __glibcxx_want_unreachable
+        -:   95:#define __glibcxx_want_tuple_like
+        -:   96:#include <bits/version.h>
+        -:   97:
+        -:   98:namespace std _GLIBCXX_VISIBILITY(default)
+        -:   99:{
+        -:  100:_GLIBCXX_BEGIN_NAMESPACE_VERSION
+        -:  101:
+        -:  102:#ifdef __cpp_lib_exchange_function // C++ >= 14
+        -:  103:  /// Assign @p __new_val to @p __obj and return its previous value.
+        -:  104:  template <typename _Tp, typename _Up = _Tp>
+        -:  105:    _GLIBCXX20_CONSTEXPR
+        -:  106:    inline _Tp
+        -:  107:    exchange(_Tp& __obj, _Up&& __new_val)
+        -:  108:    noexcept(__and_<is_nothrow_move_constructible<_Tp>,
+        -:  109:		    is_nothrow_assignable<_Tp&, _Up>>::value)
+        -:  110:    { return std::__exchange(__obj, std::forward<_Up>(__new_val)); }
+        -:  111:#endif
+        -:  112:
+        -:  113:#ifdef  __cpp_lib_as_const // C++ >= 17
+        -:  114:  template<typename _Tp>
+        -:  115:    [[nodiscard]]
+        -:  116:    constexpr add_const_t<_Tp>&
+    #####:  117:    as_const(_Tp& __t) noexcept
+    #####:  118:    { return __t; }
+        -:  119:
+        -:  120:  template<typename _Tp>
+        -:  121:    void as_const(const _Tp&&) = delete;
+        -:  122:#endif
+        -:  123:
+        -:  124:#ifdef __cpp_lib_integer_comparison_functions // C++ >= 20
+        -:  125:  template<typename _Tp, typename _Up>
+        -:  126:    constexpr bool
+        -:  127:    cmp_equal(_Tp __t, _Up __u) noexcept
+        -:  128:    {
+        -:  129:      static_assert(__is_standard_integer<_Tp>::value);
+        -:  130:      static_assert(__is_standard_integer<_Up>::value);
+        -:  131:
+        -:  132:      if constexpr (is_signed_v<_Tp> == is_signed_v<_Up>)
+        -:  133:	return __t == __u;
+        -:  134:      else if constexpr (is_signed_v<_Tp>)
+        -:  135:	return __t >= 0 && make_unsigned_t<_Tp>(__t) == __u;
+        -:  136:      else
+        -:  137:	return __u >= 0 && __t == make_unsigned_t<_Up>(__u);
+        -:  138:    }
+        -:  139:
+        -:  140:  template<typename _Tp, typename _Up>
+        -:  141:    constexpr bool
+        -:  142:    cmp_not_equal(_Tp __t, _Up __u) noexcept
+        -:  143:    { return !std::cmp_equal(__t, __u); }
+        -:  144:
+        -:  145:  template<typename _Tp, typename _Up>
+        -:  146:    constexpr bool
+        -:  147:    cmp_less(_Tp __t, _Up __u) noexcept
+        -:  148:    {
+        -:  149:      static_assert(__is_standard_integer<_Tp>::value);
+        -:  150:      static_assert(__is_standard_integer<_Up>::value);
+        -:  151:
+        -:  152:      if constexpr (is_signed_v<_Tp> == is_signed_v<_Up>)
+        -:  153:	return __t < __u;
+        -:  154:      else if constexpr (is_signed_v<_Tp>)
+        -:  155:	return __t < 0 || make_unsigned_t<_Tp>(__t) < __u;
+        -:  156:      else
+        -:  157:	return __u >= 0 && __t < make_unsigned_t<_Up>(__u);
+        -:  158:    }
+        -:  159:
+        -:  160:  template<typename _Tp, typename _Up>
+        -:  161:    constexpr bool
+        -:  162:    cmp_greater(_Tp __t, _Up __u) noexcept
+        -:  163:    { return std::cmp_less(__u, __t); }
+        -:  164:
+        -:  165:  template<typename _Tp, typename _Up>
+        -:  166:    constexpr bool
+        -:  167:    cmp_less_equal(_Tp __t, _Up __u) noexcept
+        -:  168:    { return !std::cmp_less(__u, __t); }
+        -:  169:
+        -:  170:  template<typename _Tp, typename _Up>
+        -:  171:    constexpr bool
+        -:  172:    cmp_greater_equal(_Tp __t, _Up __u) noexcept
+        -:  173:    { return !std::cmp_less(__t, __u); }
+        -:  174:
+        -:  175:  template<typename _Res, typename _Tp>
+        -:  176:    constexpr bool
+        -:  177:    in_range(_Tp __t) noexcept
+        -:  178:    {
+        -:  179:      static_assert(__is_standard_integer<_Res>::value);
+        -:  180:      static_assert(__is_standard_integer<_Tp>::value);
+        -:  181:      using __gnu_cxx::__int_traits;
+        -:  182:
+        -:  183:      if constexpr (is_signed_v<_Tp> == is_signed_v<_Res>)
+        -:  184:	return __int_traits<_Res>::__min <= __t
+        -:  185:	  && __t <= __int_traits<_Res>::__max;
+        -:  186:      else if constexpr (is_signed_v<_Tp>)
+        -:  187:	return __t >= 0
+        -:  188:	  && make_unsigned_t<_Tp>(__t) <= __int_traits<_Res>::__max;
+        -:  189:      else
+        -:  190:	return __t <= make_unsigned_t<_Res>(__int_traits<_Res>::__max);
+        -:  191:    }
+        -:  192:#endif // __cpp_lib_integer_comparison_functions
+        -:  193:
+        -:  194:#ifdef __cpp_lib_to_underlying // C++ >= 23
+        -:  195:  /// Convert an object of enumeration type to its underlying type.
+        -:  196:  template<typename _Tp>
+        -:  197:    [[nodiscard]]
+        -:  198:    constexpr underlying_type_t<_Tp>
+        -:  199:    to_underlying(_Tp __value) noexcept
+        -:  200:    { return static_cast<underlying_type_t<_Tp>>(__value); }
+        -:  201:#endif
+        -:  202:
+        -:  203:#ifdef __cpp_lib_unreachable // C++ >= 23
+        -:  204:  /// Informs the compiler that program control flow never reaches this point.
+        -:  205:  /**
+        -:  206:   * Evaluating a call to this function results in undefined behaviour.
+        -:  207:   * This can be used as an assertion informing the compiler that certain
+        -:  208:   * conditions are impossible, for when the compiler is unable to determine
+        -:  209:   * that by itself.
+        -:  210:   *
+        -:  211:   * For example, it can be used to prevent warnings about reaching the
+        -:  212:   * end of a non-void function without returning.
+        -:  213:   *
+        -:  214:   * @since C++23
+        -:  215:   */
+        -:  216:  [[noreturn,__gnu__::__always_inline__]]
+        -:  217:  inline void
+        -:  218:  unreachable()
+        -:  219:  {
+        -:  220:#ifdef _GLIBCXX_DEBUG
+        -:  221:    std::__glibcxx_assert_fail(nullptr, 0, "std::unreachable()", nullptr);
+        -:  222:#elif defined _GLIBCXX_ASSERTIONS
+        -:  223:    __builtin_trap();
+        -:  224:#else
+        -:  225:    __builtin_unreachable();
+        -:  226:#endif
+        -:  227:  }
+        -:  228:#endif
+        -:  229:
+        -:  230:_GLIBCXX_END_NAMESPACE_VERSION
+        -:  231:} // namespace
+        -:  232:
+        -:  233:#endif
+        -:  234:
+        -:  235:#endif /* _GLIBCXX_UTILITY */

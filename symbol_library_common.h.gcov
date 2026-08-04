@@ -1,0 +1,140 @@
+        -:    0:Source:/src/kicad/eeschema/symbol_library_common.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software: you can redistribute it and/or modify it
+        -:    7: * under the terms of the GNU General Public License as published by the
+        -:    8: * Free Software Foundation, either version 3 of the License, or (at your
+        -:    9: * option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful, but
+        -:   12: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   14: * General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License along
+        -:   17: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   18: */
+        -:   19:
+        -:   20:#ifndef _SYMBOL_LIBRARY_COMMON_H_
+        -:   21:#define _SYMBOL_LIBRARY_COMMON_H_
+        -:   22:
+        -:   23:#include <map>
+        -:   24:
+        -:   25:#include <wx/arrstr.h>
+        -:   26:
+        -:   27:
+        -:   28:class LIB_SYMBOL;
+        -:   29:class SCH_BASE_FRAME;
+        -:   30:
+        -:   31:
+        -:   32:enum class SCH_LIB_TYPE
+        -:   33:{
+        -:   34:    LT_EESCHEMA,
+        -:   35:    LT_SYMBOL
+        -:   36:};
+        -:   37:
+        -:   38:
+        -:   39:/**
+        -:   40: * Symbol library map sorting helper.
+        -:   41: */
+        -:   42:struct LibSymbolMapSort
+        -:   43:{
+    #####:   44:    bool operator() ( const wxString& aItem1, const wxString& aItem2 ) const
+        -:   45:    {
+    #####:   46:        return aItem1 < aItem2;
+        -:   47:    }
+        -:   48:};
+        -:   49:
+        -:   50:
+        -:   51:///< Symbol library map sorted by the symbol name.
+        -:   52:typedef std::map< wxString, LIB_SYMBOL*, LibSymbolMapSort > LIB_SYMBOL_MAP;
+        -:   53:
+        -:   54:
+        -:   55:/**
+        -:   56: * Helper object to filter a list of libraries.
+        -:   57: */
+        -:   58:class SYMBOL_LIBRARY_FILTER
+        -:   59:{
+        -:   60:public:
+        -:   61:    SYMBOL_LIBRARY_FILTER()
+        -:   62:    {
+        -:   63:        m_filterPowerSymbols = false;
+        -:   64:        m_forceLoad = false;
+        -:   65:    }
+        -:   66:
+        -:   67:    /**
+        -:   68:     * Add \a aLibName to the allowed libraries list.
+        -:   69:     */
+        -:   70:    void AddLib( const wxString& aLibName )
+        -:   71:    {
+        -:   72:        m_allowedLibs.Add( aLibName );
+        -:   73:        m_forceLoad = false;
+        -:   74:    }
+        -:   75:
+        -:   76:
+        -:   77:    /**
+        -:   78:     * Add \a aLibName to the allowed libraries list.
+        -:   79:     */
+        -:   80:    void LoadFrom( const wxString& aLibName )
+        -:   81:    {
+        -:   82:        m_allowedLibs.Clear();
+        -:   83:        m_allowedLibs.Add( aLibName );
+        -:   84:        m_forceLoad = true;
+        -:   85:    }
+        -:   86:
+        -:   87:    /**
+        -:   88:     * Clear the allowed libraries list (allows all libraries).
+        -:   89:     */
+        -:   90:    void ClearLibList()
+        -:   91:    {
+        -:   92:        m_allowedLibs.Clear();
+        -:   93:        m_forceLoad = false;
+        -:   94:    }
+        -:   95:
+        -:   96:    /**
+        -:   97:     * Enable or disable the filtering of power symbols.
+        -:   98:     */
+        -:   99:    void FilterPowerSymbols( bool aFilterEnable )
+        -:  100:    {
+        -:  101:        m_filterPowerSymbols = aFilterEnable;
+        -:  102:    }
+        -:  103:
+        -:  104:    /**
+        -:  105:     * @return true if the filtering of power symbols is on.
+        -:  106:     */
+        -:  107:    bool GetFilterPowerSymbols() const { return m_filterPowerSymbols; }
+        -:  108:
+        -:  109:
+        -:  110:    /**
+        -:  111:     * @return the list of the names of allowed libraries.
+        -:  112:     */
+        -:  113:    const wxArrayString& GetAllowedLibList() const { return m_allowedLibs; }
+        -:  114:
+        -:  115:    /**
+        -:  116:     * @return the name of the library to use to load a symbol or an a empty string if no
+        -:  117:     *         library source available.
+        -:  118:     */
+        -:  119:    const wxString& GetLibSource() const
+        -:  120:    {
+        -:  121:        static wxString dummy;
+        -:  122:
+        -:  123:        if( m_forceLoad && m_allowedLibs.GetCount() > 0 )
+        -:  124:            return m_allowedLibs[0];
+        -:  125:        else
+        -:  126:            return dummy;
+        -:  127:    }
+        -:  128:
+        -:  129:private:
+        -:  130:    wxArrayString m_allowedLibs;        ///< List of filtered library names.
+        -:  131:    bool          m_filterPowerSymbols; ///< Enable or disable power symbol filtering.
+        -:  132:    bool          m_forceLoad;          ///< Force loading symbol from library m_allowedLibs[0].
+        -:  133:};
+        -:  134:
+        -:  135:
+        -:  136:#endif    // _SYMBOL_LIBRARY_COMMON_H_

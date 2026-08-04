@@ -1,0 +1,214 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_export_pdf.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_pdf.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_pdf.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include "command_pcb_export_pdf.h"
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include "jobs/job_export_pcb_pdf.h"
+        -:   24:#include <kiface_base.h>
+        -:   25:#include <string_utils.h>
+        -:   26:#include <wx/crt.h>
+        -:   27:
+        -:   28:#define ARG_MODE_SEPARATE "--mode-separate"
+        -:   29:#define ARG_MODE_MULTIPAGE "--mode-multipage"
+        -:   30:#define ARG_MODE_SINGLE "--mode-single"
+        -:   31:#define ARG_NO_PROPERTY_POPUPS "--no-property-popups"
+        -:   32:
+      577:   33:CLI::PCB_EXPORT_PDF_COMMAND::PCB_EXPORT_PDF_COMMAND() :
+     1154:   34:        PCB_EXPORT_BASE_COMMAND( "pdf", IO_TYPE::FILE, IO_TYPE::DIRECTORY )
+        -:   35:{
+     1154:   36:    m_argParser.add_description( UTF8STDSTR( _( "Generate PDF from a list of layers" ) ) );
+        -:   37:
+      577:   38:    addLayerArg();
+      577:   39:    addCommonLayersArg();
+      577:   40:    addDrawingSheetArg();
+      577:   41:    addDefineArg();
+        -:   42:
+      577:   43:    m_argParser.add_argument( "-m", ARG_MIRROR )
+     1154:   44:            .help( UTF8STDSTR( _( "Mirror the board (useful for trying to show bottom layers)" ) ) )
+      577:   45:            .flag();
+        -:   46:
+      577:   47:    m_argParser.add_argument( "--erd", ARG_EXCLUDE_REFDES )
+     1154:   48:            .help( UTF8STDSTR( _( "Exclude the reference designator text" ) ) )
+      577:   49:            .flag();
+        -:   50:
+      577:   51:    m_argParser.add_argument( "--ev", ARG_EXCLUDE_VALUE )
+     1154:   52:            .help( UTF8STDSTR( _( "Exclude the value text" ) ) )
+      577:   53:            .flag();
+        -:   54:
+      577:   55:    m_argParser.add_argument( "--ibt", ARG_INCLUDE_BORDER_TITLE )
+     1154:   56:            .help( UTF8STDSTR( _( "Include the border and title block" ) ) )
+      577:   57:            .flag();
+        -:   58:
+      577:   59:    m_argParser.add_argument( ARG_SUBTRACT_SOLDERMASK )
+     1154:   60:            .help( UTF8STDSTR( _( "Subtract soldermask from silkscreen" ) ) )
+      577:   61:            .flag();
+        -:   62:
+      577:   63:    m_argParser.add_argument( "--sp", ARG_SKETCH_PADS_ON_FAB_LAYERS )
+     1154:   64:            .help( UTF8STDSTR( _( ARG_SKETCH_PADS_ON_FAB_LAYERS_DESC ) ) )
+      577:   65:            .flag();
+        -:   66:
+      577:   67:    m_argParser.add_argument( "--hdnp", ARG_HIDE_DNP_FPS_ON_FAB_LAYERS )
+     1154:   68:            .help( UTF8STDSTR( _( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   69:            .flag();
+        -:   70:
+      577:   71:    m_argParser.add_argument( "--sdnp", ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS )
+     1154:   72:            .help( UTF8STDSTR( _( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   73:            .flag();
+        -:   74:
+      577:   75:    m_argParser.add_argument( "--cdnp", ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS )
+     1154:   76:            .help( UTF8STDSTR( _( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS_DESC ) ) )
+      577:   77:            .flag();
+        -:   78:
+      577:   79:    m_argParser.add_argument( ARG_NEGATIVE_SHORT, ARG_NEGATIVE )
+     1154:   80:            .help( UTF8STDSTR( _( ARG_NEGATIVE_DESC ) ) )
+      577:   81:            .flag();
+        -:   82:
+      577:   83:    m_argParser.add_argument( ARG_BLACKANDWHITE )
+     1154:   84:            .help( UTF8STDSTR( _( ARG_BLACKANDWHITE_DESC ) ) )
+      577:   85:            .flag();
+        -:   86:
+      577:   87:    m_argParser.add_argument( "-t", ARG_THEME )
+      577:   88:            .default_value( std::string() )
+     1154:   89:            .help( UTF8STDSTR( _( "Color theme to use (will default to PCB Editor settings)" ) ) )
+     1154:   90:            .metavar( "THEME_NAME" );
+        -:   91:
+      577:   92:    m_argParser.add_argument( ARG_DRILL_SHAPE_OPTION )
+     1154:   93:            .help( UTF8STDSTR( _( ARG_DRILL_SHAPE_OPTION_DESC ) ) )
+      577:   94:            .scan<'i', int>()
+      577:   95:            .default_value( 2 );
+        -:   96:
+      577:   97:    m_argParser.add_argument( ARG_MODE_SINGLE )
+     1154:   98:            .help( UTF8STDSTR(
+        -:   99:                    _( "Generates a single file with the output arg path acting as the complete "
+        -:  100:                       "directory and filename path. COMMON_LAYER_LIST does not function in this "
+        -:  101:                       "mode. Instead LAYER_LIST controls all layers plotted." ) ) )
+      577:  102:            .flag();
+        -:  103:
+      577:  104:    m_argParser.add_argument( ARG_MODE_SEPARATE )
+     1154:  105:            .help( UTF8STDSTR( _( "Plot the layers to individual PDF files" ) ) )
+      577:  106:            .flag();
+        -:  107:
+      577:  108:    m_argParser.add_argument( ARG_MODE_MULTIPAGE )
+     1154:  109:            .help( UTF8STDSTR( _( "Plot the layers to a single PDF file with multiple pages" ) ) )
+      577:  110:            .flag();
+        -:  111:
+      577:  112:    m_argParser.add_argument( ARG_SCALE )
+     1154:  113:            .help( UTF8STDSTR( _( ARG_SCALE_DESC ) ) )
+      577:  114:            .scan<'g', double>()
+      577:  115:            .default_value( 1.0 )
+     1154:  116:            .metavar( "SCALE" );
+        -:  117:
+      577:  118:    m_argParser.add_argument( ARG_BACKGROUND_COLOR )
+      577:  119:            .default_value( std::string() )
+     1154:  120:            .help( UTF8STDSTR( _( ARG_BACKGROUND_COLOR_DESC ) ) )
+     1154:  121:            .metavar( "COLOR" );
+        -:  122:
+      577:  123:    m_argParser.add_argument( ARG_CHECK_ZONES )
+     1154:  124:            .help( UTF8STDSTR( _( ARG_CHECK_ZONES_DESC ) ) )
+      577:  125:            .flag();
+        -:  126:
+      577:  127:    m_argParser.add_argument( ARG_NO_PROPERTY_POPUPS )
+     1154:  128:            .help( UTF8STDSTR( _( "Suppress footprint property popups" ) ) )
+      577:  129:            .flag();
+        -:  130:
+      577:  131:    addVariantsArg();
+      577:  132:}
+        -:  133:
+        -:  134:
+    #####:  135:int CLI::PCB_EXPORT_PDF_COMMAND::doPerform( KIWAY& aKiway )
+        -:  136:{
+    #####:  137:    std::unique_ptr<JOB_EXPORT_PCB_PDF> pdfJob( new JOB_EXPORT_PCB_PDF() );
+        -:  138:
+    #####:  139:    pdfJob->m_filename = m_argInput;
+    #####:  140:    pdfJob->SetConfiguredOutputPath( m_argOutput );
+    #####:  141:    pdfJob->m_drawingSheet = m_argDrawingSheet;
+    #####:  142:    pdfJob->SetVarOverrides( m_argDefineVars );
+        -:  143:
+    #####:  144:    if( !m_argVariantNames.empty() )
+    #####:  145:        pdfJob->m_variant = m_argVariantNames.front();
+        -:  146:
+    #####:  147:    if( !wxFile::Exists( pdfJob->m_filename ) )
+        -:  148:    {
+    #####:  149:        wxFprintf( stderr, _( "Board file does not exist or is not accessible\n" ) );
+    #####:  150:        return EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:  151:    }
+        -:  152:
+    #####:  153:    pdfJob->m_plotFootprintValues = !m_argParser.get<bool>( ARG_EXCLUDE_VALUE );
+    #####:  154:    pdfJob->m_plotRefDes = !m_argParser.get<bool>( ARG_EXCLUDE_REFDES );
+        -:  155:
+    #####:  156:    pdfJob->m_plotDrawingSheet = m_argParser.get<bool>( ARG_INCLUDE_BORDER_TITLE );
+    #####:  157:    pdfJob->m_subtractSolderMaskFromSilk = m_argParser.get<bool>( ARG_SUBTRACT_SOLDERMASK );
+        -:  158:
+    #####:  159:    pdfJob->m_mirror = m_argParser.get<bool>( ARG_MIRROR );
+    #####:  160:    pdfJob->m_blackAndWhite = m_argParser.get<bool>( ARG_BLACKANDWHITE );
+    #####:  161:    pdfJob->m_colorTheme = From_UTF8( m_argParser.get<std::string>( ARG_THEME ).c_str() );
+    #####:  162:    pdfJob->m_negative = m_argParser.get<bool>( ARG_NEGATIVE );
+    #####:  163:    pdfJob->m_scale = m_argParser.get<double>( ARG_SCALE );
+    #####:  164:    pdfJob->m_checkZonesBeforePlot = m_argParser.get<bool>( ARG_CHECK_ZONES );
+        -:  165:
+    #####:  166:    if( m_argParser.get<bool>( ARG_NO_PROPERTY_POPUPS ) )
+        -:  167:    {
+    #####:  168:        pdfJob->m_pdfFrontFPPropertyPopups = false;
+    #####:  169:        pdfJob->m_pdfBackFPPropertyPopups = false;
+        -:  170:    }
+        -:  171:
+    #####:  172:    pdfJob->m_sketchPadsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_PADS_ON_FAB_LAYERS );
+    #####:  173:    if( pdfJob->m_sketchPadsOnFabLayers )
+    #####:  174:        pdfJob->m_plotPadNumbers = true;
+    #####:  175:    pdfJob->m_hideDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_HIDE_DNP_FPS_ON_FAB_LAYERS );
+    #####:  176:    pdfJob->m_sketchDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_SKETCH_DNP_FPS_ON_FAB_LAYERS );
+    #####:  177:    pdfJob->m_crossoutDNPFPsOnFabLayers = m_argParser.get<bool>( ARG_CROSSOUT_DNP_FPS_ON_FAB_LAYERS );
+        -:  178:
+    #####:  179:    wxString bgColor = From_UTF8( m_argParser.get<std::string>( ARG_BACKGROUND_COLOR ).c_str() );
+    #####:  180:    if( bgColor != wxEmptyString )
+    #####:  181:        pdfJob->m_pdfBackgroundColor = bgColor;
+        -:  182:
+    #####:  183:    int drillShape = m_argParser.get<int>( ARG_DRILL_SHAPE_OPTION );
+    #####:  184:    pdfJob->m_drillShapeOption = static_cast<DRILL_MARKS>( drillShape );
+        -:  185:
+    #####:  186:    bool argModeMulti = m_argParser.get<bool>( ARG_MODE_MULTIPAGE );
+    #####:  187:    bool argModeSeparate = m_argParser.get<bool>( ARG_MODE_SEPARATE );
+    #####:  188:    bool argModeSingle = m_argParser.get<bool>( ARG_MODE_SINGLE );
+        -:  189:
+    #####:  190:    if( argModeMulti && argModeSeparate )
+        -:  191:    {
+    #####:  192:        wxFprintf( stderr, _( "Cannot use more than one mode flag\n" ) );
+    #####:  193:        return EXIT_CODES::ERR_ARGS;
+        -:  194:    }
+        -:  195:
+    #####:  196:    pdfJob->m_argLayers = From_UTF8( m_argParser.get<std::string>( ARG_LAYERS ).c_str() );
+    #####:  197:    pdfJob->m_argCommonLayers = From_UTF8( m_argParser.get<std::string>( ARG_COMMON_LAYERS ).c_str() );
+        -:  198:
+    #####:  199:    if( argModeMulti )
+        -:  200:    {
+    #####:  201:        pdfJob->m_pdfGenMode = JOB_EXPORT_PCB_PDF::GEN_MODE::ONE_PAGE_PER_LAYER_ONE_FILE;
+    #####:  202:        pdfJob->m_pdfSingle = true;
+        -:  203:    }
+    #####:  204:    else if( argModeSeparate )
+    #####:  205:        pdfJob->m_pdfGenMode = JOB_EXPORT_PCB_PDF::GEN_MODE::ALL_LAYERS_SEPARATE_FILE;
+    #####:  206:    else if( argModeSingle )
+    #####:  207:        pdfJob->m_pdfGenMode = JOB_EXPORT_PCB_PDF::GEN_MODE::ALL_LAYERS_ONE_FILE;
+        -:  208:
+    #####:  209:    return aKiway.ProcessJob( KIWAY::FACE_PCB, pdfJob.get() );
+    #####:  210:}

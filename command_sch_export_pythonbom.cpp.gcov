@@ -1,0 +1,63 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_sch_export_pythonbom.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_sch_export_pythonbom.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_sch_export_pythonbom.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include "command_sch_export_pythonbom.h"
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include "jobs/job_export_sch_pythonbom.h"
+        -:   24:#include <kiface_base.h>
+        -:   25:#include <layer_ids.h>
+        -:   26:#include <wx/crt.h>
+        -:   27:
+        -:   28:#include <macros.h>
+        -:   29:
+        -:   30:
+      577:   31:CLI::SCH_EXPORT_PYTHONBOM_COMMAND::SCH_EXPORT_PYTHONBOM_COMMAND() :
+     1154:   32:        COMMAND( "python-bom" )
+        -:   33:{
+      577:   34:    addCommonArgs( true, true, IO_TYPE::FILE, IO_TYPE::FILE );
+        -:   35:
+     1154:   36:    m_argParser.add_description( UTF8STDSTR( _( "Export the legacy BOM XML format used in the "
+        -:   37:                                                "schematic editor with Python scripts" ) ) );
+      577:   38:}
+        -:   39:
+        -:   40:
+    #####:   41:int CLI::SCH_EXPORT_PYTHONBOM_COMMAND::doPerform( KIWAY& aKiway )
+        -:   42:{
+    #####:   43:    std::unique_ptr<JOB_EXPORT_SCH_PYTHONBOM> bomJob =
+    #####:   44:            std::make_unique<JOB_EXPORT_SCH_PYTHONBOM>();
+        -:   45:
+    #####:   46:    bomJob->m_filename = m_argInput;
+    #####:   47:    bomJob->SetConfiguredOutputPath( m_argOutput );
+        -:   48:
+    #####:   49:    if( !wxFile::Exists( bomJob->m_filename ) )
+        -:   50:    {
+    #####:   51:        wxFprintf( stderr, _( "Schematic file does not exist or is not accessible\n" ) );
+    #####:   52:        return EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:   53:    }
+        -:   54:
+        -:   55:
+    #####:   56:    int exitCode = aKiway.ProcessJob( KIWAY::FACE_SCH, bomJob.get() );
+        -:   57:
+    #####:   58:    return exitCode;
+    #####:   59:}

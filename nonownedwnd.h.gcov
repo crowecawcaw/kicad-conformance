@@ -1,0 +1,119 @@
+        -:    0:Source:/usr/include/wx-3.2/wx/nonownedwnd.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:///////////////////////////////////////////////////////////////////////////////
+        -:    2:// Name:        wx/nonownedwnd.h
+        -:    3:// Purpose:     declares wxNonTopLevelWindow class
+        -:    4:// Author:      Vaclav Slavik
+        -:    5:// Modified by:
+        -:    6:// Created:     2006-12-24
+        -:    7:// Copyright:   (c) 2006 TT-Solutions
+        -:    8:// Licence:     wxWindows licence
+        -:    9:///////////////////////////////////////////////////////////////////////////////
+        -:   10:
+        -:   11:#ifndef _WX_NONOWNEDWND_H_
+        -:   12:#define _WX_NONOWNEDWND_H_
+        -:   13:
+        -:   14:#include "wx/window.h"
+        -:   15:
+        -:   16:// Styles that can be used with any wxNonOwnedWindow:
+        -:   17:#define wxFRAME_SHAPED          0x0010  // Create a window that is able to be shaped
+        -:   18:
+        -:   19:class WXDLLIMPEXP_FWD_CORE wxGraphicsPath;
+        -:   20:
+        -:   21:// ----------------------------------------------------------------------------
+        -:   22:// wxNonOwnedWindow: a window that is not a child window of another one.
+        -:   23:// ----------------------------------------------------------------------------
+        -:   24:
+        -:   25:class WXDLLIMPEXP_CORE wxNonOwnedWindowBase : public wxWindow
+        -:   26:{
+        -:   27:public:
+        -:   28:    // Set the shape of the window to the given region.
+        -:   29:    // Returns true if the platform supports this feature (and the
+        -:   30:    // operation is successful.)
+        -:   31:    bool SetShape(const wxRegion& region)
+        -:   32:    {
+        -:   33:        // This style is in fact only needed by wxOSX/Carbon so once we don't
+        -:   34:        // use this port any more, we could get rid of this requirement, but
+        -:   35:        // for now you must specify wxFRAME_SHAPED for SetShape() to work on
+        -:   36:        // all platforms.
+        -:   37:        wxCHECK_MSG
+        -:   38:        (
+        -:   39:            HasFlag(wxFRAME_SHAPED), false,
+        -:   40:            wxS("Shaped windows must be created with the wxFRAME_SHAPED style.")
+        -:   41:        );
+        -:   42:
+        -:   43:        return region.IsEmpty() ? DoClearShape() : DoSetRegionShape(region);
+        -:   44:    }
+        -:   45:
+        -:   46:#if wxUSE_GRAPHICS_CONTEXT
+        -:   47:    // Set the shape using the specified path.
+        -:   48:    bool SetShape(const wxGraphicsPath& path)
+        -:   49:    {
+        -:   50:        wxCHECK_MSG
+        -:   51:        (
+        -:   52:            HasFlag(wxFRAME_SHAPED), false,
+        -:   53:            wxS("Shaped windows must be created with the wxFRAME_SHAPED style.")
+        -:   54:        );
+        -:   55:
+        -:   56:        return DoSetPathShape(path);
+        -:   57:    }
+        -:   58:#endif // wxUSE_GRAPHICS_CONTEXT
+        -:   59:
+        -:   60:
+        -:   61:    // Overridden base class methods.
+        -:   62:    // ------------------------------
+        -:   63:
+    #####:   64:    virtual void AdjustForParentClientOrigin(int& WXUNUSED(x), int& WXUNUSED(y),
+        -:   65:                                             int WXUNUSED(sizeFlags) = 0) const wxOVERRIDE
+        -:   66:    {
+        -:   67:        // Non owned windows positions don't need to be adjusted for parent
+        -:   68:        // client area origin so simply do nothing here.
+    #####:   69:    }
+        -:   70:
+    #####:   71:    virtual void InheritAttributes() wxOVERRIDE
+        -:   72:    {
+        -:   73:        // Non owned windows don't inherit attributes from their parent window
+        -:   74:        // (if the parent frame is red, it doesn't mean that all dialogs shown
+        -:   75:        // by it should be red as well), so don't do anything here either.
+    #####:   76:    }
+        -:   77:
+        -:   78:protected:
+        -:   79:    virtual bool DoClearShape()
+        -:   80:    {
+        -:   81:        return false;
+        -:   82:    }
+        -:   83:
+        -:   84:    virtual bool DoSetRegionShape(const wxRegion& WXUNUSED(region))
+        -:   85:    {
+        -:   86:        return false;
+        -:   87:    }
+        -:   88:
+        -:   89:#if wxUSE_GRAPHICS_CONTEXT
+        -:   90:    virtual bool DoSetPathShape(const wxGraphicsPath& WXUNUSED(path))
+        -:   91:    {
+        -:   92:        return false;
+        -:   93:    }
+        -:   94:#endif // wxUSE_GRAPHICS_CONTEXT
+        -:   95:};
+        -:   96:
+        -:   97:#if defined(__WXDFB__)
+        -:   98:    #include "wx/dfb/nonownedwnd.h"
+        -:   99:#elif defined(__WXGTK20__)
+        -:  100:    #include "wx/gtk/nonownedwnd.h"
+        -:  101:#elif defined(__WXMAC__)
+        -:  102:    #include "wx/osx/nonownedwnd.h"
+        -:  103:#elif defined(__WXMSW__)
+        -:  104:    #include "wx/msw/nonownedwnd.h"
+        -:  105:#elif defined(__WXQT__)
+        -:  106:    #include "wx/qt/nonownedwnd.h"
+        -:  107:#else
+        -:  108:    // No special class needed in other ports, they can derive both wxTLW and
+        -:  109:    // wxPopupWindow directly from wxWindow and don't implement SetShape().
+        -:  110:    class wxNonOwnedWindow : public wxNonOwnedWindowBase
+        -:  111:    {
+        -:  112:    };
+        -:  113:#endif
+        -:  114:
+        -:  115:#endif // _WX_NONOWNEDWND_H_

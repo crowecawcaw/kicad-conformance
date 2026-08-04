@@ -1,0 +1,151 @@
+        -:    0:Source:/src/kicad/pcbnew/component_classes/component_class_manager.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:465
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software: you can redistribute it and/or modify it
+        -:    7: * under the terms of the GNU General Public License as published by the
+        -:    8: * Free Software Foundation, either version 3 of the License, or (at your
+        -:    9: * option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful, but
+        -:   12: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   14: * General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License along
+        -:   17: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   18: */
+        -:   19:
+        -:   20:#ifndef PCBNEW_COMPONENT_CLASS_MANAGER_H
+        -:   21:#define PCBNEW_COMPONENT_CLASS_MANAGER_H
+        -:   22:
+        -:   23:#include <unordered_map>
+        -:   24:#include <unordered_set>
+        -:   25:#include <wx/string.h>
+        -:   26:
+        -:   27:#include <component_classes/component_class.h>
+        -:   28:#include <project/component_class_settings.h>
+        -:   29:
+        -:   30:
+        -:   31:class BOARD;
+        -:   32:class COMPONENT_CLASS_ASSIGNMENT_RULE;
+        -:   33:class DRC_TOOL;
+        -:   34:class FOOTPRINT;
+        -:   35:
+        -:   36:/**
+        -:   37: * A class to manage Component Classes in a board context
+        -:   38: *
+        -:   39: * This manager owns generated COMPONENT_CLASS objects, and guarantees that pointers to managed
+        -:   40: * objects are valid for the duration of the board lifetime. Note that, in order to maintain this
+        -:   41: * guarantee, there are two methods that must be called when updating the board from the netlist
+        -:   42: * (InitNetlistUpdate and FinishNetlistUpdate).
+        -:   43: */
+        -:   44:class COMPONENT_CLASS_MANAGER
+        -:   45:{
+        -:   46:public:
+        -:   47:    explicit COMPONENT_CLASS_MANAGER( BOARD* board );
+        -:   48:
+        -:   49:    /// @brief Gets the full effective class name for the given set of constituent classes
+        -:   50:    static wxString
+        -:   51:    GetFullClassNameForConstituents( const std::unordered_set<wxString>& classNames );
+        -:   52:
+        -:   53:    /// @brief Gets the full effective class name for the given set of constituent classes
+        -:   54:    /// @param classNames a sorted vector of consituent class names
+        -:   55:    static wxString GetFullClassNameForConstituents( const std::vector<wxString>& classNames );
+        -:   56:
+        -:   57:    /// @brief Gets an effective component class for the given constituent class names
+        -:   58:    /// @param classNames The names of the constituent component classes
+        -:   59:    /// @return Effective COMPONENT_CLASS object
+        -:   60:    COMPONENT_CLASS*
+        -:   61:    GetEffectiveStaticComponentClass( const std::unordered_set<wxString>& classNames );
+        -:   62:
+        -:   63:    /// Returns the unassigned component class
+    #####:   64:    const COMPONENT_CLASS* GetNoneComponentClass() const { return m_noneClass.get(); }
+        -:   65:
+        -:   66:    /// Prepare the manager for a board update
+        -:   67:    /// Must be called prior to updating the PCB from the netlist
+        -:   68:    void InitNetlistUpdate();
+        -:   69:
+        -:   70:    /// Cleans up the manager after a board update
+        -:   71:    /// Must be called after updating the PCB from the netlist
+        -:   72:    void FinishNetlistUpdate();
+        -:   73:
+        -:   74:    /// Fetches a read-only map of the fundamental component classes
+        -:   75:    std::unordered_set<wxString> GetClassNames() const;
+        -:   76:
+        -:   77:    /// Synchronises all dynamic component class assignment rules
+        -:   78:    /// @returns false if rules fail to parse, true if successful
+        -:   79:    bool SyncDynamicComponentClassAssignments(
+        -:   80:            const std::vector<COMPONENT_CLASS_ASSIGNMENT_DATA>& aAssignments,
+        -:   81:            bool aGenerateSheetClasses, const std::unordered_set<wxString>& aNewSheetPaths );
+        -:   82:
+        -:   83:    /// Gets the dynamic component classes which match the given footprint
+        -:   84:    const COMPONENT_CLASS* GetDynamicComponentClassesForFootprint( const FOOTPRINT* footprint );
+        -:   85:
+        -:   86:    /// Gets the combined component class with the given static and dynamic constituent component classes
+        -:   87:    const COMPONENT_CLASS* GetCombinedComponentClass( const COMPONENT_CLASS* staticClass,
+        -:   88:                                                      const COMPONENT_CLASS* dynamicClass );
+        -:   89:
+        -:   90:    /// Forces the component class for all footprints to be recalculated. This should be called before running DRC as
+        -:   91:    /// checking for valid component class cache entries is threadsafe, but computing them is not. Blocking during this
+        -:   92:    /// check would be a negative performance impact for DRC computation, so we force recalculation instead.
+        -:   93:    void ForceComponentClassRecalculation() const;
+        -:   94:
+        -:   95:    /// Gets the component class validity ticker
+        -:   96:    /// Used to check validity of cached component classes
+        -:   97:    long long int GetTicker() const { return m_ticker; }
+        -:   98:
+        -:   99:    /// Invalidates any caches component classes and recomputes caches if required. This will force
+        -:  100:    /// recomputation of component classes on next access
+        -:  101:    void InvalidateComponentClasses();
+        -:  102:
+        -:  103:    /// Rebuilds any caches that may be required by custom assignment rules
+        -:  104:    /// @param fp the footprint to rebuild. If null, rebuilds all footprint caches
+        -:  105:    void RebuildRequiredCaches( FOOTPRINT* aFootprint = nullptr ) const;
+        -:  106:
+        -:  107:    static std::shared_ptr<COMPONENT_CLASS_ASSIGNMENT_RULE>
+        -:  108:    CompileAssignmentRule( const COMPONENT_CLASS_ASSIGNMENT_DATA& aAssignment );
+        -:  109:
+        -:  110:protected:
+        -:  111:    /// Sorts the given class names in to canonical order
+        -:  112:    static std::vector<wxString> sortClassNames( const std::unordered_set<wxString>& classNames );
+        -:  113:
+        -:  114:    /// Returns a constituent component class, re-using an existing instantiation where possible
+        -:  115:    COMPONENT_CLASS* getOrCreateConstituentClass( const wxString&        aClassName,
+        -:  116:                                                  COMPONENT_CLASS::USAGE aContext );
+        -:  117:
+        -:  118:    /// Returns an effective component class for the given set of constituent class names
+        -:  119:    /// Precondition: aClassNames is sorted by sortClassNames
+        -:  120:    COMPONENT_CLASS* getOrCreateEffectiveClass( const std::vector<wxString>& aClassNames,
+        -:  121:                                                COMPONENT_CLASS::USAGE       aContext );
+        -:  122:
+        -:  123:    /// The board these component classes are assigned to / from
+        -:  124:    BOARD* m_board;
+        -:  125:
+        -:  126:    /// The class to represent an unassigned component class
+        -:  127:    std::shared_ptr<COMPONENT_CLASS> m_noneClass;
+        -:  128:
+        -:  129:    /// All individual component classes from static assignments
+        -:  130:    std::unordered_map<wxString, std::unique_ptr<COMPONENT_CLASS>> m_constituentClasses;
+        -:  131:
+        -:  132:    /// Generated effective (composite) static component classes
+        -:  133:    std::unordered_map<wxString, std::unique_ptr<COMPONENT_CLASS>> m_effectiveClasses;
+        -:  134:
+        -:  135:    /// Cache of in-use static component class names
+        -:  136:    /// Used for cleanup following netlist updates
+        -:  137:    std::unordered_set<wxString> m_staticClassNamesCache;
+        -:  138:
+        -:  139:
+        -:  140:    /// Active component class assignment rules
+        -:  141:    std::vector<std::shared_ptr<COMPONENT_CLASS_ASSIGNMENT_RULE>> m_assignmentRules;
+        -:  142:
+        -:  143:    /// Monotonically increasing ticker to test cached component class validity
+        -:  144:    long long int m_ticker{ 0 };
+        -:  145:};
+        -:  146:
+        -:  147:#endif

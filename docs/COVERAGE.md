@@ -4,29 +4,54 @@
 `kicad-cli` actually execute when the conformance suite runs". Every uncovered function
 in a subsystem we claim to cover is a missing test case, named.
 
-**Measurement date:** 2026-08-03 (UTC). Suite run started `2026-08-03T23:12:13Z`;
-report collected `2026-08-03T23:43:57Z`.
-**Oracle:** KiCad **10.0.5**, built from source at commit
-`18fb9289ff0efdca53c0352ed81a0973f0a6b58c`, gcov-instrumented.
-**Corpus at measurement time:** **77 cases**, **199 checks recorded in this run**
-(178 PASS + 20 FAIL + 1 XFAIL — the run is not green against this build; see §2).
-**Suite wall clock:** 4 min 46 s instrumented; `1850 .gcda` profiles produced.
+**This document now holds two measurement rounds.** Round 1's figures are kept as the
+*before* column of every table rather than overwritten, because the point of round 2 is
+the delta.
 
-Every number below states the command that printed it. Nothing here is estimated.
+| | round 1 | round 2 | round 2b |
+|---|---|---|---|
+| date (UTC) | 2026-08-03 | 2026-08-04 | 2026-08-04 |
+| corpus | **77 cases / 199 checks** | **133 cases / 424 checks** | **133 cases / 424 checks** |
+| oracle image | `10.0.5` @ `18fb9289ff0efdca53c0352ed81a0973f0a6b58c`, gcov-instrumented | same image | same source, **rebuilt with `cvpcb_kiface`** (§2c) |
+| run window, suite + collect | `23:12:13Z` → `23:43:57Z` | `06:18:29Z` → `06:51:31Z` | `07:23:19Z` → `07:56:16Z` |
+| suite phase | 4 min 46 s | **≤ 11 min 44 s** | **≤ 11 min 54 s** |
+| `.gcda` profiles | 1850 | 1850 | 1886 |
+| result | 178 PASS / 20 FAIL / 1 XFAIL | 379 PASS / 25 FAIL / **19 CRASH** / 1 XFAIL | **398 PASS / 25 FAIL / 0 CRASH** / 1 XFAIL |
+| global line coverage | **8.6%** (43362/502510) | **9.5%** (47986/502510) | **9.8%** (49550/504805) |
+
+The round-2 suite-phase figures are upper bounds, not stopwatch readings: the runs were
+backgrounded and the log polled at 15-21 s granularity, so all that was *watched* is that
+the `SUMMARY` block was present at `06:30:13Z` and `07:35:13Z`. The `START`/`END` window is
+exact (`date -u` either side of `run-suite.sh`); the split between suite and collect
+inside it is not. Round 1's 4 min 46 s came from two `kicad-cli` stderr timestamps in the
+log and is exact.
+
+**Round 2b is the authoritative round-2 measurement.** Round 2 is retained because it
+shares round 1's exact denominator (502510 lines) and is therefore the strictly
+apples-to-apples delta; 2b adds cvpcb's 2287 lines to the denominator in exchange for
+being the only run in which `sch erc` works at all. Read them together: outside `erc`, no
+bucket moves by more than 11 covered lines between R2 and R2b except `gui` (+7) and
+`other` (+635), which is cvpcb's own code entering the tree.
+
+Every measured number below states the command that printed it. The only estimates in
+this document are the `lines` column of §5 — sums of the per-file figures named beside
+each entry — and the `~` totals in §5(c).
 
 > **Read this document together with [`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md).** This
 > one measures which lines *ran*. That one specifies how the suite proves a line's
-> behaviour is *asserted* — i.e. that a change in it would change a recorded answer — and
-> the gap report that lists the code we execute while asserting nothing about it. §6.1
-> below is the limit it exists to fix; the two asserted columns it adds to §3's table land
-> when it is implemented ([DL-0030], [DL-0031]).
+> behaviour is *asserted* — i.e. that a change in it would change a recorded answer.
+> §6 below is now a standing section of this report, not a footnote: it names the places
+> where round 2 lit up code that **no recorded answer could notice changing**.
 
 ---
 
 ## 1. Reproducing the measurement
 
 ```bash
-# 1. Build the instrumented image (~25 min compile on this workstation, cached deps).
+# 1. Build the instrumented image. Cold compile ~25 min (2026-08-03). Changing
+#    KICAD_TARGETS invalidates the whole compile layer even with ccache warm: measured
+#    29 min 55 s on 2026-08-04 (06:52:51Z -> 07:22:46Z, "build succeeded on attempt 1"),
+#    of which 4 min 36 s was image export/unpack.
 tools/coverage/build.sh --jobs 8
 
 # 2. Run the whole suite against it and collect the report in one step.
@@ -42,445 +67,460 @@ Artifacts land in `tools/coverage/out/report/`:
 | `focus.json` | per-subsystem rollup — **the numbers in §3** |
 | `coverage.json` | gcovr per-file JSON summary |
 | `summary.txt` | plain-text per-file table |
-| `coverage.info` | lcov tracefile (see the lcov caveat in §6) |
+| `coverage.info` | lcov tracefile (see the lcov caveat in §7) |
 
-`tools/coverage/README.md` documents the build itself. Three things about the tooling
-were **broken and are now fixed** — see §7, because the first two silently produced a
-plausible-looking non-answer.
+Round 2 also archived, so the next round has a *before* to diff against:
+`tools/coverage/out/round1/` (round 1's `coverage.json`, `focus.json`, `summary.txt`,
+`run.log`), `tools/coverage/out/round2-coverage.json`,
+`tools/coverage/out/round2b-coverage.json`, `tools/coverage/out/round2b-focus.json`,
+and the three run logs (`round2-run.log`, `round2b-build.log`, `round2b-run.log`).
 
-**Reproduction check.** The collection step was run a second time, from a freshly built
-image against the same retained counter volume, and `focus.json` came back
-byte-identical (`diff` reported no difference). The §3 table is therefore a reproduced
-figure, not a single observation.
+### The four analysis tools (added in round 2)
 
-### Function-level detail
-
-`focus.json` is per *file*. The per-*function* lists in §4 came from `gcov` directly:
+`focus.json` answers one question; these answer the other three, and each exists because
+a round-1 number had to be re-derived by hand.
 
 ```bash
-docker run --rm -v kicad-coverage-raw:/coverage/raw \
-  kicad-conformance/kicad-coverage:10.0.5 bash -c '
-    cp -a /coverage/raw/src/build/. /src/build/
-    gcda=$(find /src/build -name "pcb_io_kicad_sexpr_parser.cpp.gcda" | head -1)
-    gcov -f -m -o "$(dirname "$gcda")" "$gcda"'
+# per-file and per-bucket BEFORE/AFTER between two gcovr summaries
+python3 tools/coverage/compare.py OLD.json NEW.json --top 45 --file zone_filler --file PDF_plotter
+
+# per-FUNCTION coverage of named files, straight from the raw counter volume
+tools/coverage/funcs.sh erc.cpp pcb_io_kicad_sexpr_parser.cpp
+tools/coverage/funcs.sh --zero-only --min-lines 12 sch_io_kicad_sexpr_parser.cpp
+
+# the §3a corrected buckets, and the dead-file list §5 is triaged from
+python3 tools/coverage/gaps.py coverage.json corrected
+python3 tools/coverage/gaps.py coverage.json dead --min-lines 60
+
+# coverage summed over any path substring (e.g. KiCad's OWN parser, not the io/board bucket)
+python3 tools/coverage/subdir.py "pcbnew/pcb_io/kicad_sexpr/" round1/coverage.json round2b-coverage.json
 ```
+
+`compare.py`, `gaps.py` and `subdir.py` are pure JSON readers and run anywhere with a
+python3 (this workstation has none, so they were run as
+`docker run --rm -v "$PWD":/work -w /work kicad/kicad:10.0.5 python3 …`). `funcs.sh`
+needs the coverage image and the `kicad-coverage-raw` volume.
 
 ---
 
-## 2. The instrumented run — what happened
+## 2. The instrumented runs — what happened
 
-Command: `tools/coverage/run-suite.sh --fresh` (log: `tools/coverage/out/run.log`).
+### 2a. Round 2 (`tools/coverage/run-suite.sh --fresh`, log `out/round2-run.log`)
 
 ```
-cases: 77 total, 57 clean, 20 with a failing check, 0 skipped
-  FAIL: 20
-  PASS: 178
+cases: 133 total, 89 clean, 44 with a failing check, 0 skipped
+  CRASH: 19
+  FAIL: 25
+  PASS: 379
   XFAIL: 1
 ```
 
-`1850 .gcda` profiles were produced (`grafting 1850 .gcda files from
-/coverage/raw/src/build`). The suite is **green against `kicad/kicad:10.0.5`**; the 20
-failures are artifacts of the source build and were each investigated. **No case,
-answer, or runner file was modified.** Two distinct causes:
-
-### 2a. 14 failures — the Debug build prints no parse-error message
-
-Affected: all 10 `board-parse/rejects-*` cases and all 4 `schematic-parse/rejects-*`
-cases. Each reports `stderr did not contain '<message>'`.
-
-The exit code is *identical* on both builds; only the message vanishes. Verified by
-running the same fixture through both images:
-
-```bash
-# stock kicad/kicad:10.0.5
-kicad-cli pcb export stats --format json -o /tmp/s.json /tmp/b.kicad_pcb
-#   RC=3, stderr: Failed to load board: need a number for 'X coordinate' in
-#                 '/tmp/b.kicad_pcb', line 87, offset 10.
-
-# instrumented build, same bytes
-/opt/kicad-cov/bin/kicad-cli pcb export stats --format json -o /tmp/s.json /tmp/b.kicad_pcb
-#   RC=3, stderr: (no 'Failed to load board' line at all)
-```
-
-The positive controls still passed (`positive control 'control.kicad_pcb' exited OK, as
-required (DL-0013)`), so the checks were live, not vacuous. This is
-`tools/coverage/README.md` Limitation #4 — "it is a different binary" — biting exactly
-where it was predicted to. **Not a conformance finding. Trust the release image.**
-
-### 2b. 6 failures — a real KiCad 10.0.5 uninitialized read in the IPC-D-356 exporter
-
-Affected: `board-parse/{populated-board, blind-and-buried-vias, micro-via,
-four-layer-stackup, via-remove-unused-layers}` and `drc/…/zone-keepout-rule-area` —
-i.e. **every board case that contains a via**. All report `summary: adapter did not exit
-OK (returncode=1)`, from the adapter's IPC-D-356 reducer:
+### 2b. Round 2b, after the image fix (log `out/round2b-run.log`)
 
 ```
-ValueError: unrecognized IPC-D-356 record:
-'317NET-1            VIA        MD0157PA00X+011811Y-007874X0236Y0000R000S-16843009'
+cases: 133 total, 108 clean, 25 with a failing check, 0 skipped
+  FAIL: 25
+  PASS: 398
+  XFAIL: 1
 ```
 
-Same board, both images, `kicad-cli pcb export ipcd356`:
+The suite is **green against `kicad/kicad:10.0.5`**. **No case, answer, adapter or runner
+file was modified in either round.** The remaining 25 failures are the two causes round 1
+already classified, at their new case counts:
 
-| build | VIA record tail |
-|---|---|
-| `kicad/kicad:10.0.5` | `…R000S3` |
-| instrumented | `…R000S-16843009` |
+| cause | round 1 | round 2 / 2b | what it is |
+|---|---:|---:|---|
+| Debug build prints no parse-error message (`stderr did not contain …`) | 14 | **16** | all `rejects-*` cases; exit code identical on both builds. §2a of round 1. Positive controls still pass, so the checks are live, not vacuous. |
+| IPC-D-356 uninitialised `soldermask` read ([DIV-0002]) | 6 | **9** | every board case containing a via. `-ftrivial-auto-var-init=pattern` exposes it as `S-16843009` = `0xFEFEFEFF`. A genuine KiCad 10.0.5 defect; the release build's `S3` is luck. |
 
-`-16843009` is `0xFEFEFEFF` — the `-ftrivial-auto-var-init=pattern` fill byte. The cause
-is in KiCad, not in the coverage build: in
-`pcbnew/exporters/export_d356.cpp`, the **pad** path initialises the field before masking
-(`rk.soldermask = 3;`, line 151) but the **via** path never does — it goes straight to
+Neither is a conformance finding. **Trust the release image.**
+
+**A free determinism observation.** Rounds 2 and 2b are two independent full-suite runs
+against two separately-linked binaries. Outside the 19 ERC cases that the image fix
+repaired, **every case produced the same verdict in both**, and the failing set was
+identical in composition (the same 16 `rejects-*` messages, the same 9 via cases). No new
+nondeterminism was observed. That is not a substitute for `--determinism-check`, and it
+says nothing about the ratsnest `unconnected_items` ambiguity flagged in [DL-0038] — no
+committed case has a fixture that triggers it.
+
+### 2c. Round 2's 19 CRASHes were an image defect, and they hid the largest result in this report
+
+Every one of the 19 `suites/erc/**` cases reported
+
+```
+  [CRASH]          erc
+      erc: adapter did not exit OK (returncode=255)
+      … Failed to load shared library '/opt/kicad-cov/bin/_cvpcb.kiface'
+      … IO_ERROR: Failed to load kiface library '/opt/kicad-cov/bin/_cvpcb.kiface'.
+      from kiway.cpp : KiFACE() line 284
+```
+
+Cause, read out of the source in the image rather than guessed:
+`eeschema/eeschema_jobs_handler.cpp:1353` calls
 
 ```cpp
-if( via->IsTented( F_Mask ) ) rk.soldermask |= 1;   // line 231
-if( via->IsTented( B_Mask ) ) rk.soldermask |= 2;   // line 233
+ercTester.RunTests( drawingSheet.get(), nullptr, m_kiway->KiFACE( KIWAY::FACE_CVPCB ), … );
 ```
 
-on a `D356_RECORD rk;` whose `int soldermask;` (`export_d356.h:40`) has no initialiser.
-The release build happens to read `3`; any build that fills uninitialised locals with a
-pattern reads garbage. **This is a genuine defect in KiCad 10.0.5 and a candidate
-`docs/DIVERGENCES.md` entry** — the recorded `S3` answers are luck, not specification.
+**unconditionally** — cvpcb owns the footprint-link tester that
+`ERC_TESTER::TestFootprintLinkIssues` reaches through
+`aCvPcb->IfaceOrAddress( KIFACE_TEST_FOOTPRINT_LINK )` (`erc.cpp:1816-1831`). The
+Dockerfile's reduced target set (`kicad-cli pcbnew_kiface eeschema_kiface`) never built
+`_cvpcb.kiface`, so `KIWAY::KiFACE()` threw before a single ERC test ran, and
+`eeschema/erc/**` read 5.5% no matter how many ERC cases the suite had.
+
+This is the third distinct way "it is a different binary" has bitten, and the nastiest,
+because a `CRASH` verdict reads as a *suite* problem. **Fixed in
+`tools/coverage/Dockerfile`**: `cvpcb_kiface` added to `KICAD_TARGETS` (measured cost:
+the ninja edge count went 2009 → **2032**, i.e. 23 edges, 22 of them
+`Building CXX object cvpcb/…`), installed alongside the other two, and a `test -x`
+assertion that fails the build rather than the report. After the
+rebuild all 19 ERC cases **PASS** — which is also an independent cross-check that the
+instrumented build and the release image agree on ERC output byte for byte, since the
+committed `erc.json` answers were recorded against the release image.
 
 ---
 
-## 3. Per-subsystem numbers
+## 3. Per-subsystem numbers — before and after
 
-Source: `tools/coverage/out/report/focus.json`, printed by the `=== coverage by
-subsystem (line %) ===` block of `tools/coverage/run-suite.sh --fresh` on 2026-08-03.
+Source: the `=== coverage by subsystem (line %) ===` block printed by
+`tools/coverage/run-suite.sh --fresh` on each date (`focus.json`).
 
-| bucket | files | lines | covered | line % |
-|---|---:|---:|---:|---:|
-| `cli/jobs` | 89 | 6079 | 2668 | **43.9%** |
-| `connectivity` | 16 | 2910 | 1017 | **35.0%** |
-| `geometry` | 93 | 11739 | 3449 | **29.4%** |
-| `export/plot` | 50 | 13902 | 2106 | **15.2%** |
-| `drc` | 114 | 16591 | 2450 | **14.8%** |
-| `netlist` | 34 | 5616 | 557 | **9.9%** |
-| `io/common` | 40 | 7118 | 601 | **8.4%** |
-| `io/schematic` | 55 | 25705 | 1599 | **6.2%** |
-| `io/board` | 106 | 41261 | 2198 | **5.3%** |
-| `erc` | 9 | 1797 | 90 | **5.0%** |
-| `gui` | 1166 | 158620 | 527 | **0.3%** |
-| `other` | 1204 | 211172 | 26100 | **12.4%** |
+| bucket | lines | R1 covered | R1 % | R2 covered | R2 % | R2b covered | R2b % | Δ lines (R1→R2b) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `erc` | 1797 | 90 | 5.0% | 99 | 5.5% | **1006** | **56.0%** | **+916** |
+| `drc` | 16591 | 2450 | 14.8% | 3691 | **22.2%** | 3691 | 22.2% | **+1241** |
+| `geometry` | 11739 | 3449 | 29.4% | 4195 | 35.7% | 4196 | 35.7% | +747 |
+| `io/board` | 41261 | 2198 | 5.3% | 2674 | 6.5% | 2674 | 6.5% | +476 |
+| `io/schematic` | 25705 | 1599 | 6.2% | 2005 | 7.8% | 2005 | 7.8% | +406 |
+| `cli/jobs` | 6079 | 2668 | 43.9% | 2818 | 46.4% | 2829 | 46.5% | +161 |
+| `connectivity` | 2910 | 1017 | 35.0% | 1066 | 36.6% | 1066 | 36.6% | +49 |
+| `io/common` | 7118 | 601 | 8.4% | 628 | 8.8% | 629 | 8.8% | +28 |
+| `netlist` | 5616→5622 | 557 | 9.9% | 563 | 10.0% | 565 | 10.1% | +8 |
+| `export/plot` | 13902 | 2106 | 15.2% | 2110 | 15.2% | 2110 | 15.2% | **+4** |
+| `gui` | 158620→159283 | 527 | 0.3% | 527 | 0.3% | 534 | 0.3% | +7 |
+| `other` | 211172→212798 | 26100 | 12.4% | 27610 | 13.1% | 28245 | 13.3% | +2145 |
+| **global** | 502510→504805 | 43362 | **8.6%** | 47986 | **9.5%** | 49550 | **9.8%** | +6188 |
 
-**The global figure is 8.6% (43362/502510 lines), and it is not a finding.** Most of
-KiCad is GUI that a CLI run cannot reach; the `gui` row at 0.3% is the proof, and it
-alone is 32% of the denominator. Do not quote 8.6% as a quality number.
+The `→` denominators are the cvpcb sources entering the tree in 2b (2287 lines, 17
+covered — cvpcb is a GUI app whose kiface we load only for one ERC entry point).
+**No file lost coverage between rounds** (`compare.py` `=== FILES THAT LOST COVERAGE (0) ===`).
 
-### 3a. Three of those buckets are misleading as printed
+**The global figure is still not a finding.** `gui` at 0.3% is 32% of the denominator.
+Do not quote 9.8% as a quality number.
 
-The bucket patterns in `collect.sh` are directory prefixes, so they sweep in code that
-is either GUI or another vendor's format. Corrected figures (all from the same
-`coverage.json`, recomputed with an explicit exclude):
+### 3a. The same four buckets, corrected
 
-| what | as printed | corrected | why the raw number misleads |
+`collect.sh`'s bucket patterns are directory prefixes and sweep in GUI code and other
+vendors' formats. Recomputed with `python3 tools/coverage/gaps.py <coverage.json> corrected`
+(and `subdir.py` for the two `kicad_sexpr` rows, which is the comparison round 1 actually
+made):
+
+| what | R1 | R2b | why the raw bucket misleads |
 |---|---:|---:|---|
-| `drc` | 14.8% | **22.2%** | `pcbnew/drc/rule_editor/` is 67 files / 5555 lines of wxWidgets dialog panels, all 0%. It is the DRC *rule editor GUI*, not the rule engine. |
-| `io/board` | 5.3% | **30.7%** | 102 of the 106 files are importers for Altium/Cadstar/Eagle/PADS/Allegro/IPC-2581/EasyEDA — reachable only via `pcb import`, which no case uses. KiCad's own `pcbnew/pcb_io/kicad_sexpr/` is 2147/6987. |
-| `io/schematic` | 6.2% | **33.1%** | same shape: `eeschema/sch_io/kicad_sexpr/` is 1558/4714. |
-| `export/plot` | 15.2% | **23.6%** | excluding 3D exporters (`step/`, `u3d/`, VRML, IDF) — out of scope per [DL-0012]. |
+| `drc` excluding `pcbnew/drc/rule_editor/` | 2445/11036 **22.2%** | 3686/11036 **33.4%** | the rule-editor dialog is 67 files / 5555 lines, all 0% |
+| `pcbnew/pcb_io/kicad_sexpr/` (KiCad's own board format) | 2147/6987 **30.7%** | 2609/6987 **37.3%** | all but 4 of `io/board`'s 106 files are third-party importers or the legacy reader |
+| `eeschema/sch_io/kicad_sexpr/` | 1558/4714 **33.1%** | 1944/4714 **41.2%** | same shape |
+| `export/plot` excluding 3D (`step/`, `u3d/`, VRML, IDF) | 2106/8922 **23.6%** | 2110/8922 **23.6%** | 3D out of scope per [DL-0012] |
 
-Commands that produced the corrected column are `python3` one-liners over
-`tools/coverage/out/report/coverage.json` summing `line_covered`/`line_total` with the
-stated substring filters; the raw column is `focus.json`.
+The `export/plot` row moving by **4 lines in 56 new cases** is the single sharpest signal
+in this report — see §4.2.
 
-### 3b. `cli/jobs` 43.9% is the most misleading number in the table
+### 3b. `cli/jobs` — the honest measure is `doPerform`
 
-Every `kicad-cli` subcommand is a **static object** (`kicad/kicad_cli.cpp:124-176`), so
-its constructor — which is where all the argparse wiring lives, i.e. most of the file —
-runs on *every* invocation regardless of which subcommand was asked for. Coverage of
-`command_*.cpp` therefore says nothing about whether the command ran.
+Every `kicad-cli` subcommand is a static object (`kicad/kicad_cli.cpp:124-176`), so its
+argparse constructor runs on *every* invocation. `doPerform` is the method that does the
+work. Round 1: **16 of 30 at 0.00%**. Round 2b: **13 of 30**, from
+`tools/coverage/funcs.sh` over every `command_*.gcda`:
 
-The honest measure is `doPerform`, the method that does the work. Of the **30**
-`kicad-cli` commands that have one, **16 are at 0.00% — never invoked by the suite**:
+| newly alive in round 2 | R1 | R2b |
+|---|---:|---:|
+| `SCH_ERC_COMMAND::doPerform` | 0.00% of 37 | **62.16%** |
+| `SYM_UPGRADE_COMMAND::doPerform` | 0.00% of 12 | **83.33%** |
+| `FP_UPGRADE_COMMAND::doPerform` | 0.00% of 8 | **100.00%** |
+
+Still `0.00%` — and each one is a line item in §5:
 
 ```
-0.00% of 119  command_pcb_export_3d        0.00% of  41  command_pcb_export_ps
-0.00% of  58  command_pcb_render           0.00% of  37  command_pcb_export_ipc2581
-0.00% of  52  command_pcb_export_pdf       0.00% of  37  command_pcb_import
-0.00% of  47  command_pcb_export_dxf       0.00% of  37  command_sch_erc
-0.00% of  30  command_sch_export_bom       0.00% of  28  command_pcb_export_odb
-0.00% of  23  command_jobset_run           0.00% of  15  command_pcb_export_gencad
-0.00% of  12  command_sym_upgrade          0.00% of  11  command_sch_export_pythonbom
-0.00% of   8  command_fp_upgrade           0.00% of   3  command_pcb_export_hpgl
+0.00% of 119  PCB_EXPORT_3D          0.00% of  41  PCB_EXPORT_PS
+0.00% of  58  PCB_RENDER             0.00% of  37  PCB_EXPORT_IPC2581
+0.00% of  52  PCB_EXPORT_PDF         0.00% of  37  PCB_IMPORT
+0.00% of  47  PCB_EXPORT_DXF         0.00% of  30  SCH_EXPORT_BOM
+0.00% of  28  PCB_EXPORT_ODB         0.00% of  23  JOBSET_RUN
+0.00% of  15  PCB_EXPORT_GENCAD      0.00% of  11  SCH_EXPORT_PYTHONBOM
+0.00% of   3  PCB_EXPORT_HPGL
 ```
 
-Contrast with the 14 that do run: `command_pcb_export_gerbers` 90.0%,
-`command_sym_export_svg` 86.7%, `command_pcb_export_svg` 83.7%, `command_pcb_drc`
-69.1%, `command_sch_export_netlist` 48.4%.
-
-`command_sym_upgrade` and `command_fp_upgrade` at 0% is a **suite gap, not a scope
-decision**: the adapter maps `parse-sym`/`parse-fp` to `sym upgrade`/`fp upgrade`, but
-`suites/symbol-lib/` and `suites/footprint-lib/` contain **no `rejects-*` cases**, so
-those verbs are never invoked.
+Note that `PCB_EXPORT_PDF` and `PCB_EXPORT_DXF` are still zero even though the adapter
+implements `export-pdf`/`export-dxf` — that is §4.2.
 
 ---
 
-## 4. What is uncovered, and why
+## 4. Did round 1's predictions hold?
 
-### 4a. Legitimately unreachable — classified and set aside
+Round 1 produced a gap list; the work since then landed 56 new cases **and** four new
+harness capabilities ([DL-0034], [DL-0036], [DL-0037], [DL-0038]). Predicting what each
+should move, then checking, separates "the capability does not work" from "the capability
+works and nothing uses it". They are different bugs with different fixes.
 
-Not gaps. Do not write cases for these.
+### 4.1 Held — 56 cases moved exactly what they were supposed to
 
-| area | lines | why unreachable |
-|---|---:|---|
-| `gui` bucket (dialogs, widgets, tools, GAL, 3d-viewer) | 158620 | no GUI in a CLI run |
-| `pcbnew/drc/rule_editor/**` | 5555 | DRC rule-editor dialog |
-| `pcbnew/exporters/step/**`, `u3d/**`, `exporter_vrml.cpp`, `export_idf.cpp` | ~4980 | 3D/STEP, out of scope by [DL-0012] |
-| `pcbnew/drc/drc_interactive_courtyard_clearance.cpp` | 131 | interactive-move-only provider |
-| `pcbnew/pcb_io/{altium,cadstar,eagle,pads,allegro,easyeda,fabmaster,ipc2581,odbpp,pcad,geda}` | ~34000 | third-party importers; reachable only via `pcb import` (a *stated* roadmap item, "Later/conditional") |
-| `eeschema/sch_io/{altium,cadstar,eagle,ltspice,easyeda,database,http_lib,pads}` | ~21000 | same |
-| wxPython scripting | — | compiled out (`KICAD_SCRIPTING_WXPYTHON=OFF`) |
+| prediction | before (R1) | after | verdict |
+|---|---:|---:|---|
+| 19 ERC cases → `eeschema/erc/**` | 90/1797 **5.0%** | 1006/1797 **56.0%** | **held** (only visible after §2c) |
+| … `erc/erc.cpp` | 13/1209 **1.1%** | **695/1209 57.5%** | held |
+| … `erc_report.cpp` | 0/115 | **62/115** | held |
+| … `erc_item.cpp` | 0/130 | **28/130** | held |
+| … `erc_settings.cpp` | 62/239 | **140/239** | held |
+| … `ERC_TESTER::Test*` methods entered | **0 of 21** | **18 of 21** | held |
+| … `connection_graph.cpp` (ERC's substrate) | 976/2369 | **1411/2369** | held |
+| 30 DRC cases → `drc` (corrected) | 2445/11036 **22.2%** | 3686/11036 **33.4%** | held |
+| `parseNETCLASS` (`board-netclasses`) | 0.00% of 60 | **73.33%** | held |
+| `parsePadstack` (`pad-padstack-per-layer`) | 0.00% of 208 | **23.08%** | held |
+| `parsePCB_BARCODE` (`board-barcode`) | 0.00% of 99 | **74.75%** | held |
+| … and `pcbnew/pcb_barcode.cpp` | 45/542 | **193/542** | held |
+| `parseSymbolArc` (`symbol-arc-and-bezier`) | 0.00% of 104 | **47.12%** | held |
+| `parseSymbolBezier` (same case) | 0.00% of 47 | **82.98%** | held |
+| `parseSchTextBoxContent` (`sheet-text-box`) | 0.00% of 95 | **70.53%** | held |
+| `command_sym_upgrade::doPerform` (`symbol-lib/rejects-*`) | 0.00% of 12 | **83.33%** | held |
+| `command_fp_upgrade::doPerform` (`footprint-lib/rejects-*`) | 0.00% of 8 | **100.00%** | held |
 
-### 4b. Uncovered code the suite plausibly SHOULD reach
+Per-provider DRC movement (`compare.py`, round 1 → round 2b), the 30 new cases doing
+their job:
 
-**Board s-expression parser** — `pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp`
-is 1903/4991 (38.1%). These member functions were **never entered even once**, each
-because no fixture contains the construct (line counts are gcov's, from the `gcov -f -m`
-command in §1):
+```
+courtyard_clearance   33/193 ->  147/193      hole_to_hole     50/135 -> 109/135
+copper_clearance     120/733 ->  344/733      hole_size        35/109 ->  85/109
+solder_mask          125/471 ->  244/471      text_dims        21/141 ->  71/141
+annular_width         57/188 ->  123/188      silk_clearance   54/127 -> 108/127
+edge_clearance        88/222 ->  149/222      drc_item.cpp     23/119 ->  55/119
+misc                 141/306 ->  204/306      text_mirroring   22/47  ->  42/47
+zone_connections      20/160 ->   49/160      connectivity     63/161 ->  86/161
+```
 
-| function | lines | the construct nothing exercises |
-|---|---:|---|
-| `parsePadstack(PAD*)` | 208 | `(padstack …)` per-layer pad geometry |
-| `parsePCB_TABLE` | 106 | `(table …)` |
-| `parsePCB_BARCODE` | 99 | `(barcode …)` — **new in KiCad 10** |
-| `parseGENERATOR` | 94 | `(generated …)` generator objects (tuning patterns) |
-| `parseTITLE_BLOCK` | 74 | `(title_block …)` |
-| `parseFootprintVariant` | 65 | component variants |
-| `parse3DModel` | 65 | `(model …)` in a footprint |
-| `parseDefaults` | 61 | `(setup (defaults …))` |
-| `parseNETCLASS` | 60 | `(net_class …)` |
-| `parsePCB_REFERENCE_IMAGE` | 56 | `(image …)` |
-| `parseViastack` | 51 | per-layer via padstack |
-| `parseGROUP` | 48 | `(group …)` |
-| `parseTEARDROP_PARAMETERS` | 47 | `(teardrops …)` |
-| `parsePCB_TARGET` | 42 | `(target …)` alignment target |
-| `parsePostMachining` / `parseFootprintStackup` | 31 / 31 | back-drilling; per-footprint stackup |
-| `parseRenderCache` / `parsePCB_POINT` / `parseVariants` | 30 each | `(render_cache …)`, `(pts …)` point lists, `(variants …)` |
-| `parseZoneLayerProperty` / `parseZoneDefaults` | 22 / 13 | per-layer zone overrides |
-| `parseLayersForCuItemWithSoldermask` | 15 | `(layers F.Cu F.Mask)` on a copper item |
+### 4.2 Failed — four capabilities exist and **no case invokes them**
 
-**Schematic s-expression parser** — `eeschema/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp`
-is 1355/3032 (44.7%). Never entered:
-
-| function | lines | construct |
-|---|---:|---|
-| `parseSymbolArc` | 104 | an arc inside a symbol definition |
-| `parseSchTextBoxContent` | 95 | `(text_box …)` on a sheet |
-| `parseSchTable` | 90 | `(table …)` |
-| `parseSymbolTextBox` | 86 | text box inside a symbol |
-| `parseTITLE_BLOCK` | 69 | `(title_block …)` |
-| `parseSchSymbolInstances` | 51 | `(symbol_instances …)` |
-| `parseSymbolBezier` | 47 | bezier in a symbol |
-| `parseImage` | 44 | `(image …)` embedded bitmap |
-| `parseSchRuleArea` | 42 | `(rule_area …)` |
-| `parseGroup` | 42 | `(group …)` |
-| `parseSchPolyLine` | 41 | `(polyline …)` on a sheet |
-| `parseSymbolText` | 33 | text inside a symbol |
-| `parseBusAlias` | 28 | `(bus_alias …)` |
-| `parseBodyStyles` | 13 | DeMorgan alternate body style |
-
-**Independently cross-checked.** Grepping the fixtures for those tokens agrees exactly
-with gcov — `title_block`, `net_class`, `group`, `barcode`, `padstack`, `teardrops`,
-`target`, `image`, `table`, `model`, `bus_alias`, `rule_area` each appear in **0**
-fixture files:
+This is one finding, not four. `runner/manifest.py`'s `EXTRA_NAMES` accepts
+`refill-zones`, `pdf`, `dxf` and `parity`; `adapters/kicad.py` implements
+`drc-refill-zones`, `export-pdf`, `export-dxf`, `drc-parity`; each was verified working by
+its own decision entry. But:
 
 ```bash
-for tok in title_block net_class group barcode padstack teardrops target image table \
-           model bus_alias rule_area; do
-  echo "$tok: $(grep -rl "($tok" suites/ --include=*.kicad_pcb --include=*.kicad_sch \
-        --include=*.kicad_sym --include=*.kicad_mod | wc -l) fixture files"
-done
+$ grep -rh "^extra" suites/ --include=case.toml | sort | uniq -c | sort -rn
+     33 extra   = ["drc"]
+     19 extra   = ["erc"]
+      1 extra   = ["summary-kicadxml"]
+      1 extra   = ["ipcd356"]
+$ find suites -name "*.kicad_dru" -o -name "*.kicad_pro" | wc -l
+0
 ```
 
-**ERC — 90/1797 (5.0%), effectively unmeasured.** `eeschema/erc/erc.cpp` is **13/1209 =
-1.1%**; `erc_item.cpp` 0/130 and `erc_report.cpp` 0/115 are flat zero. `sch erc` is
-never invoked by any case (`command_sch_erc.cpp::doPerform` 0.00% of 37). All 22
-`ERC_TESTER::Test*` methods are dead. This is the single largest gap in the suite and
-M2's stated exit criterion.
+| prediction | before | after | why it failed |
+|---|---:|---:|---|
+| `refill-zones` → `pcbnew/zone_filler.cpp` | 0/1991 | **0/1991** | no case sets `extra = ["refill-zones"]` ([DL-0036] shipped the verb only) |
+| `pdf` → `PDF_plotter.cpp` (+`pdf_outline_font` 0/327, `pdf_stroke_font` 0/298) | 0/1433 | **0/1433** | no case sets `extra = ["pdf"]` |
+| `dxf` → `DXF_plotter.cpp` | 0/651 | **0/651** | no case sets `extra = ["dxf"]` |
+| `.kicad_dru` sibling → `drc_rule_parser.cpp` | 0/505 | **0/505** | **predicted to fail, and it did**: [DL-0034] shipped the copying, zero `.kicad_dru` files exist |
+| `parity` → `drc_test_provider_schematic_parity.cpp` | 9/198 | **9/198** | no case sets `extra = ["parity"]`, no `.kicad_sch` sibling next to any board |
 
-**DRC — 2445/11036 (22.2%) excluding the rule editor.** `drc_engine.cpp` is 41.1%, so
-the engine runs; what is missing is violations to find and rules to parse:
+`common/plotters/` is **1080/4933 in both rounds — byte-identical**, which is the
+mechanical confirmation that not one plot-format line was newly reached in 56 cases.
 
-| file | covered | what would reach it |
+**The distinction matters.** These are not "write a case that reaches new code" items like
+§5's bucket (a) parser fixtures; they are "the road is built and nobody drove on it".
+Each is one `extra = [...]` line plus a recorded answer, and between them they are
+**~5000 lines of dead KiCad**, the largest single block left that a CLI run can reach.
+
+---
+
+## 5. Round-2 target list
+
+Sorted by value, in three **honest** buckets. Bucket (c) is deliberately short; padding it
+with GUI code would make the list look bigger and be worth less.
+
+### (a) Reachable with the harness exactly as it stands — write a case
+
+| # | case to write | newly executes | lines |
+|---|---|---|---:|
+| **a1** | `suites/drc/refill-zones-*` with `extra = ["refill-zones"]` | `pcbnew/zone_filler.cpp` **0/1991** — the largest CLI-reachable dead file in the tree | ~2000 |
+| **a2** | a board + same-stem `board.kicad_dru` with a custom `clearance` rule | `drc_rule_parser.cpp` **0/505**, plus the rest of `drc_rule.cpp` / `drc_rule_condition.cpp` | ~530 |
+| **a3** | a `creepage` custom rule (needs a2's fixture shape) | `drc_creepage_utils.cpp` **0/1712** + `drc_test_provider_creepage.cpp` 11/213 | ~1900 |
+| **a4** | `extra = ["pdf"]` on one board and one schematic | `PDF_plotter.cpp` 0/1433, `pdf_outline_font.cpp` 0/327, `pdf_stroke_font.cpp` 0/298, `PCB_EXPORT_PDF_COMMAND::doPerform` 0/52, `job_export_pcb_pdf.cpp` 0/29 | ~2140 |
+| **a5** | `extra = ["dxf"]` on one board | `DXF_plotter.cpp` 0/651, `PCB_EXPORT_DXF_COMMAND::doPerform` 0/47, `job_export_pcb_dxf.cpp` 0/20 | ~720 |
+| **a6** | `extra = ["parity"]` board + same-stem `.kicad_sch` | `drc_test_provider_schematic_parity.cpp` 9/198 | ~190 |
+| **a7** | a `physical_clearance` rule (needs a2) | `drc_test_provider_physical_clearance.cpp` **14/415** | ~400 |
+| **a8** | a differential pair + coupling/skew rule (needs a2) | `drc_test_provider_diff_pair_coupling.cpp` 24/384, `drc_test_provider_matched_length.cpp` 42/242 | ~560 |
+| **a9** | `track_angle` / `track_segment_length` rules (needs a2) | those two providers, 9/83 and 9/66 | ~130 |
+| **a10** | board fixtures for the 20 still-dead `PCB_IO_KICAD_SEXPR_PARSER::parse*` (below) | `pcb_io_kicad_sexpr_parser.cpp` 2084/4991 | ~830 |
+| **a11** | schematic/symbol fixtures for the 11 still-dead `SCH_IO_KICAD_SEXPR_PARSER::parse*` (below) | `sch_io_kicad_sexpr_parser.cpp` 1538/3032 | ~540 |
+| **a12** | ERC cases for the 3 untouched testers | `TestFootprintFilters` 0/44, `TestFourWayJunction` 0/35, `TestSimModelIssues` 0/30 | ~110 |
+
+**a1–a6 first.** Together they sum to **~7500 lines** sitting behind four
+`extra = [...]` names (`refill-zones`, `pdf`, `dxf`, `parity`) and two sibling files
+(`.kicad_dru`, `.kicad_sch`) — all in capabilities that already exist, were verified by
+their own authors, and are already documented in `TEST_CASE_FORMAT.md` §§4/6. Nothing in
+the suite is cheaper per line. a2 is a *prerequisite*: a3, a7, a8 and a9 are all
+custom-rule cases, so proving the `.kicad_dru` convention once unblocks ~3000 further
+lines behind it.
+
+Still-dead parser functions (`tools/coverage/funcs.sh --zero-only --min-lines 12`, round 2b
+— every one was also dead in round 1, and an independent `grep` of every fixture for the
+matching token agrees):
+
+```
+board   parsePCB_TABLE 106  parseGENERATOR 94  parseTITLE_BLOCK 74  parse3DModel 65
+        parseFootprintVariant 65  parseDefaults 61  parsePCB_REFERENCE_IMAGE 56
+        parseViastack 51  parseGROUP 48  parseTEARDROP_PARAMETERS 47  parsePCB_TARGET 42
+        parsePostMachining 31  parseFootprintStackup 31  parsePCB_POINT 30
+        parseRenderCache 30  parseVariants 30  parseDefaultTextDims 24
+        parseZoneLayerProperty 22  parseLayersForCuItemWithSoldermask 15
+        parseZoneDefaults 13
+sch     parseSchTable 90  parseSymbolTextBox 86  parseTITLE_BLOCK 69
+        parseSchSymbolInstances 51  parseImage 44  parseGroup 42  parseSchRuleArea 42
+        parseSchPolyLine 41  parseSymbolText 33  parseBusAlias 28  parseBodyStyles 13
+```
+
+### (b) Reachable only through a harness capability we do not have
+
+Each needs a decision entry before a case can exist. Listed so nobody writes a case that
+cannot work, and so the capability cost is visible next to its payoff.
+
+| # | missing capability | would reach | lines |
+|---|---|---|---:|
+| **b1** | an answer that records KiCad's **re-serialized board** (`pcb upgrade` writes one; nothing compares it) | `PCB_IO_KICAD_SEXPR::format(...)` — **every overload is 0%**: `format(PCB_TRACK*)` 0/147, `format(ZONE*)` 0/132, `format(PCB_SHAPE*)` 0/80, `format(PCB_DIMENSION_BASE*)` 0/73, `format(PCB_BARCODE*)` 0/38, `formatTeardropParameters`, `formatRenderCache`, … The suite reads the format and never writes it. | ~800 |
+| **b2** | a `netlist` format matrix (the verb hardcodes `kicadsexpr`/`kicadxml`) | `netlist_exporter_spice.cpp` 0/423, `_allegro` 0/398, `_cadstar` 0/133, `_pads` 0/119, `_orcadpcb2` 0/68, `netlist_generator.cpp` 0/101 | ~1240 |
+| **b3** | a footprint library a board can link to (`fp-lib-table` + `.pretty` are not in `_BOARD_SIBLING_SUFFIXES`) | `drc_test_provider_library_parity.cpp` **42/508** | ~470 |
+| **b4** | `pcb export gencad` verb | `export_gencad_writer.cpp` 0/662, command 0/15, `job_export_pcb_gencad.cpp` 0/22 | ~700 |
+| **b5** | `--format gerber` on drill and pos (adapter hardcodes Excellon + CSV) | `gendrill_gerber_writer.cpp` 0/315, `gerber_placefile_writer.cpp` 0/165 | ~480 |
+| **b6** | `sch export bom` verb | command 0/30, `job_export_sch_bom.cpp` 0/60 | ~90 |
+| **b7** | `pcb export ipc2581` / `odb` verbs | commands 0/37 + 0/28, jobs 0/41 + 0/27 | ~130 |
+| **b8** | `jobset run` verb | `common/jobs/jobset.cpp` 0/147, command 0/23, `jobs_output_archive.cpp` 0/50, `jobs_output_folder.cpp` 0/34 | ~250 |
+| **b9** | legacy-format fixtures (`.brd` / `.sch`) fed to `pcb upgrade` / `sch upgrade` | `pcb_io_kicad_legacy.cpp` 0/1553, `sch_io_kicad_legacy*.cpp` 0/2317 | ~3900 |
+
+b1 is the most interesting of these as a *conformance* matter: a file-format suite that
+never checks the writer is pinning half a format. b9 is the largest, and is a genuine
+scope question — legacy import is format conformance, but it is not what `DESIGN.md`
+currently claims to cover.
+
+### (c) Legitimately unreachable from a CLI run — do not write cases
+
+| area | lines | why |
 |---|---:|---|
-| `drc_rule_parser.cpp` | **0/505** | a custom `.kicad_dru` rule file — nothing parses one |
-| `drc_creepage_utils.cpp` | **0/1712** | a `creepage` constraint (needs a custom rule) |
-| `drc_test_provider_physical_clearance.cpp` | 14/415 (3.4%) | a `physical_clearance` rule |
-| `drc_test_provider_library_parity.cpp` | 20/508 (3.9%) | a board whose footprints link to a library |
-| `drc_test_provider_schematic_parity.cpp` | 9/198 (4.5%) | `pcb drc --schematic-parity` with a netlist |
-| `drc_test_provider_diff_pair_coupling.cpp` | 24/384 (6.2%) | a differential pair + coupling rule |
-| `drc_test_provider_track_angle.cpp` | 9/83 (10.8%) | a `track_angle` constraint |
-| `drc_test_provider_zone_connections.cpp` | 20/160 (12.5%) | a zone/pad connection violation |
-| `drc_test_provider_text_dims.cpp` | 21/141 (14.9%) | a `text_height`/`text_thickness` violation |
-| `drc_test_provider_copper_clearance.cpp` | 120/733 (16.4%) | an actual clearance violation (only clean boards today) |
-| `drc_test_provider_courtyard_clearance.cpp` | 33/193 (17.1%) | two overlapping courtyards |
-| `drc_item.cpp` | 23/119 (19.3%) | more distinct violation *types* — this file is the message table |
-
-**Plotters and exporters.** `common/plotters` is 1080/4933 (21.9%): `SVG_plotter` 70.0%
-and `GERBER_plotter` 61.2% are exercised, but `PDF_plotter.cpp` **0/1433**,
-`DXF_plotter.cpp` **0/651**, `pdf_outline_font.cpp` **0/327** and `pdf_stroke_font.cpp`
-**0/298** are untouched, and `PS_plotter.cpp` is 81/427 (19.0% — only the parts GERBER
-inherits). In `pcbnew/exporters`, `gendrill_gerber_writer.cpp` **0/315** and
-`gerber_placefile_writer.cpp` **0/165** are entirely unreached because the adapter only
-ever asks for the default Excellon drill and CSV position formats.
-
-**Netlist formats.** `netlist_exporter_xml.cpp` is 508/723 (70.3%) — well covered,
-because every schematic case's `summary` goes through it. Every other format is zero:
-`spice` 0/423, `allegro` 0/398, `cadstar` 0/133, `pads` 0/119, `orcadpcb2` 0/68.
+| `gui` bucket (dialogs, widgets, tools, GAL, 3d-viewer) | 159283 | no GUI in a CLI run; measured 0.3% |
+| third-party importers (`pcb_io/{altium,cadstar,eagle,pads,allegro,easyeda,fabmaster,ipc2581,odbpp,pcad,geda}`, `sch_io/{…}`) | ~55000 | reachable only via `pcb import`, a *stated* "Later/conditional" roadmap item |
+| `pcbnew/drc/rule_editor/**` | 5555 | the DRC rule-editor dialog, not the rule engine |
+| `pcbnew/router/**` — interactive router | 1224 in the `pns_diff_pair*` files alone (the whole directory is larger and also 0%) | nothing in `kicad-cli` invokes the router |
+| `pcbnew/exporters/step/**`, `u3d/**`, `exporter_vrml`, `export_idf`, `pcb render` | ~5000 | 3D/STEP, out of scope by [DL-0012] |
+| `eeschema/sim/**` (ngspice model tables, IBIS, simulator UI) | ~10000 | no CLI entry point to the simulator |
+| `common/bitmap_info.cpp`, `kicad/pcm/**`, `common/git/**`, `common/dialog_shim.cpp` | ~8000 | icon table, plugin manager, VCS integration — all GUI-only |
+| `pcbnew/drc/drc_interactive_courtyard_clearance.cpp` | 131 | interactive-move-only provider |
+| wxPython scripting | — | compiled out (`KICAD_SCRIPTING_WXPYTHON=OFF`) |
 
 ---
 
-## 5. Prioritized gap list
+## 6. Executed, but nothing asserts it
 
-Grouped so parallel agents can pick up a whole group without colliding. Each entry names
-the KiCad code it would newly execute and a one-line `concept` for the `case.toml`.
+> *"Coverage is what we can assert and verify, not just run."*
 
-### Group A — ERC (largest single gap; M2 exit criterion)
+[`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md) defines three states — **unexecuted**,
+**executed-only**, **asserted** — and a perturbation mechanism that measures the second
+boundary. That mechanism is **designed and unimplemented**, and the check is mechanical:
 
-| # | proposed case | newly exercises | concept |
-|---|---|---|---|
-| A1 | `suites/erc/pin-conflict-two-outputs` | `eeschema/erc/erc.cpp:ERC_TESTER::TestPinToPin` (1017), `erc_item.cpp`, `erc_report.cpp` | Two output pins driving the same net are reported as a `pin_to_pin` ERC violation. |
-| A2 | `suites/erc/unconnected-pin` | `ERC_TESTER::TestNoConnectPins` (926) + `erc_report.cpp` JSON writer | A pin left unconnected, and one covered by a no-connect flag, differ in ERC severity. |
-| A3 | `suites/erc/duplicate-sheet-names` | `ERC_TESTER::TestDuplicateSheetNames` (143) | Two sibling sheets with the same name are an ERC error. |
-| A4 | `suites/erc/similar-labels` | `ERC_TESTER::TestSimilarLabels` (1579) | Labels differing only in case are reported as similar-label warnings. |
-| A5 | `suites/erc/missing-units` | `ERC_TESTER::TestMissingUnits` (605), `TestMultUnitPinConflicts` (1288) | A multi-unit symbol with one unit unplaced is reported as a missing unit. |
-| A6 | `suites/erc/off-grid-endpoints` | `ERC_TESTER::TestOffGridEndpoints` (1972) | A wire endpoint off the connectivity grid is reported. |
-| A7 | `suites/erc/lib-symbol-mismatch` | `ERC_TESTER::TestLibSymbolIssues` (1694) | A cached `lib_symbols` entry that differs from the placed symbol is an ERC issue. |
+```bash
+$ find suites -type d -name perturb | wc -l
+0
+```
 
-All of A also lights up `kicad/cli/command_sch_erc.cpp::doPerform` (0.00% of 37) and
-`erc_settings.cpp`'s severity plumbing. A1 alone is the highest value per unit effort.
+**All 133 cases would report `UNASSERTED-CASE` today**, so every percentage in §3 remains
+an upper bound, and the two asserted columns ([DL-0030], [DL-0031]) still cannot be filled.
+What round 2 *can* say, by inspection, is where the executed-only band is widest:
 
-### Group B — DRC rules and real violations
+1. **The IPC-D-356 via path — the known-defective one.** `pcbnew/exporters/export_d356.cpp`
+   runs on **every board case** (`pcb export ipcd356` is part of the `summary` battery),
+   and its uninitialised `soldermask` field ([DIV-0002]) is *the* thing round 1 found
+   wrong. Neither `summary.json` (which keeps only `nets` and `placement`) nor the one
+   case with `extra = ["ipcd356"]`
+   (`board-parse/pad-properties-testpoint-castellated`, which keeps only `nets` and
+   `testpoints`) records the `S…` field at all. The adapter's reducer *rejects* a
+   malformed value — that is how the defect surfaced, as a `ValueError` on
+   `S-16843009`, which the `S(?P<serial>\d+)` group cannot match because of the minus
+   sign — but a **well-formed wrong** value (`S3` → `S1`) would match, be dropped, and
+   never be noticed: `runner/reduce.py:451` says so in as many words ("the trailing
+   `S<n>` serial and rotation are dropped entirely (never compared)"). Note also that the
+   reducer calls that column a *serial*; KiCad's own `export_d356.h:40` calls it
+   `int soldermask`. **The precise field round 1 identified as a KiCad bug is a field the
+   suite discards and has mis-identified.** This is the smoke target
+   ASSERTED_COVERAGE.md §7 names, and it is real.
+2. **The gerber and drill answers are `[byte-only]`.** 899 `gerbers/` files and 69
+   `drill/` files are recorded, but they report `INFO`, never `FAIL`, against a non-KiCad
+   adapter ([DL-0015]/[DL-0026]). So `GERBER_plotter.cpp` (549/897) and
+   `gendrill_excellon_writer.cpp` (218/392) are asserted **for KiCad regressions only** —
+   nothing about them is asserted cross-implementation. That is roughly a third of
+   `export/plot`'s covered lines.
+3. **The dark capabilities cut the other way.** a1–a6 in §5 are not "executed but
+   unasserted" — they are unexecuted. Worth saying plainly, because the fix ordering
+   differs: an unasserted line needs a better answer, an unexecuted line needs a case.
+   §4.2 is about the second.
+4. **Where the suite is doing this well, it should be said.** The `drc.json` and
+   `erc.json` answers are substantive violation sets (type, severity, description, item
+   descriptions, positions), so the +1241 DRC and +916 ERC lines are backed by answers
+   that would move. The `board-barcode` and `pad-padstack-per-layer` case files record a
+   hand-verified falsifiability check in their `case.toml` comments. That is the manual
+   version of the mechanism — **which is the point: it leaves no artifact and nothing
+   re-runs it.**
 
-| # | proposed case | newly exercises | concept |
-|---|---|---|---|
-| B1 | `suites/drc/custom-rule-clearance` (board + `.kicad_dru`) | `pcbnew/drc/drc_rule_parser.cpp` **0/505** (whole file), `drc_rule.cpp`, `drc_rule_condition.cpp` | A custom DRC rule in `.kicad_dru` overrides the netclass clearance for one net. |
-| B2 | `suites/drc/clearance-violation` | `drc_test_provider_copper_clearance.cpp` (120/733) violation-reporting paths, `drc_item.cpp` | Two tracks closer than the board's minimum clearance produce a `clearance` violation naming both items. |
-| B3 | `suites/drc/courtyard-overlap` | `drc_test_provider_courtyard_clearance.cpp` (33/193) | Two footprints whose courtyards overlap produce a `courtyards_overlap` violation. |
-| B4 | `suites/drc/unconnected-net` | `drc_test_provider_connectivity.cpp` (63/161), `ratsnest` | A net with two pads and no track produces an `unconnected_items` violation. |
-| B5 | `suites/drc/hole-violations` | `drc_test_provider_hole_size.cpp` (35/109), `drc_test_provider_hole_to_hole.cpp` (50/135) | An undersized drill and two holes closer than the hole-to-hole minimum are each reported. |
-| B6 | `suites/drc/text-dims-violation` | `drc_test_provider_text_dims.cpp` (21/141) | Silkscreen text below the minimum height/thickness is reported. |
-| B7 | `suites/drc/physical-clearance-rule` | `drc_test_provider_physical_clearance.cpp` **14/415** | A `physical_clearance` custom rule is evaluated against a mechanical item. |
-| B8 | `suites/drc/creepage-rule` | `drc_creepage_utils.cpp` **0/1712** — the single largest uncovered non-GUI file in `drc` | A `creepage` constraint across a slot produces a creepage violation. |
-| B9 | `suites/drc/refill-zones` (uses `pcb drc --refill-zones`) | `pcbnew/zone_filler.cpp` **0/1991 — the largest uncovered non-GUI file in the whole tree that our suite plausibly should reach.** All four zone fixtures ship a pre-computed `(filled_polygon …)`, so `ZONE_FILLER::Fill` is never entered; `--refill-zones` exists (`command_pcb_drc.cpp:41 ARG_ZONE_FILL`) and no case passes it | Refilling zones before DRC reproduces the stored fill, and a stale fill is corrected. |
-| B10 | `suites/drc/schematic-parity` | `drc_test_provider_schematic_parity.cpp` **9/198** | A board whose netlist disagrees with the schematic reports parity errors. |
-| B11 | `suites/drc/diff-pair-coupling` | `drc_test_provider_diff_pair_coupling.cpp` **24/384**, `drc_test_provider_matched_length.cpp` (42/242) | A differential pair violating its coupling/skew rule is reported. |
-
-B9 needs an adapter capability the adapter does not currently expose (the `drc` verb
-passes no `--refill-zones`); note that as part of the case's design, and do not change
-`adapters/` without a decision entry.
-
-### Group C — board-format constructs the parser never sees
-
-Each is a small hand-authored `.kicad_pcb` under `suites/board-parse/`.
-
-| # | proposed case | newly exercises | concept |
-|---|---|---|---|
-| C1 | `board-title-block` | `parsePCB_TITLE_BLOCK` (74) — and the schematic twin C-S1 | A `(title_block …)` carries title, date, revision and company through to plot output. |
-| C2 | `pad-padstack-per-layer` | `parsePadstack` **208** (largest uncovered parser function), `parseViastack` (51) | A pad with a `(padstack)` block has different geometry on front, inner and back layers. |
-| C3 | `board-netclasses` | `parseNETCLASS` (60), `parseDefaults` (61), `parseDefaultTextDims` (24) | A `(net_class …)` in `(setup)` assigns per-net clearance and track width. |
-| C4 | `footprint-3d-model` | `parse3DModel` (65) | A footprint's `(model …)` reference survives a parse/round-trip with its offset, scale and rotation. |
-| C5 | `board-groups` | `parseGROUP` (48) and `resolveGroups` | A `(group …)` binds several items by UUID and survives a round trip. |
-| C6 | `via-teardrops` | `parseTEARDROP_PARAMETERS` (47) | `(teardrops …)` parameters on a via are parsed and preserved. |
-| C7 | `board-barcode` | `parsePCB_BARCODE` **99** — a **KiCad-10-only** token, exactly what a conformance suite for 10.0.5 should pin | A `(barcode …)` item is parsed and plots on the silkscreen. |
-| C8 | `board-table` | `parsePCB_TABLE` (106) | A `(table …)` of cells parses with its row/column geometry. |
-| C9 | `board-target-and-image` | `parsePCB_TARGET` (42), `parsePCB_REFERENCE_IMAGE` (56) | A `(target …)` alignment mark and an embedded `(image …)` are parsed. |
-| C10 | `zone-per-layer-properties` | `parseZoneLayerProperty` (22), `parseZoneDefaults` (13) | A multi-layer zone overrides its fill properties on one layer only. |
-| C11 | `pad-with-soldermask-layer` | `parseLayersForCuItemWithSoldermask` (15) | A copper item that also names a mask layer parses both. |
-
-### Group D — schematic/symbol constructs the parser never sees
-
-| # | proposed case | newly exercises | concept |
-|---|---|---|---|
-| D1 | `symbol-lib/symbol-arc-and-bezier` | `parseSymbolArc` **104**, `parseSymbolBezier` (47) | A symbol body drawn with an arc and a bezier renders both. |
-| D2 | `symbol-lib/symbol-text-and-textbox` | `parseSymbolText` (33), `parseSymbolTextBox` (86) | Free text and a text box inside a symbol definition render with their effects. |
-| D3 | `schematic-parse/sheet-text-box` | `parseSchTextBoxContent` (95) | A `(text_box …)` on a sheet wraps its content to the box width. |
-| D4 | `schematic-parse/sch-polyline-and-image` | `parseSchPolyLine` (41), `parseImage` (44) | A `(polyline …)` and an embedded `(image …)` on a sheet. |
-| D5 | `schematic-parse/bus-alias` | `parseBusAlias` (28) | A `(bus_alias …)` expands to its member nets in the netlist. |
-| D6 | `schematic-parse/sch-rule-area` | `parseSchRuleArea` (42) | A `(rule_area …)` on a sheet is parsed and carried into ERC scope. |
-| D7 | `symbol-lib/demorgan-body-style` | `parseBodyStyles` (13) | A symbol with a DeMorgan alternate body style renders both styles. |
-| D8 | `schematic-parse/sch-table-and-group` | `parseSchTable` (90), `parseGroup` (42) | A `(table …)` and a `(group …)` on a sheet parse and round-trip. |
-| D9 | `schematic-parse/sch-title-block` | `parseTITLE_BLOCK` (69) | A schematic `(title_block …)` reaches the plotted drawing sheet. |
-
-### Group E — output formats and CLI surface
-
-| # | proposed case | newly exercises | concept |
-|---|---|---|---|
-| E1 | rejection cases under `suites/symbol-lib/` and `suites/footprint-lib/` | `command_sym_upgrade.cpp::doPerform` **0.00%**, `command_fp_upgrade.cpp::doPerform` **0.00%** — the `parse-sym`/`parse-fp` verbs are implemented and never invoked | A malformed `.kicad_sym` / `.kicad_mod` is rejected with its parse position. |
-| E2 | a `pdf` answer for one board and one schematic | `common/plotters/PDF_plotter.cpp` **0/1433**, `pdf_outline_font.cpp` **0/327**, `pdf_stroke_font.cpp` **0/298**, `command_pcb_export_pdf.cpp::doPerform` | A board and a sheet plot to PDF with embedded fonts. |
-| E3 | a `dxf` answer for one board | `common/plotters/DXF_plotter.cpp` **0/651**, `command_pcb_export_dxf.cpp::doPerform` | A board plots to DXF with its layer mapping. |
-| E4 | drill output in Gerber X2 format | `pcbnew/exporters/gendrill_gerber_writer.cpp` **0/315** | `pcb export drill --format gerber` emits an X2 drill file for the same holes as Excellon. |
-| E5 | position output in Gerber format | `pcbnew/exporters/gerber_placefile_writer.cpp` **0/165** | `pcb export pos --format gerber` emits a component-placement job file. |
-| E6 | netlist format matrix | `netlist_exporter_spice.cpp` **0/423**, `_allegro` **0/398**, `_cadstar` **0/133**, `_pads` **0/119**, `_orcadpcb2` **0/68** | The same schematic exports to each interchange netlist format. |
-| E7 | `sch export bom` | `command_sch_export_bom.cpp::doPerform` **0.00% of 30**, `common/jobs/job_export_sch_bom` | A BOM export groups multi-unit symbols into one line. |
-
-**Suggested order.** A1–A2 and B1–B2 first (they unlock the two whole subsystems at
-5.0% and 22.2%); then Group C/D, which are cheap hand-authored fixtures with the
-highest lines-per-case ratio; then Group E, which mostly costs new recorded answers
-rather than new fixtures.
+**Recommendation for round 3:** implement ASSERTED_COVERAGE.md Tier 1 before adding many
+more cases. The corpus grew 73% in one round; the fraction of it that is provably
+falsifiable is still measured at zero.
 
 ---
 
-## 6. What this measurement cannot tell you
+## 7. What this measurement cannot tell you
 
-1. **Covered ≠ tested.** gcov records that a line *executed*, not that the suite
-   *asserted* anything about its effect. `netlist_exporter_xml.cpp` at 70.3% means the
-   XML exporter ran, not that its output is checked field by field.
-   **This is the gap [`ASSERTED_COVERAGE.md`](ASSERTED_COVERAGE.md) closes**: it defines
-   *asserted* as a third state between unexecuted and executed, makes each case's
-   falsifiability a committed artifact the runner re-checks ([DL-0030]), and specifies the
-   per-line gap report — "this KiCad code is executed by the suite and nothing asserts it"
-   — that this section's numbers cannot produce ([DL-0031]). Until that lands, **every
-   percentage in §3 is an upper bound**.
-2. **The global 8.6% is not a quality score** — see §3.
-3. **Bucket percentages are only as good as their directory patterns** — §3a shows three
-   of them off by 8-25 percentage points against the question actually being asked.
-   Always confirm against `coverage.json` before quoting a bucket.
+1. **Covered ≠ tested.** See §6. Every percentage in §3 is an upper bound.
+2. **The global 9.8% is not a quality score** — see §3.
+3. **Bucket percentages are only as good as their directory patterns** — §3a shows four of
+   them off by 8 to 33 percentage points against the question actually being asked.
+   Always confirm against `coverage.json` (`gaps.py corrected`, `subdir.py`) before
+   quoting a bucket.
 4. **It is a different binary.** Debug, `-O0`, no wxPython, no stock symbol/footprint
-   libraries (hence the `LIBRARY_MANAGER::LoadGlobalTables` assert spam on every
-   invocation), and `-ftrivial-auto-var-init=pattern` instead of the release fill. §2
-   shows both ways that changed observable behaviour. **If this image and
+   libraries (hence `LIBRARY_MANAGER::LoadGlobalTables` assert spam on every invocation),
+   and `-ftrivial-auto-var-init=pattern`. §2 shows **three** ways that changed observable
+   behaviour, one of them new this round and severe (§2c). **If this image and
    `kicad/kicad:10.0.5` disagree on a result, the release image wins.**
-5. **Branch percentages are indicative only** (5.8% global). Every call that can throw
-   creates hidden branches; `--exclude-throw-branches` suppresses only the worst.
-6. **The lcov tracefile is not in this run's artifacts.** lcov 2.0 in this image falls
-   back to the pure-Perl `JSON::PP` backend (it says so in `lcov-stderr.txt`) and was
-   still running after 15 minutes on a tree gcovr finished in ~5. `collect.sh` now
-   bounds it (`COVERAGE_LCOV_TIMEOUT`, default 900s) so it cannot hold `focus.json`
-   hostage; set `COVERAGE_SKIP_LCOV=1` to skip it, or install `JSON::XS` in the image if
-   you need `coverage.info`.
-7. **Function line counts in §4 are gcov's**, which counts every line the compiler
-   attributes to the function (including template expansions), so they are a good
-   ranking signal and a poor absolute one.
+5. **Branch percentages are indicative only** (6.7% global in 2b, 5.8% in R1).
+6. **The lcov tracefile is bounded** (`COVERAGE_LCOV_TIMEOUT`, default 900 s) because
+   lcov 2.x falls back to pure-Perl `JSON::PP` in this image; it dominated the collect
+   phase in both rounds (gcovr finished round 2b at 07:45, `focus.json` landed at 07:56).
+   Set `COVERAGE_SKIP_LCOV=1` to skip it.
+7. **Function line counts are gcov's**, which includes template expansions — a good
+   ranking signal and a poor absolute one. Round 1 said "all 22 `ERC_TESTER::Test*`";
+   the source has **21** (`grep -n "^[a-zA-Z_].* ERC_TESTER::Test" erc.cpp`), and 18 of
+   the 21 are now entered.
 
 ---
 
-## 7. Tooling defects found and fixed while producing this report
+## 8. Tooling defects found and fixed while producing these reports
 
-Recorded because two of them silently produced a *plausible-looking* wrong answer, which
-is the failure mode this project cares most about.
+Recorded because each silently produced a *plausible-looking* wrong answer.
 
-1. **The instrumented image was not instrumented.** `tools/coverage/Dockerfile` passed
-   the coverage flags as `-DCMAKE_CXX_FLAGS_DEBUG=…`, but KiCad's own
-   `CMakeLists.txt:441-446` does an unconditional non-cache
-   `set( CMAKE_CXX_FLAGS_DEBUG "-g3 -ggdb3" )`, which clobbers it. `CMakeCache.txt`
-   still *showed* the coverage flags, so the build looked correct; `build.ninja` carried
-   `-g3 -ggdb3` and no `-fprofile-arcs`, and the resulting 26.7 GB image contained
-   **zero `.gcno` files** — gcov would have reported nothing forever. Fixed by moving
-   the flags to `CMAKE_C_FLAGS`/`CMAKE_CXX_FLAGS` (which KiCad only appends to) plus
-   `KICAD_BUILD_SMALL_DEBUG_FILES=ON`, and by adding two build-time assertions that fail
-   the build rather than the report: `grep -q profile-arcs build.ninja` after configure,
-   and `.gcno` count > 1000 after compile (it now emits **1912**).
-2. **`collect.sh` aborted on CMake's compiler-identification probe.** gcovr 7.2 treats
-   the orphaned `CMakeFiles/*/CompilerIdCXX/*.gcno` as a fatal `no_working_dir_found`
-   and refused to write any report. Fixed by removing that throwaway artifact before the
-   walk and adding `--gcov-ignore-errors=no_working_dir_found`.
-3. **Raw counters on a Windows bind mount made the run ~10x slower.** libgcov dumps
-   ~1900 small `.gcda` files at *every* process exit, and a board case is six exits.
-   Measured: `kicad-cli version` took **3.39 s** writing to a bind-mounted host directory
-   versus **0.32 s** writing inside the VM. `run-suite.sh` now keeps the counters in a
-   named Docker volume (`--raw-volume`, `--fresh`). On the bind mount the run managed 10
-   of 77 cases in ~20 minutes before it was abandoned (a ~2.5 h projection); on the
-   volume the whole 77-case suite took a **measured 4 min 46 s** (`run.log`: first
-   `kicad-cli` line `23:12:18`, last `23:17:04`). The report still lands on the host.
+1. **(R1) The instrumented image was not instrumented.** Coverage flags passed as
+   `-DCMAKE_CXX_FLAGS_DEBUG=…` were clobbered by KiCad's unconditional non-cache
+   `set( CMAKE_CXX_FLAGS_DEBUG "-g3 -ggdb3" )` (`CMakeLists.txt:441-446`). `CMakeCache.txt`
+   still showed the flags; the image had **zero `.gcno`**. Fixed by moving them to
+   `CMAKE_C_FLAGS`/`CMAKE_CXX_FLAGS` plus two build-time assertions (`profile-arcs` in
+   `build.ninja`; `.gcno` count > 1000 — now **1934**).
+2. **(R1) `collect.sh` aborted on CMake's compiler-identification probe.** Fixed by
+   removing it before the walk plus `--gcov-ignore-errors=no_working_dir_found`.
+3. **(R1) Raw counters on a Windows bind mount made the run ~10x slower** (3.39 s vs
+   0.32 s per process exit). Counters now live in a named Docker volume.
+4. **(R2) The image could not run `sch erc` at all.** The reduced target set omitted
+   `cvpcb_kiface`, and `sch erc` loads it unconditionally — see §2c. Nineteen ERC cases
+   reported `CRASH` and `eeschema/erc/**` reported 5.5% instead of 56.0%. Fixed in the
+   Dockerfile (target + install + `test -x` assertion). **This is the round-2 analogue of
+   defect 1: a coverage report that looked complete and was measuring nothing.**
+5. **(R2) There was no before/after tooling.** Round 1's corrected figures had been
+   re-derived by hand from `coverage.json` with ad-hoc python one-liners, which is not
+   reproducible and not diffable. `compare.py`, `funcs.sh` + `gcovfuncs.py`, `gaps.py` and
+   `subdir.py` now exist (§1); `gaps.py corrected` reproduces round 1's published `drc`
+   22.2% and `export/plot` 23.6% exactly, which is how they were checked.

@@ -1,0 +1,381 @@
+        -:    0:Source:/src/kicad/pcbnew/netinfo.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:465
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2009 Jean-Pierre Charras, jp.charras at wanadoo.fr
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:/*
+        -:   26: *  Classes to handle info on nets
+        -:   27: */
+        -:   28:
+        -:   29:#ifndef CLASS_NETINFO_
+        -:   30:#define CLASS_NETINFO_
+        -:   31:
+        -:   32:#include <macros_swig.h>
+        -:   33:#include <netclass.h>
+        -:   34:#include <board_item.h>
+        -:   35:
+        -:   36:
+        -:   37:class EDA_DRAW_FRAME;
+        -:   38:class PAD;
+        -:   39:class PCB_TRACK;
+        -:   40:class BOARD;
+        -:   41:class BOARD_ITEM;
+        -:   42:class BOARD_COMMIT;
+        -:   43:class MSG_PANEL_ITEM;
+        -:   44:class PCB_BASE_FRAME;
+        -:   45:
+        -:   46:
+        -:   47:DECL_VEC_FOR_SWIG( PADS_VEC, PAD* )
+        -:   48:DECL_VEC_FOR_SWIG( TRACKS_VEC, PCB_TRACK* )
+        -:   49:
+        -:   50:/**
+        -:   51: * Handle the data for a net.
+        -:   52: */
+        -:   53:class NETINFO_ITEM : public BOARD_ITEM
+        -:   54:{
+        -:   55:public:
+        -:   56:
+        -:   57:    NETINFO_ITEM( BOARD* aParent, const wxString& aNetName = wxEmptyString, int aNetCode = -1 );
+        -:   58:    ~NETINFO_ITEM();
+        -:   59:
+        -:   60:    static inline bool ClassOf( const EDA_ITEM* aItem )
+        -:   61:    {
+        -:   62:        return aItem && PCB_NETINFO_T == aItem->Type();
+        -:   63:    }
+        -:   64:
+        -:   65:    wxString GetClass() const override
+        -:   66:    {
+        -:   67:        return wxT( "NETINFO_ITEM" );
+        -:   68:    }
+        -:   69:
+        -:   70:#if defined(DEBUG)
+        -:   71:    void Show( int nestLevel, std::ostream& os ) const override
+        -:   72:    {
+        -:   73:    }
+        -:   74:#endif
+        -:   75:
+        -:   76:    const BOX2I GetBoundingBox() const override;
+        -:   77:
+        -:   78:    VECTOR2I GetPosition() const override
+        -:   79:    {
+        -:   80:        static VECTOR2I dummy( 0, 0 );
+        -:   81:        return dummy;
+        -:   82:    }
+        -:   83:
+        -:   84:    void SetPosition( const VECTOR2I& aPos ) override
+        -:   85:    {
+        -:   86:    }
+        -:   87:
+        -:   88:    EDA_ITEM* Clone() const override
+        -:   89:    {
+        -:   90:        return new NETINFO_ITEM( *this );
+        -:   91:    }
+        -:   92:
+        -:   93:    void SetNetClass( const std::shared_ptr<NETCLASS>& aNetClass );
+        -:   94:
+        -:   95:    /**
+        -:   96:     * @note Do **not** return a std::shared_ptr from this.  It is used heavily in DRC, and the
+        -:   97:     *       std::shared_ptr stuff shows up large in performance profiling.
+        -:   98:     */
+        -:   99:    NETCLASS* GetNetClass() { return m_netClass.get(); }
+        -:  100:
+        -:  101:    /**
+        -:  102:     * @note Slow version for swig access
+        -:  103:    */
+        -:  104:    std::shared_ptr<NETCLASS> GetNetClassSlow() { return m_netClass; }
+        -:  105:
+    #####:  106:    int GetNetCode() const { return m_netCode; }
+        -:  107:    void SetNetCode( int aNetCode ) { m_netCode = aNetCode; }
+        -:  108:
+        -:  109:    /**
+        -:  110:     * @return the full netname.
+        -:  111:     */
+    #####:  112:    const wxString& GetNetname() const { return m_netname; }
+        -:  113:
+        -:  114:    /**
+        -:  115:     * @return the short netname.
+        -:  116:     */
+        -:  117:    const wxString& GetShortNetname() const { return m_shortNetname; }
+        -:  118:
+        -:  119:    /**
+        -:  120:     * @return the unescaped short netname.
+        -:  121:     */
+        -:  122:    const wxString& GetDisplayNetname() const { return m_displayNetname; }
+        -:  123:
+        -:  124:    /**
+        -:  125:     * @return true if the net was not labelled by the user.
+        -:  126:     */
+        -:  127:    bool HasAutoGeneratedNetname() const;
+        -:  128:
+        -:  129:    /**
+        -:  130:     * Set the long netname to \a aNetName, the short netname to the last token in
+        -:  131:     * the long netname's path, and the unescaped short netname.
+        -:  132:     */
+        -:  133:    void SetNetname( const wxString& aNewName );
+        -:  134:
+        -:  135:    bool IsCurrent() const { return m_isCurrent; }
+        -:  136:    void SetIsCurrent( bool isCurrent ) { m_isCurrent = isCurrent; }
+        -:  137:
+        -:  138:    /**
+        -:  139:     * Return the information about the #NETINFO_ITEM in \a aList to display in the
+        -:  140:     * message panel.
+        -:  141:     *
+        -:  142:     * @param aList is the list in which to place the  status information.
+        -:  143:     */
+        -:  144:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:  145:
+        -:  146:    /**
+        -:  147:     * Set all fields to their default values.
+        -:  148:     */
+        -:  149:    void Clear();
+        -:  150:
+        -:  151:    void SetParent( BOARD* aParent ) { m_parent = aParent; }
+        -:  152:    BOARD* GetParent() const      // Replace EDA_ITEM::GetParent() with a more useful return-type
+        -:  153:    {
+        -:  154:        return m_parent;
+        -:  155:    }
+        -:  156:
+        -:  157:    bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const override;
+        -:  158:
+        -:  159:    double Similarity( const BOARD_ITEM& aBoardItem ) const override
+        -:  160:    {
+        -:  161:        return 0.0;
+        -:  162:    }
+        -:  163:
+        -:  164:    bool operator==( const BOARD_ITEM& aBoardItem ) const override
+        -:  165:    {
+        -:  166:        return 0.0;
+        -:  167:    }
+        -:  168:
+        -:  169:protected:
+        -:  170:    // Hide base SetParent method to make the BOARD* method the prefered method for this class
+        -:  171:    using EDA_ITEM::SetParent;
+        -:  172:
+        -:  173:private:
+        -:  174:    friend class NETINFO_LIST;
+        -:  175:
+        -:  176:    int         m_netCode;         ///< A number equivalent to the net name.
+        -:  177:    wxString    m_netname;         ///< Full net name like /sheet/subsheet/vout used by Eeschema.
+        -:  178:    wxString    m_shortNetname;    ///< Short net name, like vout from /sheet/subsheet/vout.
+        -:  179:
+        -:  180:    wxString    m_displayNetname;  ///< Unescaped netname for display.  Usually the short netname,
+        -:  181:                                   ///< but will be the full netname if disambiguation required.
+        -:  182:                                   ///< The NETINFO_LIST is repsonsible for the management of when
+        -:  183:                                   ///< these need to be updated/disambiguated.
+        -:  184:
+        -:  185:    std::shared_ptr<NETCLASS> m_netClass;
+        -:  186:
+        -:  187:    bool        m_isCurrent;       ///< Indicates the net is currently in use.  We still store
+        -:  188:                                   ///< those that are not during a session for undo/redo and to
+        -:  189:                                   ///< keep netclass membership information.
+        -:  190:
+        -:  191:    BOARD*      m_parent;          ///< The parent board the net belongs to.
+        -:  192:};
+        -:  193:
+        -:  194:
+        -:  195:#if 0
+        -:  196:// waiting for swig to support std::unordered_map, see
+        -:  197:// http://www.swig.org/Doc3.0/CPlusPlus11.html
+        -:  198:// section 7.3.3
+        -:  199:#include <hashtables.h>
+        -:  200:DECL_HASH_FOR_SWIG( NETNAMES_MAP, wxString,  NETINFO_ITEM* )
+        -:  201:DECL_HASH_FOR_SWIG( NETCODES_MAP, int,       NETINFO_ITEM* )
+        -:  202:#else
+        -:  203:// use std::map for now
+        -:  204:DECL_MAP_FOR_SWIG( NETNAMES_MAP, wxString,  NETINFO_ITEM* )
+        -:  205:DECL_MAP_FOR_SWIG( NETCODES_MAP, int,       NETINFO_ITEM* )
+        -:  206:#endif
+        -:  207:
+        -:  208:/**
+        -:  209: * Container for #NETINFO_ITEM elements, which are the nets.
+        -:  210: */
+        -:  211:class NETINFO_LIST
+        -:  212:{
+        -:  213:    friend class BOARD;
+        -:  214:
+        -:  215:public:
+        -:  216:    NETINFO_LIST( BOARD* aParent );
+        -:  217:    ~NETINFO_LIST();
+        -:  218:
+        -:  219:    /**
+        -:  220:     * @param aNetCode netcode to identify a given #NETINFO_ITEM.
+        -:  221:     * @return net item by \a aNetCode, or NULL if not found.
+        -:  222:     */
+        -:  223:    NETINFO_ITEM* GetNetItem( int aNetCode ) const;
+        -:  224:
+        -:  225:    /**
+        -:  226:     * @param aNetName net name to identify a given #NETINFO_ITEM.
+        -:  227:     * @return net item by \a aNetName, or NULL if not found.
+        -:  228:     */
+        -:  229:    NETINFO_ITEM* GetNetItem( const wxString& aNetName ) const;
+        -:  230:
+        -:  231:    /**
+        -:  232:     * @return the number of nets ( always >= 1 ) because the first net is the "not connected"
+        -:  233:     *         net and always exists
+        -:  234:     */
+    #####:  235:    unsigned GetNetCount() const { return m_netNames.size(); }
+        -:  236:
+        -:  237:    /// Return the name map, at least for python.
+        -:  238:    const NETNAMES_MAP& NetsByName() const      { return  m_netNames; }
+        -:  239:
+        -:  240:    /// Return the netcode map, at least for python.
+        -:  241:    const NETCODES_MAP& NetsByNetcode() const   { return m_netCodes; }
+        -:  242:
+        -:  243:    void RebuildDisplayNetnames() const;
+        -:  244:
+        -:  245:    /// Constant that holds the "unconnected net" number (typically 0)
+        -:  246:    /// all items "connected" to this net are actually not connected items
+        -:  247:    static const int UNCONNECTED;
+        -:  248:
+        -:  249:    /// Constant that forces initialization of a netinfo item to the NETINFO_ITEM ORPHANED
+        -:  250:    /// (typically -1) when calling SetNetCode on board connected items.
+        -:  251:    static const int ORPHANED;
+        -:  252:
+        -:  253:    /// NETINFO_ITEM meaning that there was no net assigned for an item, as there was no
+        -:  254:    /// board storing net list available.
+        -:  255:    static NETINFO_ITEM* OrphanedItem()
+        -:  256:    {
+        -:  257:        static NETINFO_ITEM* g_orphanedItem;
+        -:  258:
+        -:  259:        if( !g_orphanedItem )
+        -:  260:            g_orphanedItem = new NETINFO_ITEM( nullptr, wxEmptyString, NETINFO_LIST::UNCONNECTED );
+        -:  261:
+        -:  262:        return g_orphanedItem;
+        -:  263:    }
+        -:  264:
+        -:  265:#if defined(DEBUG)
+        -:  266:    void Show() const;
+        -:  267:#endif
+        -:  268:
+        -:  269:#ifndef SWIG
+        -:  270:    /// Wrapper class, so you can iterate through NETINFO_ITEM*s, not
+        -:  271:    /// std::pair<int/wxString, NETINFO_ITEM*>
+        -:  272:    class iterator
+        -:  273:    {
+        -:  274:    public:
+        -:  275:        iterator( NETNAMES_MAP::const_iterator aIter ) : m_iterator( aIter )
+        -:  276:        {
+        -:  277:        }
+        -:  278:
+        -:  279:        /// pre-increment operator
+        -:  280:        const iterator& operator++()
+        -:  281:        {
+        -:  282:            ++m_iterator;
+        -:  283:            return *this;
+        -:  284:        }
+        -:  285:
+        -:  286:        /// post-increment operator
+        -:  287:        iterator operator++( int )
+        -:  288:        {
+        -:  289:            iterator ret = *this;
+        -:  290:            ++m_iterator;
+        -:  291:            return ret;
+        -:  292:        }
+        -:  293:
+        -:  294:        NETINFO_ITEM* operator*() const
+        -:  295:        {
+        -:  296:            return m_iterator->second;
+        -:  297:        }
+        -:  298:
+        -:  299:        NETINFO_ITEM* operator->() const
+        -:  300:        {
+        -:  301:            return m_iterator->second;
+        -:  302:        }
+        -:  303:
+        -:  304:        bool operator!=( const iterator& aOther ) const
+        -:  305:        {
+        -:  306:            return m_iterator != aOther.m_iterator;
+        -:  307:        }
+        -:  308:
+        -:  309:        bool operator==( const iterator& aOther ) const
+        -:  310:        {
+        -:  311:            return m_iterator == aOther.m_iterator;
+        -:  312:        }
+        -:  313:
+        -:  314:    private:
+        -:  315:        NETNAMES_MAP::const_iterator m_iterator;
+        -:  316:    };
+        -:  317:
+        -:  318:    iterator begin() const
+        -:  319:    {
+        -:  320:        return iterator( m_netNames.begin() );
+        -:  321:    }
+        -:  322:
+        -:  323:    iterator end() const
+        -:  324:    {
+        -:  325:        return iterator( m_netNames.end() );
+        -:  326:    }
+        -:  327:#endif
+        -:  328:
+        -:  329:    BOARD* GetParent() const
+        -:  330:    {
+        -:  331:        return m_parent;
+        -:  332:    }
+        -:  333:
+        -:  334:protected:  // Access is through the BOARD, which is a friend class
+        -:  335:    /**
+        -:  336:     * Add \a aNewElement to the end of the net list. Negative net code means it is going to be
+        -:  337:     * auto-assigned.
+        -:  338:     */
+        -:  339:    void AppendNet( NETINFO_ITEM* aNewElement );
+        -:  340:
+        -:  341:    /**
+        -:  342:     * Remove a net from the net list.
+        -:  343:     */
+        -:  344:    void RemoveNet( NETINFO_ITEM* aNet );
+        -:  345:    void RemoveUnusedNets( BOARD_COMMIT* aCommit );
+        -:  346:
+        -:  347:private:
+        -:  348:    /**
+        -:  349:     * Delete the list of nets (and free memory).
+        -:  350:     */
+        -:  351:    void clear();
+        -:  352:
+        -:  353:    /**
+        -:  354:     * Rebuild the list of NETINFO_ITEMs
+        -:  355:     *
+        -:  356:     * The list is sorted by names.
+        -:  357:     */
+        -:  358:    void buildListOfNets();
+        -:  359:
+        -:  360:    /**
+        -:  361:     * Return the first available net code that is not used by any other net.
+        -:  362:     */
+        -:  363:    int getFreeNetCode();
+        -:  364:
+        -:  365:public:
+        -:  366:    mutable bool m_DisplayNetnamesDirty;
+        -:  367:
+        -:  368:private:
+        -:  369:    BOARD*       m_parent;
+        -:  370:
+        -:  371:    NETNAMES_MAP m_netNames;        ///< map of <wxString, NETINFO_ITEM*>, is NETINFO_ITEM owner
+        -:  372:    NETCODES_MAP m_netCodes;        ///< map of <int, NETINFO_ITEM*> is NOT owner
+        -:  373:
+        -:  374:    int          m_newNetCode;      ///< possible value for new net code assignment
+        -:  375:};
+        -:  376:
+        -:  377:#endif  // CLASS_NETINFO_

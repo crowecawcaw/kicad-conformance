@@ -1,0 +1,194 @@
+        -:    0:Source:/src/kicad/libs/kimath/include/math/util.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KICAD, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (c) 2005 Michael Niedermayer <michaelni@gmx.at>
+        -:    5: * Copyright (C) CERN
+        -:    6: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    7: *
+        -:    8: * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
+        -:    9: *
+        -:   10: * The equals() method to compare two floating point values adapted from
+        -:   11: * AlmostEqualRelativeAndAbs() on
+        -:   12: * https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
+        -:   13: * (C) Bruce Dawson subject to the Apache 2.0 license.
+        -:   14: *
+        -:   15: * This program is free software; you can redistribute it and/or
+        -:   16: * modify it under the terms of the GNU General Public License
+        -:   17: * as published by the Free Software Foundation; either version 2
+        -:   18: * of the License, or (at your option) any later version.
+        -:   19: *
+        -:   20: * This program is distributed in the hope that it will be useful,
+        -:   21: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   22: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   23: * GNU General Public License for more details.
+        -:   24: *
+        -:   25: * You should have received a copy of the GNU General Public License
+        -:   26: * along with this program; if not, you may find one here:
+        -:   27: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   28: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   29: * or you may write to the Free Software Foundation, Inc.,
+        -:   30: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   31: */
+        -:   32:
+        -:   33:#ifndef UTIL_H
+        -:   34:#define UTIL_H
+        -:   35:
+        -:   36:#include <config.h>
+        -:   37:#include <cassert>
+        -:   38:#include <cmath>
+        -:   39:#include <cstdint>
+        -:   40:#include <limits>
+        -:   41:#include <typeinfo>
+        -:   42:#include <type_traits>
+        -:   43:#include <algorithm>
+        -:   44:
+        -:   45:/**
+        -:   46: * Helper to avoid directly including wx/log.h for the templated functions in kimath
+        -:   47: */
+        -:   48:void kimathLogDebug( const char* aFormatString, ... );
+        -:   49:
+        -:   50:/**
+        -:   51: * Workaround to avoid the empty-string conversion issue in wxWidgets
+        -:   52: */
+        -:   53:void kimathLogOverflow( double v, const char* aTypeName );
+        -:   54:
+        -:   55:
+        -:   56:// Suppress an annoying warning that the explicit rounding we do is not precise
+        -:   57:#ifdef HAVE_WIMPLICIT_FLOAT_CONVERSION
+        -:   58:    _Pragma( "GCC diagnostic push" ) \
+        -:   59:    _Pragma( "GCC diagnostic ignored \"-Wimplicit-int-float-conversion\"" )
+        -:   60:#endif
+        -:   61:
+        -:   62:
+        -:   63:/**
+        -:   64: * Perform a cast between numerical types. Will clamp the return value to numerical type limits.
+        -:   65: *
+        -:   66: * In Debug build an assert fires if will not fit into the return type.
+        -:   67: */
+        -:   68:template <typename in_type = long long int, typename ret_type = int>
+    #####:   69:inline constexpr ret_type KiCheckedCast( in_type v )
+        -:   70:{
+        -:   71:    if constexpr( std::is_same_v<in_type, long long int> && std::is_same_v<ret_type, int> )
+        -:   72:    {
+        -:   73:        if( v > std::numeric_limits<int>::max() )
+        -:   74:        {
+        -:   75:            kimathLogOverflow( double( v ), typeid( int ).name() );
+        -:   76:
+        -:   77:            return std::numeric_limits<int>::max();
+        -:   78:        }
+        -:   79:        else if( v < std::numeric_limits<int>::lowest() )
+        -:   80:        {
+        -:   81:            kimathLogOverflow( double( v ), typeid( int ).name() );
+        -:   82:
+        -:   83:            return std::numeric_limits<int>::lowest();
+        -:   84:        }
+        -:   85:
+        -:   86:        return int( v );
+        -:   87:    }
+        -:   88:    else
+        -:   89:    {
+    #####:   90:        return v;
+        -:   91:    }
+        -:   92:}
+        -:   93:
+        -:   94:
+        -:   95:/**
+        -:   96: * Round a numeric value to an integer using "round halfway cases away from zero" and
+        -:   97: * clamp the result to the limits of the return type.
+        -:   98: *
+        -:   99: * In Debug build an assert fires if will not fit into the return type.
+        -:  100: */
+        -:  101:template <typename fp_type, typename ret_type = int>
+        -:  102:constexpr ret_type KiROUND( fp_type v, bool aQuiet = false )
+        -:  103:{
+        -:  104:    using limits = std::numeric_limits<ret_type>;
+        -:  105:
+        -:  106:#if __cplusplus >= 202302L // isnan is not constexpr until C++23
+        -:  107:    if constexpr( std::is_floating_point_v<fp_type> )
+        -:  108:    {
+        -:  109:        if( std::isnan( v ) )
+        -:  110:        {
+        -:  111:            if( !aQuiet )
+        -:  112:                kimathLogOverflow( double( v ), typeid( ret_type ).name() );
+        -:  113:
+        -:  114:            return 0;
+        -:  115:        }
+        -:  116:    }
+        -:  117:#endif
+        -:  118:
+        -:  119:    long long rounded = std::llround( v );
+        -:  120:    long long clamped = std::clamp<long long>( rounded,
+        -:  121:                                              static_cast<long long>( limits::lowest() ),
+        -:  122:                                              static_cast<long long>( limits::max() ) );
+        -:  123:
+        -:  124:    if( !aQuiet && clamped != rounded )
+        -:  125:        kimathLogOverflow( double( v ), typeid( ret_type ).name() );
+        -:  126:
+        -:  127:    return static_cast<ret_type>( clamped );
+        -:  128:}
+        -:  129:
+        -:  130:#ifdef HAVE_WIMPLICIT_FLOAT_CONVERSION
+        -:  131:    _Pragma( "GCC diagnostic pop" )
+        -:  132:#endif
+        -:  133:
+        -:  134:/**
+        -:  135: * Scale a number (value) by rational (numerator/denominator). Numerator must be <= denominator.
+        -:  136: */
+        -:  137:
+        -:  138:template <typename T>
+        -:  139:T rescale( T aNumerator, T aValue, T aDenominator )
+        -:  140:{
+        -:  141:    return aNumerator * aValue / aDenominator;
+        -:  142:}
+        -:  143:
+        -:  144:template <typename T>
+        -:  145:constexpr int sign( T val )
+        -:  146:{
+        -:  147:    return ( T( 0 ) < val) - ( val < T( 0 ) );
+        -:  148:}
+        -:  149:
+        -:  150:// explicit specializations for integer types, taking care of overflow.
+        -:  151:template <>
+        -:  152:int rescale( int aNumerator, int aValue, int aDenominator );
+        -:  153:
+        -:  154:template <>
+        -:  155:int64_t rescale( int64_t aNumerator, int64_t aValue, int64_t aDenominator );
+        -:  156:
+        -:  157:
+        -:  158:/**
+        -:  159: * Template to compare two floating point values for equality within a required epsilon.
+        -:  160: *
+        -:  161: * @param aFirst value to compare.
+        -:  162: * @param aSecond value to compare.
+        -:  163: * @param aEpsilon allowed error.
+        -:  164: * @return true if the values considered equal within the specified epsilon, otherwise false.
+        -:  165: */
+        -:  166:template <class T>
+        -:  167:typename std::enable_if<std::is_floating_point<T>::value, bool>::type
+        -:  168:equals( T aFirst, T aSecond, T aEpsilon = std::numeric_limits<T>::epsilon() )
+        -:  169:{
+        -:  170:    const T diff = std::abs( aFirst - aSecond );
+        -:  171:
+        -:  172:    if( diff < aEpsilon )
+        -:  173:    {
+        -:  174:        return true;
+        -:  175:    }
+        -:  176:
+        -:  177:    aFirst = std::abs( aFirst );
+        -:  178:    aSecond = std::abs( aSecond );
+        -:  179:    T largest = aFirst > aSecond ? aFirst : aSecond;
+        -:  180:
+        -:  181:    if( diff <= largest * aEpsilon )
+        -:  182:    {
+        -:  183:        return true;
+        -:  184:    }
+        -:  185:
+        -:  186:    return false;
+        -:  187:}
+        -:  188:
+        -:  189:
+        -:  190:#endif // UTIL_H

@@ -1,0 +1,674 @@
+        -:    0:Source:/src/kicad/eeschema/sch_label.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#ifndef SCH_LABEL_H
+        -:   26:#define SCH_LABEL_H
+        -:   27:
+        -:   28:#include <sch_text.h>
+        -:   29:#include <sch_item.h>
+        -:   30:#include <sch_field.h>
+        -:   31:#include <sch_connection.h>   // for CONNECTION_TYPE
+        -:   32:
+        -:   33:class SCH_RULE_AREA;
+        -:   34:
+        -:   35:
+        -:   36:/*
+        -:   37: * Spin style for labels of all kinds on schematics.
+        -:   38: *
+        -:   39: * Basically a higher level abstraction of rotation and justification of text.
+        -:   40: */
+        -:   41:class SPIN_STYLE
+        -:   42:{
+        -:   43:public:
+        -:   44:    enum SPIN : int
+        -:   45:    {
+        -:   46:        LEFT   = 0,
+        -:   47:        UP     = 1,
+        -:   48:        RIGHT  = 2,
+        -:   49:        BOTTOM = 3
+        -:   50:    };
+        -:   51:
+        -:   52:
+        -:   53:    SPIN_STYLE() = default;
+        -:   54:    constexpr SPIN_STYLE( SPIN aSpin ) : m_spin( aSpin )
+        -:   55:    {
+        -:   56:    }
+        -:   57:
+        -:   58:    constexpr bool operator==( SPIN a ) const
+        -:   59:    {
+        -:   60:        return m_spin == a;
+        -:   61:    }
+        -:   62:
+        -:   63:    constexpr bool operator!=( SPIN a ) const
+        -:   64:    {
+        -:   65:        return m_spin != a;
+        -:   66:    }
+        -:   67:
+        -:   68:    operator int() const
+        -:   69:    {
+        -:   70:        return static_cast<int>( m_spin );
+        -:   71:    }
+        -:   72:
+        -:   73:    SPIN_STYLE RotateCCW();
+        -:   74:
+        -:   75:    /**
+        -:   76:     * Mirror the label spin style across the X axis or simply swaps up and bottom.
+        -:   77:     */
+        -:   78:    SPIN_STYLE MirrorX();
+        -:   79:
+        -:   80:    /**
+        -:   81:     * Mirror the label spin style across the Y axis or simply swaps left and right.
+        -:   82:     */
+        -:   83:    SPIN_STYLE MirrorY();
+        -:   84:
+        -:   85:    /**
+        -:   86:     * Get CCW rotation needed to get to the given spin style.
+        -:   87:     */
+        -:   88:    unsigned CCWRotationsTo( const SPIN_STYLE& aOther ) const;
+        -:   89:
+        -:   90:private:
+        -:   91:    SPIN m_spin;
+        -:   92:};
+        -:   93:
+        -:   94:
+        -:   95:/*
+        -:   96: * Label and flag shapes used with text objects.
+        -:   97: */
+        -:   98:enum LABEL_FLAG_SHAPE : unsigned int
+        -:   99:{
+        -:  100:    L_INPUT,
+        -:  101:    L_OUTPUT,
+        -:  102:    L_BIDI,
+        -:  103:    L_TRISTATE,
+        -:  104:    L_UNSPECIFIED,
+        -:  105:
+        -:  106:    F_FIRST,
+        -:  107:    F_DOT = F_FIRST,
+        -:  108:    F_ROUND,
+        -:  109:    F_DIAMOND,
+        -:  110:    F_RECTANGLE
+        -:  111:};
+        -:  112:
+        -:  113:/*
+        -:  114: * Specific enums for property manager (not used elsewhere)
+        -:  115: */
+        -:  116:enum LABEL_SHAPE : unsigned int
+        -:  117:{
+        -:  118:    LABEL_INPUT    = L_INPUT,
+        -:  119:    LABEL_OUTPUT   = L_OUTPUT,
+        -:  120:    LABEL_BIDI     = L_BIDI,
+        -:  121:    LABEL_TRISTATE = L_TRISTATE,
+        -:  122:    LABEL_PASSIVE  = L_UNSPECIFIED
+        -:  123:};
+        -:  124:
+        -:  125:enum FLAG_SHAPE : unsigned int
+        -:  126:{
+        -:  127:    FLAG_DOT       = F_DOT,
+        -:  128:    FLAG_CIRCLE    = F_ROUND,
+        -:  129:    FLAG_DIAMOND   = F_DIAMOND,
+        -:  130:    FLAG_RECTANGLE = F_RECTANGLE
+        -:  131:};
+        -:  132:
+        -:  133:
+        -:  134:class SCH_LABEL_BASE : public SCH_TEXT
+        -:  135:{
+        -:  136:public:
+        -:  137:    SCH_LABEL_BASE( const VECTOR2I& aPos, const wxString& aText, KICAD_T aType );
+        -:  138:
+        -:  139:    SCH_LABEL_BASE( const SCH_LABEL_BASE& aLabel );
+        -:  140:
+        -:  141:    SCH_LABEL_BASE& operator=( const SCH_LABEL_BASE& aLabel );
+        -:  142:
+        -:  143:    // Abstract class
+        -:  144:    virtual wxString GetClass() const override = 0;
+        -:  145:
+        -:  146:    bool IsType( const std::vector<KICAD_T>& aScanTypes ) const override;
+        -:  147:
+        -:  148:    bool CanConnect( const SCH_ITEM* aItem ) const override
+        -:  149:    {
+        -:  150:        switch( aItem->Type() )
+        -:  151:        {
+        -:  152:        case SCH_LINE_T:
+        -:  153:            return aItem->GetLayer() == LAYER_WIRE || aItem->GetLayer() == LAYER_BUS;
+        -:  154:
+        -:  155:        case SCH_BUS_WIRE_ENTRY_T:
+        -:  156:            return true;
+        -:  157:
+        -:  158:        case SCH_SYMBOL_T:
+        -:  159:            return true;
+        -:  160:
+        -:  161:        case SCH_LABEL_T:
+        -:  162:        case SCH_GLOBAL_LABEL_T:
+        -:  163:        case SCH_HIER_LABEL_T:
+        -:  164:        case SCH_DIRECTIVE_LABEL_T:
+        -:  165:        case SCH_SHEET_PIN_T:
+        -:  166:            return true;
+        -:  167:
+        -:  168:        default:
+        -:  169:            return false;
+        -:  170:        }
+        -:  171:    }
+        -:  172:
+        -:  173:    bool HasConnectivityChanges( const SCH_ITEM* aItem,
+        -:  174:                                 const SCH_SHEET_PATH* aInstance = nullptr ) const override;
+        -:  175:
+        -:  176:    // Type-specific versions for property manager
+        -:  177:    LABEL_SHAPE GetLabelShape() const        { return (LABEL_SHAPE) m_shape; }
+        -:  178:    void        SetLabelShape( LABEL_SHAPE aShape );
+        -:  179:
+        -:  180:    LABEL_FLAG_SHAPE GetShape() const        { return m_shape; }
+        -:  181:    void SetShape( LABEL_FLAG_SHAPE aShape )
+        -:  182:    {
+        -:  183:        // Set flags directly if a flag shape
+        -:  184:        if( aShape >= F_FIRST )
+        -:  185:            m_shape = aShape;
+        -:  186:        else
+        -:  187:            SetLabelShape( (LABEL_SHAPE) aShape );
+        -:  188:    }
+        -:  189:
+        -:  190:    COLOR4D GetLabelColor() const;
+        -:  191:
+        -:  192:    virtual void SetSpinStyle( SPIN_STYLE aSpinStyle );
+        -:  193:    SPIN_STYLE   GetSpinStyle() const;
+        -:  194:
+        -:  195:    void SetLastResolvedState( const SCH_ITEM* aItem ) override
+        -:  196:    {
+        -:  197:        const SCH_LABEL_BASE* aLabel = dynamic_cast<const SCH_LABEL_BASE*>( aItem );
+        -:  198:
+        -:  199:        if( aLabel )
+        -:  200:            m_lastResolvedColor = aLabel->m_lastResolvedColor;
+        -:  201:    }
+        -:  202:
+        -:  203:    static const wxString GetDefaultFieldName( const wxString& aName, bool aUseDefaultName );
+        -:  204:
+        -:  205:    /**
+        -:  206:     * Return the next ordinal for a user field for this label
+        -:  207:     */
+        -:  208:    int GetNextFieldOrdinal() const;
+        -:  209:
+        -:  210:    virtual int GetMandatoryFieldCount()              { return 0; }
+        -:  211:
+    #####:  212:    std::vector<SCH_FIELD>& GetFields()               { return m_fields; }
+        -:  213:    const std::vector<SCH_FIELD>& GetFields() const   { return m_fields; }
+        -:  214:
+        -:  215:    /**
+        -:  216:     * Set multiple schematic fields.
+        -:  217:     *
+        -:  218:     * @param aFields are the fields to set in this symbol.
+        -:  219:     */
+        -:  220:    void SetFields( const std::vector<SCH_FIELD>& aFields )
+        -:  221:    {
+        -:  222:        m_fields = aFields;     // vector copying, length is changed possibly
+        -:  223:    }
+        -:  224:
+        -:  225:    void AddFields( const std::vector<SCH_FIELD>& aFields )
+        -:  226:    {
+        -:  227:        m_fields.insert( m_fields.end(), aFields.begin(), aFields.end() );
+        -:  228:    }
+        -:  229:
+        -:  230:    void AddField( const SCH_FIELD& aField )
+        -:  231:    {
+        -:  232:        m_fields.push_back( aField );
+        -:  233:    }
+        -:  234:
+        -:  235:    /**
+        -:  236:     * Increment the label text if it ends with a number.
+        -:  237:     *
+        -:  238:     * @param aIncrement = the increment value to add to the number ending the text.
+        -:  239:     */
+        -:  240:    virtual bool IncrementLabel( int aIncrement );
+        -:  241:
+        -:  242:    void Move( const VECTOR2I& aMoveVector ) override;
+        -:  243:    void Rotate( const VECTOR2I& aCenter, bool aRotateCCW ) override;
+        -:  244:    void Rotate90( bool aClockwise ) override;
+        -:  245:
+        -:  246:    void MirrorSpinStyle( bool aLeftRight ) override;
+        -:  247:
+        -:  248:    void MirrorHorizontally( int aCenter ) override;
+        -:  249:    void MirrorVertically( int aCenter ) override;
+        -:  250:
+        -:  251:    void SetPosition( const VECTOR2I& aPosition ) override;
+        -:  252:
+        -:  253:    void AutoplaceFields( SCH_SCREEN* aScreen, AUTOPLACE_ALGO aAlgo ) override;
+        -:  254:
+        -:  255:    /**
+        -:  256:     * Build an array of { pageNumber, pageName } pairs.
+        -:  257:     *
+        -:  258:     * @param pages [out] Array of { pageNumber, pageName } pairs.
+        -:  259:     */
+        -:  260:    void GetIntersheetRefs( const SCH_SHEET_PATH* aPath,
+        -:  261:                            std::vector<std::pair<wxString, wxString>>* pages );
+        -:  262:
+        -:  263:    /**
+        -:  264:     * Return the list of system text vars & fields for this label.
+        -:  265:     */
+        -:  266:    void GetContextualTextVars( wxArrayString* aVars ) const;
+        -:  267:
+        -:  268:    /**
+        -:  269:     * Resolve any references to system tokens supported by the label.
+        -:  270:     *
+        -:  271:     * @param aDepth a counter to limit recursion and circular references.
+        -:  272:     */
+        -:  273:    virtual bool ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token, int aDepth ) const;
+        -:  274:
+        -:  275:    wxString GetShownText( const SCH_SHEET_PATH* aPath, bool aAllowExtraText,
+        -:  276:                           int aDepth = 0 ) const override;
+        -:  277:
+        -:  278:    wxString GetShownText( bool aAllowExtraText, int aDepth = 0 ) const override
+        -:  279:    {
+        -:  280:        SCHEMATIC* schematic = Schematic();
+        -:  281:
+        -:  282:        if( schematic )
+        -:  283:            return GetShownText( &schematic->CurrentSheet(), aAllowExtraText, aDepth );
+        -:  284:        else
+        -:  285:            return GetText();
+        -:  286:    }
+        -:  287:
+        -:  288:    bool HasCachedDriverName() const override;
+        -:  289:    const wxString& GetCachedDriverName() const override;
+        -:  290:
+        -:  291:    void RunOnChildren( const std::function<void( SCH_ITEM* )>& aFunction, RECURSE_MODE aMode ) override;
+        -:  292:
+        -:  293:    INSPECT_RESULT Visit( INSPECTOR inspector, void* testData,
+        -:  294:                          const std::vector<KICAD_T>& scanTypes ) override;
+        -:  295:
+        -:  296:    bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const override;
+        -:  297:    bool Replace( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) override;
+        -:  298:
+        -:  299:    VECTOR2I GetSchematicTextOffset( const RENDER_SETTINGS* aSettings ) const override;
+        -:  300:
+        -:  301:    /**
+        -:  302:     * Calculate the graphic shape (a polygon) associated to the text.
+        -:  303:     *
+        -:  304:     * @param aPoints A buffer to fill with polygon corners coordinates
+        -:  305:     * @param Pos Position of the shape, for texts and labels: do nothing
+        -:  306:     */
+        -:  307:    virtual void CreateGraphicShape( const RENDER_SETTINGS* aSettings,
+        -:  308:                                     std::vector<VECTOR2I>& aPoints, const VECTOR2I& Pos ) const
+        -:  309:    {
+        -:  310:        aPoints.clear();
+        -:  311:    }
+        -:  312:
+        -:  313:    int GetLabelBoxExpansion( const RENDER_SETTINGS* aSettings = nullptr ) const;
+        -:  314:
+        -:  315:    /**
+        -:  316:     * Return the bounding box of the label only, without taking in account its fields.
+        -:  317:     */
+        -:  318:    virtual const BOX2I GetBodyBoundingBox( const RENDER_SETTINGS* aSettings ) const;
+        -:  319:
+        -:  320:    /**
+        -:  321:     * Return the bounding box of the label including its fields.
+        -:  322:     */
+        -:  323:    const BOX2I GetBoundingBox() const override;
+        -:  324:
+        -:  325:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  326:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  327:    bool HitTest( const SHAPE_LINE_CHAIN& aPoly, bool aContained ) const override;
+        -:  328:
+        -:  329:    std::vector<VECTOR2I> GetConnectionPoints() const override;
+        -:  330:
+        -:  331:    void GetEndPoints( std::vector< DANGLING_END_ITEM >& aItemList ) override;
+        -:  332:
+        -:  333:    bool UpdateDanglingState( std::vector<DANGLING_END_ITEM>& aItemListByType,
+        -:  334:                              std::vector<DANGLING_END_ITEM>& aItemListByPos,
+        -:  335:                              const SCH_SHEET_PATH*           aPath = nullptr ) override;
+        -:  336:
+        -:  337:    bool IsDangling() const override { return m_isDangling; }
+        -:  338:    void SetIsDangling( bool aIsDangling ) { m_isDangling = aIsDangling; }
+        -:  339:
+        -:  340:    std::vector<int> ViewGetLayers() const override;
+        -:  341:
+        -:  342:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:  343:
+        -:  344:    void Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& aPlotOpts,
+        -:  345:               int aUnit, int aBodyStyle, const VECTOR2I& aOffset, bool aDimmed ) override;
+        -:  346:
+        -:  347:    /**
+        -:  348:     * @brief autoRotateOnPlacement
+        -:  349:     * @return true if the label rotation will be automatically set on the placement.
+        -:  350:     */
+        -:  351:    bool AutoRotateOnPlacement() const;
+        -:  352:
+        -:  353:    /**
+        -:  354:     * @param autoRotate If set to true when the label is placed in the connection to a
+        -:  355:     * pin/net the direction will be automatically set according to the positioning of the net/pin.
+        -:  356:     */
+        -:  357:    void SetAutoRotateOnPlacement( bool autoRotate = true );
+        -:  358:
+        -:  359:    /**
+        -:  360:     * @return true if the automated rotation of the label is supported after the placement
+        -:  361:     * At the moment it is supported for global and hierarchical labels
+        -:  362:     */
+        -:  363:    virtual bool AutoRotateOnPlacementSupported() const = 0;
+        -:  364:
+        -:  365:    double Similarity( const SCH_ITEM& aItem ) const override;
+        -:  366:
+        -:  367:    bool operator==( const SCH_ITEM& aItem ) const override;
+        -:  368:
+        -:  369:protected:
+        -:  370:    void swapData( SCH_ITEM* aItem ) override;
+        -:  371:
+        -:  372:    void cacheShownText() override;
+        -:  373:
+        -:  374:protected:
+        -:  375:    std::vector<SCH_FIELD>  m_fields;
+        -:  376:
+        -:  377:    LABEL_FLAG_SHAPE        m_shape;
+        -:  378:
+        -:  379:    CONNECTION_TYPE         m_connectionType;
+        -:  380:    bool                    m_isDangling;
+        -:  381:    bool                    m_autoRotateOnPlacement;
+        -:  382:
+        -:  383:    mutable COLOR4D         m_lastResolvedColor;
+        -:  384:
+        -:  385:    wxString                m_cached_driver_name;
+        -:  386:};
+        -:  387:
+        -:  388:
+        -:  389:class SCH_LABEL : public SCH_LABEL_BASE
+        -:  390:{
+        -:  391:public:
+        -:  392:    SCH_LABEL( const VECTOR2I& aPos = VECTOR2I( 0, 0 ), const wxString& aText = wxEmptyString );
+        -:  393:
+        -:  394:    // Do not create a copy constructor.  The one generated by the compiler is adequate.
+        -:  395:
+        -:  396:    ~SCH_LABEL() { }
+        -:  397:
+        -:  398:    void Serialize( google::protobuf::Any &aContainer ) const override;
+        -:  399:    bool Deserialize( const google::protobuf::Any &aContainer ) override;
+        -:  400:
+        -:  401:    static inline bool ClassOf( const EDA_ITEM* aItem )
+        -:  402:    {
+        -:  403:        return aItem && SCH_LABEL_T == aItem->Type();
+        -:  404:    }
+        -:  405:
+        -:  406:    wxString GetClass() const override
+        -:  407:    {
+        -:  408:        return wxT( "SCH_LABEL" );
+        -:  409:    }
+        -:  410:
+        -:  411:    wxString GetFriendlyName() const override
+        -:  412:    {
+        -:  413:        return _( "Label" );
+        -:  414:    }
+        -:  415:
+        -:  416:    const BOX2I GetBodyBoundingBox( const RENDER_SETTINGS* aSettings ) const override;
+        -:  417:
+        -:  418:    bool IsConnectable() const override { return true; }
+        -:  419:
+        -:  420:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  421:
+        -:  422:    BITMAPS GetMenuImage() const override;
+        -:  423:
+        -:  424:    bool IsReplaceable() const override { return true; }
+        -:  425:
+        -:  426:    EDA_ITEM* Clone() const override
+        -:  427:    {
+        -:  428:        return new SCH_LABEL( *this );
+        -:  429:    }
+        -:  430:
+        -:  431:    bool IsPointClickableAnchor( const VECTOR2I& aPos ) const override
+        -:  432:    {
+        -:  433:        return m_isDangling && GetPosition() == aPos;
+        -:  434:    }
+        -:  435:
+        -:  436:    bool AutoRotateOnPlacementSupported() const override { return false; }
+        -:  437:
+        -:  438:private:
+        -:  439:    bool doIsConnected( const VECTOR2I& aPosition ) const override
+        -:  440:    {
+        -:  441:        return EDA_TEXT::GetTextPos() == aPosition;
+        -:  442:    }
+        -:  443:};
+        -:  444:
+        -:  445:
+        -:  446:class SCH_DIRECTIVE_LABEL : public SCH_LABEL_BASE
+        -:  447:{
+        -:  448:public:
+        -:  449:    SCH_DIRECTIVE_LABEL( const VECTOR2I& aPos = VECTOR2I( 0, 0 ) );
+        -:  450:
+        -:  451:    SCH_DIRECTIVE_LABEL( const SCH_DIRECTIVE_LABEL& aClassLabel );
+        -:  452:
+        -:  453:    ~SCH_DIRECTIVE_LABEL() override;
+        -:  454:
+        -:  455:    void Serialize( google::protobuf::Any &aContainer ) const override;
+        -:  456:    bool Deserialize( const google::protobuf::Any &aContainer ) override;
+        -:  457:
+        -:  458:    static inline bool ClassOf( const EDA_ITEM* aItem )
+        -:  459:    {
+        -:  460:        return aItem && SCH_DIRECTIVE_LABEL_T == aItem->Type();
+        -:  461:    }
+        -:  462:
+        -:  463:    wxString GetClass() const override
+        -:  464:    {
+        -:  465:        return wxT( "SCH_DIRECTIVE_LABEL" );
+        -:  466:    }
+        -:  467:
+        -:  468:    wxString GetFriendlyName() const override
+        -:  469:    {
+        -:  470:        return _( "Directive Label" );
+        -:  471:    }
+        -:  472:
+        -:  473:    EDA_ITEM* Clone() const override
+        -:  474:    {
+        -:  475:        return new SCH_DIRECTIVE_LABEL( *this );
+        -:  476:    }
+        -:  477:
+        -:  478:    void swapData( SCH_ITEM* aItem ) override;
+        -:  479:
+        -:  480:    FLAG_SHAPE GetFlagShape() const          { return (FLAG_SHAPE) m_shape; }
+        -:  481:    void SetFlagShape( FLAG_SHAPE aShape )   { m_shape = (LABEL_FLAG_SHAPE) aShape; }
+        -:  482:
+        -:  483:    int GetPinLength() const         { return m_pinLength; }
+        -:  484:    void SetPinLength( int aLength ) { m_pinLength = aLength; }
+        -:  485:
+        -:  486:    int GetPenWidth() const override;
+        -:  487:
+        -:  488:    void CreateGraphicShape( const RENDER_SETTINGS* aSettings,
+        -:  489:                             std::vector<VECTOR2I>& aPoints,
+        -:  490:                             const VECTOR2I& aPos ) const override;
+        -:  491:
+        -:  492:    void AutoplaceFields( SCH_SCREEN* aScreen, AUTOPLACE_ALGO aAlgo ) override;
+        -:  493:
+        -:  494:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  495:
+        -:  496:    bool IsConnectable() const override { return true; }
+        -:  497:
+        -:  498:    bool AutoRotateOnPlacementSupported() const override { return false; }
+        -:  499:
+        -:  500:    void MirrorSpinStyle( bool aLeftRight ) override;
+        -:  501:
+        -:  502:    void MirrorHorizontally( int aCenter ) override;
+        -:  503:    void MirrorVertically( int aCenter ) override;
+        -:  504:
+        -:  505:    /// @brief Adds an entry to the connected rule area cache
+        -:  506:    void AddConnectedRuleArea( SCH_RULE_AREA* aRuleArea );
+        -:  507:
+        -:  508:    /// @brief Removes all rule areas from the cache
+        -:  509:    void ClearConnectedRuleAreas();
+        -:  510:
+        -:  511:    /// @brief Removes a specific rule area from the cache
+        -:  512:    void RemoveConnectedRuleArea( SCH_RULE_AREA* aRuleArea );
+        -:  513:
+        -:  514:    const std::unordered_set<SCH_RULE_AREA*> GetConnectedRuleAreas() const;
+        -:  515:
+        -:  516:    /// @brief Determines dangling state from connectivity and cached connected rule areas
+        -:  517:    virtual bool IsDangling() const override;
+        -:  518:
+        -:  519:    /// Increment the netclass and component class labels if possible
+        -:  520:    bool IncrementLabel( int aIncrement ) override;
+        -:  521:
+        -:  522:private:
+        -:  523:    int       m_pinLength;
+        -:  524:    int       m_symbolSize;
+        -:  525:
+        -:  526:    /// Cache of any rule areas with borders which this label connects to.
+        -:  527:    std::unordered_set<SCH_RULE_AREA*> m_connected_rule_areas;
+        -:  528:};
+        -:  529:
+        -:  530:
+        -:  531:class SCH_GLOBALLABEL : public SCH_LABEL_BASE
+        -:  532:{
+        -:  533:public:
+        -:  534:    SCH_GLOBALLABEL( const VECTOR2I& aPos = VECTOR2I( 0, 0 ),
+        -:  535:                     const wxString& aText = wxEmptyString );
+        -:  536:
+        -:  537:    SCH_GLOBALLABEL( const SCH_GLOBALLABEL& aGlobalLabel );
+        -:  538:
+        -:  539:    ~SCH_GLOBALLABEL() { }
+        -:  540:
+        -:  541:    void Serialize( google::protobuf::Any &aContainer ) const override;
+        -:  542:    bool Deserialize( const google::protobuf::Any &aContainer ) override;
+        -:  543:
+        -:  544:    static inline bool ClassOf( const EDA_ITEM* aItem )
+        -:  545:    {
+        -:  546:        return aItem && SCH_GLOBAL_LABEL_T == aItem->Type();
+        -:  547:    }
+        -:  548:
+        -:  549:    wxString GetClass() const override
+        -:  550:    {
+        -:  551:        return wxT( "SCH_GLOBALLABEL" );
+        -:  552:    }
+        -:  553:
+        -:  554:    wxString GetFriendlyName() const override
+        -:  555:    {
+        -:  556:        return _( "Global Label" );
+        -:  557:    }
+        -:  558:
+        -:  559:    EDA_ITEM* Clone() const override
+        -:  560:    {
+        -:  561:        return new SCH_GLOBALLABEL( *this );
+        -:  562:    }
+        -:  563:
+        -:  564:    int GetMandatoryFieldCount() override { return 1; }
+        -:  565:
+        -:  566:    /**
+        -:  567:     * Return a mandatory field in this label.  The const version will return nullptr if the
+        -:  568:     * field doesn't exist; the non-const version will create it.
+        -:  569:     */
+        -:  570:    SCH_FIELD* GetField( FIELD_T aFieldType );
+        -:  571:    const SCH_FIELD* GetField( FIELD_T aFieldNdx ) const;
+        -:  572:
+        -:  573:    void SetSpinStyle( SPIN_STYLE aSpinStyle ) override;
+        -:  574:
+        -:  575:    VECTOR2I GetSchematicTextOffset( const RENDER_SETTINGS* aSettings ) const override;
+        -:  576:
+        -:  577:    void CreateGraphicShape( const RENDER_SETTINGS* aRenderSettings,
+        -:  578:                             std::vector<VECTOR2I>& aPoints,
+        -:  579:                             const VECTOR2I& aPos ) const override;
+        -:  580:
+        -:  581:    bool ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token, int aDepth ) const override;
+        -:  582:
+        -:  583:    bool IsConnectable() const override { return true; }
+        -:  584:
+        -:  585:    std::vector<int> ViewGetLayers() const override;
+        -:  586:
+        -:  587:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  588:
+        -:  589:    BITMAPS GetMenuImage() const override;
+        -:  590:
+        -:  591:    bool IsPointClickableAnchor( const VECTOR2I& aPos ) const override
+        -:  592:    {
+        -:  593:        return m_isDangling && GetPosition() == aPos;
+        -:  594:    }
+        -:  595:
+        -:  596:    bool AutoRotateOnPlacementSupported() const override { return true; }
+        -:  597:
+        -:  598:private:
+        -:  599:    bool doIsConnected( const VECTOR2I& aPosition ) const override
+        -:  600:    {
+        -:  601:        return EDA_TEXT::GetTextPos() == aPosition;
+        -:  602:    }
+        -:  603:};
+        -:  604:
+        -:  605:
+        -:  606:class SCH_HIERLABEL : public SCH_LABEL_BASE
+        -:  607:{
+        -:  608:public:
+        -:  609:    SCH_HIERLABEL( const VECTOR2I& aPos = VECTOR2I( 0, 0 ), const wxString& aText = wxEmptyString,
+        -:  610:                   KICAD_T aType = SCH_HIER_LABEL_T );
+        -:  611:
+        -:  612:    // Do not create a copy constructor.  The one generated by the compiler is adequate.
+        -:  613:
+        -:  614:    ~SCH_HIERLABEL() override = default;
+        -:  615:
+        -:  616:    void Serialize( google::protobuf::Any &aContainer ) const override;
+        -:  617:    bool Deserialize( const google::protobuf::Any &aContainer ) override;
+        -:  618:
+        -:  619:    static inline bool ClassOf( const EDA_ITEM* aItem )
+        -:  620:    {
+        -:  621:        return aItem && SCH_HIER_LABEL_T == aItem->Type();
+        -:  622:    }
+        -:  623:
+        -:  624:    wxString GetFriendlyName() const override
+        -:  625:    {
+        -:  626:        return _( "Hierarchical Label" );
+        -:  627:    }
+        -:  628:
+        -:  629:    wxString GetClass() const override
+        -:  630:    {
+        -:  631:        return wxT( "SCH_HIERLABEL" );
+        -:  632:    }
+        -:  633:
+        -:  634:    void SetSpinStyle( SPIN_STYLE aSpinStyle ) override;
+        -:  635:
+        -:  636:    VECTOR2I GetSchematicTextOffset( const RENDER_SETTINGS* aSettings ) const override;
+        -:  637:
+        -:  638:    void CreateGraphicShape( const RENDER_SETTINGS* aSettings, std::vector<VECTOR2I>& aPoints,
+        -:  639:                             const VECTOR2I& aPos ) const override;
+        -:  640:    void CreateGraphicShape( const RENDER_SETTINGS* aSettings, std::vector<VECTOR2I>& aPoints,
+        -:  641:                             const VECTOR2I& aPos, LABEL_FLAG_SHAPE aShape ) const;
+        -:  642:
+        -:  643:    const BOX2I GetBodyBoundingBox( const RENDER_SETTINGS* aSettings ) const override;
+        -:  644:
+        -:  645:    bool IsConnectable() const override { return true; }
+        -:  646:
+        -:  647:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  648:
+        -:  649:    BITMAPS GetMenuImage() const override;
+        -:  650:
+        -:  651:    EDA_ITEM* Clone() const override
+        -:  652:    {
+        -:  653:        return new SCH_HIERLABEL( *this );
+        -:  654:    }
+        -:  655:
+        -:  656:    bool IsPointClickableAnchor( const VECTOR2I& aPos ) const override
+        -:  657:    {
+        -:  658:        return m_isDangling && GetPosition() == aPos;
+        -:  659:    }
+        -:  660:
+        -:  661:    bool AutoRotateOnPlacementSupported() const override { return true; }
+        -:  662:
+        -:  663:private:
+        -:  664:    bool doIsConnected( const VECTOR2I& aPosition ) const override
+        -:  665:    {
+        -:  666:        return EDA_TEXT::GetTextPos() == aPosition;
+        -:  667:    }
+        -:  668:};
+        -:  669:
+        -:  670:#endif /* SCH_LABEL_H */

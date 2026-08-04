@@ -1,0 +1,178 @@
+        -:    0:Source:/usr/include/wx-3.2/wx/regex.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:///////////////////////////////////////////////////////////////////////////////
+        -:    2:// Name:        wx/regex.h
+        -:    3:// Purpose:     regular expression matching
+        -:    4:// Author:      Karsten Ballueder
+        -:    5:// Modified by: VZ at 13.07.01 (integrated to wxWin)
+        -:    6:// Created:     05.02.2000
+        -:    7:// Copyright:   (c) 2000 Karsten Ballueder <ballueder@gmx.net>
+        -:    8:// Licence:     wxWindows licence
+        -:    9:///////////////////////////////////////////////////////////////////////////////
+        -:   10:
+        -:   11:#ifndef _WX_REGEX_H_
+        -:   12:#define _WX_REGEX_H_
+        -:   13:
+        -:   14:#include "wx/defs.h"
+        -:   15:
+        -:   16:#if wxUSE_REGEX
+        -:   17:
+        -:   18:#include "wx/string.h"
+        -:   19:#include "wx/versioninfo.h"
+        -:   20:
+        -:   21:// ----------------------------------------------------------------------------
+        -:   22:// constants
+        -:   23:// ----------------------------------------------------------------------------
+        -:   24:
+        -:   25:// flags for regex compilation: these can be used with Compile()
+        -:   26:enum
+        -:   27:{
+        -:   28:    // use extended regex syntax
+        -:   29:    wxRE_EXTENDED = 0,
+        -:   30:
+        -:   31:    // use advanced RE syntax (deprecated, same as wxRE_EXTENDED now)
+        -:   32:    wxRE_ADVANCED = 1,
+        -:   33:
+        -:   34:    // use basic RE syntax
+        -:   35:    wxRE_BASIC    = 2,
+        -:   36:
+        -:   37:    // ignore case in match
+        -:   38:    wxRE_ICASE    = 4,
+        -:   39:
+        -:   40:    // only check match, don't set back references
+        -:   41:    wxRE_NOSUB    = 8,
+        -:   42:
+        -:   43:    // if not set, treat '\n' as an ordinary character, otherwise it is
+        -:   44:    // special: it is not matched by '.' and '^' and '$' always match
+        -:   45:    // after/before it regardless of the setting of wxRE_NOT[BE]OL
+        -:   46:    wxRE_NEWLINE  = 16,
+        -:   47:
+        -:   48:    // default flags
+        -:   49:    wxRE_DEFAULT  = wxRE_EXTENDED
+        -:   50:};
+        -:   51:
+        -:   52:// flags for regex matching: these can be used with Matches()
+        -:   53://
+        -:   54:// these flags are mainly useful when doing several matches in a long string,
+        -:   55:// they can be used to prevent erroneous matches for '^' and '$'
+        -:   56:enum
+        -:   57:{
+        -:   58:    // '^' doesn't match at the start of line
+        -:   59:    wxRE_NOTBOL = 32,
+        -:   60:
+        -:   61:    // '$' doesn't match at the end of line
+        -:   62:    wxRE_NOTEOL = 64,
+        -:   63:
+        -:   64:    // don't accept empty string as valid match, try alternatives or fail
+        -:   65:    wxRE_NOTEMPTY = 128
+        -:   66:};
+        -:   67:
+        -:   68:// ----------------------------------------------------------------------------
+        -:   69:// wxRegEx: a regular expression
+        -:   70:// ----------------------------------------------------------------------------
+        -:   71:
+        -:   72:class WXDLLIMPEXP_FWD_BASE wxRegExImpl;
+        -:   73:
+        -:   74:class WXDLLIMPEXP_BASE wxRegEx
+        -:   75:{
+        -:   76:public:
+        -:   77:    // default ctor: use Compile() later
+        -:   78:    wxRegEx() { Init(); }
+        -:   79:
+        -:   80:    // create and compile
+    #####:   81:    wxRegEx(const wxString& expr, int flags = wxRE_DEFAULT)
+    #####:   82:    {
+    #####:   83:        Init();
+    #####:   84:        (void)Compile(expr, flags);
+    #####:   85:    }
+        -:   86:
+        -:   87:    // return true if this is a valid compiled regular expression
+        -:   88:    bool IsValid() const { return m_impl != NULL; }
+        -:   89:
+        -:   90:    // compile the string into regular expression, return true if ok or false
+        -:   91:    // if string has a syntax error
+        -:   92:    bool Compile(const wxString& pattern, int flags = wxRE_DEFAULT);
+        -:   93:
+        -:   94:    // matches the precompiled regular expression against a string, return
+        -:   95:    // true if matches and false otherwise
+        -:   96:    //
+        -:   97:    // flags may be combination of wxRE_NOTBOL and wxRE_NOTEOL
+        -:   98:    // len may be the length of text (ignored by most system regex libs)
+        -:   99:    //
+        -:  100:    // may only be called after successful call to Compile()
+        -:  101:    bool Matches(const wxString& text, int flags = 0) const;
+        -:  102:    bool Matches(const wxChar *text, int flags, size_t len) const
+        -:  103:        { return Matches(wxString(text, len), flags); }
+        -:  104:
+        -:  105:    // get the start index and the length of the match of the expression
+        -:  106:    // (index 0) or a bracketed subexpression (index != 0)
+        -:  107:    //
+        -:  108:    // may only be called after successful call to Matches()
+        -:  109:    //
+        -:  110:    // return false if no match or on error
+        -:  111:    bool GetMatch(size_t *start, size_t *len, size_t index = 0) const;
+        -:  112:
+        -:  113:    // return the part of string corresponding to the match, empty string is
+        -:  114:    // returned if match failed
+        -:  115:    //
+        -:  116:    // may only be called after successful call to Matches()
+        -:  117:    wxString GetMatch(const wxString& text, size_t index = 0) const;
+        -:  118:
+        -:  119:    // return the size of the array of matches, i.e. the number of bracketed
+        -:  120:    // subexpressions plus one for the expression itself, or 0 on error.
+        -:  121:    //
+        -:  122:    // may only be called after successful call to Compile()
+        -:  123:    size_t GetMatchCount() const;
+        -:  124:
+        -:  125:    // replaces the current regular expression in the string pointed to by
+        -:  126:    // pattern, with the text in replacement and return number of matches
+        -:  127:    // replaced (maybe 0 if none found) or -1 on error
+        -:  128:    //
+        -:  129:    // the replacement text may contain backreferences (\number) which will be
+        -:  130:    // replaced with the value of the corresponding subexpression in the
+        -:  131:    // pattern match
+        -:  132:    //
+        -:  133:    // maxMatches may be used to limit the number of replacements made, setting
+        -:  134:    // it to 1, for example, will only replace first occurrence (if any) of the
+        -:  135:    // pattern in the text while default value of 0 means replace all
+        -:  136:    int Replace(wxString *text, const wxString& replacement,
+        -:  137:                size_t maxMatches = 0) const;
+        -:  138:
+        -:  139:    // replace the first occurrence
+        -:  140:    int ReplaceFirst(wxString *text, const wxString& replacement) const
+        -:  141:        { return Replace(text, replacement, 1); }
+        -:  142:
+        -:  143:    // replace all occurrences: this is actually a synonym for Replace()
+        -:  144:    int ReplaceAll(wxString *text, const wxString& replacement) const
+        -:  145:        { return Replace(text, replacement, 0); }
+        -:  146:
+        -:  147:    static wxString QuoteMeta(const wxString& str);
+        -:  148:
+        -:  149:    // return the extended RE corresponding to the given basic RE
+        -:  150:    static wxString ConvertFromBasic(const wxString& bre);
+        -:  151:
+        -:  152:    // return version information for the underlying regex library
+        -:  153:    static wxVersionInfo GetLibraryVersionInfo();
+        -:  154:
+        -:  155:    // dtor not virtual, don't derive from this class
+        -:  156:    ~wxRegEx();
+        -:  157:
+        -:  158:private:
+        -:  159:    // common part of all ctors
+        -:  160:    void Init();
+        -:  161:
+        -:  162:    // the real guts of this class
+        -:  163:    wxRegExImpl *m_impl;
+        -:  164:
+        -:  165:    // as long as the class wxRegExImpl is not ref-counted,
+        -:  166:    // instances of the handle wxRegEx must not be copied.
+        -:  167:    wxRegEx(const wxRegEx&);
+        -:  168:    wxRegEx &operator=(const wxRegEx&);
+        -:  169:};
+        -:  170:
+        -:  171:#endif // wxUSE_REGEX
+        -:  172:
+        -:  173:#endif // _WX_REGEX_H_
+        -:  174:

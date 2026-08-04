@@ -1,0 +1,1377 @@
+        -:    0:Source:/usr/include/wx-3.2/wx/strvararg.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:///////////////////////////////////////////////////////////////////////////////
+        -:    2:// Name:        wx/strvararg.h
+        -:    3:// Purpose:     macros for implementing type-safe vararg passing of strings
+        -:    4:// Author:      Vaclav Slavik
+        -:    5:// Created:     2007-02-19
+        -:    6:// Copyright:   (c) 2007 REA Elektronik GmbH
+        -:    7:// Licence:     wxWindows licence
+        -:    8:///////////////////////////////////////////////////////////////////////////////
+        -:    9:
+        -:   10:#ifndef _WX_STRVARARG_H_
+        -:   11:#define _WX_STRVARARG_H_
+        -:   12:
+        -:   13:#include "wx/platform.h"
+        -:   14:
+        -:   15:#include "wx/cpp.h"
+        -:   16:#include "wx/chartype.h"
+        -:   17:#include "wx/strconv.h"
+        -:   18:#include "wx/buffer.h"
+        -:   19:#include "wx/unichar.h"
+        -:   20:
+        -:   21:#if defined(HAVE_TYPE_TRAITS)
+        -:   22:    #include <type_traits>
+        -:   23:#elif defined(HAVE_TR1_TYPE_TRAITS)
+        -:   24:    #ifdef __VISUALC__
+        -:   25:        #include <type_traits>
+        -:   26:    #else
+        -:   27:        #include <tr1/type_traits>
+        -:   28:    #endif
+        -:   29:#endif
+        -:   30:
+        -:   31:class WXDLLIMPEXP_FWD_BASE wxCStrData;
+        -:   32:class WXDLLIMPEXP_FWD_BASE wxString;
+        -:   33:
+        -:   34:// There are a lot of structs with intentionally private ctors in this file,
+        -:   35:// suppress gcc warnings about this.
+        -:   36:wxGCC_WARNING_SUPPRESS(ctor-dtor-privacy)
+        -:   37:
+        -:   38:// ----------------------------------------------------------------------------
+        -:   39:// WX_DEFINE_VARARG_FUNC* macros
+        -:   40:// ----------------------------------------------------------------------------
+        -:   41:
+        -:   42:// This macro is used to implement type-safe wrappers for variadic functions
+        -:   43:// that accept strings as arguments. This makes it possible to pass char*,
+        -:   44:// wchar_t* or even wxString (as opposed to having to use wxString::c_str())
+        -:   45:// to e.g. wxPrintf().
+        -:   46://
+        -:   47:// This is done by defining a set of N template function taking 1..N arguments
+        -:   48:// (currently, N is set to 30 in this header). These functions are just thin
+        -:   49:// wrappers around another variadic function ('impl' or 'implUtf8' arguments,
+        -:   50:// see below) and the only thing the wrapper does is that it normalizes the
+        -:   51:// arguments passed in so that they are of the type expected by variadic
+        -:   52:// functions taking string arguments, i.e., char* or wchar_t*, depending on the
+        -:   53:// build:
+        -:   54://   * char* in the current locale's charset in ANSI build
+        -:   55://   * char* with UTF-8 encoding if wxUSE_UNICODE_UTF8 and the app is running
+        -:   56://     under an UTF-8 locale
+        -:   57://   * wchar_t* if wxUSE_UNICODE_WCHAR or if wxUSE_UNICODE_UTF8 and the current
+        -:   58://     locale is not UTF-8
+        -:   59://
+        -:   60:// Note that wxFormatString *must* be used for the format parameter of these
+        -:   61:// functions, otherwise the implementation won't work correctly. Furthermore,
+        -:   62:// it must be passed by value, not reference, because it's modified by the
+        -:   63:// vararg templates internally.
+        -:   64://
+        -:   65:// Parameters:
+        -:   66:// [ there are examples in square brackets showing values of the parameters
+        -:   67://   for the wxFprintf() wrapper for fprintf() function with the following
+        -:   68://   prototype:
+        -:   69://   int wxFprintf(FILE *stream, const wxString& format, ...); ]
+        -:   70://
+        -:   71://        rettype   Functions' return type  [int]
+        -:   72://        name      Name of the function  [fprintf]
+        -:   73://        numfixed  The number of leading "fixed" (i.e., not variadic)
+        -:   74://                  arguments of the function (e.g. "stream" and "format"
+        -:   75://                  arguments of fprintf()); their type is _not_ converted
+        -:   76://                  using wxArgNormalizer<T>, unlike the rest of
+        -:   77://                  the function's arguments  [2]
+        -:   78://        fixed     List of types of the leading "fixed" arguments, in
+        -:   79://                  parentheses  [(FILE*,const wxString&)]
+        -:   80://        impl      Name of the variadic function that implements 'name' for
+        -:   81://                  the native strings representation (wchar_t* if
+        -:   82://                  wxUSE_UNICODE_WCHAR or wxUSE_UNICODE_UTF8 when running under
+        -:   83://                  non-UTF8 locale, char* in ANSI build)  [wxCrt_Fprintf]
+        -:   84://        implUtf8  Like 'impl', but for the UTF-8 char* version to be used
+        -:   85://                  if wxUSE_UNICODE_UTF8 and running under UTF-8 locale
+        -:   86://                  (ignored otherwise)  [fprintf]
+        -:   87://
+        -:   88:#define WX_DEFINE_VARARG_FUNC(rettype, name, numfixed, fixed, impl, implUtf8) \
+        -:   89:    _WX_VARARG_DEFINE_FUNC_N0(rettype, name, impl, implUtf8, numfixed, fixed) \
+        -:   90:    WX_DEFINE_VARARG_FUNC_SANS_N0(rettype, name, numfixed, fixed, impl, implUtf8)
+        -:   91:
+        -:   92:// ditto, but without the version with 0 template/vararg arguments
+        -:   93:#define WX_DEFINE_VARARG_FUNC_SANS_N0(rettype, name,                          \
+        -:   94:                                       numfixed, fixed, impl, implUtf8)       \
+        -:   95:    _WX_VARARG_ITER(_WX_VARARG_MAX_ARGS,                                      \
+        -:   96:                    _WX_VARARG_DEFINE_FUNC,                                   \
+        -:   97:                    rettype, name, impl, implUtf8, numfixed, fixed)
+        -:   98:
+        -:   99:// Like WX_DEFINE_VARARG_FUNC, but for variadic functions that don't return
+        -:  100:// a value.
+        -:  101:#define WX_DEFINE_VARARG_FUNC_VOID(name, numfixed, fixed, impl, implUtf8)     \
+        -:  102:    _WX_VARARG_DEFINE_FUNC_VOID_N0(name, impl, implUtf8, numfixed, fixed)     \
+        -:  103:    _WX_VARARG_ITER(_WX_VARARG_MAX_ARGS,                                      \
+        -:  104:                    _WX_VARARG_DEFINE_FUNC_VOID,                              \
+        -:  105:                    void, name, impl, implUtf8, numfixed, fixed)
+        -:  106:
+        -:  107:// Like WX_DEFINE_VARARG_FUNC_VOID, but instead of wrapping an implementation
+        -:  108:// function, does nothing in defined functions' bodies.
+        -:  109://
+        -:  110:// Used to implement wxLogXXX functions if wxUSE_LOG=0.
+        -:  111:#define WX_DEFINE_VARARG_FUNC_NOP(name, numfixed, fixed)                      \
+        -:  112:        _WX_VARARG_DEFINE_FUNC_NOP_N0(name, numfixed, fixed)                  \
+        -:  113:        _WX_VARARG_ITER(_WX_VARARG_MAX_ARGS,                                  \
+        -:  114:                        _WX_VARARG_DEFINE_FUNC_NOP,                           \
+        -:  115:                        void, name, dummy, dummy, numfixed, fixed)
+        -:  116:
+        -:  117:// Like WX_DEFINE_VARARG_FUNC_CTOR, but for defining template constructors
+        -:  118:#define WX_DEFINE_VARARG_FUNC_CTOR(name, numfixed, fixed, impl, implUtf8)     \
+        -:  119:    _WX_VARARG_DEFINE_FUNC_CTOR_N0(name, impl, implUtf8, numfixed, fixed)     \
+        -:  120:    _WX_VARARG_ITER(_WX_VARARG_MAX_ARGS,                                      \
+        -:  121:                    _WX_VARARG_DEFINE_FUNC_CTOR,                              \
+        -:  122:                    void, name, impl, implUtf8, numfixed, fixed)
+        -:  123:
+        -:  124:
+        -:  125:// ----------------------------------------------------------------------------
+        -:  126:// wxFormatString
+        -:  127:// ----------------------------------------------------------------------------
+        -:  128:
+        -:  129:// This class must be used for format string argument of the functions
+        -:  130:// defined using WX_DEFINE_VARARG_FUNC_* macros. It converts the string to
+        -:  131:// char* or wchar_t* for passing to implementation function efficiently (i.e.
+        -:  132:// without keeping the converted string in memory for longer than necessary,
+        -:  133:// like c_str()). It also converts format string to the correct form that
+        -:  134:// accounts for string changes done by wxArgNormalizer<>
+        -:  135://
+        -:  136:// Note that this class can _only_ be used for function arguments!
+        -:  137:class WXDLLIMPEXP_BASE wxFormatString
+        -:  138:{
+        -:  139:public:
+        -:  140:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  141:    wxFormatString(const char *str)
+        -:  142:        : m_char(wxScopedCharBuffer::CreateNonOwned(str)), m_str(NULL), m_cstr(NULL) {}
+        -:  143:#endif
+    #####:  144:    wxFormatString(const wchar_t *str)
+    #####:  145:        : m_wchar(wxScopedWCharBuffer::CreateNonOwned(str)), m_str(NULL), m_cstr(NULL) {}
+    #####:  146:    wxFormatString(const wxString& str)
+    #####:  147:        : m_str(&str), m_cstr(NULL) {}
+        -:  148:    wxFormatString(const wxCStrData& str)
+        -:  149:        : m_str(NULL), m_cstr(&str) {}
+        -:  150:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  151:    wxFormatString(const wxScopedCharBuffer& str)
+        -:  152:        : m_char(str), m_str(NULL), m_cstr(NULL)  {}
+        -:  153:#endif
+        -:  154:    wxFormatString(const wxScopedWCharBuffer& str)
+        -:  155:        : m_wchar(str), m_str(NULL), m_cstr(NULL) {}
+        -:  156:
+        -:  157:    // Possible argument types. These are or-combinable for wxASSERT_ARG_TYPE
+        -:  158:    // convenience. Some of the values are or-combined with another value, this
+        -:  159:    // expresses "supertypes" for use with wxASSERT_ARG_TYPE masks. For example,
+        -:  160:    // a char* string is also a pointer and an integer is also a char.
+        -:  161:    enum ArgumentType
+        -:  162:    {
+        -:  163:        Arg_Unused      = 0, // not used at all; the value of 0 is chosen to
+        -:  164:                             // conveniently pass wxASSERT_ARG_TYPE's check
+        -:  165:
+        -:  166:        Arg_Char        = 0x0001,    // character as char %c
+        -:  167:        Arg_Pointer     = 0x0002,    // %p
+        -:  168:        Arg_String      = 0x0004 | Arg_Pointer, // any form of string (%s and %p too)
+        -:  169:
+        -:  170:        Arg_Int         = 0x0008 | Arg_Char, // (ints can be used with %c)
+        -:  171:#if SIZEOF_INT == SIZEOF_LONG
+        -:  172:        Arg_LongInt     = Arg_Int,
+        -:  173:#else
+        -:  174:        Arg_LongInt     = 0x0010,
+        -:  175:#endif
+        -:  176:#if defined(SIZEOF_LONG_LONG) && SIZEOF_LONG_LONG == SIZEOF_LONG
+        -:  177:        Arg_LongLongInt = Arg_LongInt,
+        -:  178:#elif defined(wxLongLong_t)
+        -:  179:        Arg_LongLongInt = 0x0020,
+        -:  180:#endif
+        -:  181:
+        -:  182:        Arg_Double      = 0x0040,
+        -:  183:        Arg_LongDouble  = 0x0080,
+        -:  184:
+        -:  185:#if defined(wxSIZE_T_IS_UINT)
+        -:  186:        Arg_Size_t      = Arg_Int,
+        -:  187:#elif defined(wxSIZE_T_IS_ULONG)
+        -:  188:        Arg_Size_t      = Arg_LongInt,
+        -:  189:#elif defined(SIZEOF_LONG_LONG) && SIZEOF_SIZE_T == SIZEOF_LONG_LONG
+        -:  190:        Arg_Size_t      = Arg_LongLongInt,
+        -:  191:#else
+        -:  192:        Arg_Size_t      = 0x0100,
+        -:  193:#endif
+        -:  194:
+        -:  195:        Arg_IntPtr      = 0x0200,    // %n -- store # of chars written
+        -:  196:        Arg_ShortIntPtr = 0x0400,
+        -:  197:        Arg_LongIntPtr  = 0x0800,
+        -:  198:
+        -:  199:        Arg_Unknown     = 0x8000     // unrecognized specifier (likely error)
+        -:  200:    };
+        -:  201:
+        -:  202:    // returns the type of format specifier for n-th variadic argument (this is
+        -:  203:    // not necessarily n-th format specifier if positional specifiers are used);
+        -:  204:    // called by wxArgNormalizer<> specializations to get information about
+        -:  205:    // n-th variadic argument desired representation
+        -:  206:    ArgumentType GetArgumentType(unsigned n) const;
+        -:  207:
+        -:  208:    // returns the value passed to ctor, only converted to wxString, similarly
+        -:  209:    // to other InputAsXXX() methods
+        -:  210:    wxString InputAsString() const;
+        -:  211:
+        -:  212:#if !wxUSE_UNICODE_WCHAR && !defined wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  213:    operator const char*() const
+        -:  214:        { return const_cast<wxFormatString*>(this)->AsChar(); }
+        -:  215:private:
+        -:  216:    // InputAsChar() returns the value passed to ctor, only converted
+        -:  217:    // to char, while AsChar() takes the string returned by InputAsChar()
+        -:  218:    // and does format string conversion on it as well (and similarly for
+        -:  219:    // ..AsWChar() below)
+        -:  220:    const char* InputAsChar();
+        -:  221:    const char* AsChar();
+        -:  222:    wxScopedCharBuffer m_convertedChar;
+        -:  223:#endif // !wxUSE_UNICODE_WCHAR && !defined wx_NO_IMPLICIT_WXSTRING_ENCODING
+        -:  224:
+        -:  225:#if wxUSE_UNICODE && !wxUSE_UTF8_LOCALE_ONLY
+        -:  226:public:
+    #####:  227:    operator const wchar_t*() const
+    #####:  228:        { return const_cast<wxFormatString*>(this)->AsWChar(); }
+        -:  229:private:
+        -:  230:    const wchar_t* InputAsWChar();
+        -:  231:    const wchar_t* AsWChar();
+        -:  232:    wxScopedWCharBuffer m_convertedWChar;
+        -:  233:#endif // wxUSE_UNICODE && !wxUSE_UTF8_LOCALE_ONLY
+        -:  234:
+        -:  235:private:
+        -:  236:    wxScopedCharBuffer  m_char;
+        -:  237:    wxScopedWCharBuffer m_wchar;
+        -:  238:
+        -:  239:    // NB: we can use a pointer here, because wxFormatString is only used
+        -:  240:    //     as function argument, so it has shorter life than the string
+        -:  241:    //     passed to the ctor
+        -:  242:    const wxString * const m_str;
+        -:  243:    const wxCStrData * const m_cstr;
+        -:  244:
+        -:  245:    wxDECLARE_NO_ASSIGN_CLASS(wxFormatString);
+        -:  246:};
+        -:  247:
+        -:  248:// these two helper classes are used to find wxFormatString argument among fixed
+        -:  249:// arguments passed to a vararg template
+        -:  250:struct wxFormatStringArgument
+        -:  251:{
+    #####:  252:    wxFormatStringArgument(const wxFormatString *s = NULL) : m_str(s) {}
+        -:  253:    const wxFormatString *m_str;
+        -:  254:
+        -:  255:    // overriding this operator allows us to reuse _WX_VARARG_JOIN macro
+    #####:  256:    wxFormatStringArgument operator,(const wxFormatStringArgument& a) const
+        -:  257:    {
+    #####:  258:        wxASSERT_MSG( m_str == NULL || a.m_str == NULL,
+        -:  259:                      "can't have two format strings in vararg function" );
+    #####:  260:        return wxFormatStringArgument(m_str ? m_str : a.m_str);
+        -:  261:    }
+        -:  262:
+    #####:  263:    operator const wxFormatString*() const { return m_str; }
+        -:  264:};
+        -:  265:
+        -:  266:template<typename T>
+        -:  267:struct wxFormatStringArgumentFinder
+        -:  268:{
+    #####:  269:    static wxFormatStringArgument find(T)
+        -:  270:    {
+        -:  271:        // by default, arguments are not format strings, so return "not found"
+    #####:  272:        return wxFormatStringArgument();
+        -:  273:    }
+        -:  274:};
+        -:  275:
+        -:  276:template<>
+        -:  277:struct wxFormatStringArgumentFinder<const wxFormatString&>
+        -:  278:{
+    #####:  279:    static wxFormatStringArgument find(const wxFormatString& arg)
+    #####:  280:        { return wxFormatStringArgument(&arg); }
+        -:  281:};
+        -:  282:
+        -:  283:template<>
+        -:  284:struct wxFormatStringArgumentFinder<wxFormatString>
+        -:  285:    : public wxFormatStringArgumentFinder<const wxFormatString&> {};
+        -:  286:
+        -:  287:// avoid passing big objects by value to wxFormatStringArgumentFinder::find()
+        -:  288:// (and especially wx[W]CharBuffer with its auto_ptr<> style semantics!):
+        -:  289:template<>
+        -:  290:struct wxFormatStringArgumentFinder<wxString>
+        -:  291:    : public wxFormatStringArgumentFinder<const wxString&> {};
+        -:  292:
+        -:  293:template<>
+        -:  294:struct wxFormatStringArgumentFinder<wxScopedCharBuffer>
+        -:  295:    : public wxFormatStringArgumentFinder<const wxScopedCharBuffer&> {
+        -:  296:#ifdef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  297:private:
+        -:  298:    wxFormatStringArgumentFinder() wxMEMBER_DELETE;
+        -:  299:#endif // wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  300:};
+        -:  301:
+        -:  302:template<>
+        -:  303:struct wxFormatStringArgumentFinder<wxScopedWCharBuffer>
+        -:  304:    : public wxFormatStringArgumentFinder<const wxScopedWCharBuffer&> {};
+        -:  305:
+        -:  306:template<>
+        -:  307:struct wxFormatStringArgumentFinder<wxCharBuffer>
+        -:  308:    : public wxFormatStringArgumentFinder<const wxCharBuffer&> {
+        -:  309:#ifdef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  310:private:
+        -:  311:    wxFormatStringArgumentFinder() wxMEMBER_DELETE;
+        -:  312:#endif // wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  313:};
+        -:  314:
+        -:  315:template<>
+        -:  316:struct wxFormatStringArgumentFinder<wxWCharBuffer>
+        -:  317:    : public wxFormatStringArgumentFinder<const wxWCharBuffer&> {};
+        -:  318:
+        -:  319:
+        -:  320:// ----------------------------------------------------------------------------
+        -:  321:// wxArgNormalizer*<T> converters
+        -:  322:// ----------------------------------------------------------------------------
+        -:  323:
+        -:  324:#if wxDEBUG_LEVEL
+        -:  325:    // Check that the format specifier for index-th argument in 'fmt' has
+        -:  326:    // the correct type (one of wxFormatString::Arg_XXX or-combination in
+        -:  327:    // 'expected_mask').
+        -:  328:    #define wxASSERT_ARG_TYPE(fmt, index, expected_mask)                    \
+        -:  329:        wxSTATEMENT_MACRO_BEGIN                                             \
+        -:  330:            if ( !fmt )                                                     \
+        -:  331:                break;                                                      \
+        -:  332:            const int argtype = fmt->GetArgumentType(index);                \
+        -:  333:            wxASSERT_MSG( (argtype & (expected_mask)) == argtype,           \
+        -:  334:                          "format specifier doesn't match argument type" ); \
+        -:  335:        wxSTATEMENT_MACRO_END
+        -:  336:#else
+        -:  337:    // Just define it to suppress "unused parameter" warnings for the
+        -:  338:    // parameters which we don't use otherwise
+        -:  339:    #define wxASSERT_ARG_TYPE(fmt, index, expected_mask)                      \
+        -:  340:        wxUnusedVar(fmt);                                                     \
+        -:  341:        wxUnusedVar(index)
+        -:  342:#endif // wxDEBUG_LEVEL/!wxDEBUG_LEVEL
+        -:  343:
+        -:  344:
+        -:  345:#if defined(HAVE_TYPE_TRAITS) || defined(HAVE_TR1_TYPE_TRAITS)
+        -:  346:
+        -:  347:// Note: this type is misnamed, so that the error message is easier to
+        -:  348:// understand (no error happens for enums, because the IsEnum=true case is
+        -:  349:// specialized).
+        -:  350:template<bool IsEnum>
+        -:  351:struct wxFormatStringSpecifierNonPodType {};
+        -:  352:
+        -:  353:template<>
+        -:  354:struct wxFormatStringSpecifierNonPodType<true>
+        -:  355:{
+        -:  356:    enum { value = wxFormatString::Arg_Int };
+        -:  357:};
+        -:  358:
+        -:  359:template<typename T>
+        -:  360:struct wxFormatStringSpecifier
+        -:  361:{
+        -:  362:#ifdef HAVE_TYPE_TRAITS
+        -:  363:    typedef std::is_enum<T> is_enum;
+        -:  364:#elif defined HAVE_TR1_TYPE_TRAITS
+        -:  365:    typedef std::tr1::is_enum<T> is_enum;
+        -:  366:#endif
+        -:  367:    enum { value = wxFormatStringSpecifierNonPodType<is_enum::value>::value };
+        -:  368:};
+        -:  369:
+        -:  370:#else // !HAVE_(TR1_)TYPE_TRAITS
+        -:  371:
+        -:  372:template<typename T>
+        -:  373:struct wxFormatStringSpecifier
+        -:  374:{
+        -:  375:    // We can't detect enums without is_enum, so the only thing we can
+        -:  376:    // do is to accept unknown types. However, the only acceptable unknown
+        -:  377:    // types still are enums, which are promoted to ints, so return Arg_Int
+        -:  378:    // here. This will at least catch passing of non-POD types through ... at
+        -:  379:    // runtime.
+        -:  380:    //
+        -:  381:    // Furthermore, if the compiler doesn't have partial template
+        -:  382:    // specialization, we didn't cover pointers either.
+        -:  383:    enum { value = wxFormatString::Arg_Int };
+        -:  384:};
+        -:  385:
+        -:  386:#endif // HAVE_TR1_TYPE_TRAITS/!HAVE_TR1_TYPE_TRAITS
+        -:  387:
+        -:  388:
+        -:  389:template<typename T>
+        -:  390:struct wxFormatStringSpecifier<T*>
+        -:  391:{
+        -:  392:    enum { value = wxFormatString::Arg_Pointer };
+        -:  393:};
+        -:  394:
+        -:  395:template<typename T>
+        -:  396:struct wxFormatStringSpecifier<const T*>
+        -:  397:{
+        -:  398:    enum { value = wxFormatString::Arg_Pointer };
+        -:  399:};
+        -:  400:
+        -:  401:
+        -:  402:#define wxFORMAT_STRING_SPECIFIER(T, arg)                                   \
+        -:  403:    template<> struct wxFormatStringSpecifier<T>                            \
+        -:  404:    {                                                                       \
+        -:  405:        enum { value = arg };                                               \
+        -:  406:    };
+        -:  407:
+        -:  408:#define wxDISABLED_FORMAT_STRING_SPECIFIER(T)                               \
+        -:  409:    template<> struct wxFormatStringSpecifier<T>                            \
+        -:  410:    {                                                                       \
+        -:  411:    private:                                                                \
+        -:  412:        wxFormatStringSpecifier() wxMEMBER_DELETE;                          \
+        -:  413:    };
+        -:  414:
+        -:  415:wxFORMAT_STRING_SPECIFIER(bool, wxFormatString::Arg_Int)
+        -:  416:wxFORMAT_STRING_SPECIFIER(int, wxFormatString::Arg_Int)
+        -:  417:wxFORMAT_STRING_SPECIFIER(unsigned int, wxFormatString::Arg_Int)
+        -:  418:wxFORMAT_STRING_SPECIFIER(short int, wxFormatString::Arg_Int)
+        -:  419:wxFORMAT_STRING_SPECIFIER(short unsigned int, wxFormatString::Arg_Int)
+        -:  420:wxFORMAT_STRING_SPECIFIER(long int, wxFormatString::Arg_LongInt)
+        -:  421:wxFORMAT_STRING_SPECIFIER(long unsigned int, wxFormatString::Arg_LongInt)
+        -:  422:#ifdef wxLongLong_t
+        -:  423:wxFORMAT_STRING_SPECIFIER(wxLongLong_t, wxFormatString::Arg_LongLongInt)
+        -:  424:wxFORMAT_STRING_SPECIFIER(wxULongLong_t, wxFormatString::Arg_LongLongInt)
+        -:  425:#endif
+        -:  426:wxFORMAT_STRING_SPECIFIER(float, wxFormatString::Arg_Double)
+        -:  427:wxFORMAT_STRING_SPECIFIER(double, wxFormatString::Arg_Double)
+        -:  428:wxFORMAT_STRING_SPECIFIER(long double, wxFormatString::Arg_LongDouble)
+        -:  429:
+        -:  430:#if wxWCHAR_T_IS_REAL_TYPE
+        -:  431:wxFORMAT_STRING_SPECIFIER(wchar_t, wxFormatString::Arg_Char | wxFormatString::Arg_Int)
+        -:  432:#endif
+        -:  433:
+        -:  434:#if !wxUSE_UNICODE && !defined wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  435:wxFORMAT_STRING_SPECIFIER(char, wxFormatString::Arg_Char | wxFormatString::Arg_Int)
+        -:  436:wxFORMAT_STRING_SPECIFIER(signed char, wxFormatString::Arg_Char | wxFormatString::Arg_Int)
+        -:  437:wxFORMAT_STRING_SPECIFIER(unsigned char, wxFormatString::Arg_Char | wxFormatString::Arg_Int)
+        -:  438:#endif
+        -:  439:
+        -:  440:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  441:wxFORMAT_STRING_SPECIFIER(char*, wxFormatString::Arg_String)
+        -:  442:wxFORMAT_STRING_SPECIFIER(unsigned char*, wxFormatString::Arg_String)
+        -:  443:wxFORMAT_STRING_SPECIFIER(signed char*, wxFormatString::Arg_String)
+        -:  444:wxFORMAT_STRING_SPECIFIER(const char*, wxFormatString::Arg_String)
+        -:  445:wxFORMAT_STRING_SPECIFIER(const unsigned char*, wxFormatString::Arg_String)
+        -:  446:wxFORMAT_STRING_SPECIFIER(const signed char*, wxFormatString::Arg_String)
+        -:  447:#else // wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  448:wxDISABLED_FORMAT_STRING_SPECIFIER(char*)
+        -:  449:wxDISABLED_FORMAT_STRING_SPECIFIER(unsigned char*)
+        -:  450:wxDISABLED_FORMAT_STRING_SPECIFIER(signed char*)
+        -:  451:wxDISABLED_FORMAT_STRING_SPECIFIER(const char*)
+        -:  452:wxDISABLED_FORMAT_STRING_SPECIFIER(const unsigned char*)
+        -:  453:wxDISABLED_FORMAT_STRING_SPECIFIER(const signed char*)
+        -:  454:#endif // wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  455:wxFORMAT_STRING_SPECIFIER(wchar_t*, wxFormatString::Arg_String)
+        -:  456:wxFORMAT_STRING_SPECIFIER(const wchar_t*, wxFormatString::Arg_String)
+        -:  457:
+        -:  458:wxFORMAT_STRING_SPECIFIER(int*, wxFormatString::Arg_IntPtr | wxFormatString::Arg_Pointer)
+        -:  459:wxFORMAT_STRING_SPECIFIER(short int*, wxFormatString::Arg_ShortIntPtr | wxFormatString::Arg_Pointer)
+        -:  460:wxFORMAT_STRING_SPECIFIER(long int*, wxFormatString::Arg_LongIntPtr | wxFormatString::Arg_Pointer)
+        -:  461:
+        -:  462:#ifdef wxHAS_NULLPTR_T
+        -:  463:wxFORMAT_STRING_SPECIFIER(std::nullptr_t, wxFormatString::Arg_Pointer)
+        -:  464:#endif
+        -:  465:
+        -:  466:#undef wxFORMAT_STRING_SPECIFIER
+        -:  467:#undef wxDISABLED_FORMAT_STRING_SPECIFIER
+        -:  468:
+        -:  469:
+        -:  470:// Converts an argument passed to wxPrint etc. into standard form expected,
+        -:  471:// by wxXXX functions, e.g. all strings (wxString, char*, wchar_t*) are
+        -:  472:// converted into wchar_t* or char* depending on the build.
+        -:  473:template<typename T>
+        -:  474:struct wxArgNormalizer
+        -:  475:{
+        -:  476:    // Ctor. 'value' is the value passed as variadic argument, 'fmt' is pointer
+        -:  477:    // to printf-like format string or NULL if the variadic function doesn't
+        -:  478:    // use format string and 'index' is index of 'value' in variadic arguments
+        -:  479:    // list (starting at 1)
+    #####:  480:    wxArgNormalizer(T value,
+        -:  481:                    const wxFormatString *fmt, unsigned index)
+    #####:  482:        : m_value(value)
+        -:  483:    {
+    #####:  484:        wxASSERT_ARG_TYPE( fmt, index, wxFormatStringSpecifier<T>::value );
+    #####:  485:    }
+------------------
+wxArgNormalizer<VIATYPE>::wxArgNormalizer(VIATYPE, wxFormatString const*, unsigned int):
+    #####:  480:    wxArgNormalizer(T value,
+        -:  481:                    const wxFormatString *fmt, unsigned index)
+    #####:  482:        : m_value(value)
+        -:  483:    {
+    #####:  484:        wxASSERT_ARG_TYPE( fmt, index, wxFormatStringSpecifier<T>::value );
+    #####:  485:    }
+------------------
+wxArgNormalizer<PAD_PROP>::wxArgNormalizer(PAD_PROP, wxFormatString const*, unsigned int):
+    #####:  480:    wxArgNormalizer(T value,
+        -:  481:                    const wxFormatString *fmt, unsigned index)
+    #####:  482:        : m_value(value)
+        -:  483:    {
+    #####:  484:        wxASSERT_ARG_TYPE( fmt, index, wxFormatStringSpecifier<T>::value );
+    #####:  485:    }
+------------------
+wxArgNormalizer<PAD_ATTRIB>::wxArgNormalizer(PAD_ATTRIB, wxFormatString const*, unsigned int):
+    #####:  480:    wxArgNormalizer(T value,
+        -:  481:                    const wxFormatString *fmt, unsigned index)
+    #####:  482:        : m_value(value)
+        -:  483:    {
+    #####:  484:        wxASSERT_ARG_TYPE( fmt, index, wxFormatStringSpecifier<T>::value );
+    #####:  485:    }
+------------------
+wxArgNormalizer<PAD_SHAPE>::wxArgNormalizer(PAD_SHAPE, wxFormatString const*, unsigned int):
+    #####:  480:    wxArgNormalizer(T value,
+        -:  481:                    const wxFormatString *fmt, unsigned index)
+    #####:  482:        : m_value(value)
+        -:  483:    {
+    #####:  484:        wxASSERT_ARG_TYPE( fmt, index, wxFormatStringSpecifier<T>::value );
+    #####:  485:    }
+------------------
+wxArgNormalizer<int>::wxArgNormalizer(int, wxFormatString const*, unsigned int):
+    #####:  480:    wxArgNormalizer(T value,
+        -:  481:                    const wxFormatString *fmt, unsigned index)
+    #####:  482:        : m_value(value)
+        -:  483:    {
+    #####:  484:        wxASSERT_ARG_TYPE( fmt, index, wxFormatStringSpecifier<T>::value );
+    #####:  485:    }
+------------------
+        -:  486:
+        -:  487:    // Returns the value in a form that can be safely passed to real vararg
+        -:  488:    // functions. In case of strings, this is char* in ANSI build and wchar_t*
+        -:  489:    // in Unicode build.
+    #####:  490:    T get() const { return m_value; }
+------------------
+wxArgNormalizer<VIATYPE>::get() const:
+    #####:  490:    T get() const { return m_value; }
+------------------
+wxArgNormalizer<PAD_PROP>::get() const:
+    #####:  490:    T get() const { return m_value; }
+------------------
+wxArgNormalizer<PAD_ATTRIB>::get() const:
+    #####:  490:    T get() const { return m_value; }
+------------------
+wxArgNormalizer<PAD_SHAPE>::get() const:
+    #####:  490:    T get() const { return m_value; }
+------------------
+wxArgNormalizer<int>::get() const:
+    #####:  490:    T get() const { return m_value; }
+------------------
+        -:  491:
+        -:  492:    T m_value;
+        -:  493:};
+        -:  494:
+        -:  495:// normalizer for passing arguments to functions working with wchar_t* (and
+        -:  496:// until ANSI build is removed, char* in ANSI build as well - FIXME-UTF8)
+        -:  497:// string representation
+        -:  498:#if !wxUSE_UTF8_LOCALE_ONLY
+        -:  499:template<typename T>
+        -:  500:struct wxArgNormalizerWchar : public wxArgNormalizer<T>
+        -:  501:{
+    #####:  502:    wxArgNormalizerWchar(T value,
+        -:  503:                         const wxFormatString *fmt, unsigned index)
+    #####:  504:        : wxArgNormalizer<T>(value, fmt, index) {}
+------------------
+wxArgNormalizerWchar<VIATYPE>::wxArgNormalizerWchar(VIATYPE, wxFormatString const*, unsigned int):
+    #####:  502:    wxArgNormalizerWchar(T value,
+        -:  503:                         const wxFormatString *fmt, unsigned index)
+    #####:  504:        : wxArgNormalizer<T>(value, fmt, index) {}
+------------------
+wxArgNormalizerWchar<PAD_PROP>::wxArgNormalizerWchar(PAD_PROP, wxFormatString const*, unsigned int):
+    #####:  502:    wxArgNormalizerWchar(T value,
+        -:  503:                         const wxFormatString *fmt, unsigned index)
+    #####:  504:        : wxArgNormalizer<T>(value, fmt, index) {}
+------------------
+wxArgNormalizerWchar<PAD_ATTRIB>::wxArgNormalizerWchar(PAD_ATTRIB, wxFormatString const*, unsigned int):
+    #####:  502:    wxArgNormalizerWchar(T value,
+        -:  503:                         const wxFormatString *fmt, unsigned index)
+    #####:  504:        : wxArgNormalizer<T>(value, fmt, index) {}
+------------------
+wxArgNormalizerWchar<PAD_SHAPE>::wxArgNormalizerWchar(PAD_SHAPE, wxFormatString const*, unsigned int):
+    #####:  502:    wxArgNormalizerWchar(T value,
+        -:  503:                         const wxFormatString *fmt, unsigned index)
+    #####:  504:        : wxArgNormalizer<T>(value, fmt, index) {}
+------------------
+wxArgNormalizerWchar<int>::wxArgNormalizerWchar(int, wxFormatString const*, unsigned int):
+    #####:  502:    wxArgNormalizerWchar(T value,
+        -:  503:                         const wxFormatString *fmt, unsigned index)
+    #####:  504:        : wxArgNormalizer<T>(value, fmt, index) {}
+------------------
+        -:  505:};
+        -:  506:#endif // !wxUSE_UTF8_LOCALE_ONLY
+        -:  507:
+        -:  508:// normalizer for passing arguments to functions working with UTF-8 encoded
+        -:  509:// char* strings
+        -:  510:#if wxUSE_UNICODE_UTF8
+        -:  511:    template<typename T>
+        -:  512:    struct wxArgNormalizerUtf8 : public wxArgNormalizer<T>
+        -:  513:    {
+        -:  514:        wxArgNormalizerUtf8(T value,
+        -:  515:                            const wxFormatString *fmt, unsigned index)
+        -:  516:            : wxArgNormalizer<T>(value, fmt, index) {}
+        -:  517:    };
+        -:  518:
+        -:  519:    #define wxArgNormalizerNative wxArgNormalizerUtf8
+        -:  520:#else // wxUSE_UNICODE_WCHAR
+        -:  521:    #define wxArgNormalizerNative wxArgNormalizerWchar
+        -:  522:#endif // wxUSE_UNICODE_UTF8 // wxUSE_UNICODE_UTF8
+        -:  523:
+        -:  524:
+        -:  525:
+        -:  526:// special cases for converting strings:
+        -:  527:
+        -:  528:
+        -:  529:// base class for wxArgNormalizer<T> specializations that need to do conversion;
+        -:  530:// CharType is either wxStringCharType or wchar_t in UTF-8 build when wrapping
+        -:  531:// widechar CRT function
+        -:  532:template<typename CharType>
+        -:  533:struct wxArgNormalizerWithBuffer
+        -:  534:{
+        -:  535:    typedef wxScopedCharTypeBuffer<CharType> CharBuffer;
+        -:  536:
+        -:  537:    wxArgNormalizerWithBuffer() {}
+    #####:  538:    wxArgNormalizerWithBuffer(const CharBuffer& buf,
+        -:  539:                              const wxFormatString *fmt,
+        -:  540:                              unsigned index)
+    #####:  541:        : m_value(buf)
+        -:  542:    {
+    #####:  543:        wxASSERT_ARG_TYPE( fmt, index, wxFormatString::Arg_String );
+    #####:  544:    }
+        -:  545:
+    #####:  546:    const CharType *get() const { return m_value; }
+        -:  547:
+        -:  548:    CharBuffer m_value;
+        -:  549:};
+        -:  550:
+        -:  551:// string objects:
+        -:  552:template<>
+        -:  553:struct WXDLLIMPEXP_BASE wxArgNormalizerNative<const wxString&>
+        -:  554:{
+    #####:  555:    wxArgNormalizerNative(const wxString& s,
+        -:  556:                          const wxFormatString *fmt,
+        -:  557:                          unsigned index)
+    #####:  558:        : m_value(s)
+        -:  559:    {
+    #####:  560:        wxASSERT_ARG_TYPE( fmt, index, wxFormatString::Arg_String );
+    #####:  561:    }
+        -:  562:
+        -:  563:    const wxStringCharType *get() const;
+        -:  564:
+        -:  565:    const wxString& m_value;
+        -:  566:};
+        -:  567:
+        -:  568:// c_str() values:
+        -:  569:template<>
+        -:  570:struct WXDLLIMPEXP_BASE wxArgNormalizerNative<const wxCStrData&>
+        -:  571:{
+    #####:  572:    wxArgNormalizerNative(const wxCStrData& value,
+        -:  573:                          const wxFormatString *fmt,
+        -:  574:                          unsigned index)
+    #####:  575:        : m_value(value)
+        -:  576:    {
+    #####:  577:        wxASSERT_ARG_TYPE( fmt, index, wxFormatString::Arg_String );
+    #####:  578:    }
+        -:  579:
+        -:  580:    const wxStringCharType *get() const;
+        -:  581:
+        -:  582:    const wxCStrData& m_value;
+        -:  583:};
+        -:  584:
+        -:  585:// wxString/wxCStrData conversion to wchar_t* value
+        -:  586:#if wxUSE_UNICODE_UTF8 && !wxUSE_UTF8_LOCALE_ONLY
+        -:  587:template<>
+        -:  588:struct WXDLLIMPEXP_BASE wxArgNormalizerWchar<const wxString&>
+        -:  589:    : public wxArgNormalizerWithBuffer<wchar_t>
+        -:  590:{
+        -:  591:    wxArgNormalizerWchar(const wxString& s,
+        -:  592:                         const wxFormatString *fmt, unsigned index);
+        -:  593:};
+        -:  594:
+        -:  595:template<>
+        -:  596:struct WXDLLIMPEXP_BASE wxArgNormalizerWchar<const wxCStrData&>
+        -:  597:    : public wxArgNormalizerWithBuffer<wchar_t>
+        -:  598:{
+        -:  599:    wxArgNormalizerWchar(const wxCStrData& s,
+        -:  600:                         const wxFormatString *fmt, unsigned index);
+        -:  601:};
+        -:  602:#endif // wxUSE_UNICODE_UTF8 && !wxUSE_UTF8_LOCALE_ONLY
+        -:  603:
+        -:  604:
+        -:  605:// C string pointers of the wrong type (wchar_t* for ANSI or UTF8 build,
+        -:  606:// char* for wchar_t Unicode build or UTF8):
+        -:  607:#if wxUSE_UNICODE_WCHAR
+        -:  608:
+        -:  609:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  610:template<>
+        -:  611:struct wxArgNormalizerWchar<const char*>
+        -:  612:    : public wxArgNormalizerWithBuffer<wchar_t>
+        -:  613:{
+    #####:  614:    wxArgNormalizerWchar(const char* s,
+        -:  615:                         const wxFormatString *fmt, unsigned index)
+    #####:  616:        : wxArgNormalizerWithBuffer<wchar_t>(wxConvLibc.cMB2WC(s), fmt, index) {}
+        -:  617:};
+        -:  618:#endif // wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  619:
+        -:  620:#elif wxUSE_UNICODE_UTF8
+        -:  621:
+        -:  622:template<>
+        -:  623:struct wxArgNormalizerUtf8<const wchar_t*>
+        -:  624:    : public wxArgNormalizerWithBuffer<char>
+        -:  625:{
+        -:  626:    wxArgNormalizerUtf8(const wchar_t* s,
+        -:  627:                        const wxFormatString *fmt, unsigned index)
+        -:  628:        : wxArgNormalizerWithBuffer<char>(wxConvUTF8.cWC2MB(s), fmt, index) {}
+        -:  629:};
+        -:  630:
+        -:  631:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  632:template<>
+        -:  633:struct wxArgNormalizerUtf8<const char*>
+        -:  634:    : public wxArgNormalizerWithBuffer<char>
+        -:  635:{
+        -:  636:    wxArgNormalizerUtf8(const char* s,
+        -:  637:                        const wxFormatString *fmt,
+        -:  638:                        unsigned index)
+        -:  639:    {
+        -:  640:        wxASSERT_ARG_TYPE( fmt, index, wxFormatString::Arg_String );
+        -:  641:
+        -:  642:        if ( wxLocaleIsUtf8 )
+        -:  643:        {
+        -:  644:            m_value = wxScopedCharBuffer::CreateNonOwned(s);
+        -:  645:        }
+        -:  646:        else
+        -:  647:        {
+        -:  648:            // convert to widechar string first:
+        -:  649:            wxScopedWCharBuffer buf(wxConvLibc.cMB2WC(s));
+        -:  650:
+        -:  651:            // then to UTF-8:
+        -:  652:            if ( buf )
+        -:  653:                m_value = wxConvUTF8.cWC2MB(buf);
+        -:  654:        }
+        -:  655:    }
+        -:  656:};
+        -:  657:#endif
+        -:  658:
+        -:  659:// UTF-8 build needs conversion to wchar_t* too:
+        -:  660:#if !wxUSE_UTF8_LOCALE_ONLY && !defined wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  661:template<>
+        -:  662:struct wxArgNormalizerWchar<const char*>
+        -:  663:    : public wxArgNormalizerWithBuffer<wchar_t>
+        -:  664:{
+        -:  665:    wxArgNormalizerWchar(const char* s,
+        -:  666:                         const wxFormatString *fmt, unsigned index)
+        -:  667:        : wxArgNormalizerWithBuffer<wchar_t>(wxConvLibc.cMB2WC(s), fmt, index) {}
+        -:  668:};
+        -:  669:#endif // !wxUSE_UTF8_LOCALE_ONLY && !defined wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  670:
+        -:  671:#else // ANSI - FIXME-UTF8
+        -:  672:
+        -:  673:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  674:template<>
+        -:  675:struct wxArgNormalizerWchar<const wchar_t*>
+        -:  676:    : public wxArgNormalizerWithBuffer<char>
+        -:  677:{
+        -:  678:    wxArgNormalizerWchar(const wchar_t* s,
+        -:  679:                         const wxFormatString *fmt, unsigned index)
+        -:  680:        : wxArgNormalizerWithBuffer<char>(wxConvLibc.cWC2MB(s), fmt, index) {}
+        -:  681:};
+        -:  682:#endif // wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  683:
+        -:  684:#endif // wxUSE_UNICODE_WCHAR/wxUSE_UNICODE_UTF8/ANSI
+        -:  685:
+        -:  686:
+        -:  687:#ifdef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  688:// wxArgNormalizer specializations that cannot be instanced
+        -:  689:template<>
+        -:  690:struct wxArgNormalizer<const char*> {
+        -:  691:private:
+        -:  692:    wxArgNormalizer(const char*, const wxFormatString *, unsigned);
+        -:  693:    const char *get() const;
+        -:  694:};
+        -:  695:template<>
+        -:  696:struct wxArgNormalizer<char*> {
+        -:  697:private:
+        -:  698:    wxArgNormalizer(const char*, const wxFormatString *, unsigned);
+        -:  699:    char *get() const;
+        -:  700:};
+        -:  701:template<>
+        -:  702:struct wxArgNormalizer<const std::string> {
+        -:  703:private:
+        -:  704:    wxArgNormalizer(const std::string&, const wxFormatString *, unsigned);
+        -:  705:    std::string get() const;
+        -:  706:};
+        -:  707:template<>
+        -:  708:struct wxArgNormalizer<std::string> {
+        -:  709:private:
+        -:  710:    wxArgNormalizer(std::string&, const wxFormatString *, unsigned);
+        -:  711:    std::string get() const;
+        -:  712:};
+        -:  713:template<>
+        -:  714:struct wxArgNormalizer<wxCharBuffer> {
+        -:  715:private:
+        -:  716:    wxArgNormalizer(wxCharBuffer&, const wxFormatString *, unsigned);
+        -:  717:    std::string get() const;
+        -:  718:};
+        -:  719:template<>
+        -:  720:struct wxArgNormalizer<wxScopedCharBuffer> {
+        -:  721:private:
+        -:  722:    wxArgNormalizer(wxScopedCharBuffer&, const wxFormatString *, unsigned);
+        -:  723:    std::string get() const;
+        -:  724:};
+        -:  725:#endif // wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  726:
+        -:  727:// this macro is used to implement specialization that are exactly same as
+        -:  728:// some other specialization, i.e. to "forward" the implementation (e.g. for
+        -:  729:// T=wxString and T=const wxString&). Note that the ctor takes BaseT argument,
+        -:  730:// not T!
+        -:  731:#if wxUSE_UNICODE_UTF8
+        -:  732:    #if wxUSE_UTF8_LOCALE_ONLY
+        -:  733:        #define WX_ARG_NORMALIZER_FORWARD(T, BaseT)                         \
+        -:  734:          _WX_ARG_NORMALIZER_FORWARD_IMPL(wxArgNormalizerUtf8, T, BaseT)
+        -:  735:    #else // possibly non-UTF8 locales
+        -:  736:        #define WX_ARG_NORMALIZER_FORWARD(T, BaseT)                         \
+        -:  737:          _WX_ARG_NORMALIZER_FORWARD_IMPL(wxArgNormalizerWchar, T, BaseT);  \
+        -:  738:          _WX_ARG_NORMALIZER_FORWARD_IMPL(wxArgNormalizerUtf8, T, BaseT)
+        -:  739:    #endif
+        -:  740:#else // wxUSE_UNICODE_WCHAR
+        -:  741:    #define WX_ARG_NORMALIZER_FORWARD(T, BaseT)                             \
+        -:  742:        _WX_ARG_NORMALIZER_FORWARD_IMPL(wxArgNormalizerWchar, T, BaseT)
+        -:  743:#endif // wxUSE_UNICODE_UTF8/wxUSE_UNICODE_WCHAR
+        -:  744:
+        -:  745:#define _WX_ARG_NORMALIZER_FORWARD_IMPL(Normalizer, T, BaseT)               \
+        -:  746:    template<>                                                              \
+        -:  747:    struct Normalizer<T> : public Normalizer<BaseT>                         \
+        -:  748:    {                                                                       \
+        -:  749:        Normalizer(BaseT value,                                             \
+        -:  750:                   const wxFormatString *fmt, unsigned index)               \
+        -:  751:            : Normalizer<BaseT>(value, fmt, index) {}                       \
+        -:  752:    }
+        -:  753:
+        -:  754:// non-reference versions of specializations for string objects
+    #####:  755:WX_ARG_NORMALIZER_FORWARD(wxString, const wxString&);
+    #####:  756:WX_ARG_NORMALIZER_FORWARD(wxCStrData, const wxCStrData&);
+        -:  757:
+        -:  758:// versions for passing non-const pointers:
+        -:  759:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  760:WX_ARG_NORMALIZER_FORWARD(char*, const char*);
+        -:  761:#endif
+        -:  762:WX_ARG_NORMALIZER_FORWARD(wchar_t*, const wchar_t*);
+        -:  763:
+        -:  764:// versions for passing wx[W]CharBuffer:
+        -:  765:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  766:WX_ARG_NORMALIZER_FORWARD(wxScopedCharBuffer, const char*);
+        -:  767:WX_ARG_NORMALIZER_FORWARD(const wxScopedCharBuffer&, const char*);
+        -:  768:#endif
+        -:  769:WX_ARG_NORMALIZER_FORWARD(wxScopedWCharBuffer, const wchar_t*);
+        -:  770:WX_ARG_NORMALIZER_FORWARD(const wxScopedWCharBuffer&, const wchar_t*);
+        -:  771:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  772:WX_ARG_NORMALIZER_FORWARD(wxCharBuffer, const char*);
+        -:  773:WX_ARG_NORMALIZER_FORWARD(const wxCharBuffer&, const char*);
+        -:  774:#endif
+        -:  775:WX_ARG_NORMALIZER_FORWARD(wxWCharBuffer, const wchar_t*);
+        -:  776:WX_ARG_NORMALIZER_FORWARD(const wxWCharBuffer&, const wchar_t*);
+        -:  777:
+        -:  778:// versions for std::[w]string:
+        -:  779:#if wxUSE_STD_STRING
+        -:  780:
+        -:  781:#include "wx/stringimpl.h"
+        -:  782:
+        -:  783:// And also string_view, if we have it (notice that <string> was included from
+        -:  784:// wx/stringimpl.h above, so __cpp_lib_string_view should be defined if it's
+        -:  785:// supported).
+        -:  786:#ifdef __cpp_lib_string_view
+        -:  787:    #include <string_view>
+        -:  788:#endif // __cpp_lib_string_view
+        -:  789:
+        -:  790:#if !wxUSE_UTF8_LOCALE_ONLY
+        -:  791:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  792:template<>
+        -:  793:struct wxArgNormalizerWchar<const std::string&>
+        -:  794:    : public wxArgNormalizerWchar<const char*>
+        -:  795:{
+        -:  796:    wxArgNormalizerWchar(const std::string& s,
+        -:  797:                         const wxFormatString *fmt, unsigned index)
+        -:  798:        : wxArgNormalizerWchar<const char*>(s.c_str(), fmt, index) {}
+        -:  799:};
+        -:  800:
+        -:  801:#ifdef __cpp_lib_string_view
+        -:  802:// This is inefficient because we create a temporary string rather than using
+        -:  803:// the string_view directly, but is required because the rest of the code
+        -:  804:// assumes NUL-terminated strings and is still better than nothing (i.e. no
+        -:  805:// support for std::string_view at all).
+        -:  806:template<>
+        -:  807:struct wxArgNormalizerWchar<const std::string_view&>
+        -:  808:    : public wxArgNormalizerWchar<const std::string&>
+        -:  809:{
+        -:  810:    wxArgNormalizerWchar(const std::string_view& v,
+        -:  811:                         const wxFormatString *fmt, unsigned index)
+        -:  812:        : wxArgNormalizerWchar<const std::string&>(std::string{v}, fmt, index) {}
+        -:  813:};
+        -:  814:#endif // __cpp_lib_string_view
+        -:  815:
+        -:  816:#endif // NO_IMPLICIT_WXSTRING_ENCODING
+        -:  817:
+        -:  818:template<>
+        -:  819:struct wxArgNormalizerWchar<const wxStdWideString&>
+        -:  820:    : public wxArgNormalizerWchar<const wchar_t*>
+        -:  821:{
+        -:  822:    wxArgNormalizerWchar(const wxStdWideString& s,
+        -:  823:                         const wxFormatString *fmt, unsigned index)
+        -:  824:        : wxArgNormalizerWchar<const wchar_t*>(s.c_str(), fmt, index) {}
+        -:  825:};
+        -:  826:#endif // !wxUSE_UTF8_LOCALE_ONLY
+        -:  827:
+        -:  828:#if wxUSE_UNICODE_UTF8
+        -:  829:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  830:template<>
+        -:  831:struct wxArgNormalizerUtf8<const std::string&>
+        -:  832:    : public wxArgNormalizerUtf8<const char*>
+        -:  833:{
+        -:  834:    wxArgNormalizerUtf8(const std::string& s,
+        -:  835:                        const wxFormatString *fmt, unsigned index)
+        -:  836:        : wxArgNormalizerUtf8<const char*>(s.c_str(), fmt, index) {}
+        -:  837:};
+        -:  838:
+        -:  839:#ifdef __cpp_lib_string_view
+        -:  840:template<>
+        -:  841:struct wxArgNormalizerUtf8<const std::string_view&>
+        -:  842:    : public wxArgNormalizerUtf8<const char*>
+        -:  843:{
+        -:  844:    wxArgNormalizerUtf8(const std::string_view& v,
+        -:  845:                        const wxFormatString *fmt, unsigned index)
+        -:  846:        : wxArgNormalizerUtf8<const char*>(v.data(), fmt, index) {}
+        -:  847:};
+        -:  848:#endif // __cpp_lib_string_view
+        -:  849:
+        -:  850:#endif // wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  851:
+        -:  852:template<>
+        -:  853:struct wxArgNormalizerUtf8<const wxStdWideString&>
+        -:  854:    : public wxArgNormalizerUtf8<const wchar_t*>
+        -:  855:{
+        -:  856:    wxArgNormalizerUtf8(const wxStdWideString& s,
+        -:  857:                        const wxFormatString *fmt, unsigned index)
+        -:  858:        : wxArgNormalizerUtf8<const wchar_t*>(s.c_str(), fmt, index) {}
+        -:  859:};
+        -:  860:#endif // wxUSE_UNICODE_UTF8
+        -:  861:
+        -:  862:#ifndef wxNO_IMPLICIT_WXSTRING_ENCODING
+        -:  863:WX_ARG_NORMALIZER_FORWARD(std::string, const std::string&);
+        -:  864:#ifdef __cpp_lib_string_view
+        -:  865:WX_ARG_NORMALIZER_FORWARD(std::string_view, const std::string_view&);
+        -:  866:#endif // __cpp_lib_string_view
+        -:  867:#endif
+        -:  868:WX_ARG_NORMALIZER_FORWARD(wxStdWideString, const wxStdWideString&);
+        -:  869:
+        -:  870:#endif // wxUSE_STD_STRING
+        -:  871:
+        -:  872:
+        -:  873:// versions for wxUniChar, wxUniCharRef:
+        -:  874:// (this is same for UTF-8 and Wchar builds, we just convert to wchar_t)
+        -:  875:template<>
+        -:  876:struct wxArgNormalizer<const wxUniChar&> : public wxArgNormalizer<wchar_t>
+        -:  877:{
+        -:  878:    wxArgNormalizer(const wxUniChar& s,
+        -:  879:                    const wxFormatString *fmt, unsigned index)
+        -:  880:        : wxArgNormalizer<wchar_t>(wx_truncate_cast(wchar_t, s.GetValue()), fmt, index) {}
+        -:  881:};
+        -:  882:
+        -:  883:// for wchar_t, default handler does the right thing
+        -:  884:
+        -:  885:// char has to be treated differently in Unicode builds: a char argument may
+        -:  886:// be used either for a character value (which should be converted into
+        -:  887:// wxUniChar) or as an integer value (which should be left as-is). We take
+        -:  888:// advantage of the fact that both char and wchar_t are converted into int
+        -:  889:// in variadic arguments here.
+        -:  890:#if wxUSE_UNICODE
+        -:  891:template<typename T>
+        -:  892:struct wxArgNormalizerNarrowChar
+        -:  893:{
+        -:  894:    wxArgNormalizerNarrowChar(T value,
+        -:  895:                              const wxFormatString *fmt, unsigned index)
+        -:  896:    {
+        -:  897:        wxASSERT_ARG_TYPE( fmt, index,
+        -:  898:                           wxFormatString::Arg_Char | wxFormatString::Arg_Int );
+        -:  899:
+        -:  900:        // FIXME-UTF8: which one is better default in absence of fmt string
+        -:  901:        //             (i.e. when used like e.g. Foo("foo", "bar", 'c', NULL)?
+        -:  902:        if ( !fmt || fmt->GetArgumentType(index) == wxFormatString::Arg_Char )
+        -:  903:            m_value = wx_truncate_cast(T, wxUniChar(value).GetValue());
+        -:  904:        else
+        -:  905:            m_value = value;
+        -:  906:    }
+        -:  907:
+        -:  908:    int get() const { return m_value; }
+        -:  909:
+        -:  910:    T m_value;
+        -:  911:};
+        -:  912:
+        -:  913:template<>
+        -:  914:struct wxArgNormalizer<char> : public wxArgNormalizerNarrowChar<char>
+        -:  915:{
+        -:  916:    wxArgNormalizer(char value,
+        -:  917:                    const wxFormatString *fmt, unsigned index)
+        -:  918:        : wxArgNormalizerNarrowChar<char>(value, fmt, index) {}
+        -:  919:};
+        -:  920:
+        -:  921:template<>
+        -:  922:struct wxArgNormalizer<unsigned char>
+        -:  923:    : public wxArgNormalizerNarrowChar<unsigned char>
+        -:  924:{
+        -:  925:    wxArgNormalizer(unsigned char value,
+        -:  926:                    const wxFormatString *fmt, unsigned index)
+        -:  927:        : wxArgNormalizerNarrowChar<unsigned char>(value, fmt, index) {}
+        -:  928:};
+        -:  929:
+        -:  930:template<>
+        -:  931:struct wxArgNormalizer<signed char>
+        -:  932:    : public wxArgNormalizerNarrowChar<signed char>
+        -:  933:{
+        -:  934:    wxArgNormalizer(signed char value,
+        -:  935:                    const wxFormatString *fmt, unsigned index)
+        -:  936:        : wxArgNormalizerNarrowChar<signed char>(value, fmt, index) {}
+        -:  937:};
+        -:  938:
+        -:  939:#endif // wxUSE_UNICODE
+        -:  940:
+        -:  941:// convert references:
+        -:  942:WX_ARG_NORMALIZER_FORWARD(wxUniChar, const wxUniChar&);
+        -:  943:WX_ARG_NORMALIZER_FORWARD(const wxUniCharRef&, const wxUniChar&);
+        -:  944:WX_ARG_NORMALIZER_FORWARD(wxUniCharRef, const wxUniChar&);
+        -:  945:WX_ARG_NORMALIZER_FORWARD(const wchar_t&, wchar_t);
+        -:  946:
+        -:  947:WX_ARG_NORMALIZER_FORWARD(const char&, char);
+        -:  948:WX_ARG_NORMALIZER_FORWARD(const unsigned char&, unsigned char);
+        -:  949:WX_ARG_NORMALIZER_FORWARD(const signed char&, signed char);
+        -:  950:
+        -:  951:
+        -:  952:#undef WX_ARG_NORMALIZER_FORWARD
+        -:  953:#undef _WX_ARG_NORMALIZER_FORWARD_IMPL
+        -:  954:
+        -:  955:// NB: Don't #undef wxASSERT_ARG_TYPE here as it's also used in wx/longlong.h.
+        -:  956:
+        -:  957:// ----------------------------------------------------------------------------
+        -:  958:// WX_VA_ARG_STRING
+        -:  959:// ----------------------------------------------------------------------------
+        -:  960:
+        -:  961:// Replacement for va_arg() for use with strings in functions that accept
+        -:  962:// strings normalized by wxArgNormalizer<T>:
+        -:  963:
+        -:  964:struct WXDLLIMPEXP_BASE wxArgNormalizedString
+        -:  965:{
+        -:  966:    wxArgNormalizedString(const void* ptr) : m_ptr(ptr) {}
+        -:  967:
+        -:  968:    // returns true if non-NULL string was passed in
+        -:  969:    bool IsValid() const { return m_ptr != NULL; }
+        -:  970:    operator bool() const { return IsValid(); }
+        -:  971:
+        -:  972:    // extracts the string, returns empty string if NULL was passed in
+        -:  973:    wxString GetString() const;
+        -:  974:    operator wxString() const;
+        -:  975:
+        -:  976:private:
+        -:  977:    const void *m_ptr;
+        -:  978:};
+        -:  979:
+        -:  980:#define WX_VA_ARG_STRING(ap) wxArgNormalizedString(va_arg(ap, const void*))
+        -:  981:
+        -:  982:// ----------------------------------------------------------------------------
+        -:  983:// implementation of the WX_DEFINE_VARARG_* macros
+        -:  984:// ----------------------------------------------------------------------------
+        -:  985:
+        -:  986:// NB: The vararg emulation code is limited to 30 variadic and 4 fixed
+        -:  987://     arguments at the moment.
+        -:  988://     If you need more variadic arguments, you need to
+        -:  989://        1) increase the value of _WX_VARARG_MAX_ARGS
+        -:  990://        2) add _WX_VARARG_JOIN_* and _WX_VARARG_ITER_* up to the new
+        -:  991://           _WX_VARARG_MAX_ARGS value to the lists below
+        -:  992://     If you need more fixed arguments, you need to
+        -:  993://        1) increase the value of _WX_VARARG_MAX_FIXED_ARGS
+        -:  994://        2) add _WX_VARARG_FIXED_EXPAND_* and _WX_VARARG_FIXED_UNUSED_EXPAND_*
+        -:  995://           macros below
+        -:  996:#define _WX_VARARG_MAX_ARGS        30
+        -:  997:#define _WX_VARARG_MAX_FIXED_ARGS   4
+        -:  998:
+        -:  999:#define _WX_VARARG_JOIN_1(m)                                 m(1)
+        -: 1000:#define _WX_VARARG_JOIN_2(m)       _WX_VARARG_JOIN_1(m),     m(2)
+        -: 1001:#define _WX_VARARG_JOIN_3(m)       _WX_VARARG_JOIN_2(m),     m(3)
+        -: 1002:#define _WX_VARARG_JOIN_4(m)       _WX_VARARG_JOIN_3(m),     m(4)
+        -: 1003:#define _WX_VARARG_JOIN_5(m)       _WX_VARARG_JOIN_4(m),     m(5)
+        -: 1004:#define _WX_VARARG_JOIN_6(m)       _WX_VARARG_JOIN_5(m),     m(6)
+        -: 1005:#define _WX_VARARG_JOIN_7(m)       _WX_VARARG_JOIN_6(m),     m(7)
+        -: 1006:#define _WX_VARARG_JOIN_8(m)       _WX_VARARG_JOIN_7(m),     m(8)
+        -: 1007:#define _WX_VARARG_JOIN_9(m)       _WX_VARARG_JOIN_8(m),     m(9)
+        -: 1008:#define _WX_VARARG_JOIN_10(m)      _WX_VARARG_JOIN_9(m),     m(10)
+        -: 1009:#define _WX_VARARG_JOIN_11(m)      _WX_VARARG_JOIN_10(m),    m(11)
+        -: 1010:#define _WX_VARARG_JOIN_12(m)      _WX_VARARG_JOIN_11(m),    m(12)
+        -: 1011:#define _WX_VARARG_JOIN_13(m)      _WX_VARARG_JOIN_12(m),    m(13)
+        -: 1012:#define _WX_VARARG_JOIN_14(m)      _WX_VARARG_JOIN_13(m),    m(14)
+        -: 1013:#define _WX_VARARG_JOIN_15(m)      _WX_VARARG_JOIN_14(m),    m(15)
+        -: 1014:#define _WX_VARARG_JOIN_16(m)      _WX_VARARG_JOIN_15(m),    m(16)
+        -: 1015:#define _WX_VARARG_JOIN_17(m)      _WX_VARARG_JOIN_16(m),    m(17)
+        -: 1016:#define _WX_VARARG_JOIN_18(m)      _WX_VARARG_JOIN_17(m),    m(18)
+        -: 1017:#define _WX_VARARG_JOIN_19(m)      _WX_VARARG_JOIN_18(m),    m(19)
+        -: 1018:#define _WX_VARARG_JOIN_20(m)      _WX_VARARG_JOIN_19(m),    m(20)
+        -: 1019:#define _WX_VARARG_JOIN_21(m)      _WX_VARARG_JOIN_20(m),    m(21)
+        -: 1020:#define _WX_VARARG_JOIN_22(m)      _WX_VARARG_JOIN_21(m),    m(22)
+        -: 1021:#define _WX_VARARG_JOIN_23(m)      _WX_VARARG_JOIN_22(m),    m(23)
+        -: 1022:#define _WX_VARARG_JOIN_24(m)      _WX_VARARG_JOIN_23(m),    m(24)
+        -: 1023:#define _WX_VARARG_JOIN_25(m)      _WX_VARARG_JOIN_24(m),    m(25)
+        -: 1024:#define _WX_VARARG_JOIN_26(m)      _WX_VARARG_JOIN_25(m),    m(26)
+        -: 1025:#define _WX_VARARG_JOIN_27(m)      _WX_VARARG_JOIN_26(m),    m(27)
+        -: 1026:#define _WX_VARARG_JOIN_28(m)      _WX_VARARG_JOIN_27(m),    m(28)
+        -: 1027:#define _WX_VARARG_JOIN_29(m)      _WX_VARARG_JOIN_28(m),    m(29)
+        -: 1028:#define _WX_VARARG_JOIN_30(m)      _WX_VARARG_JOIN_29(m),    m(30)
+        -: 1029:
+        -: 1030:#define _WX_VARARG_ITER_1(m,a,b,c,d,e,f)                                    m(1,a,b,c,d,e,f)
+        -: 1031:#define _WX_VARARG_ITER_2(m,a,b,c,d,e,f)  _WX_VARARG_ITER_1(m,a,b,c,d,e,f)  m(2,a,b,c,d,e,f)
+        -: 1032:#define _WX_VARARG_ITER_3(m,a,b,c,d,e,f)  _WX_VARARG_ITER_2(m,a,b,c,d,e,f)  m(3,a,b,c,d,e,f)
+        -: 1033:#define _WX_VARARG_ITER_4(m,a,b,c,d,e,f)  _WX_VARARG_ITER_3(m,a,b,c,d,e,f)  m(4,a,b,c,d,e,f)
+        -: 1034:#define _WX_VARARG_ITER_5(m,a,b,c,d,e,f)  _WX_VARARG_ITER_4(m,a,b,c,d,e,f)  m(5,a,b,c,d,e,f)
+        -: 1035:#define _WX_VARARG_ITER_6(m,a,b,c,d,e,f)  _WX_VARARG_ITER_5(m,a,b,c,d,e,f)  m(6,a,b,c,d,e,f)
+        -: 1036:#define _WX_VARARG_ITER_7(m,a,b,c,d,e,f)  _WX_VARARG_ITER_6(m,a,b,c,d,e,f)  m(7,a,b,c,d,e,f)
+        -: 1037:#define _WX_VARARG_ITER_8(m,a,b,c,d,e,f)  _WX_VARARG_ITER_7(m,a,b,c,d,e,f)  m(8,a,b,c,d,e,f)
+        -: 1038:#define _WX_VARARG_ITER_9(m,a,b,c,d,e,f)  _WX_VARARG_ITER_8(m,a,b,c,d,e,f)  m(9,a,b,c,d,e,f)
+        -: 1039:#define _WX_VARARG_ITER_10(m,a,b,c,d,e,f) _WX_VARARG_ITER_9(m,a,b,c,d,e,f)  m(10,a,b,c,d,e,f)
+        -: 1040:#define _WX_VARARG_ITER_11(m,a,b,c,d,e,f) _WX_VARARG_ITER_10(m,a,b,c,d,e,f) m(11,a,b,c,d,e,f)
+        -: 1041:#define _WX_VARARG_ITER_12(m,a,b,c,d,e,f) _WX_VARARG_ITER_11(m,a,b,c,d,e,f) m(12,a,b,c,d,e,f)
+        -: 1042:#define _WX_VARARG_ITER_13(m,a,b,c,d,e,f) _WX_VARARG_ITER_12(m,a,b,c,d,e,f) m(13,a,b,c,d,e,f)
+        -: 1043:#define _WX_VARARG_ITER_14(m,a,b,c,d,e,f) _WX_VARARG_ITER_13(m,a,b,c,d,e,f) m(14,a,b,c,d,e,f)
+        -: 1044:#define _WX_VARARG_ITER_15(m,a,b,c,d,e,f) _WX_VARARG_ITER_14(m,a,b,c,d,e,f) m(15,a,b,c,d,e,f)
+        -: 1045:#define _WX_VARARG_ITER_16(m,a,b,c,d,e,f) _WX_VARARG_ITER_15(m,a,b,c,d,e,f) m(16,a,b,c,d,e,f)
+        -: 1046:#define _WX_VARARG_ITER_17(m,a,b,c,d,e,f) _WX_VARARG_ITER_16(m,a,b,c,d,e,f) m(17,a,b,c,d,e,f)
+        -: 1047:#define _WX_VARARG_ITER_18(m,a,b,c,d,e,f) _WX_VARARG_ITER_17(m,a,b,c,d,e,f) m(18,a,b,c,d,e,f)
+        -: 1048:#define _WX_VARARG_ITER_19(m,a,b,c,d,e,f) _WX_VARARG_ITER_18(m,a,b,c,d,e,f) m(19,a,b,c,d,e,f)
+        -: 1049:#define _WX_VARARG_ITER_20(m,a,b,c,d,e,f) _WX_VARARG_ITER_19(m,a,b,c,d,e,f) m(20,a,b,c,d,e,f)
+        -: 1050:#define _WX_VARARG_ITER_21(m,a,b,c,d,e,f) _WX_VARARG_ITER_20(m,a,b,c,d,e,f) m(21,a,b,c,d,e,f)
+        -: 1051:#define _WX_VARARG_ITER_22(m,a,b,c,d,e,f) _WX_VARARG_ITER_21(m,a,b,c,d,e,f) m(22,a,b,c,d,e,f)
+        -: 1052:#define _WX_VARARG_ITER_23(m,a,b,c,d,e,f) _WX_VARARG_ITER_22(m,a,b,c,d,e,f) m(23,a,b,c,d,e,f)
+        -: 1053:#define _WX_VARARG_ITER_24(m,a,b,c,d,e,f) _WX_VARARG_ITER_23(m,a,b,c,d,e,f) m(24,a,b,c,d,e,f)
+        -: 1054:#define _WX_VARARG_ITER_25(m,a,b,c,d,e,f) _WX_VARARG_ITER_24(m,a,b,c,d,e,f) m(25,a,b,c,d,e,f)
+        -: 1055:#define _WX_VARARG_ITER_26(m,a,b,c,d,e,f) _WX_VARARG_ITER_25(m,a,b,c,d,e,f) m(26,a,b,c,d,e,f)
+        -: 1056:#define _WX_VARARG_ITER_27(m,a,b,c,d,e,f) _WX_VARARG_ITER_26(m,a,b,c,d,e,f) m(27,a,b,c,d,e,f)
+        -: 1057:#define _WX_VARARG_ITER_28(m,a,b,c,d,e,f) _WX_VARARG_ITER_27(m,a,b,c,d,e,f) m(28,a,b,c,d,e,f)
+        -: 1058:#define _WX_VARARG_ITER_29(m,a,b,c,d,e,f) _WX_VARARG_ITER_28(m,a,b,c,d,e,f) m(29,a,b,c,d,e,f)
+        -: 1059:#define _WX_VARARG_ITER_30(m,a,b,c,d,e,f) _WX_VARARG_ITER_29(m,a,b,c,d,e,f) m(30,a,b,c,d,e,f)
+        -: 1060:
+        -: 1061:
+        -: 1062:#define _WX_VARARG_FIXED_EXPAND_1(t1) \
+        -: 1063:         t1 f1
+        -: 1064:#define _WX_VARARG_FIXED_EXPAND_2(t1,t2) \
+        -: 1065:         t1 f1, t2 f2
+        -: 1066:#define _WX_VARARG_FIXED_EXPAND_3(t1,t2,t3) \
+        -: 1067:         t1 f1, t2 f2, t3 f3
+        -: 1068:#define _WX_VARARG_FIXED_EXPAND_4(t1,t2,t3,t4) \
+        -: 1069:         t1 f1, t2 f2, t3 f3, t4 f4
+        -: 1070:
+        -: 1071:#define _WX_VARARG_FIXED_UNUSED_EXPAND_1(t1) \
+        -: 1072:         t1 WXUNUSED(f1)
+        -: 1073:#define _WX_VARARG_FIXED_UNUSED_EXPAND_2(t1,t2) \
+        -: 1074:         t1 WXUNUSED(f1), t2 WXUNUSED(f2)
+        -: 1075:#define _WX_VARARG_FIXED_UNUSED_EXPAND_3(t1,t2,t3) \
+        -: 1076:         t1 WXUNUSED(f1), t2 WXUNUSED(f2), t3 WXUNUSED(f3)
+        -: 1077:#define _WX_VARARG_FIXED_UNUSED_EXPAND_4(t1,t2,t3,t4) \
+        -: 1078:         t1 WXUNUSED(f1), t2 WXUNUSED(f2), t3 WXUNUSED(f3), t4 WXUNUSED(f4)
+        -: 1079:
+        -: 1080:#define _WX_VARARG_FIXED_TYPEDEFS_1(t1) \
+        -: 1081:             typedef t1 TF1
+        -: 1082:#define _WX_VARARG_FIXED_TYPEDEFS_2(t1,t2) \
+        -: 1083:             _WX_VARARG_FIXED_TYPEDEFS_1(t1); typedef t2 TF2
+        -: 1084:#define _WX_VARARG_FIXED_TYPEDEFS_3(t1,t2,t3) \
+        -: 1085:             _WX_VARARG_FIXED_TYPEDEFS_2(t1,t2); typedef t3 TF3
+        -: 1086:#define _WX_VARARG_FIXED_TYPEDEFS_4(t1,t2,t3,t4) \
+        -: 1087:             _WX_VARARG_FIXED_TYPEDEFS_3(t1,t2,t3); typedef t4 TF4
+        -: 1088:
+        -: 1089:// This macro expands N-items tuple of fixed arguments types into part of
+        -: 1090:// function's declaration. For example,
+        -: 1091:// "_WX_VARARG_FIXED_EXPAND(3, (int, char*, int))" expands into
+        -: 1092:// "int f1, char* f2, int f3".
+        -: 1093:#define _WX_VARARG_FIXED_EXPAND(N, args) \
+        -: 1094:                _WX_VARARG_FIXED_EXPAND_IMPL(N, args)
+        -: 1095:#define _WX_VARARG_FIXED_EXPAND_IMPL(N, args) \
+        -: 1096:                _WX_VARARG_FIXED_EXPAND_##N args
+        -: 1097:
+        -: 1098:// Ditto for unused arguments
+        -: 1099:#define _WX_VARARG_FIXED_UNUSED_EXPAND(N, args) \
+        -: 1100:                _WX_VARARG_FIXED_UNUSED_EXPAND_IMPL(N, args)
+        -: 1101:#define _WX_VARARG_FIXED_UNUSED_EXPAND_IMPL(N, args) \
+        -: 1102:                _WX_VARARG_FIXED_UNUSED_EXPAND_##N args
+        -: 1103:
+        -: 1104:// Declarates typedefs for fixed arguments types; i-th fixed argument types
+        -: 1105:// will have TFi typedef.
+        -: 1106:#define _WX_VARARG_FIXED_TYPEDEFS(N, args) \
+        -: 1107:                _WX_VARARG_FIXED_TYPEDEFS_IMPL(N, args)
+        -: 1108:#define _WX_VARARG_FIXED_TYPEDEFS_IMPL(N, args) \
+        -: 1109:                _WX_VARARG_FIXED_TYPEDEFS_##N args
+        -: 1110:
+        -: 1111:
+        -: 1112:// This macro calls another macro 'm' passed as second argument 'N' times,
+        -: 1113:// with its only argument set to 1..N, and concatenates the results using
+        -: 1114:// comma as separator.
+        -: 1115://
+        -: 1116:// An example:
+        -: 1117://     #define foo(i)  x##i
+        -: 1118://     // this expands to "x1,x2,x3,x4"
+        -: 1119://     _WX_VARARG_JOIN(4, foo)
+        -: 1120://
+        -: 1121://
+        -: 1122:// N must not be greater than _WX_VARARG_MAX_ARGS (=30).
+        -: 1123:#define _WX_VARARG_JOIN(N, m)             _WX_VARARG_JOIN_IMPL(N, m)
+        -: 1124:#define _WX_VARARG_JOIN_IMPL(N, m)        _WX_VARARG_JOIN_##N(m)
+        -: 1125:
+        -: 1126:
+        -: 1127:// This macro calls another macro 'm' passed as second argument 'N' times, with
+        -: 1128:// its first argument set to 1..N and the remaining arguments set to 'a', 'b',
+        -: 1129:// 'c', 'd', 'e' and 'f'. The results are separated with whitespace in the
+        -: 1130:// expansion.
+        -: 1131://
+        -: 1132:// An example:
+        -: 1133://     // this macro expands to:
+        -: 1134://     //     foo(1,a,b,c,d,e,f)
+        -: 1135://     //     foo(2,a,b,c,d,e,f)
+        -: 1136://     //     foo(3,a,b,c,d,e,f)
+        -: 1137://     _WX_VARARG_ITER(3, foo, a, b, c, d, e, f)
+        -: 1138://
+        -: 1139:// N must not be greater than _WX_VARARG_MAX_ARGS (=30).
+        -: 1140:#define _WX_VARARG_ITER(N,m,a,b,c,d,e,f) \
+        -: 1141:        _WX_VARARG_ITER_IMPL(N,m,a,b,c,d,e,f)
+        -: 1142:#define _WX_VARARG_ITER_IMPL(N,m,a,b,c,d,e,f) \
+        -: 1143:        _WX_VARARG_ITER_##N(m,a,b,c,d,e,f)
+        -: 1144:
+        -: 1145:// Generates code snippet for i-th "variadic" argument in vararg function's
+        -: 1146:// prototype:
+        -: 1147:#define _WX_VARARG_ARG(i)               T##i a##i
+        -: 1148:
+        -: 1149:// Like _WX_VARARG_ARG_UNUSED, but outputs argument's type with WXUNUSED:
+        -: 1150:#define _WX_VARARG_ARG_UNUSED(i)        T##i WXUNUSED(a##i)
+        -: 1151:
+        -: 1152:// Generates code snippet for i-th type in vararg function's template<...>:
+        -: 1153:#define _WX_VARARG_TEMPL(i)             typename T##i
+        -: 1154:
+        -: 1155:// Generates code snippet for passing i-th argument of vararg function
+        -: 1156:// wrapper to its implementation, normalizing it in the process:
+        -: 1157:#define _WX_VARARG_PASS_WCHAR(i) \
+        -: 1158:    wxArgNormalizerWchar<T##i>(a##i, fmt, i).get()
+        -: 1159:#define _WX_VARARG_PASS_UTF8(i) \
+        -: 1160:    wxArgNormalizerUtf8<T##i>(a##i, fmt, i).get()
+        -: 1161:
+        -: 1162:
+        -: 1163:// And the same for fixed arguments, _not_ normalizing it:
+        -: 1164:#define _WX_VARARG_PASS_FIXED(i)        f##i
+        -: 1165:
+        -: 1166:#define _WX_VARARG_FIND_FMT(i) \
+        -: 1167:            (wxFormatStringArgumentFinder<TF##i>::find(f##i))
+        -: 1168:
+        -: 1169:#define _WX_VARARG_FORMAT_STRING(numfixed, fixed)                             \
+        -: 1170:    _WX_VARARG_FIXED_TYPEDEFS(numfixed, fixed);                               \
+        -: 1171:    const wxFormatString *fmt =                                               \
+        -: 1172:            (_WX_VARARG_JOIN(numfixed, _WX_VARARG_FIND_FMT))
+        -: 1173:
+        -: 1174:#if wxUSE_UNICODE_UTF8
+        -: 1175:    #define _WX_VARARG_DO_CALL_UTF8(return_kw, impl, implUtf8, N, numfixed)   \
+        -: 1176:        return_kw implUtf8(_WX_VARARG_JOIN(numfixed, _WX_VARARG_PASS_FIXED),  \
+        -: 1177:                        _WX_VARARG_JOIN(N, _WX_VARARG_PASS_UTF8))
+        -: 1178:    #define _WX_VARARG_DO_CALL0_UTF8(return_kw, impl, implUtf8, numfixed)     \
+        -: 1179:        return_kw implUtf8(_WX_VARARG_JOIN(numfixed, _WX_VARARG_PASS_FIXED))
+        -: 1180:#endif // wxUSE_UNICODE_UTF8
+        -: 1181:
+        -: 1182:#define _WX_VARARG_DO_CALL_WCHAR(return_kw, impl, implUtf8, N, numfixed)      \
+        -: 1183:    return_kw impl(_WX_VARARG_JOIN(numfixed, _WX_VARARG_PASS_FIXED),          \
+        -: 1184:                    _WX_VARARG_JOIN(N, _WX_VARARG_PASS_WCHAR))
+        -: 1185:#define _WX_VARARG_DO_CALL0_WCHAR(return_kw, impl, implUtf8, numfixed)        \
+        -: 1186:    return_kw impl(_WX_VARARG_JOIN(numfixed, _WX_VARARG_PASS_FIXED))
+        -: 1187:
+        -: 1188:#if wxUSE_UNICODE_UTF8
+        -: 1189:    #if wxUSE_UTF8_LOCALE_ONLY
+        -: 1190:        #define _WX_VARARG_DO_CALL _WX_VARARG_DO_CALL_UTF8
+        -: 1191:        #define _WX_VARARG_DO_CALL0 _WX_VARARG_DO_CALL0_UTF8
+        -: 1192:    #else // possibly non-UTF8 locales
+        -: 1193:        #define _WX_VARARG_DO_CALL(return_kw, impl, implUtf8, N, numfixed)    \
+        -: 1194:            if ( wxLocaleIsUtf8 )                                             \
+        -: 1195:              _WX_VARARG_DO_CALL_UTF8(return_kw, impl, implUtf8, N, numfixed);\
+        -: 1196:            else                                                              \
+        -: 1197:              _WX_VARARG_DO_CALL_WCHAR(return_kw, impl, implUtf8, N, numfixed)
+        -: 1198:
+        -: 1199:        #define _WX_VARARG_DO_CALL0(return_kw, impl, implUtf8, numfixed)      \
+        -: 1200:            if ( wxLocaleIsUtf8 )                                             \
+        -: 1201:              _WX_VARARG_DO_CALL0_UTF8(return_kw, impl, implUtf8, numfixed);  \
+        -: 1202:            else                                                              \
+        -: 1203:              _WX_VARARG_DO_CALL0_WCHAR(return_kw, impl, implUtf8, numfixed)
+        -: 1204:    #endif // wxUSE_UTF8_LOCALE_ONLY or not
+        -: 1205:#else // wxUSE_UNICODE_WCHAR or ANSI
+        -: 1206:    #define _WX_VARARG_DO_CALL _WX_VARARG_DO_CALL_WCHAR
+        -: 1207:    #define _WX_VARARG_DO_CALL0 _WX_VARARG_DO_CALL0_WCHAR
+        -: 1208:#endif // wxUSE_UNICODE_UTF8 / wxUSE_UNICODE_WCHAR
+        -: 1209:
+        -: 1210:
+        -: 1211:// Macro to be used with _WX_VARARG_ITER in the implementation of
+        -: 1212:// WX_DEFINE_VARARG_FUNC (see its documentation for the meaning of arguments)
+        -: 1213:#define _WX_VARARG_DEFINE_FUNC(N, rettype, name,                              \
+        -: 1214:                               impl, implUtf8, numfixed, fixed)               \
+        -: 1215:    template<_WX_VARARG_JOIN(N, _WX_VARARG_TEMPL)>                            \
+        -: 1216:    rettype name(_WX_VARARG_FIXED_EXPAND(numfixed, fixed),                    \
+        -: 1217:                 _WX_VARARG_JOIN(N, _WX_VARARG_ARG))                          \
+        -: 1218:    {                                                                         \
+        -: 1219:        _WX_VARARG_FORMAT_STRING(numfixed, fixed);                            \
+        -: 1220:        _WX_VARARG_DO_CALL(return, impl, implUtf8, N, numfixed);              \
+        -: 1221:    }
+        -: 1222:
+        -: 1223:#define _WX_VARARG_DEFINE_FUNC_N0(rettype, name,                              \
+        -: 1224:                                  impl, implUtf8, numfixed, fixed)            \
+        -: 1225:    inline rettype name(_WX_VARARG_FIXED_EXPAND(numfixed, fixed))             \
+        -: 1226:    {                                                                         \
+        -: 1227:        _WX_VARARG_DO_CALL0(return, impl, implUtf8, numfixed);                \
+        -: 1228:    }
+        -: 1229:
+        -: 1230:// Macro to be used with _WX_VARARG_ITER in the implementation of
+        -: 1231:// WX_DEFINE_VARARG_FUNC_VOID (see its documentation for the meaning of
+        -: 1232:// arguments; rettype is ignored and is used only to satisfy _WX_VARARG_ITER's
+        -: 1233:// requirements).
+        -: 1234:#define _WX_VARARG_DEFINE_FUNC_VOID(N, rettype, name,                         \
+        -: 1235:                                    impl, implUtf8, numfixed, fixed)          \
+        -: 1236:    template<_WX_VARARG_JOIN(N, _WX_VARARG_TEMPL)>                            \
+        -: 1237:    void name(_WX_VARARG_FIXED_EXPAND(numfixed, fixed),                       \
+        -: 1238:                 _WX_VARARG_JOIN(N, _WX_VARARG_ARG))                          \
+        -: 1239:    {                                                                         \
+        -: 1240:        _WX_VARARG_FORMAT_STRING(numfixed, fixed);                            \
+        -: 1241:        _WX_VARARG_DO_CALL(wxEMPTY_PARAMETER_VALUE,                           \
+        -: 1242:                           impl, implUtf8, N, numfixed);                      \
+        -: 1243:    }
+        -: 1244:
+        -: 1245:#define _WX_VARARG_DEFINE_FUNC_VOID_N0(name, impl, implUtf8, numfixed, fixed) \
+        -: 1246:    inline void name(_WX_VARARG_FIXED_EXPAND(numfixed, fixed))                \
+        -: 1247:    {                                                                         \
+        -: 1248:        _WX_VARARG_DO_CALL0(wxEMPTY_PARAMETER_VALUE,                          \
+        -: 1249:                            impl, implUtf8, numfixed);                        \
+        -: 1250:    }
+        -: 1251:
+        -: 1252:// Macro to be used with _WX_VARARG_ITER in the implementation of
+        -: 1253:// WX_DEFINE_VARARG_FUNC_CTOR (see its documentation for the meaning of
+        -: 1254:// arguments; rettype is ignored and is used only to satisfy _WX_VARARG_ITER's
+        -: 1255:// requirements).
+        -: 1256:#define _WX_VARARG_DEFINE_FUNC_CTOR(N, rettype, name,                         \
+        -: 1257:                                    impl, implUtf8, numfixed, fixed)          \
+        -: 1258:    template<_WX_VARARG_JOIN(N, _WX_VARARG_TEMPL)>                            \
+        -: 1259:    name(_WX_VARARG_FIXED_EXPAND(numfixed, fixed),                            \
+        -: 1260:                _WX_VARARG_JOIN(N, _WX_VARARG_ARG))                           \
+        -: 1261:    {                                                                         \
+        -: 1262:        _WX_VARARG_FORMAT_STRING(numfixed, fixed);                            \
+        -: 1263:        _WX_VARARG_DO_CALL(wxEMPTY_PARAMETER_VALUE,                           \
+        -: 1264:                           impl, implUtf8, N, numfixed);                      \
+        -: 1265:    }
+        -: 1266:
+        -: 1267:#define _WX_VARARG_DEFINE_FUNC_CTOR_N0(name, impl, implUtf8, numfixed, fixed) \
+        -: 1268:    inline name(_WX_VARARG_FIXED_EXPAND(numfixed, fixed))                     \
+        -: 1269:    {                                                                         \
+        -: 1270:        _WX_VARARG_DO_CALL0(wxEMPTY_PARAMETER_VALUE,                          \
+        -: 1271:                            impl, implUtf8, numfixed);                        \
+        -: 1272:    }
+        -: 1273:
+        -: 1274:// Macro to be used with _WX_VARARG_ITER in the implementation of
+        -: 1275:// WX_DEFINE_VARARG_FUNC_NOP, i.e. empty stub for a disabled vararg function.
+        -: 1276:// The rettype and impl arguments are ignored.
+        -: 1277:#define _WX_VARARG_DEFINE_FUNC_NOP(N, rettype, name,                          \
+        -: 1278:                                   impl, implUtf8, numfixed, fixed)           \
+        -: 1279:    template<_WX_VARARG_JOIN(N, _WX_VARARG_TEMPL)>                            \
+        -: 1280:    void name(_WX_VARARG_FIXED_UNUSED_EXPAND(numfixed, fixed),                \
+        -: 1281:                 _WX_VARARG_JOIN(N, _WX_VARARG_ARG_UNUSED))                   \
+        -: 1282:    {}
+        -: 1283:
+        -: 1284:#define _WX_VARARG_DEFINE_FUNC_NOP_N0(name, numfixed, fixed)                  \
+        -: 1285:    inline void name(_WX_VARARG_FIXED_UNUSED_EXPAND(numfixed, fixed))         \
+        -: 1286:    {}
+        -: 1287:
+        -: 1288:wxGCC_WARNING_RESTORE(ctor-dtor-privacy)
+        -: 1289:
+        -: 1290:#endif // _WX_STRVARARG_H_

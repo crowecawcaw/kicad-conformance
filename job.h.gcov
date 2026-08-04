@@ -1,0 +1,287 @@
+        -:    0:Source:/src/kicad/common/jobs/job.h
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_fp_export_svg.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_fp_export_svg.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#pragma once
+        -:   22:
+        -:   23:#include <wx/string.h>
+        -:   24:
+        -:   25:#include <json_common.h>
+        -:   26:#include <kicommon.h>
+        -:   27:#include <map>
+        -:   28:#include <settings/json_settings.h>
+        -:   29:#include <lseq.h>
+        -:   30:#include <lset.h>
+        -:   31:#include <title_block.h>
+        -:   32:
+        -:   33:class PROJECT;
+        -:   34:
+        -:   35:class KICOMMON_API JOB_PARAM_BASE
+        -:   36:{
+        -:   37:public:
+        -:   38:    JOB_PARAM_BASE( const std::string& aJsonPath );
+        -:   39:
+        -:   40:    virtual ~JOB_PARAM_BASE() = default;
+        -:   41:
+        -:   42:    virtual void FromJson( const nlohmann::json& j ) const = 0;
+        -:   43:
+        -:   44:    virtual void ToJson( nlohmann::json& j ) = 0;
+        -:   45:
+        -:   46:protected:
+        -:   47:    std::string m_jsonPath;
+        -:   48:};
+        -:   49:
+        -:   50:template <typename ValueType>
+        -:   51:class JOB_PARAM : public JOB_PARAM_BASE
+        -:   52:{
+        -:   53:public:
+        -:   54:
+        -:   55:    JOB_PARAM( const std::string& aJsonPath, ValueType* aPtr,
+        -:   56:               ValueType aDefault ) :
+        -:   57:            JOB_PARAM_BASE( aJsonPath ), m_ptr( aPtr ), m_default( aDefault )
+        -:   58:    {
+        -:   59:    }
+        -:   60:
+        -:   61:    virtual void FromJson( const nlohmann::json& j ) const override
+        -:   62:    {
+        -:   63:        *m_ptr = j.value( m_jsonPath, m_default );
+        -:   64:    }
+        -:   65:
+        -:   66:    virtual void ToJson( nlohmann::json& j ) override { j[m_jsonPath] = *m_ptr; }
+        -:   67:
+        -:   68:protected:
+        -:   69:    ValueType* m_ptr;
+        -:   70:    ValueType  m_default;
+        -:   71:};
+        -:   72:
+        -:   73:
+        -:   74:template <typename ListElementType>
+        -:   75:class JOB_PARAM_LIST : public JOB_PARAM_BASE
+        -:   76:{
+        -:   77:public:
+        -:   78:    JOB_PARAM_LIST( const std::string& aJsonPath, std::vector<ListElementType>* aPtr,
+        -:   79:                    std::vector<ListElementType> aDefault ) :
+        -:   80:            JOB_PARAM_BASE( aJsonPath ),
+        -:   81:            m_ptr( aPtr ),
+        -:   82:            m_default( std::move( aDefault ) )
+        -:   83:    { }
+        -:   84:
+        -:   85:    virtual void FromJson( const nlohmann::json& j ) const override
+        -:   86:    {
+        -:   87:        if( j.contains( m_jsonPath ) )
+        -:   88:        {
+        -:   89:            auto js = j.at( m_jsonPath );
+        -:   90:            std::vector<ListElementType> val;
+        -:   91:
+        -:   92:            if( js.is_array() )
+        -:   93:            {
+        -:   94:                for( const auto& el : js.items() )
+        -:   95:                    val.push_back( el.value().template get<ListElementType>() );
+        -:   96:            }
+        -:   97:
+        -:   98:            *m_ptr = val;
+        -:   99:        }
+        -:  100:        else
+        -:  101:            *m_ptr = m_default;
+        -:  102:    }
+        -:  103:
+        -:  104:    void ToJson( nlohmann::json& j ) override
+        -:  105:    {
+        -:  106:        nlohmann::json js = nlohmann::json::array();
+        -:  107:
+        -:  108:        for( const auto& el : *m_ptr )
+        -:  109:            js.push_back( el );
+        -:  110:
+        -:  111:        j[m_jsonPath] = js;
+        -:  112:    }
+        -:  113:
+        -:  114:protected:
+        -:  115:    std::vector<ListElementType>* m_ptr;
+        -:  116:    std::vector<ListElementType>  m_default;
+        -:  117:};
+        -:  118:
+        -:  119:
+        -:  120:class JOB_PARAM_LSEQ : public JOB_PARAM<LSEQ>
+        -:  121:{
+        -:  122:public:
+        -:  123:    JOB_PARAM_LSEQ( const std::string& aJsonPath, LSEQ* aPtr, LSEQ aDefault ) :
+        -:  124:            JOB_PARAM<LSEQ>( aJsonPath, aPtr, aDefault )
+        -:  125:    {
+        -:  126:    }
+        -:  127:
+        -:  128:    virtual void FromJson( const nlohmann::json& j ) const override
+        -:  129:    {
+        -:  130:        if( j.contains( m_jsonPath ) )
+        -:  131:        {
+        -:  132:            auto js = j.at( m_jsonPath );
+        -:  133:
+        -:  134:            LSEQ layers;
+        -:  135:            if( js.is_array() )
+        -:  136:            {
+        -:  137:                for( const nlohmann::json& layer : js )
+        -:  138:                {
+        -:  139:                    if( layer.is_string() )
+        -:  140:                    {
+        -:  141:                        wxString name = layer.get<wxString>();
+        -:  142:                        int      layerId = LSET::NameToLayer( name );
+        -:  143:                        if( layerId != UNDEFINED_LAYER )
+        -:  144:                            layers.push_back( static_cast<PCB_LAYER_ID>( layerId ) );
+        -:  145:                    }
+        -:  146:                    else
+        -:  147:                    {
+        -:  148:                        int layerId = layer.get<int>();
+        -:  149:                        if( layerId != UNDEFINED_LAYER )
+        -:  150:                            layers.push_back( static_cast<PCB_LAYER_ID>( layerId ) );
+        -:  151:                    }
+        -:  152:                }
+        -:  153:            }
+        -:  154:            *m_ptr = layers;
+        -:  155:        }
+        -:  156:        else
+        -:  157:            *m_ptr = m_default;
+        -:  158:    }
+        -:  159:
+        -:  160:    void ToJson( nlohmann::json& j ) override
+        -:  161:    {
+        -:  162:        nlohmann::json js = nlohmann::json::array();
+        -:  163:
+        -:  164:        for( PCB_LAYER_ID layer : ( *m_ptr ) )
+        -:  165:            js.push_back( LSET::Name( layer ) );
+        -:  166:
+        -:  167:        j[m_jsonPath] = js;
+        -:  168:    }
+        -:  169:};
+        -:  170:
+        -:  171:struct KICOMMON_API JOB_OUTPUT
+        -:  172:{
+        -:  173:    JOB_OUTPUT(){};
+        -:  174:
+        -:  175:    JOB_OUTPUT( wxString outputPath ) { m_outputPath = outputPath; }
+        -:  176:
+        -:  177:    wxString m_outputPath;
+        -:  178:};
+        -:  179:
+        -:  180:/**
+        -:  181: * An simple container class that lets us dispatch output jobs to kifaces
+        -:  182: */
+        -:  183:class KICOMMON_API JOB
+        -:  184:{
+        -:  185:public:
+        -:  186:    JOB( const std::string& aType, bool aOutputIsDirectory );
+        -:  187:
+        -:  188:    virtual ~JOB();
+        -:  189:
+        -:  190:    // We own at least one list of raw pointers.  Don't let the compiler fill in copy c'tors that
+        -:  191:    // will only land us in trouble.
+        -:  192:    JOB( const JOB& ) = delete;
+        -:  193:    JOB& operator=( const JOB& ) = delete;
+        -:  194:
+        -:  195:    const std::string& GetType() const { return m_type; };
+        -:  196:
+        -:  197:    const std::map<wxString, wxString>& GetVarOverrides() const { return m_varOverrides; }
+        -:  198:
+    #####:  199:    void SetVarOverrides( const std::map<wxString, wxString>& aVarOverrides )
+        -:  200:    {
+    #####:  201:        m_varOverrides = aVarOverrides;
+    #####:  202:    }
+        -:  203:
+        -:  204:    void SetTitleBlock( const TITLE_BLOCK& aTitleBlock ) { m_titleBlock = aTitleBlock; }
+        -:  205:
+        -:  206:    virtual void FromJson( const nlohmann::json& j );
+        -:  207:    virtual void ToJson( nlohmann::json& j ) const;
+        -:  208:
+        -:  209:    virtual wxString GetDefaultDescription() const;
+        -:  210:    virtual wxString GetSettingsDialogTitle() const;
+        -:  211:
+        -:  212:    const std::vector<JOB_PARAM_BASE*>& GetParams() { return m_params; }
+        -:  213:
+        -:  214:    void ClearExistingOutputs()                 { m_outputs.clear(); }
+        -:  215:    const std::vector<JOB_OUTPUT>& GetOutputs() { return m_outputs; }
+        -:  216:    void AddOutput( wxString aOutputPath )      { m_outputs.emplace_back( aOutputPath ); }
+        -:  217:
+        -:  218:    /**
+        -:  219:     * Sets the temporary output directory for the job, this is used to prefix with a given
+        -:  220:     * output path when GetFullOutputPath is called. This is intended for use with running jobsets
+        -:  221:     * and otherwise has no impact on individual job runs outside jobsets.
+        -:  222:     */
+        -:  223:    void SetTempOutputDirectory( const wxString& aBase );
+        -:  224:
+        -:  225:    /**
+        -:  226:     * Sets the configured output path for the job, this path is always saved to file.
+        -:  227:     * Any transient working output path is cleared so the new configured path takes precedence
+        -:  228:     * on the next call to GetFullOutputPath().
+        -:  229:     */
+        -:  230:    void SetConfiguredOutputPath( const wxString& aPath );
+        -:  231:
+        -:  232:    /**
+        -:  233:     * Returns the configured output path for the job
+        -:  234:     */
+        -:  235:    wxString GetConfiguredOutputPath() const { return m_outputPath; }
+        -:  236:
+        -:  237:    /**
+        -:  238:     * Sets a transient output path for the job, it takes priority over the configured output path
+        -:  239:     * when GetFullOutputPath is called.
+        -:  240:     */
+        -:  241:    void     SetWorkingOutputPath( const wxString& aPath ) { m_workingOutputPath = aPath; }
+        -:  242:
+        -:  243:    /**
+        -:  244:     * Returns the working output path for the job, if one has been set
+        -:  245:     */
+        -:  246:    wxString GetWorkingOutputPath() const { return m_workingOutputPath; }
+        -:  247:
+        -:  248:    /**
+        -:  249:     * Returns the full output path for the job, taking into account the configured output path,
+        -:  250:     * any configured working path and the temporary output directory.
+        -:  251:     *
+        -:  252:     * Additionally variable resolution will take place
+        -:  253:     */
+        -:  254:    wxString GetFullOutputPath( PROJECT* aProject ) const;
+        -:  255:
+        -:  256:    wxString ResolveOutputPath( const wxString& aPath, bool aPathIsDirectory, PROJECT* aProject ) const;
+        -:  257:
+        -:  258:    bool GetOutputPathIsDirectory() const { return m_outputPathIsDirectory; }
+        -:  259:
+        -:  260:protected:
+        -:  261:    std::string                  m_type;
+        -:  262:    std::map<wxString, wxString> m_varOverrides;
+        -:  263:    TITLE_BLOCK                  m_titleBlock;
+        -:  264:
+        -:  265:    wxString m_tempOutputDirectory;
+        -:  266:
+        -:  267:    wxString m_outputPath;
+        -:  268:    bool     m_outputPathIsDirectory;
+        -:  269:    wxString m_description;
+        -:  270:
+        -:  271:    /**
+        -:  272:     * The working output path is a transient path that takes priority over the configured
+        -:  273:     * output path when determining where to write output files.
+        -:  274:     */
+        -:  275:    wxString m_workingOutputPath;
+        -:  276:
+        -:  277:    std::vector<JOB_PARAM_BASE*> m_params;
+        -:  278:
+        -:  279:    std::vector<JOB_OUTPUT> m_outputs;
+        -:  280:};
+        -:  281:
+        -:  282:KICOMMON_API void from_json( const nlohmann::json& j, JOB& f );
+        -:  283:KICOMMON_API void to_json( nlohmann::json& j, const JOB& f );

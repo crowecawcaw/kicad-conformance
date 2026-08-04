@@ -1,0 +1,684 @@
+        -:    0:Source:/src/kicad/eeschema/sch_sheet.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#ifndef SCH_SHEEET_H
+        -:   26:#define SCH_SHEEET_H
+        -:   27:
+        -:   28:#include <sch_field.h>
+        -:   29:
+        -:   30:class KIID_PATH;
+        -:   31:class SCH_SCREEN;
+        -:   32:class SCH_IO_KICAD_SEXPR_PARSER;
+        -:   33:class SCH_SHEET_LIST;
+        -:   34:class SCH_SHEET_PIN;
+        -:   35:class SCH_SHEET_PATH;
+        -:   36:class EDA_DRAW_FRAME;
+        -:   37:class SCH_NO_CONNECT;
+        -:   38:
+        -:   39:
+        -:   40:#define MIN_SHEET_WIDTH  500    // Units are mils.
+        -:   41:#define MIN_SHEET_HEIGHT 150    // Units are mils.
+        -:   42:
+        -:   43:
+        -:   44:/**
+        -:   45: * Sheet symbol placed in a schematic, and is the entry point for a sub schematic.
+        -:   46: */
+        -:   47:class SCH_SHEET : public SCH_ITEM
+        -:   48:{
+        -:   49:public:
+        -:   50:    SCH_SHEET( EDA_ITEM* aParent = nullptr, const VECTOR2I& aPos = VECTOR2I( 0, 0 ),
+        -:   51:               VECTOR2I aSize = VECTOR2I( schIUScale.MilsToIU( MIN_SHEET_WIDTH ),
+        -:   52:                                          schIUScale.MilsToIU( MIN_SHEET_HEIGHT ) ) );
+        -:   53:
+        -:   54:    /**
+        -:   55:     * Copy \a aSheet into a new object.
+        -:   56:     *
+        -:   57:     * All sheet pins are copied as is except and the #SCH_SHEET_PIN object's #m_Parent pointers
+        -:   58:     * are set to the new copied parent object.
+        -:   59:     */
+        -:   60:    SCH_SHEET( const SCH_SHEET& aSheet );
+        -:   61:
+        -:   62:    ~SCH_SHEET();
+        -:   63:
+        -:   64:    static inline bool ClassOf( const EDA_ITEM* aItem )
+        -:   65:    {
+        -:   66:        return aItem && SCH_SHEET_T == aItem->Type();
+        -:   67:    }
+        -:   68:
+        -:   69:    wxString GetClass() const override
+        -:   70:    {
+        -:   71:        return wxT( "SCH_SHEET" );
+        -:   72:    }
+        -:   73:
+        -:   74:    /**
+        -:   75:     * Return true for items which are moved with the anchor point at mouse cursor
+        -:   76:     * and false for items moved with no reference to anchor.
+        -:   77:     *
+        -:   78:     * Usually return true for small items (labels, junctions) and false for
+        -:   79:     * items which can be large (hierarchical sheets, symbols).
+        -:   80:     *
+        -:   81:     * @return false for a hierarchical sheet.
+        -:   82:     */
+        -:   83:    bool IsMovableFromAnchorPoint() const override { return false; }
+        -:   84:
+        -:   85:    /**
+        -:   86:     * Return a reference to the vector holding the sheet's fields
+        -:   87:     */
+    #####:   88:    std::vector<SCH_FIELD>& GetFields() { return m_fields; }
+        -:   89:    const std::vector<SCH_FIELD>& GetFields() const { return m_fields; }
+        -:   90:
+        -:   91:    /**
+        -:   92:     * Return a mandatory field in this sheet.  The const version will return nullptr if the
+        -:   93:     * field does not exist; the non-const version will create it.
+        -:   94:     */
+        -:   95:    SCH_FIELD* GetField( FIELD_T aFieldType );
+        -:   96:    const SCH_FIELD* GetField( FIELD_T aFieldNdx ) const;
+        -:   97:
+        -:   98:    /**
+        -:   99:     * Return a field in this sheet.
+        -:  100:     *
+        -:  101:     * @param aFieldName is the canonical name of the field.
+        -:  102:     *
+        -:  103:     * @return Both non-const and const versions return nullptr if the field is not found.
+        -:  104:     */
+        -:  105:    SCH_FIELD* GetField( const wxString& aFieldName );
+        -:  106:    const SCH_FIELD* GetField( const wxString& aFieldName ) const;
+        -:  107:
+        -:  108:    /**
+        -:  109:     * Return the next ordinal for a user field for this sheet
+        -:  110:     */
+        -:  111:    int GetNextFieldOrdinal() const;
+        -:  112:
+        -:  113:    /**
+        -:  114:     * Set multiple schematic fields.
+        -:  115:     *
+        -:  116:     * @param aFields are the fields to set in this symbol.
+        -:  117:     */
+        -:  118:    void SetFields( const std::vector<SCH_FIELD>& aFields );
+        -:  119:
+        -:  120:    /**
+        -:  121:     * Add a @aField to the list of fields.
+        -:  122:     *
+        -:  123:     * @note This has no affect if @aField is the sheet file name or sheet name fields.
+        -:  124:     */
+        -:  125:    SCH_FIELD* AddField( const SCH_FIELD& aField );
+        -:  126:
+        -:  127:    void SetFieldText( const wxString& aFieldName, const wxString& aFieldText, const SCH_SHEET_PATH* aPath = nullptr,
+        -:  128:                       const wxString& aVariantName = wxEmptyString );
+        -:  129:
+        -:  130:    wxString GetFieldText( const wxString& aFieldName, const SCH_SHEET_PATH* aPath = nullptr,
+        -:  131:                           const wxString& aVariantName = wxEmptyString ) const;
+        -:  132:
+        6:  133:    wxString GetShownName( bool aAllowExtraText ) const
+        -:  134:    {
+        6:  135:        return GetField( FIELD_T::SHEET_NAME )->GetShownText( aAllowExtraText );
+        -:  136:    }
+        -:  137:    wxString GetName() const { return GetField( FIELD_T::SHEET_NAME )->GetText(); }
+        -:  138:    void SetName( const wxString& aName ) { GetField( FIELD_T::SHEET_NAME )->SetText( aName ); }
+        -:  139:
+        -:  140:    SCH_SCREEN* GetScreen() const { return m_screen; }
+        -:  141:
+        -:  142:    VECTOR2I GetSize() const { return m_size; }
+        -:  143:    void     SetSize( const VECTOR2I& aSize ) { m_size = aSize; }
+        -:  144:
+        -:  145:    int GetBorderWidth() const { return m_borderWidth; }
+        -:  146:    void SetBorderWidth( int aWidth ) { m_borderWidth = aWidth; }
+        -:  147:
+        -:  148:    KIGFX::COLOR4D GetBorderColor() const { return m_borderColor; }
+        -:  149:    void SetBorderColor( KIGFX::COLOR4D aColor ) { m_borderColor = aColor; }
+        -:  150:
+        -:  151:    KIGFX::COLOR4D GetBackgroundColor() const { return m_backgroundColor; }
+        -:  152:    void SetBackgroundColor( KIGFX::COLOR4D aColor ) { m_backgroundColor = aColor; }
+        -:  153:
+        -:  154:    /**
+        -:  155:     * @return true if this sheet is the virtual root sheet.  This is a sheet with no
+        -:  156:     * data except for instances of the top-level sheets in the schematic.  It is
+        -:  157:     * used to represent the root of a hierarchical sheet structure.
+        -:  158:     */
+        -:  159:    bool IsVirtualRootSheet() const;
+        -:  160:
+        -:  161:    /**
+        -:  162:     * Check if this sheet is a top-level sheet. A top-level sheet is a sheet
+        -:  163:     * which is directly under the virtual root sheet.  The top-level sheets are stored
+        -:  164:     * in the project file and are the entry points to the schematic hierarchy.
+        -:  165:     *
+        -:  166:     * @return true if this sheet is a top-level sheet.
+        -:  167:     */
+        -:  168:    bool IsTopLevelSheet() const;
+        -:  169:
+        -:  170:    /**
+        -:  171:     * Set the #SCH_SCREEN associated with this sheet to \a aScreen.
+        -:  172:     *
+        -:  173:     * The screen reference counting is performed by SetScreen.  If \a aScreen is not
+        -:  174:     * the same as the current screen, the current screen reference count is decremented
+        -:  175:     * and \a aScreen becomes the screen for the sheet.  If the current screen reference
+        -:  176:     * count reaches zero, the current screen is deleted.  NULL is a valid value for
+        -:  177:     * \a aScreen.
+        -:  178:     *
+        -:  179:     * @param aScreen The new screen to associate with the sheet.
+        -:  180:     */
+        -:  181:    void SetScreen( SCH_SCREEN* aScreen );
+        -:  182:
+        -:  183:    /**
+        -:  184:     * Return the number of times the associated screen for the sheet is being used.
+        -:  185:     *
+        -:  186:     * If no screen is associated with the sheet, then zero is returned.
+        -:  187:     */
+        -:  188:    int GetScreenCount() const;
+        -:  189:
+        -:  190:    /**
+        -:  191:     * Return the list of system text vars & fields for this sheet.
+        -:  192:     */
+        -:  193:    void GetContextualTextVars( wxArrayString* aVars ) const;
+        -:  194:
+        -:  195:    /**
+        -:  196:     * Resolve any references to system tokens supported by the sheet.
+        -:  197:     *
+        -:  198:     * @param aDepth is a counter to limit recursion and circular references.
+        -:  199:     */
+        -:  200:    bool ResolveTextVar( const SCH_SHEET_PATH* aPath, wxString* token, int aDepth = 0 ) const;
+        -:  201:
+        -:  202:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:  203:
+        -:  204:    /* there is no member for orientation in sch_sheet, to preserve file
+        -:  205:     * format, we detect orientation based on pin edges
+        -:  206:     */
+        -:  207:    bool IsVerticalOrientation() const;
+        -:  208:
+        -:  209:    /**
+        -:  210:     * @return a map containing any of the sheet's pins that have no-connects on them and the
+        -:  211:     * associated no-connect items.
+        -:  212:     */
+        -:  213:    std::map<SCH_SHEET_PIN*, SCH_NO_CONNECT*> GetNoConnects() const;
+        -:  214:
+        -:  215:    void SetPositionIgnoringPins( const VECTOR2I& aPosition );
+        -:  216:
+        -:  217:    /**
+        -:  218:     * Add aSheetPin to the sheet.
+        -:  219:     *
+        -:  220:     * @note Once a sheet pin is added to the sheet, it is owned by the sheet.
+        -:  221:     *       Do not delete the sheet pin object or you will likely get a segfault
+        -:  222:     *       when the sheet is destroyed.
+        -:  223:     *
+        -:  224:     * @param aSheetPin The sheet pin item to add to the sheet.
+        -:  225:     */
+        -:  226:    void AddPin( SCH_SHEET_PIN* aSheetPin );
+        -:  227:
+    #####:  228:    std::vector<SCH_SHEET_PIN*>& GetPins() { return m_pins; }
+        -:  229:    const std::vector<SCH_SHEET_PIN*>& GetPins() const { return m_pins; }
+        -:  230:
+        -:  231:    /**
+        -:  232:     * Remove \a aSheetPin from the sheet.
+        -:  233:     *
+        -:  234:     * @param aSheetPin The sheet pin item to remove from the sheet.
+        -:  235:     */
+        -:  236:    void RemovePin( const SCH_SHEET_PIN* aSheetPin );
+        -:  237:
+        -:  238:    /**
+        -:  239:     * Delete sheet label which do not have a corresponding hierarchical label.
+        -:  240:     *
+        -:  241:     * @note Make sure you save a copy of the sheet in the undo list before calling
+        -:  242:     *       CleanupSheet() otherwise any unreferenced sheet labels will be lost.
+        -:  243:     */
+        -:  244:    void CleanupSheet();
+        -:  245:
+        -:  246:    /**
+        -:  247:     * Return the sheet pin item found at \a aPosition in the sheet.
+        -:  248:     *
+        -:  249:     * @param aPosition The position to check for a sheet pin.
+        -:  250:     *
+        -:  251:     * @return The sheet pin found at \a aPosition or NULL if no sheet pin is found.
+        -:  252:     */
+        -:  253:    SCH_SHEET_PIN* GetPin( const VECTOR2I& aPosition );
+        -:  254:
+        -:  255:    /**
+        -:  256:     * Check if the sheet already has a sheet pin named \a aName.
+        -:  257:     *
+        -:  258:     * @param aName Name of the sheet pin to search for.
+        -:  259:     * @return  True if sheet pin with \a aName is found, otherwise false.
+        -:  260:     */
+        -:  261:    bool HasPin( const wxString& aName ) const;
+        -:  262:
+        -:  263:    bool HasPins() const { return !m_pins.empty(); }
+        -:  264:
+        -:  265:    /**
+        -:  266:     * Check all sheet labels against schematic for undefined hierarchical labels.
+        -:  267:     *
+        -:  268:     * @return True if there are any undefined labels.
+        -:  269:     */
+        -:  270:    bool HasUndefinedPins() const;
+        -:  271:
+        -:  272:    /**
+        -:  273:     * Return the minimum width of the sheet based on the widths of the sheet pin text.
+        -:  274:     *
+        -:  275:     * The minimum sheet width is determined by the width of the bounding box of each
+        -:  276:     * hierarchical sheet pin.  If two pins are horizontally adjacent ( same Y position )
+        -:  277:     * to each other, the sum of the bounding box widths is used.  If at some point in
+        -:  278:     * the future sheet objects can be rotated or pins can be placed in the vertical
+        -:  279:     * orientation, this function will need to be changed.
+        -:  280:     *
+        -:  281:     * @return The minimum width the sheet can be resized.
+        -:  282:     */
+        -:  283:    int GetMinWidth( bool aFromLeft ) const;
+        -:  284:
+        -:  285:    /**
+        -:  286:     * Return the minimum height that the sheet can be resized based on the sheet pin positions.
+        -:  287:     *
+        -:  288:     * The minimum width of a sheet is determined by the Y axis location of the bottom
+        -:  289:     * most sheet pin.  If at some point in the future sheet objects can be rotated or
+        -:  290:     * pins can be placed in the vertical orientation, this function will need to be
+        -:  291:     * changed.
+        -:  292:     *
+        -:  293:     * @return The minimum height the sheet can be resized.
+        -:  294:     */
+        -:  295:    int GetMinHeight( bool aFromTop ) const;
+        -:  296:
+        -:  297:    int GetPenWidth() const override;
+        -:  298:
+        -:  299:    /**
+        -:  300:     * Return a bounding box for the sheet body but not the fields.
+        -:  301:     */
+        -:  302:    const BOX2I GetBodyBoundingBox() const;
+        -:  303:
+        -:  304:    const BOX2I GetBoundingBox() const override;
+        -:  305:
+        -:  306:    /**
+        -:  307:     * Rotating around the boundingBox's center can cause walking when the sheetname or
+        -:  308:     * filename is longer than the edge it's on.
+        -:  309:     *
+        -:  310:     * Use this instead, which always returns the center of the sheet itself.
+        -:  311:     */
+        -:  312:    VECTOR2I GetRotationCenter() const;
+        -:  313:
+        -:  314:    void swapData( SCH_ITEM* aItem ) override;
+        -:  315:
+        -:  316:    /**
+        -:  317:     * Count our own symbols, without the power symbols.
+        -:  318:     */
+        -:  319:    int SymbolCount() const;
+        -:  320:
+        -:  321:    /**
+        -:  322:     * Search the existing hierarchy for an instance of screen loaded from \a aFileName.
+        -:  323:     *
+        -:  324:     * @param aFilename The filename to find (MUST be absolute, and in wxPATH_NATIVE encoding).
+        -:  325:     * @param aScreen A location to return a pointer to the screen (if found).
+        -:  326:     * @return true if found, and a pointer to the screen
+        -:  327:     */
+        -:  328:    bool SearchHierarchy( const wxString& aFilename, SCH_SCREEN** aScreen );
+        -:  329:
+        -:  330:    /**
+        -:  331:     * Search the existing hierarchy for an instance of screen loaded from \a aFileName.
+        -:  332:     *
+        -:  333:     * Don't bother looking at the root sheet, it must be unique.  No other references to
+        -:  334:     * its m_screen otherwise there would be loops in the hierarchy.
+        -:  335:     *
+        -:  336:     * @param[in] aScreen The SCH_SCREEN* screen that we search for.
+        -:  337:     * @param[in] aList The SCH_SHEET_PATH* that must be used.
+        -:  338:     * @return true if found.
+        -:  339:     */
+        -:  340:    bool LocatePathOfScreen( SCH_SCREEN* aScreen, SCH_SHEET_PATH* aList );
+        -:  341:
+        -:  342:    /**
+        -:  343:     * Count the number of sheets found in "this" sheet including all of the subsheets.
+        -:  344:     *
+        -:  345:     * @return the full count of sheets+subsheets contained by "this"
+        -:  346:     */
+        -:  347:    int CountSheets() const;
+        -:  348:
+        -:  349:    /**
+        -:  350:     * Count the number of sheets found in "this" sheet including all of the subsheets.
+        -:  351:     *
+        -:  352:     * @return the full count of active sheets+subsheets contained by "this"
+        -:  353:     * An active sheet is a "physical" sheet actually used in schematic, and not a virtual sheet only
+        -:  354:     * used to handle a set of sheets in a hierarchy and having no UUID
+        -:  355:     */
+        -:  356:    int CountActiveSheets() const;
+        -:  357:
+        -:  358:    /**
+        -:  359:     * Count the number of sheets that refer to a specific file
+        -:  360:     * including all of the subsheets.
+        -:  361:     * @param aFileName The filename to search for.
+        -:  362:     * @return the full count of sheets+subsheets that refer to aFileName
+        -:  363:     */
+        -:  364:    int CountSheets( const wxString& aFileName ) const;
+        -:  365:
+        -:  366:    /**
+        -:  367:     * Return the filename corresponding to this sheet.
+        -:  368:     *
+        -:  369:     * @return a wxString containing the filename
+        -:  370:     */
+        -:  371:    wxString GetFileName() const
+        -:  372:    {
+        -:  373:        return GetField( FIELD_T::SHEET_FILENAME )->GetText();
+        -:  374:    }
+        -:  375:
+        -:  376:    // Set a new filename without changing anything else
+        -:  377:    void SetFileName( const wxString& aFilename )
+        -:  378:    {
+        -:  379:        // Filenames are stored using unix notation
+        -:  380:        wxString tmp = aFilename;
+        -:  381:        tmp.Replace( wxT( "\\" ), wxT( "/" ) );
+        -:  382:        GetField( FIELD_T::SHEET_FILENAME )->SetText( tmp );
+        -:  383:    }
+        -:  384:
+        -:  385:    // Geometric transforms (used in block operations):
+        -:  386:
+        -:  387:    void Move( const VECTOR2I& aMoveVector ) override;
+        -:  388:    void MirrorHorizontally( int aCenter ) override;
+        -:  389:    void MirrorVertically( int aCenter ) override;
+        -:  390:    void Rotate( const VECTOR2I& aCenter, bool aRotateCCW ) override;
+        -:  391:
+        -:  392:    bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const override;
+        -:  393:
+        -:  394:    bool IsReplaceable() const override { return true; }
+        -:  395:
+        -:  396:    /**
+        -:  397:     * Resize this sheet to aSize and adjust all of the labels accordingly.
+        -:  398:     *
+        -:  399:     * @param[in] aSize The new size for this sheet.
+        -:  400:     */
+        -:  401:    void Resize( const VECTOR2I& aSize );
+        -:  402:
+        -:  403:    void AutoplaceFields( SCH_SCREEN* aScreen, AUTOPLACE_ALGO aAlgo ) override;
+        -:  404:
+        -:  405:    void GetEndPoints( std::vector <DANGLING_END_ITEM>& aItemList ) override;
+        -:  406:
+        -:  407:    bool UpdateDanglingState( std::vector<DANGLING_END_ITEM>& aItemListByType,
+        -:  408:                              std::vector<DANGLING_END_ITEM>& aItemListByPos,
+        -:  409:                              const SCH_SHEET_PATH*           aPath = nullptr ) override;
+        -:  410:
+        -:  411:    bool IsConnectable() const override { return true; }
+        -:  412:
+        -:  413:    bool HasConnectivityChanges( const SCH_ITEM* aItem,
+        -:  414:                                 const SCH_SHEET_PATH* aInstance = nullptr ) const override;
+        -:  415:
+        -:  416:    bool CanConnect( const SCH_ITEM* aItem ) const override
+        -:  417:    {
+        -:  418:        return ( aItem->Type() == SCH_LINE_T && aItem->GetLayer() == LAYER_WIRE )
+        -:  419:                || ( aItem->Type() == SCH_LINE_T && aItem->GetLayer() == LAYER_BUS )
+        -:  420:                || ( aItem->Type() == SCH_NO_CONNECT_T )
+        -:  421:                || ( aItem->Type() == SCH_SYMBOL_T );
+        -:  422:    }
+        -:  423:
+        -:  424:    std::vector<VECTOR2I> GetConnectionPoints() const override;
+        -:  425:
+        -:  426:    INSPECT_RESULT Visit( INSPECTOR inspector, void* testData,
+        -:  427:                          const std::vector<KICAD_T>& aScanTypes ) override;
+        -:  428:
+        -:  429:    void RunOnChildren( const std::function<void( SCH_ITEM* )>& aFunction, RECURSE_MODE aMode ) override;
+        -:  430:
+        -:  431:    /**
+        -:  432:     * Set or clear the exclude from simulation flag.
+        -:  433:     */
+        -:  434:    void SetExcludedFromSim( bool aExcludeFromSim, const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  435:                             const wxString& aVariantName = wxEmptyString ) override;
+        -:  436:    bool GetExcludedFromSim( const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  437:                             const wxString& aVariantName = wxEmptyString ) const override;
+        -:  438:
+        -:  439:    bool GetExcludedFromSimProp() const;
+        -:  440:    void SetExcludedFromSimProp( bool aEnable );
+        -:  441:
+        -:  442:    /**
+        -:  443:     * Set or clear the exclude from schematic bill of materials flag.
+        -:  444:     */
+        -:  445:    void SetExcludedFromBOM( bool aExcludeFromBOM, const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  446:                             const wxString& aVariantName = wxEmptyString ) override;
+        -:  447:    bool GetExcludedFromBOM( const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  448:                             const wxString& aVariantName = wxEmptyString ) const override;
+        -:  449:
+        -:  450:    bool GetExcludedFromBOMProp() const;
+        -:  451:    void SetExcludedFromBOMProp( bool aEnable );
+        -:  452:
+        -:  453:    /**
+        -:  454:     * Set or clear exclude from board netlist flag.
+        -:  455:     */
+        -:  456:    void SetExcludedFromBoard( bool aExclude, const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  457:                               const wxString& aVariantName = wxEmptyString ) override
+        -:  458:    {
+        -:  459:        m_excludedFromBoard = aExclude;
+        -:  460:    }
+        -:  461:
+        -:  462:    bool GetExcludedFromBoard( const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  463:                               const wxString& aVariantName = wxEmptyString ) const override
+        -:  464:    {
+        -:  465:        return m_excludedFromBoard;
+        -:  466:    }
+        -:  467:
+        -:  468:    bool GetExcludedFromBoardProp() const { return GetExcludedFromBoard(); }
+        -:  469:    void SetExcludedFromBoardProp( bool aExclude ) { SetExcludedFromBoard( aExclude ); }
+        -:  470:
+        -:  471:    /**
+        -:  472:     * Set or clear the 'Do Not Populate' flags
+        -:  473:     */
+        -:  474:    bool GetDNP( const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  475:                 const wxString& aVariantName = wxEmptyString ) const override;
+        -:  476:    void SetDNP( bool aDNP, const SCH_SHEET_PATH* aInstance = nullptr,
+        -:  477:                 const wxString& aVariantName = wxEmptyString ) override;
+        -:  478:    bool GetDNPProp() const;
+        -:  479:    void SetDNPProp( bool aEnable );
+        -:  480:
+        -:  481:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  482:
+        -:  483:    BITMAPS GetMenuImage() const override;
+        -:  484:
+        -:  485:    SCH_SHEET& operator=( const SCH_ITEM& aSheet );
+        -:  486:
+        -:  487:    bool operator <( const SCH_ITEM& aItem ) const override;
+        -:  488:
+        -:  489:    std::vector<int> ViewGetLayers() const override;
+        -:  490:
+        -:  491:    VECTOR2I GetPosition() const override { return m_pos; }
+        -:  492:    void     SetPosition( const VECTOR2I& aPosition ) override;
+        -:  493:
+        -:  494:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy ) const override;
+        -:  495:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  496:    bool HitTest( const SHAPE_LINE_CHAIN& aPoly, bool aContained ) const override;
+        -:  497:
+        -:  498:    void Plot( PLOTTER* aPlotter, bool aBackground, const SCH_PLOT_OPTS& aPlotOpts,
+        -:  499:               int aUnit, int aBodyStyle, const VECTOR2I& aOffset, bool aDimmed ) override;
+        -:  500:
+        -:  501:    EDA_ITEM* Clone() const override;
+        -:  502:
+        -:  503:    /**
+        -:  504:     * @return the list of #SCH_SHEET_INSTANCE objects for this sheet.
+        -:  505:     */
+        -:  506:    const std::vector<SCH_SHEET_INSTANCE>& GetInstances() const { return m_instances; }
+        -:  507:
+        -:  508:    /**
+        -:  509:     * Check to see if this sheet has a root sheet instance.
+        -:  510:     *
+        -:  511:     * @note It is possible for sheets to contain both sheet instances from other projects as
+        -:  512:     *       well as a root sheet instance for this schematic.  This will happen with a
+        -:  513:     *       shared schematic is opened by the schematic editor in stand alone model.
+        -:  514:     *
+        -:  515:     * @return true if the instance data contains a root sheet instance.
+        -:  516:     */
+        -:  517:    bool HasRootInstance() const;
+        -:  518:
+        -:  519:    /**
+        -:  520:     * Return the root sheet instance data.
+        -:  521:     *
+        -:  522:     * @note If no root sheet instance data exists, an assertion will be raise in debug builds
+        -:  523:     *       and an empty instance will be returned.
+        -:  524:     *
+        -:  525:     * @return the root sheet instance data.
+        -:  526:     */
+        -:  527:    const SCH_SHEET_INSTANCE& GetRootInstance() const;
+        -:  528:
+        -:  529:    void RemoveInstance( const KIID_PATH& aInstancePath );
+        -:  530:
+        -:  531:    void AddInstance( const SCH_SHEET_INSTANCE& aInstance );
+        -:  532:
+        -:  533:    void DeleteVariant( const KIID_PATH& aPath, const wxString& aVariantName );
+        -:  534:
+        -:  535:    void RenameVariant( const KIID_PATH& aPath, const wxString& aOldName, const wxString& aNewName );
+        -:  536:
+        -:  537:    void CopyVariant( const KIID_PATH& aPath, const wxString& aSourceVariant,
+        -:  538:                      const wxString& aNewVariant );
+        -:  539:
+        -:  540:    void AddVariant( const SCH_SHEET_PATH& aInstance, const SCH_SHEET_VARIANT& aVariant );
+        -:  541:    void DeleteVariant( const SCH_SHEET_PATH& aInstance, const wxString& aVariantName )
+        -:  542:    {
+        -:  543:        DeleteVariant( aInstance.Path(), aVariantName );
+        -:  544:    }
+        -:  545:
+        -:  546:    void RenameVariant( const SCH_SHEET_PATH& aInstance, const wxString& aOldName,
+        -:  547:                        const wxString& aNewName )
+        -:  548:    {
+        -:  549:        RenameVariant( aInstance.Path(), aOldName, aNewName );
+        -:  550:    }
+        -:  551:
+        -:  552:    void CopyVariant( const SCH_SHEET_PATH& aInstance, const wxString& aSourceVariant,
+        -:  553:                      const wxString& aNewVariant )
+        -:  554:    {
+        -:  555:        CopyVariant( aInstance.Path(), aSourceVariant, aNewVariant );
+        -:  556:    }
+        -:  557:
+        -:  558:    /**
+        -:  559:     * Check if the instance data of this sheet has any changes compared to \a aOther.
+        -:  560:     *
+        -:  561:     * @param aOther is the sheet to compare against.
+        -:  562:     * @return true if there are page number changes with \a aOther otherwise false.
+        -:  563:     */
+        -:  564:    bool HasPageNumberChanges( const SCH_SHEET& aOther ) const;
+        -:  565:
+        -:  566:    /**
+        -:  567:     * Compare page numbers of schematic sheets.
+        -:  568:     *
+        -:  569:     * @return 0 if the page numbers are equal, -1 if aPageNumberA < aPageNumberB, 1 otherwise
+        -:  570:     */
+        -:  571:    static int ComparePageNum( const wxString& aPageNumberA, const wxString& aPageNumberB );
+        -:  572:
+        -:  573:    double Similarity( const SCH_ITEM& aOther ) const override;
+        -:  574:
+        -:  575:    bool operator==( const SCH_ITEM& aOther ) const override;
+        -:  576:
+        -:  577:#if defined(DEBUG)
+        -:  578:    void Show( int nestLevel, std::ostream& os ) const override;
+        -:  579:#endif
+        -:  580:
+        -:  581:protected:
+        -:  582:    friend SCH_SHEET_PATH;
+        -:  583:    friend SCH_IO_KICAD_SEXPR_PARSER;
+        -:  584:
+        -:  585:    void setInstances( const std::vector<SCH_SHEET_INSTANCE>& aInstances )
+        -:  586:    {
+        -:  587:        m_instances = aInstances;
+        -:  588:    }
+        -:  589:
+        -:  590:    /**
+        -:  591:     * Add a new instance \a aSheetPath to the instance list.
+        -:  592:     *
+        -:  593:     * If \a aSheetPath  does not already exist, it is added to the list.  If already exists
+        -:  594:     * in the list, do nothing.  Sheet instances allow for the sharing in complex hierarchies
+        -:  595:     * which allows for per instance data such as page number for sheets to stored.
+        -:  596:     *
+        -:  597:     * @warning The #KIID_PATH object must be a full hierarchical path which means the sheet
+        -:  598:     *          at index 0 must be the root sheet.
+        -:  599:     *
+        -:  600:     * @param[in] aInstance is the #SCH_SHEET_PATH of the sheet instance to the instance list.
+        -:  601:     * @return false if the instance already exists, true if the instance was added.
+        -:  602:     */
+        -:  603:    bool addInstance( const KIID_PATH& aInstance );
+        -:  604:
+        -:  605:    /**
+        -:  606:     * Return the sheet page number for \a aParentPath.
+        -:  607:     *
+        -:  608:     * @warning The #KIID_PATH object must be a full hierarchical path which means the sheet
+        -:  609:     *          at index 0 must be the root sheet.
+        -:  610:     * @param aParentPath is the hierarchical path of the sheet that contains an instance of this SCH_SHEET
+        -:  611:     *
+        -:  612:     * @return the page number for the requested sheet instance.
+        -:  613:     */
+        -:  614:    wxString getPageNumber( const KIID_PATH& aParentPath ) const;
+        -:  615:
+        -:  616:    /**
+        -:  617:     * Set the page number for the sheet instance \a aInstance.
+        -:  618:     *
+        -:  619:     * @warning The #KIID_PATH object must be a full hierarchical path which means the sheet
+        -:  620:     *          at index 0 must be the root sheet.
+        -:  621:     *
+        -:  622:     * @param[in] aInstance is the hierarchical path of the sheet.
+        -:  623:     * @param[in] aReference is the new page number for the sheet.
+        -:  624:     */
+        -:  625:    void setPageNumber( const KIID_PATH& aInstance, const wxString& aPageNumber );
+        -:  626:
+        -:  627:    bool getInstance( SCH_SHEET_INSTANCE& aInstance, const KIID_PATH& aSheetPath,
+        -:  628:                      bool aTestFromEnd = false ) const;
+        -:  629:
+        -:  630:    SCH_SHEET_INSTANCE* getInstance( const KIID_PATH& aPath );
+        -:  631:    const SCH_SHEET_INSTANCE* getInstance( const KIID_PATH& aPath ) const;
+        -:  632:
+        -:  633:    SCH_SHEET_INSTANCE* getInstance( const SCH_SHEET_PATH& aPath ) { return getInstance( aPath.Path() ); }
+        -:  634:    const SCH_SHEET_INSTANCE* getInstance( const SCH_SHEET_PATH& aPath ) const { return getInstance( aPath.Path() ); }
+        -:  635:
+        -:  636:    /**
+        -:  637:     * Renumber the sheet pins in the sheet.
+        -:  638:     *
+        -:  639:     * This method is used internally by SCH_SHEET to update the pin numbering
+        -:  640:     * when the pin list changes.  Make sure you call this method any time a
+        -:  641:     * sheet pin is added or removed.
+        -:  642:     */
+        -:  643:    void renumberPins();
+        -:  644:
+        -:  645:    /**
+        -:  646:     * Get the sheetpath of this sheet.  NB: REQUIRES that the current sheet hierarchy contains
+        -:  647:     * the given sheet.
+        -:  648:     */
+        -:  649:    SCH_SHEET_PATH findSelf() const;
+        -:  650:
+        -:  651:private:
+        -:  652:    bool doIsConnected( const VECTOR2I& aPosition ) const override;
+        -:  653:
+        -:  654:    friend class SCH_SHEET_PIN;
+        -:  655:    friend class SCH_SHEET_LIST;
+        -:  656:
+        -:  657:private:
+        -:  658:    SCH_SCREEN*                 m_screen;       // Screen that contains the physical data for the
+        -:  659:                                                // sheet.  In complex hierarchies multiple sheets
+        -:  660:                                                // can share a common screen.
+        -:  661:
+        -:  662:    std::vector<SCH_SHEET_PIN*> m_pins;         // The list of sheet connection points.
+        -:  663:    std::vector<SCH_FIELD>      m_fields;
+        -:  664:
+        -:  665:    bool                        m_excludedFromSim;
+        -:  666:    bool                        m_excludedFromBOM;
+        -:  667:    bool                        m_excludedFromBoard;
+        -:  668:    bool                        m_DNP;
+        -:  669:
+        -:  670:    VECTOR2I                    m_pos;          // The position of the sheet.
+        -:  671:    VECTOR2I                    m_size;         // The size of the sheet.
+        -:  672:    int                         m_borderWidth;
+        -:  673:    KIGFX::COLOR4D              m_borderColor;
+        -:  674:    KIGFX::COLOR4D              m_backgroundColor;
+        -:  675:
+        -:  676:    std::vector<SCH_SHEET_INSTANCE> m_instances;
+        -:  677:};
+        -:  678:
+        -:  679:
+        -:  680:#endif // SCH_SHEEET_H

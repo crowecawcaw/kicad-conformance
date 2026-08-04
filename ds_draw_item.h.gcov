@@ -1,0 +1,600 @@
+        -:    0:Source:/src/kicad/include/drawing_sheet/ds_draw_item.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2013-2014 Jean-Pierre Charras, jp.charras at wanadoo.fr
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#ifndef  DS_DRAW_ITEM_H
+        -:   26:#define  DS_DRAW_ITEM_H
+        -:   27:
+        -:   28:#include <core/typeinfo.h>
+        -:   29:#include <math/vector2d.h>
+        -:   30:#include <eda_text.h>
+        -:   31:#include "widgets/msgpanel.h"
+        -:   32:#include <geometry/shape_poly_set.h>
+        -:   33:#include <eda_item.h>
+        -:   34:#include <eda_units.h>
+        -:   35:
+        -:   36:#include <algorithm>
+        -:   37:#include <vector>
+        -:   38:
+        -:   39:class DS_DATA_ITEM;
+        -:   40:class TITLE_BLOCK;
+        -:   41:class PAGE_INFO;
+        -:   42:class EDA_ITEM;
+        -:   43:class EDA_DRAW_FRAME;
+        -:   44:class PROJECT;
+        -:   45:
+        -:   46:/**
+        -:   47: * Base class to handle basic graphic items.
+        -:   48: *
+        -:   49: * Used to draw and/or plot:
+        -:   50: *  - title blocks and frame references
+        -:   51: *  - segments
+        -:   52: *  - rect
+        -:   53: *  - polygons (for logos)
+        -:   54: *  - graphic texts
+        -:   55: *  - bitmaps (also for logos, but they cannot be plot by SVG or GERBER plotters
+        -:   56: *    where we just plot the bounding box)
+        -:   57: */
+        -:   58:class DS_DRAW_ITEM_BASE : public EDA_ITEM
+        -:   59:{
+        -:   60:public:
+        -:   61:    virtual ~DS_DRAW_ITEM_BASE() {}
+        -:   62:
+        -:   63:    DS_DATA_ITEM* GetPeer() const { return m_peer; }
+        -:   64:    int GetIndexInPeer() const { return m_index; }
+        -:   65:
+        -:   66:    std::vector<int> ViewGetLayers() const override;
+        -:   67:
+        -:   68:    virtual void SetEnd( const VECTOR2I& aPos ) { /* not all types will need this */ }
+        -:   69:
+        -:   70:    virtual int GetPenWidth() const
+        -:   71:    {
+        -:   72:        if( m_penWidth > 0 )
+        -:   73:            return m_penWidth;
+        -:   74:        else
+        -:   75:            return 1;
+        -:   76:    }
+        -:   77:
+        -:   78:    const KIFONT::METRICS& GetFontMetrics() const;
+        -:   79:
+        -:   80:    // The function to print a WS_DRAW_ITEM
+        -:   81:    virtual void PrintWsItem( const RENDER_SETTINGS* aSettings )
+        -:   82:    {
+        -:   83:        PrintWsItem( aSettings, VECTOR2I( 0, 0 ) );
+        -:   84:    }
+        -:   85:
+        -:   86:    // More advanced version of DrawWsItem. This is what must be defined in the derived type.
+        -:   87:    virtual void PrintWsItem( const RENDER_SETTINGS* aSettings, const VECTOR2I& aOffset ) = 0;
+        -:   88:
+        -:   89:    // We can't cache bounding boxes because we're recreated for each draw event.  This method
+        -:   90:    // can be overridden by items whose real bounding boxes are expensive to calculate.  It is
+        -:   91:    // used to determine if we're in the current view, so it can be sloppy.
+        -:   92:    virtual const BOX2I GetApproxBBox()
+        -:   93:    {
+        -:   94:        return GetBoundingBox();
+        -:   95:    }
+        -:   96:
+        -:   97:    // Derived types must define GetBoundingBox() as a minimum, and can then override the
+        -:   98:    // two HitTest() functions if they need something more specific.
+        -:   99:    const BOX2I GetBoundingBox() const override = 0;
+        -:  100:
+        -:  101:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override
+        -:  102:    {
+        -:  103:        // This is just here to prevent annoying compiler warnings about hidden overloaded
+        -:  104:        // virtual functions
+        -:  105:        return EDA_ITEM::HitTest( aPosition, aAccuracy );
+        -:  106:    }
+        -:  107:
+        -:  108:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  109:
+        -:  110:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:  111:
+        -:  112:protected:
+        -:  113:    DS_DRAW_ITEM_BASE( DS_DATA_ITEM* aPeer, int aIndex, KICAD_T aType ) :
+        -:  114:            EDA_ITEM( aType )
+        -:  115:    {
+        -:  116:        m_peer = aPeer;
+        -:  117:        m_index = aIndex;
+        -:  118:        m_penWidth = 0;
+        -:  119:        m_flags = 0;
+        -:  120:    }
+        -:  121:
+        -:  122:protected:
+        -:  123:    DS_DATA_ITEM*  m_peer;       // the parent DS_DATA_ITEM item in the DS_DATA_MODEL
+        -:  124:    int            m_index;      // the index in the parent's repeat count
+        -:  125:    int            m_penWidth;
+        -:  126:};
+        -:  127:
+        -:  128:
+        -:  129:// This class draws a thick segment
+        -:  130:class DS_DRAW_ITEM_LINE : public DS_DRAW_ITEM_BASE
+        -:  131:{
+        -:  132:public:
+        -:  133:    DS_DRAW_ITEM_LINE( DS_DATA_ITEM* aPeer, int aIndex, VECTOR2I aStart, VECTOR2I aEnd,
+        -:  134:                       int aPenWidth ) :
+        -:  135:            DS_DRAW_ITEM_BASE( aPeer, aIndex, WSG_LINE_T )
+        -:  136:    {
+        -:  137:        m_start     = aStart;
+        -:  138:        m_end       = aEnd;
+        -:  139:        m_penWidth  = aPenWidth;
+        -:  140:    }
+        -:  141:
+        -:  142:    virtual wxString GetClass() const override { return wxT( "DS_DRAW_ITEM_LINE" ); }
+        -:  143:
+        -:  144:    const VECTOR2I& GetStart() const { return m_start; }
+        -:  145:    void            SetStart( const VECTOR2I& aPos ) { m_start = aPos; }
+        -:  146:    const VECTOR2I& GetEnd() const { return m_end; }
+        -:  147:    void            SetEnd( const VECTOR2I& aPos ) override { m_end = aPos; }
+        -:  148:
+        -:  149:    VECTOR2I GetPosition() const override { return GetStart(); }
+        -:  150:    void     SetPosition( const VECTOR2I& aPos ) override { SetStart( aPos ); }
+        -:  151:
+        -:  152:    const BOX2I GetBoundingBox() const override;
+        -:  153:
+        -:  154:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  155:
+        -:  156:    void PrintWsItem( const RENDER_SETTINGS* aSettings, const VECTOR2I& aOffset ) override;
+        -:  157:
+        -:  158:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  159:
+        -:  160:#if defined(DEBUG)
+        -:  161:    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
+        -:  162:#endif
+        -:  163:
+        -:  164:private:
+        -:  165:    VECTOR2I m_start; // start point of line/rect
+        -:  166:    VECTOR2I m_end;   // end point
+        -:  167:};
+        -:  168:
+        -:  169:
+        -:  170:class DS_DRAW_ITEM_POLYPOLYGONS : public DS_DRAW_ITEM_BASE
+        -:  171:{
+        -:  172:public:
+        -:  173:    DS_DRAW_ITEM_POLYPOLYGONS( DS_DATA_ITEM* aPeer, int aIndex, VECTOR2I aPos, int aPenWidth ) :
+        -:  174:            DS_DRAW_ITEM_BASE( aPeer, aIndex, WSG_POLY_T )
+        -:  175:    {
+        -:  176:        m_penWidth = aPenWidth;
+        -:  177:        m_pos = aPos;
+        -:  178:    }
+        -:  179:
+        -:  180:    virtual wxString GetClass() const override { return wxT( "DS_DRAW_ITEM_POLYPOLYGONS" ); }
+        -:  181:
+        -:  182:    SHAPE_POLY_SET& GetPolygons() { return m_Polygons; }
+        -:  183:    VECTOR2I        GetPosition() const override { return m_pos; }
+        -:  184:    void            SetPosition( const VECTOR2I& aPos ) override;
+        -:  185:
+        -:  186:    const BOX2I GetBoundingBox() const override;
+        -:  187:
+        -:  188:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  189:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  190:
+        -:  191:    void PrintWsItem( const RENDER_SETTINGS* aSettings, const VECTOR2I& aOffset ) override;
+        -:  192:
+        -:  193:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  194:
+        -:  195:#if defined(DEBUG)
+        -:  196:    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
+        -:  197:#endif
+        -:  198:
+        -:  199:public:
+        -:  200:    /**
+        -:  201:     * The list of polygons.
+        -:  202:     *
+        -:  203:     * Because these polygons are only for drawing purposes, each polygon is expected to
+        -:  204:     * have no holes just a main outline.
+        -:  205:     */
+        -:  206:    SHAPE_POLY_SET m_Polygons;
+        -:  207:
+        -:  208:private:
+        -:  209:    VECTOR2I m_pos; // position of reference point, from the DS_DATA_ITEM_POLYGONS parent
+        -:  210:                    // (used only in drawing sheet editor to draw anchors)
+        -:  211:};
+        -:  212:
+        -:  213:
+        -:  214:/**
+        -:  215: * Non filled rectangle with thick segment.
+        -:  216: */
+        -:  217:class DS_DRAW_ITEM_RECT : public DS_DRAW_ITEM_BASE
+        -:  218:{
+        -:  219:public:
+        -:  220:    DS_DRAW_ITEM_RECT( DS_DATA_ITEM* aPeer, int aIndex, VECTOR2I aStart, VECTOR2I aEnd,
+        -:  221:                       int aPenWidth ) :
+        -:  222:            DS_DRAW_ITEM_BASE( aPeer, aIndex, WSG_RECT_T )
+        -:  223:    {
+        -:  224:        m_start     = aStart;
+        -:  225:        m_end       = aEnd;
+        -:  226:        m_penWidth  = aPenWidth;
+        -:  227:    }
+        -:  228:
+        -:  229:    virtual wxString GetClass() const override { return wxT( "DS_DRAW_ITEM_RECT" ); }
+        -:  230:
+        -:  231:    const VECTOR2I& GetStart() const { return m_start; }
+        -:  232:    void            SetStart( const VECTOR2I& aPos ) { m_start = aPos; }
+        -:  233:    const VECTOR2I& GetEnd() const { return m_end; }
+        -:  234:    void            SetEnd( const VECTOR2I& aPos ) override { m_end = aPos; }
+        -:  235:
+        -:  236:    VECTOR2I GetPosition() const override { return GetStart(); }
+        -:  237:    void     SetPosition( const VECTOR2I& aPos ) override { SetStart( aPos ); }
+        -:  238:
+        -:  239:    void PrintWsItem( const RENDER_SETTINGS* aSettings, const VECTOR2I& aOffset ) override;
+        -:  240:
+        -:  241:    const BOX2I GetBoundingBox() const override;
+        -:  242:
+        -:  243:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  244:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  245:
+        -:  246:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  247:
+        -:  248:#if defined(DEBUG)
+        -:  249:    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
+        -:  250:#endif
+        -:  251:
+        -:  252:private:
+        -:  253:    VECTOR2I m_start; // start point of line/rect
+        -:  254:    VECTOR2I m_end;   // end point
+        -:  255:};
+        -:  256:
+        -:  257:
+        -:  258:/**
+        -:  259: * A rectangle with thick segment showing the page limits and a marker showing the coordinate
+        -:  260: * origin.
+        -:  261: *
+        -:  262: * This only a draw item only.  Therefore m_peer ( the parent DS_DATA_ITEM item in the
+        -:  263: * DS_DATA_MODEL) is always a nullptr.
+        -:  264: */
+        -:  265:class DS_DRAW_ITEM_PAGE : public DS_DRAW_ITEM_BASE
+        -:  266:{
+        -:  267:public:
+        -:  268:    DS_DRAW_ITEM_PAGE( int aPenWidth, double aMarkerSize ) :
+        -:  269:            DS_DRAW_ITEM_BASE( nullptr, 0, WSG_PAGE_T )
+        -:  270:    {
+        -:  271:        m_penWidth  = aPenWidth;
+        -:  272:        m_markerSize = aMarkerSize;
+        -:  273:    }
+        -:  274:
+        -:  275:    virtual wxString GetClass() const override { return wxT( "DS_DRAW_ITEM_PAGE" ); }
+        -:  276:
+        -:  277:    void            SetPageSize( const VECTOR2I& aSize ) { m_pageSize = aSize; }
+        -:  278:    VECTOR2I        GetPageSize() const { return m_pageSize; }
+        -:  279:
+        -:  280:    const VECTOR2I& GetMarkerPos() const { return m_markerPos; }
+        -:  281:    void            SetMarkerPos( const VECTOR2I& aPos ) { m_markerPos = aPos; }
+        -:  282:
+        -:  283:    double GetMarkerSize() const { return m_markerSize; }
+        -:  284:
+        -:  285:    VECTOR2I GetPosition() const override { return VECTOR2I( 0, 0 ); }
+        -:  286:    void SetPosition( const VECTOR2I& aPos ) override { /* do nothing */ }
+        -:  287:
+        -:  288:    void PrintWsItem( const RENDER_SETTINGS* , const VECTOR2I& ) override { /* do nothing */ }
+        -:  289:
+        -:  290:    const BOX2I GetBoundingBox() const override;
+        -:  291:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override { return false; }
+        -:  292:
+        -:  293:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  294:
+        -:  295:#if defined(DEBUG)
+        -:  296:    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
+        -:  297:#endif
+        -:  298:
+        -:  299:private:
+        -:  300:    VECTOR2I m_markerPos;   // position of the marker
+        -:  301:    VECTOR2I m_pageSize;    // full size of the page
+        -:  302:    double   m_markerSize;
+        -:  303:};
+        -:  304:
+        -:  305:
+        -:  306:/**
+        -:  307: * A graphic text.
+        -:  308: *
+        -:  309: * It is derived from an #EDA_TEXT, so it handle all characteristics of this graphic text
+        -:  310: * (justification, rotation ... ).
+        -:  311: */
+        -:  312:class DS_DRAW_ITEM_TEXT : public DS_DRAW_ITEM_BASE, public EDA_TEXT
+        -:  313:{
+        -:  314:public:
+        -:  315:    DS_DRAW_ITEM_TEXT( const EDA_IU_SCALE& aIuScale, DS_DATA_ITEM* aPeer, int aIndex,
+        -:  316:                       const wxString& aText, const VECTOR2I& aPos, const VECTOR2I& aSize,
+        -:  317:                       int aPenWidth, KIFONT::FONT* aFont,
+        -:  318:                       bool aItalic = false, bool aBold = false,
+        -:  319:                       const KIGFX::COLOR4D& aColor = KIGFX::COLOR4D::UNSPECIFIED ) :
+        -:  320:            DS_DRAW_ITEM_BASE( aPeer, aIndex, WSG_TEXT_T),
+        -:  321:            EDA_TEXT( aIuScale, aText )
+        -:  322:    {
+        -:  323:        SetTextPos( aPos );
+        -:  324:        SetTextSize( aSize );
+        -:  325:        SetTextThickness( aPenWidth );
+        -:  326:        SetFont( aFont );
+        -:  327:        SetItalic( aItalic );
+        -:  328:        SetBold( aBold );
+        -:  329:        SetTextColor( aColor );
+        -:  330:    }
+        -:  331:
+        -:  332:    virtual wxString GetClass() const override { return wxT( "DS_DRAW_ITEM_TEXT" ); }
+        -:  333:
+        -:  334:    void PrintWsItem( const RENDER_SETTINGS* aSettings, const VECTOR2I& aOffset ) override;
+        -:  335:
+        -:  336:    VECTOR2I GetPosition() const override { return GetTextPos(); }
+        -:  337:    void     SetPosition( const VECTOR2I& aPos ) override { SetTextPos( aPos ); }
+        -:  338:
+        -:  339:    virtual const BOX2I GetApproxBBox() override;
+        -:  340:
+        -:  341:    const BOX2I GetBoundingBox() const override;
+        -:  342:
+        -:  343:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  344:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  345:
+        -:  346:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  347:
+        -:  348:#if defined(DEBUG)
+        -:  349:    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
+        -:  350:#endif
+        -:  351:
+        -:  352:protected:
+        -:  353:    const KIFONT::METRICS& getFontMetrics() const override { return GetFontMetrics(); }
+        -:  354:};
+        -:  355:
+        -:  356:
+        -:  357:/**
+        -:  358: * A bitmap.
+        -:  359: */
+        -:  360:class DS_DRAW_ITEM_BITMAP : public DS_DRAW_ITEM_BASE
+        -:  361:{
+        -:  362:public:
+        -:  363:    DS_DRAW_ITEM_BITMAP( DS_DATA_ITEM* aPeer, int aIndex, VECTOR2I aPos ) :
+        -:  364:            DS_DRAW_ITEM_BASE( aPeer, aIndex, WSG_BITMAP_T )
+        -:  365:    {
+        -:  366:        m_pos = aPos;
+        -:  367:    }
+        -:  368:
+        -:  369:    ~DS_DRAW_ITEM_BITMAP() {}
+        -:  370:
+        -:  371:    virtual wxString GetClass() const override { return wxT( "DS_DRAW_ITEM_BITMAP" ); }
+        -:  372:
+        -:  373:    VECTOR2I GetPosition() const override { return m_pos; }
+        -:  374:    void     SetPosition( const VECTOR2I& aPos ) override { m_pos = aPos; }
+        -:  375:
+        -:  376:    void PrintWsItem( const RENDER_SETTINGS* aSettings, const VECTOR2I& aOffset ) override;
+        -:  377:
+        -:  378:    bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const override;
+        -:  379:    bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const override;
+        -:  380:
+        -:  381:    const BOX2I GetBoundingBox() const override;
+        -:  382:
+        -:  383:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:  384:
+        -:  385:#if defined(DEBUG)
+        -:  386:    void Show( int nestLevel, std::ostream& os ) const override { ShowDummy( os ); }
+        -:  387:#endif
+        -:  388:
+        -:  389:private:
+        -:  390:    VECTOR2I m_pos; // position of reference point
+        -:  391:};
+        -:  392:
+        -:  393:
+        -:  394:/**
+        -:  395: * Store the list of graphic items:
+        -:  396: * rect, lines, polygons and texts to draw/plot
+        -:  397: * the title block and frame references, and parameters to
+        -:  398: * draw/plot them
+        -:  399: */
+        -:  400:class DS_DRAW_ITEM_LIST
+        -:  401:{
+        -:  402:public:
+       19:  403:    DS_DRAW_ITEM_LIST( const EDA_IU_SCALE& aIuScale, int aFlags = 0 ) :
+       19:  404:        m_iuScale( aIuScale )
+        -:  405:    {
+       19:  406:        m_idx = 0;
+       19:  407:        m_plotterMilsToIu = 0.0;
+       19:  408:        m_penSize = 1;
+       19:  409:        m_pageNumber = "1";
+       19:  410:        m_sheetCount = 1;
+       19:  411:        m_titleBlock = nullptr;
+       19:  412:        m_project = nullptr;
+       19:  413:        m_isFirstPage = true;
+       19:  414:        m_flags = aFlags;
+       19:  415:        m_properties = nullptr;
+       19:  416:    }
+        -:  417:
+       19:  418:    ~DS_DRAW_ITEM_LIST()
+        -:  419:    {
+        -:  420:        // Items in the m_graphicList are owned by their respective DS_DATA_ITEMs.
+        -:  421:        // for( DS_DRAW_ITEM_BASE* item : m_graphicList )
+        -:  422:        //     delete item;
+       19:  423:    }
+        -:  424:
+       19:  425:    void SetProject( const PROJECT* aProject ) { m_project = aProject; }
+        -:  426:
+        -:  427:    /**
+        -:  428:     * Set the title block (mainly for drawing sheet editor)
+        -:  429:     */
+        -:  430:    void SetTitleBlock( const TITLE_BLOCK* aTblock ) { m_titleBlock = aTblock; }
+        -:  431:
+        -:  432:    /**
+        -:  433:     * Set properties used for text variable resolution.
+        -:  434:     */
+        -:  435:    void SetProperties( const std::map<wxString, wxString>* aProps ) { m_properties = aProps; }
+        -:  436:
+        -:  437:    /**
+        -:  438:     * Set the paper format name (mainly for drawing sheet editor)
+        -:  439:     */
+        -:  440:    void SetPaperFormat( const wxString& aFormatName ) { m_paperFormat = aFormatName; }
+        -:  441:
+        -:  442:    /**
+        -:  443:     * Set the filename to draw/plot
+        -:  444:     */
+       19:  445:    void SetFileName( const wxString& aFileName ) { m_fileName = aFileName; }
+        -:  446:
+        -:  447:    /**
+        -:  448:     * Set the sheet name to draw/plot
+        -:  449:     */
+       19:  450:    void SetSheetName( const wxString& aSheetName ) { m_sheetName = aSheetName; }
+        -:  451:
+        -:  452:    /**
+        -:  453:     * Set the sheet path to draw/plot
+        -:  454:     */
+        -:  455:    void SetSheetPath( const wxString& aSheetPath ) { m_sheetPath = aSheetPath; }
+        -:  456:
+        -:  457:    /**
+        -:  458:     * Set the sheet layer to draw/plot
+        -:  459:     */
+       19:  460:    void SetSheetLayer( const wxString& aSheetLayer ) { m_sheetLayer = aSheetLayer;  }
+        -:  461:
+        -:  462:    /**
+        -:  463:     * Set the current variant name and description to draw/plot
+        -:  464:     */
+        -:  465:    void SetVariantName( const wxString& aVariant ) { m_variantName = aVariant; }
+        -:  466:    void SetVariantDesc( const wxString& aDesc ) { m_variantDesc = aDesc; }
+        -:  467:
+        -:  468:    void SetDefaultPenSize( int aPenSize ) { m_penSize = aPenSize; }
+        -:  469:    int GetDefaultPenSize() const { return m_penSize; }
+        -:  470:
+        -:  471:    /**
+        -:  472:     * Set the scalar to convert pages units (mils) to plot units.
+        -:  473:     */
+        -:  474:    void SetPlotterMilsToIUfactor( double aMils2Iu ) { m_plotterMilsToIu = aMils2Iu; }
+        -:  475:
+        -:  476:    /**
+        -:  477:     * Get the scalar to convert pages units (mils) to draw/plot units.
+        -:  478:     *
+        -:  479:     * This will be controlled by EITHER the parent frame's EDA_IU_SCALE or the plotter's
+        -:  480:     * mils-to-iu factor.
+        -:  481:     */
+        -:  482:    double GetMilsToIUfactor()
+        -:  483:    {
+        -:  484:        if( m_plotterMilsToIu > 0.0 )
+        -:  485:            return m_plotterMilsToIu;
+        -:  486:        else
+        -:  487:            return m_iuScale.IU_PER_MILS;
+        -:  488:    }
+        -:  489:
+        -:  490:    const EDA_IU_SCALE& GetIuScale() const { return m_iuScale; }
+        -:  491:
+        -:  492:    /**
+        -:  493:     * Set the value of the sheet number.
+        -:  494:     */
+       19:  495:    void SetPageNumber( const wxString& aPageNumber ) { m_pageNumber = aPageNumber; }
+        -:  496:
+        -:  497:    /**
+        -:  498:     * Set if the page is the first page.
+        -:  499:     */
+        -:  500:    void SetIsFirstPage( bool aIsFirstPage ) { m_isFirstPage = aIsFirstPage; }
+        -:  501:
+        -:  502:    /**
+        -:  503:     * Set the value of the count of sheets, for basic inscriptions
+        -:  504:     */
+       19:  505:    void SetSheetCount( int aSheetCount ) { m_sheetCount = aSheetCount; }
+        -:  506:
+        -:  507:    void Append( DS_DRAW_ITEM_BASE* aItem )
+        -:  508:    {
+        -:  509:        m_graphicList.push_back( aItem );
+        -:  510:    }
+        -:  511:
+        -:  512:    void Remove( DS_DRAW_ITEM_BASE* aItem )
+        -:  513:    {
+        -:  514:        auto newEnd = std::remove( m_graphicList.begin(), m_graphicList.end(), aItem );
+        -:  515:        m_graphicList.erase( newEnd, m_graphicList.end() );
+        -:  516:    }
+        -:  517:
+       21:  518:    DS_DRAW_ITEM_BASE* GetFirst()
+        -:  519:    {
+       21:  520:        m_idx = 0;
+        -:  521:
+       21:  522:        if( m_graphicList.size() )
+       21:  523:            return m_graphicList[0];
+        -:  524:        else
+    #####:  525:            return nullptr;
+        -:  526:    }
+        -:  527:
+     1218:  528:    DS_DRAW_ITEM_BASE* GetNext()
+        -:  529:    {
+     1218:  530:        m_idx++;
+        -:  531:
+     1218:  532:        if( m_graphicList.size() > m_idx )
+     1197:  533:            return m_graphicList[m_idx];
+        -:  534:        else
+       21:  535:            return nullptr;
+        -:  536:    }
+        -:  537:
+        -:  538:    /**
+        -:  539:     * Draws the item list created by BuildDrawItemsList
+        -:  540:     */
+        -:  541:    void Print( const RENDER_SETTINGS* aSettings );
+        -:  542:
+        -:  543:    /**
+        -:  544:     * Drawing or plot the drawing sheet.
+        -:  545:     *
+        -:  546:     * Before calling this function, some parameters should be initialized by calling:
+        -:  547:     *   SetPenSize( aPenWidth );
+        -:  548:     *   SetSheetNumber( aSheetNumber );
+        -:  549:     *   SetSheetCount( aSheetCount );
+        -:  550:     *   SetFileName( aFileName );
+        -:  551:     *   SetSheetName( aSheetName );
+        -:  552:     *   SetSheetPath( aSheetPath );
+        -:  553:     *
+        -:  554:     * @param aPageInfo The PAGE_INFO, for page size, margins...
+        -:  555:     * @param aTitleBlock The sheet title block, for basic inscriptions.
+        -:  556:     * @param aColor The color for drawing.
+        -:  557:     * @param aAltColor The color for items which need to be "highlighted".
+        -:  558:     */
+        -:  559:    void BuildDrawItemsList( const PAGE_INFO& aPageInfo, const TITLE_BLOCK& aTitleBlock );
+        -:  560:
+        -:  561:    static void GetTextVars( wxArrayString* aVars );
+        -:  562:
+        -:  563:    /**
+        -:  564:     * @return the full text corresponding to the aTextbase, after replacing any text variable
+        -:  565:     *         references.
+        -:  566:     */
+        -:  567:    wxString BuildFullText( const wxString& aTextbase );
+        -:  568:
+        -:  569:protected:
+        -:  570:    std::vector <DS_DRAW_ITEM_BASE*> m_graphicList;     // Items to draw/plot
+        -:  571:    const EDA_IU_SCALE&              m_iuScale;         // IU scale for drawing
+        -:  572:    double                           m_plotterMilsToIu; // IU scale for plotting
+        -:  573:
+        -:  574:    unsigned           m_idx;             // for GetFirst, GetNext functions
+        -:  575:    int                m_penSize;         // The default line width for drawings.
+        -:  576:                                          // used when an item has a pen size = 0
+        -:  577:    bool               m_isFirstPage;     ///< Is this the first page or not.
+        -:  578:    int                m_sheetCount;      ///< The number of sheets
+        -:  579:                                          // for text variable references, in schematic
+        -:  580:    const TITLE_BLOCK* m_titleBlock;      // for text variable references
+        -:  581:    wxString           m_paperFormat;     // for text variable references
+        -:  582:    wxString           m_fileName;        // for text variable references
+        -:  583:    wxString           m_sheetName;       // for text variable references
+        -:  584:    wxString           m_sheetPath;       // for text variable references
+        -:  585:    wxString           m_pageNumber;      ///< The actual page number displayed in the title block.
+        -:  586:    wxString           m_sheetLayer;      // for text variable references
+        -:  587:    wxString           m_variantName;     // for ${VARIANT} text variable reference
+        -:  588:    wxString           m_variantDesc;     // for ${VARIANT_DESC} text variable reference
+        -:  589:    const PROJECT*     m_project;         // for project-based text variable references
+        -:  590:    int                m_flags;
+        -:  591:
+        -:  592:    const std::map<wxString, wxString>* m_properties;    // for text variable references
+        -:  593:};
+        -:  594:
+        -:  595:
+        -:  596:#endif      // DS_DRAW_ITEM_H

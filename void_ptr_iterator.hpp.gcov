@@ -1,0 +1,271 @@
+        -:    0:Source:/usr/include/boost/ptr_container/detail/void_ptr_iterator.hpp
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:109
+        -:    1://
+        -:    2:// Boost.Pointer Container
+        -:    3://
+        -:    4://  Copyright Thorsten Ottosen 2003-2005. Use, modification and
+        -:    5://  distribution is subject to the Boost Software License, Version
+        -:    6://  1.0. (See accompanying file LICENSE_1_0.txt or copy at
+        -:    7://  http://www.boost.org/LICENSE_1_0.txt)
+        -:    8://
+        -:    9:// For more information, see http://www.boost.org/libs/ptr_container/
+        -:   10://
+        -:   11:
+        -:   12:#ifndef BOOST_PTR_CONTAINER_DETAIL_VOID_PTR_ITERATOR_HPP
+        -:   13:#define BOOST_PTR_CONTAINER_DETAIL_VOID_PTR_ITERATOR_HPP
+        -:   14:
+        -:   15:#if defined(_MSC_VER) && (_MSC_VER >= 1200)
+        -:   16:# pragma once
+        -:   17:#endif
+        -:   18:
+        -:   19:#include <boost/config.hpp>
+        -:   20:#include <boost/iterator/iterator_traits.hpp>
+        -:   21:#include <boost/type_traits/remove_const.hpp>
+        -:   22:
+        -:   23:namespace boost
+        -:   24:{
+        -:   25:        template
+        -:   26:        < 
+        -:   27:            class VoidIter, 
+        -:   28:            class T
+        -:   29:        >
+        -:   30:        class void_ptr_iterator
+        -:   31:        {
+        -:   32:        public:
+        -:   33:            typedef BOOST_DEDUCED_TYPENAME boost::remove_const<T>::type        
+        -:   34:                             value_type;
+        -:   35:            typedef T&       reference;
+        -:   36:            typedef T*       pointer;
+        -:   37:
+        -:   38:            typedef  BOOST_DEDUCED_TYPENAME iterator_difference<VoidIter>::type
+        -:   39:                             difference_type;           
+        -:   40:            typedef  BOOST_DEDUCED_TYPENAME iterator_category<VoidIter>::type
+        -:   41:                             iterator_category;           
+        -:   42:        private:
+        -:   43:
+        -:   44:            VoidIter iter_;
+        -:   45:
+        -:   46:        public:
+        -:   47:            void_ptr_iterator() : iter_()
+        -:   48:            { }
+        -:   49:
+    #####:   50:            void_ptr_iterator( VoidIter r ) : iter_(r)
+    #####:   51:            { }
+        -:   52:
+        -:   53:            //
+        -:   54:            // Remark: passing by value breaks vc7.1 
+        -:   55:            //
+        -:   56:            template< class MutableIterator, class MutableT >
+        -:   57:            void_ptr_iterator( const void_ptr_iterator<MutableIterator,MutableT>& r )
+        -:   58:#ifdef BOOST_NO_SFINAE
+        -:   59:                         : iter_( VoidIter(const_cast<void**>(&*r.base())) )
+        -:   60:#else
+        -:   61:
+        -:   62:             : iter_(r.base())
+        -:   63:#endif
+        -:   64:            { }
+        -:   65:
+        -:   66:            T& operator*() const
+        -:   67:            {
+        -:   68:                return *static_cast<T*>( *iter_ );
+        -:   69:            }
+        -:   70:
+        -:   71:            T* operator->() const
+        -:   72:            {
+        -:   73:                return static_cast<T*>( *iter_ );
+        -:   74:            }
+        -:   75:            
+        -:   76:            void_ptr_iterator& operator++()
+        -:   77:            {
+        -:   78:                ++iter_;
+        -:   79:                return *this;
+        -:   80:            }
+        -:   81:
+        -:   82:            void_ptr_iterator operator++(int)
+        -:   83:            {
+        -:   84:                void_ptr_iterator res = *this;
+        -:   85:                ++iter_;
+        -:   86:                return res;
+        -:   87:            }
+        -:   88:
+        -:   89:            void_ptr_iterator& operator--()
+        -:   90:            {
+        -:   91:                --iter_;
+        -:   92:                return *this;
+        -:   93:            }
+        -:   94:
+        -:   95:            void_ptr_iterator operator--(int)
+        -:   96:            {
+        -:   97:                void_ptr_iterator res = *this;
+        -:   98:                --iter_;
+        -:   99:                return res;
+        -:  100:            }
+        -:  101:
+        -:  102:            void_ptr_iterator& operator+=( difference_type n )
+        -:  103:            {
+        -:  104:                iter_ += n;
+        -:  105:                return *this;
+        -:  106:            }
+        -:  107:
+        -:  108:            void_ptr_iterator& operator-=( difference_type n )
+        -:  109:            {
+        -:  110:                iter_ -= n;
+        -:  111:                return *this;
+        -:  112:            }
+        -:  113:
+        -:  114:            T& operator[]( difference_type n ) const
+        -:  115:            {
+        -:  116:                return *static_cast<T*>( *(iter_ + n) );
+        -:  117:            }
+        -:  118:
+    #####:  119:            VoidIter base() const
+        -:  120:            {
+    #####:  121:                return iter_;
+        -:  122:            }
+        -:  123:
+        -:  124:        }; // class 'void_ptr_iterator'
+        -:  125:
+        -:  126:        template< class VoidIter, class T >
+        -:  127:        inline void_ptr_iterator<VoidIter,T> 
+        -:  128:        operator+( void_ptr_iterator<VoidIter,T> l, 
+        -:  129:                   BOOST_DEDUCED_TYPENAME void_ptr_iterator<VoidIter,T>::difference_type n )
+        -:  130:        {
+        -:  131:            l += n;
+        -:  132:            return l;
+        -:  133:        }
+        -:  134:
+        -:  135:        template< class VoidIter, class T >
+        -:  136:        inline void_ptr_iterator<VoidIter,T> 
+        -:  137:        operator+( BOOST_DEDUCED_TYPENAME void_ptr_iterator<VoidIter,T>::difference_type n, 
+        -:  138:                   void_ptr_iterator<VoidIter,T> r ) 
+        -:  139:
+        -:  140:        {
+        -:  141:            r += n;
+        -:  142:            return r;
+        -:  143:        }
+        -:  144:
+        -:  145:        template< class VoidIter, class T >
+        -:  146:        inline void_ptr_iterator<VoidIter,T> 
+        -:  147:        operator-( void_ptr_iterator<VoidIter,T> l, 
+        -:  148:                   BOOST_DEDUCED_TYPENAME void_ptr_iterator<VoidIter,T>::difference_type n )
+        -:  149:        {
+        -:  150:            l -= n;
+        -:  151:            return l;
+        -:  152:        }
+        -:  153:
+        -:  154:        template< class VoidIter, class T >
+        -:  155:        inline void_ptr_iterator<VoidIter,T> 
+        -:  156:        operator-( BOOST_DEDUCED_TYPENAME void_ptr_iterator<VoidIter,T>::difference_type n, 
+        -:  157:                   void_ptr_iterator<VoidIter,T> r ) 
+        -:  158:
+        -:  159:        {
+        -:  160:            r -= n;
+        -:  161:            return r;
+        -:  162:        }
+        -:  163:
+        -:  164:
+        -:  165:        namespace ptr_container_detail
+        -:  166:        {
+        -:  167:            template<typename T, typename U>
+        -:  168:            struct is_compatible
+        -:  169:            {
+        -:  170:                static const bool value = boost::is_same< typename boost::remove_const<T>::type, typename boost::remove_const<U>::type >::value;
+        -:  171:            };
+        -:  172:        }
+        -:  173:
+        -:  174:          
+        -:  175:        template< class VoidIter, class T, class VoidIterU, class U >
+        -:  176:        inline BOOST_DEDUCED_TYPENAME boost::enable_if<
+        -:  177:            ptr_container_detail::is_compatible<T, U>,
+        -:  178:            BOOST_DEDUCED_TYPENAME void_ptr_iterator<VoidIter,T>::difference_type
+        -:  179:        >::type
+        -:  180:        operator-( void_ptr_iterator<VoidIter,T> l,
+        -:  181:                   void_ptr_iterator<VoidIterU,U> r ) 
+        -:  182:
+        -:  183:        {
+        -:  184:            return l.base() - r.base();
+        -:  185:        }
+        -:  186:
+        -:  187:
+        -:  188:
+        -:  189:        template< class VoidIterT, class T, class VoidIterU, class U >
+        -:  190:        inline BOOST_DEDUCED_TYPENAME boost::enable_if<
+        -:  191:            ptr_container_detail::is_compatible<T, U>,
+        -:  192:            bool
+        -:  193:        >::type
+        -:  194:        operator==( const void_ptr_iterator<VoidIterT,T>& l,
+        -:  195:                                const void_ptr_iterator<VoidIterU,U>& r )
+        -:  196:        {
+        -:  197:            return l.base() == r.base();
+        -:  198:        }
+        -:  199:
+        -:  200:
+        -:  201:        
+        -:  202:        template< class VoidIterT, class T, class VoidIterU, class U >
+        -:  203:        inline BOOST_DEDUCED_TYPENAME boost::enable_if<
+        -:  204:            ptr_container_detail::is_compatible<T, U>,
+        -:  205:            bool
+        -:  206:        >::type
+        -:  207:        operator!=( const void_ptr_iterator<VoidIterT,T>& l,
+        -:  208:                                const void_ptr_iterator<VoidIterU,U>& r )
+        -:  209:        {
+        -:  210:            return l.base() != r.base();
+        -:  211:        }
+        -:  212:
+        -:  213:
+        -:  214:
+        -:  215:        template< class VoidIterT, class T, class VoidIterU, class U >
+        -:  216:        inline BOOST_DEDUCED_TYPENAME boost::enable_if<
+        -:  217:            ptr_container_detail::is_compatible<T, U>,
+        -:  218:            bool
+        -:  219:        >::type
+        -:  220:        operator<( const void_ptr_iterator<VoidIterT,T>& l,
+        -:  221:                               const void_ptr_iterator<VoidIterU,U>& r )
+        -:  222:        {
+        -:  223:            return l.base() < r.base();
+        -:  224:        }
+        -:  225:
+        -:  226:
+        -:  227:        
+        -:  228:        template< class VoidIterT, class T, class VoidIterU, class U >
+        -:  229:        inline BOOST_DEDUCED_TYPENAME boost::enable_if<
+        -:  230:            ptr_container_detail::is_compatible<T, U>,
+        -:  231:            bool
+        -:  232:        >::type
+     3240:  233:        operator<=( const void_ptr_iterator<VoidIterT,T>& l,
+        -:  234:                               const void_ptr_iterator<VoidIterU,U>& r )
+        -:  235:        {
+     3240:  236:            return l.base() <= r.base();
+        -:  237:        }
+        -:  238:
+        -:  239:
+        -:  240:        
+        -:  241:        template< class VoidIterT, class T, class VoidIterU, class U >
+        -:  242:        inline BOOST_DEDUCED_TYPENAME boost::enable_if<
+        -:  243:            ptr_container_detail::is_compatible<T, U>,
+        -:  244:            bool
+        -:  245:        >::type
+        -:  246:        operator>( const void_ptr_iterator<VoidIterT,T>& l,
+        -:  247:                               const void_ptr_iterator<VoidIterU,U>& r )
+        -:  248:        {
+        -:  249:            return l.base() > r.base();
+        -:  250:        }
+        -:  251:
+        -:  252:
+        -:  253:        
+        -:  254:        template< class VoidIterT, class T, class VoidIterU, class U >
+        -:  255:        inline BOOST_DEDUCED_TYPENAME boost::enable_if<
+        -:  256:            ptr_container_detail::is_compatible<T, U>,
+        -:  257:            bool
+        -:  258:        >::type
+        -:  259:        operator>=( const void_ptr_iterator<VoidIterT,T>& l,
+        -:  260:                               const void_ptr_iterator<VoidIterU,U>& r )
+        -:  261:        {
+        -:  262:            return l.base() >= r.base();
+        -:  263:        }
+        -:  264:
+        -:  265:}
+        -:  266:
+        -:  267:#endif

@@ -1,0 +1,95 @@
+        -:    0:Source:/src/kicad/pcbnew/pcb_tablecell.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software; you can redistribute it and/or
+        -:    7: * modify it under the terms of the GNU General Public License
+        -:    8: * as published by the Free Software Foundation; either version 2
+        -:    9: * of the License, or (at your option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful,
+        -:   12: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14: * GNU General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License
+        -:   17: * along with this program; if not, you may find one here:
+        -:   18: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   19: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   20: * or you may write to the Free Software Foundation, Inc.,
+        -:   21: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   22: */
+        -:   23:
+        -:   24:#ifndef PCB_TABLECELL_H
+        -:   25:#define PCB_TABLECELL_H
+        -:   26:
+        -:   27:
+        -:   28:#include <pcb_textbox.h>
+        -:   29:#include <board_item_container.h>
+        -:   30:
+        -:   31:
+        -:   32:class PCB_TABLECELL : public PCB_TEXTBOX
+        -:   33:{
+        -:   34:public:
+        -:   35:    PCB_TABLECELL( BOARD_ITEM* parent );
+        -:   36:
+        -:   37:    static inline bool ClassOf( const EDA_ITEM* aItem ) { return aItem && PCB_TABLECELL_T == aItem->Type(); }
+        -:   38:
+        -:   39:    wxString GetClass() const override { return wxT( "PCB_TABLECELL" ); }
+        -:   40:
+        -:   41:    virtual wxString GetFriendlyName() const override { return _( "Table Cell" ); }
+        -:   42:
+        -:   43:    EDA_ITEM* Clone() const override { return new PCB_TABLECELL( *this ); }
+        -:   44:
+        -:   45:    EDA_GROUP* GetParentGroup() const override
+        -:   46:    {
+        -:   47:        BOARD_ITEM* parent = GetParent();
+        -:   48:        return parent ? parent->GetParentGroup() : nullptr;
+        -:   49:    }
+        -:   50:
+        -:   51:    int GetRow() const;
+        -:   52:    int GetColumn() const;
+        -:   53:
+        -:   54:    // @return the spreadsheet nomenclature for the cell (ie: B3 for 2nd column, 3rd row)
+        -:   55:    wxString GetAddr() const;
+        -:   56:
+        -:   57:    wxString GetShownText( bool aAllowExtraText, int aDepth = 0 ) const override;
+        -:   58:
+    #####:   59:    int  GetColSpan() const { return m_colSpan; }
+        -:   60:    void SetColSpan( int aSpan ) { m_colSpan = aSpan; }
+        -:   61:
+    #####:   62:    int  GetRowSpan() const { return m_rowSpan; }
+        -:   63:    void SetRowSpan( int aSpan ) { m_rowSpan = aSpan; }
+        -:   64:
+        -:   65:    int  GetRowHeight() const;
+        -:   66:    void SetRowHeight( int aHeight );
+        -:   67:
+        -:   68:    int  GetColumnWidth() const;
+        -:   69:    void SetColumnWidth( int aWidth );
+        -:   70:
+        -:   71:    bool IsFilledForHitTesting() const override { return true; }
+        -:   72:
+        -:   73:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:   74:
+        -:   75:    void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList ) override;
+        -:   76:
+        -:   77:    double Similarity( const BOARD_ITEM& aBoardItem ) const override;
+        -:   78:
+        -:   79:    bool operator==( const PCB_TABLECELL& aBoardItem ) const;
+        -:   80:    bool operator==( const BOARD_ITEM& aBoardItem ) const override;
+        -:   81:
+        -:   82:protected:
+        -:   83:    virtual void swapData( BOARD_ITEM* aImage ) override;
+        -:   84:
+        -:   85:protected:
+        -:   86:    int m_colSpan;
+        -:   87:    int m_rowSpan;
+        -:   88:};
+        -:   89:
+        -:   90:
+        -:   91:#endif /* PCB_TABLECELL_H */

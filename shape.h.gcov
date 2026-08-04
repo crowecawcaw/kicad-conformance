@@ -1,0 +1,408 @@
+        -:    0:Source:/src/kicad/libs/kimath/include/geometry/shape.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2013 CERN
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: * @author Tomasz Wlostowski <tomasz.wlostowski@cern.ch>
+        -:    7: *
+        -:    8: * This program is free software; you can redistribute it and/or
+        -:    9: * modify it under the terms of the GNU General Public License
+        -:   10: * as published by the Free Software Foundation; either version 2
+        -:   11: * of the License, or (at your option) any later version.
+        -:   12: *
+        -:   13: * This program is distributed in the hope that it will be useful,
+        -:   14: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   15: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   16: * GNU General Public License for more details.
+        -:   17: *
+        -:   18: * You should have received a copy of the GNU General Public License
+        -:   19: * along with this program; if not, you may find one here:
+        -:   20: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   21: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   22: * or you may write to the Free Software Foundation, Inc.,
+        -:   23: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   24: */
+        -:   25:
+        -:   26:#ifndef __SHAPE_H
+        -:   27:#define __SHAPE_H
+        -:   28:
+        -:   29:#include <sstream>
+        -:   30:#include <vector>
+        -:   31:#include <geometry/seg.h>
+        -:   32:#include <geometry/eda_angle.h>
+        -:   33:#include <geometry/approximation.h>
+        -:   34:#include <math/vector2d.h>
+        -:   35:#include <math/box2.h>
+        -:   36:#include <wx/string.h>
+        -:   37:
+        -:   38:class SHAPE_LINE_CHAIN;
+        -:   39:class SHAPE_POLY_SET;
+        -:   40:
+        -:   41:/**
+        -:   42: * Lists all supported shapes.
+        -:   43: */
+        -:   44:
+        -:   45:enum SHAPE_TYPE
+        -:   46:{
+        -:   47:    SH_RECT = 0,         ///< axis-aligned rectangle
+        -:   48:    SH_SEGMENT,          ///< line segment
+        -:   49:    SH_LINE_CHAIN,       ///< line chain (polyline)
+        -:   50:    SH_CIRCLE,           ///< circle
+        -:   51:    SH_SIMPLE,           ///< simple polygon
+        -:   52:    SH_POLY_SET,         ///< set of polygons (with holes, etc.)
+        -:   53:    SH_COMPOUND,         ///< compound shape, consisting of multiple simple shapes
+        -:   54:    SH_ARC,              ///< circular arc
+        -:   55:    SH_NULL,             ///< empty shape (no shape...),
+        -:   56:    SH_POLY_SET_TRIANGLE ///< a single triangle belonging to a POLY_SET triangulation
+        -:   57:};
+        -:   58:
+        -:   59:static inline wxString SHAPE_TYPE_asString( SHAPE_TYPE a )
+        -:   60:{
+        -:   61:    switch( a )
+        -:   62:    {
+        -:   63:    case SH_RECT:              return wxT( "SH_RECT" );
+        -:   64:    case SH_SEGMENT:           return wxT( "SH_SEGMENT" );
+        -:   65:    case SH_LINE_CHAIN:        return wxT( "SH_LINE_CHAIN" );
+        -:   66:    case SH_CIRCLE:            return wxT( "SH_CIRCLE" );
+        -:   67:    case SH_SIMPLE:            return wxT( "SH_SIMPLE" );
+        -:   68:    case SH_POLY_SET:          return wxT( "SH_POLY_SET" );
+        -:   69:    case SH_COMPOUND:          return wxT( "SH_COMPOUND" );
+        -:   70:    case SH_ARC:               return wxT( "SH_ARC" );
+        -:   71:    case SH_NULL:              return wxT( "SH_NULL" );
+        -:   72:    case SH_POLY_SET_TRIANGLE: return wxT( "SH_POLY_SET_TRIANGLE" );
+        -:   73:    }
+        -:   74:
+        -:   75:    return wxEmptyString;  // Just to quiet GCC.
+        -:   76:}
+        -:   77:
+        -:   78:class SHAPE;
+        -:   79:
+        -:   80:class SHAPE_BASE
+        -:   81:{
+        -:   82:public:
+        -:   83:    /**
+        -:   84:     * Create an empty shape of type aType
+        -:   85:     */
+    #####:   86:    SHAPE_BASE( SHAPE_TYPE aType ) :
+    #####:   87:        m_type( aType )
+    #####:   88:    {}
+        -:   89:
+    #####:   90:    virtual ~SHAPE_BASE()
+    #####:   91:    {}
+------------------
+SHAPE_BASE::~SHAPE_BASE():
+    #####:   90:    virtual ~SHAPE_BASE()
+    #####:   91:    {}
+------------------
+SHAPE_BASE::~SHAPE_BASE():
+    #####:   90:    virtual ~SHAPE_BASE()
+    #####:   91:    {}
+------------------
+        -:   92:
+        -:   93:    /**
+        -:   94:     * Return the type of the shape.
+        -:   95:     *
+        -:   96:     * @retval the type
+        -:   97:     */
+        -:   98:    SHAPE_TYPE Type() const
+        -:   99:    {
+        -:  100:        return m_type;
+        -:  101:    }
+        -:  102:
+        -:  103:    wxString TypeName() const
+        -:  104:    {
+        -:  105:        return SHAPE_TYPE_asString( m_type );
+        -:  106:    }
+        -:  107:
+    #####:  108:    virtual bool HasIndexableSubshapes() const
+        -:  109:    {
+    #####:  110:        return false;
+        -:  111:    }
+        -:  112:
+    #####:  113:    virtual size_t GetIndexableSubshapeCount() const { return 0; }
+        -:  114:
+    #####:  115:    virtual void GetIndexableSubshapes( std::vector<const SHAPE*>& aSubshapes ) const { }
+        -:  116:
+        -:  117:protected:
+        -:  118:    ///< type of our shape
+        -:  119:    SHAPE_TYPE m_type;
+        -:  120:};
+        -:  121:
+        -:  122:/**
+        -:  123: * An abstract shape on 2D plane.
+        -:  124: */
+        -:  125:class SHAPE : public SHAPE_BASE
+        -:  126:{
+        -:  127:public:
+        -:  128:    /**
+        -:  129:     * This is the minimum precision for all the points in a shape.
+        -:  130:     */
+        -:  131:    static const int MIN_PRECISION_IU = 4;
+        -:  132:
+        -:  133:    /**
+        -:  134:     * Create an empty shape of type \a aType.
+        -:  135:     */
+    #####:  136:    SHAPE( SHAPE_TYPE aType ) :
+    #####:  137:        SHAPE_BASE( aType )
+    #####:  138:    {}
+        -:  139:
+    #####:  140:    virtual ~SHAPE()
+    #####:  141:    {}
+------------------
+SHAPE::~SHAPE():
+    #####:  140:    virtual ~SHAPE()
+    #####:  141:    {}
+------------------
+SHAPE::~SHAPE():
+    #####:  140:    virtual ~SHAPE()
+    #####:  141:    {}
+------------------
+        -:  142:
+        -:  143:    /**
+        -:  144:     * Return a dynamically allocated copy of the shape.
+        -:  145:     *
+        -:  146:     * @retval copy of the shape
+        -:  147:     */
+        -:  148:    virtual SHAPE* Clone() const
+        -:  149:    {
+        -:  150:        assert( false );
+        -:  151:        return nullptr;
+        -:  152:    };
+        -:  153:
+        -:  154:    /**
+        -:  155:     * Return the actual minimum distance between two shapes
+        -:  156:     *
+        -:  157:     * @retval distance in IU
+        -:  158:     */
+        -:  159:    int GetClearance( const SHAPE* aOther ) const;
+        -:  160:
+        -:  161:    /**
+        -:  162:     * Return true if the shape is a null shape.
+        -:  163:     *
+        -:  164:     * @retval true if null :-)
+        -:  165:     */
+        -:  166:    bool IsNull() const
+        -:  167:    {
+        -:  168:        return m_type == SH_NULL;
+        -:  169:    }
+        -:  170:
+        -:  171:    /**
+        -:  172:     * Check if the boundary of shape (this) lies closer to the point \a aP than \a aClearance,
+        -:  173:     * indicating a collision.
+        -:  174:     *
+        -:  175:     * @param aActual [out] an optional pointer to an int to store the actual distance in the
+        -:  176:     *                event of a collision.
+        -:  177:     * @param aLocation [out] an option pointer to a point to store a nearby location in the
+        -:  178:     *                  event of a collision.
+        -:  179:     * @return true, if there is a collision.
+        -:  180:     */
+        -:  181:    virtual bool Collide( const VECTOR2I& aP, int aClearance = 0, int* aActual = nullptr,
+        -:  182:                          VECTOR2I* aLocation = nullptr ) const
+        -:  183:    {
+        -:  184:        return Collide( SEG( aP, aP ), aClearance, aActual, aLocation );
+        -:  185:    }
+        -:  186:
+        -:  187:    /**
+        -:  188:     * Check if the boundary of shape (this) lies closer to the shape \a aShape than \a aClearance,
+        -:  189:     * indicating a collision.
+        -:  190:     *
+        -:  191:     * @param aShape shape to check collision against
+        -:  192:     * @param aClearance minimum clearance
+        -:  193:     * @param aMTV [out] minimum translation vector
+        -:  194:     * @param aActual [out] an optional pointer to an int to store the actual distance in the
+        -:  195:     *                event of a collision.
+        -:  196:     * @param aLocation [out] an option pointer to a point to store a nearby location in the
+        -:  197:     *                  event of a collision.
+        -:  198:     * @return true, if there is a collision.
+        -:  199:     */
+        -:  200:    virtual bool Collide( const SHAPE* aShape, int aClearance, VECTOR2I* aMTV ) const;
+        -:  201:
+        -:  202:    virtual bool Collide( const SHAPE* aShape, int aClearance = 0, int* aActual = nullptr,
+        -:  203:                          VECTOR2I* aLocation = nullptr ) const;
+        -:  204:
+        -:  205:    /**
+        -:  206:     * Check if the boundary of shape (this) lies closer to the segment \a aSeg than \a aClearance,
+        -:  207:     * indicating a collision.
+        -:  208:     *
+        -:  209:     * @param aActual [out] an optional pointer to an int to be updated with the actual distance
+        -:  210:     *                int the event of a collision.
+        -:  211:     * @param aLocation [out] an option pointer to a point to store a nearby location in the
+        -:  212:     *                  event of a collision.
+        -:  213:     * @return true, if there is a collision.
+        -:  214:     */
+        -:  215:    virtual bool Collide( const SEG& aSeg, int aClearance = 0, int* aActual = nullptr,
+        -:  216:                          VECTOR2I* aLocation = nullptr ) const = 0;
+        -:  217:
+        -:  218:    /**
+        -:  219:     * Compute a bounding box of the shape, with a margin of \a aClearance a collision.
+        -:  220:     *
+        -:  221:     * @param aClearance how much the bounding box is expanded wrs to the minimum enclosing
+        -:  222:     *                   rectangle for the shape.
+        -:  223:     * @return the bounding box.
+        -:  224:     */
+        -:  225:    virtual const BOX2I BBox( int aClearance = 0 ) const = 0;
+        -:  226:
+        -:  227:    /**
+        -:  228:     * Compute a center-of-mass of the shape.
+        -:  229:     *
+        -:  230:     * @return the center-of-mass point
+        -:  231:     */
+        -:  232:    virtual VECTOR2I Centre() const
+        -:  233:    {
+        -:  234:        return BBox( 0 ).Centre(); // if nothing better is available....
+        -:  235:    }
+        -:  236:
+        -:  237:    /**
+        -:  238:     * Returns the minimum distance from a given point to this shape.
+        -:  239:     * Always returns zero if the point is inside a closed shape and aOutlineOnly is false.
+        -:  240:     *
+        -:  241:     * @param aP is the point to test
+        -:  242:     * @return the distance from the shape to aP
+        -:  243:     */
+        -:  244:    virtual int Distance( const VECTOR2I& aP ) const;
+        -:  245:
+        -:  246:    /**
+        -:  247:     * @see SHAPE::Distance
+        -:  248:     */
+        -:  249:    virtual SEG::ecoord SquaredDistance( const VECTOR2I& aP, bool aOutlineOnly = false ) const;
+        -:  250:
+        -:  251:    /**
+        -:  252:     * Return the two points that mark the closest distance between this shape and \a aOther.
+        -:  253:     * If the shapes are overlapping, the points will be the same.
+        -:  254:     *
+        -:  255:     * @param aOther the other shape to compare with
+        -:  256:     * @param aPtThis [out] the point on this shape closest to \a aOther
+        -:  257:     * @param aPtOther [out] the point on \a aOther closest to this shape
+        -:  258:     * @return true if the points were found
+        -:  259:     */
+        -:  260:    bool NearestPoints( const SHAPE* aOther, VECTOR2I& aPtThis, VECTOR2I& aPtOther ) const;
+        -:  261:
+        -:  262:    /**
+        -:  263:     * Check if point \a aP lies inside a closed shape.  Always returns false if this shape is not closed.
+        -:  264:     *
+        -:  265:     * @param aPt point to check
+        -:  266:     * @param aUseBBoxCache gives better performance if the bounding box caches have been
+        -:  267:     *                      generated.
+        -:  268:     * @return true if the point is inside the shape (edge is not treated as being inside).
+        -:  269:     */
+        -:  270:    virtual bool PointInside( const VECTOR2I& aPt, int aAccuracy = 0, bool aUseBBoxCache = false ) const;
+        -:  271:
+        -:  272:    /**
+        -:  273:     * Fills a SHAPE_POLY_SET with a polygon representation of this shape.
+        -:  274:     * @param aBuffer [out] will be filled with the polygonal representation of this shape.
+        -:  275:     * @param aError controls the maximum allowed deviation when converting rounded shapes to segments
+        -:  276:     * @param aErrorLoc controls where the error is placed when approximating rounded shapes
+        -:  277:     */
+        -:  278:    virtual void TransformToPolygon( SHAPE_POLY_SET& aBuffer, int aError, ERROR_LOC aErrorLoc ) const = 0;
+        -:  279:
+        -:  280:    /**
+        -:  281:     * @param aCenter is the rotation center.
+        -:  282:     * @param aAngle rotation angle.
+        -:  283:     */
+        -:  284:    virtual void Rotate( const EDA_ANGLE& aAngle, const VECTOR2I& aCenter = { 0, 0 } ) = 0;
+        -:  285:
+        -:  286:    virtual VECTOR2I GetStart() const { return {}; }
+        -:  287:    virtual VECTOR2I GetEnd() const { return {}; }
+        -:  288:
+        -:  289:    virtual int GetWidth() const { return 0; }
+        -:  290:    virtual void SetWidth( int aWidth ) {}
+        -:  291:
+        -:  292:    virtual void Move( const VECTOR2I& aVector ) = 0;
+        -:  293:
+        -:  294:    virtual bool IsSolid() const = 0;
+        -:  295:
+        -:  296:    virtual bool Parse( std::stringstream& aStream );
+        -:  297:
+        -:  298:    virtual const std::string Format( bool aCplusPlus = true ) const;
+        -:  299:
+        -:  300:protected:
+        -:  301:    typedef VECTOR2I::extended_type ecoord;
+        -:  302:};
+        -:  303:
+        -:  304:
+        -:  305:class SHAPE_LINE_CHAIN_BASE : public SHAPE
+        -:  306:{
+        -:  307:public:
+    #####:  308:    SHAPE_LINE_CHAIN_BASE( SHAPE_TYPE aType ) :
+    #####:  309:        SHAPE( aType )
+        -:  310:    {
+    #####:  311:    }
+        -:  312:
+    #####:  313:    virtual ~SHAPE_LINE_CHAIN_BASE()
+    #####:  314:    {
+    #####:  315:    }
+------------------
+SHAPE_LINE_CHAIN_BASE::~SHAPE_LINE_CHAIN_BASE():
+    #####:  313:    virtual ~SHAPE_LINE_CHAIN_BASE()
+        -:  314:    {
+    #####:  315:    }
+------------------
+SHAPE_LINE_CHAIN_BASE::~SHAPE_LINE_CHAIN_BASE():
+    #####:  313:    virtual ~SHAPE_LINE_CHAIN_BASE()
+    #####:  314:    {
+    #####:  315:    }
+------------------
+        -:  316:
+        -:  317:    /**
+        -:  318:     * Check if point \a aP lies closer to us than \a aClearance.
+        -:  319:     *
+        -:  320:     * @param aP the point to check for collisions with
+        -:  321:     * @param aClearance minimum distance that does not qualify as a collision.
+        -:  322:     * @param aActual an optional pointer to an int to store the actual distance in the event
+        -:  323:     *                of a collision.
+        -:  324:     * @return true, when a collision has been found
+        -:  325:     */
+        -:  326:    virtual bool Collide( const VECTOR2I& aP, int aClearance = 0, int* aActual = nullptr,
+        -:  327:                          VECTOR2I* aLocation = nullptr ) const override;
+        -:  328:
+        -:  329:    /**
+        -:  330:     * Check if segment \a aSeg lies closer to us than \a aClearance.
+        -:  331:     *
+        -:  332:     * @param aSeg the segment to check for collisions with
+        -:  333:     * @param aClearance minimum distance that does not qualify as a collision.
+        -:  334:     * @param aActual an optional pointer to an int to store the actual distance in the event
+        -:  335:     *                of a collision.
+        -:  336:     * @return true, when a collision has been found
+        -:  337:     */
+        -:  338:
+        -:  339:    virtual bool Collide( const SEG& aSeg, int aClearance = 0, int* aActual = nullptr,
+        -:  340:                          VECTOR2I* aLocation = nullptr ) const override;
+        -:  341:
+        -:  342:    SEG::ecoord SquaredDistance( const VECTOR2I& aP, bool aOutlineOnly = false ) const override;
+        -:  343:
+        -:  344:    bool PointInside( const VECTOR2I& aPt, int aAccuracy = 0, bool aUseBBoxCache = false ) const override;
+        -:  345:
+        -:  346:    /**
+        -:  347:     * Check if point \a aP lies on an edge or vertex of the line chain.
+        -:  348:     *
+        -:  349:     * @param aP point to check
+        -:  350:     * @return true if the point lies on the edge.
+        -:  351:     */
+        -:  352:    bool PointOnEdge( const VECTOR2I& aP, int aAccuracy = 0 ) const;
+        -:  353:
+        -:  354:    /**
+        -:  355:     * Check if point \a aP lies on an edge or vertex of the line chain.
+        -:  356:     *
+        -:  357:     * @param aP point to check
+        -:  358:     * @return index of the first edge containing the point, otherwise negative
+        -:  359:     */
+        -:  360:    int EdgeContainingPoint( const VECTOR2I& aP, int aAccuracy = 0 ) const;
+        -:  361:
+        -:  362:    virtual const VECTOR2I GetPoint( int aIndex ) const   = 0;
+        -:  363:    virtual const SEG      GetSegment( int aIndex ) const = 0;
+        -:  364:    virtual size_t         GetPointCount() const          = 0;
+        -:  365:    virtual size_t         GetSegmentCount() const        = 0;
+        -:  366:    virtual bool IsClosed() const = 0;
+        -:  367:
+        -:  368:    virtual BOX2I* GetCachedBBox() const { return nullptr; }
+        -:  369:
+        -:  370:    void TransformToPolygon( SHAPE_POLY_SET& aBuffer, int aError,
+        -:  371:                             ERROR_LOC aErrorLoc ) const override
+        -:  372:    {}
+        -:  373:};
+        -:  374:
+        -:  375:#endif // __SHAPE_H

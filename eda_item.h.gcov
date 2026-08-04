@@ -1,0 +1,594 @@
+        -:    0:Source:/src/kicad/include/eda_item.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2013-2015 Jean-Pierre Charras, jp.charras at wanadoo.fr
+        -:    5: * Copyright (C) 2008-2015 SoftPLC Corporation, Dick Hollenbeck <dick@softplc.com>
+        -:    6: * Copyright (C) 2008 Wayne Stambaugh <stambaughw@gmail.com>
+        -:    7: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    8: *
+        -:    9: * This program is free software; you can redistribute it and/or
+        -:   10: * modify it under the terms of the GNU General Public License
+        -:   11: * as published by the Free Software Foundation; either version 2
+        -:   12: * of the License, or (at your option) any later version.
+        -:   13: *
+        -:   14: * This program is distributed in the hope that it will be useful,
+        -:   15: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   16: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   17: * GNU General Public License for more details.
+        -:   18: *
+        -:   19: * You should have received a copy of the GNU General Public License
+        -:   20: * along with this program; if not, you may find one here:
+        -:   21: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   22: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   23: * or you may write to the Free Software Foundation, Inc.,
+        -:   24: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   25: */
+        -:   26:
+        -:   27:#ifndef EDA_ITEM_H
+        -:   28:#define EDA_ITEM_H
+        -:   29:
+        -:   30:#include <deque>
+        -:   31:
+        -:   32:#include <api/serializable.h>
+        -:   33:#include <core/typeinfo.h>
+        -:   34:#include <eda_item_flags.h>
+        -:   35:#include <eda_search_data.h>
+        -:   36:#include <view/view_item.h>
+        -:   37:#include <kiid.h>
+        -:   38:
+        -:   39:class SHAPE_LINE_CHAIN;
+        -:   40:
+        -:   41:enum class BITMAPS : unsigned int;
+        -:   42:
+        -:   43:
+        -:   44:enum class INSPECT_RESULT
+        -:   45:{
+        -:   46:    QUIT,
+        -:   47:    CONTINUE
+        -:   48:};
+        -:   49:
+        -:   50:enum RECURSE_MODE
+        -:   51:{
+        -:   52:    RECURSE,
+        -:   53:    NO_RECURSE,
+        -:   54:};
+        -:   55:
+        -:   56:#define IGNORE_PARENT_GROUP false
+        -:   57:
+        -:   58:/**
+        -:   59: * Additional flag values wxFindReplaceData::m_Flags
+        -:   60: */
+        -:   61:class UNITS_PROVIDER;
+        -:   62:class EDA_DRAW_FRAME;
+        -:   63:class EDA_GROUP;
+        -:   64:class MSG_PANEL_ITEM;
+        -:   65:class EMBEDDED_FILES;
+        -:   66:
+        -:   67:namespace google { namespace protobuf { class Any; } }
+        -:   68:
+        -:   69:
+        -:   70:/**
+        -:   71: * Used to inspect and possibly collect the (search) results of iterating over a list or
+        -:   72: * tree of #KICAD_T objects.
+        -:   73: *
+        -:   74: * Provide an implementation as needed to inspect EDA_ITEMs visited via #EDA_ITEM::Visit()
+        -:   75: * and #EDA_ITEM::IterateForward().
+        -:   76: *
+        -:   77: * FYI the std::function may hold a lambda, std::bind, pointer to func, or ptr to member
+        -:   78: * function, per modern C++. It is used primarily for searching, but not limited to that.
+        -:   79: * It can also collect or modify the scanned objects.  'Capturing' lambdas are particularly
+        -:   80: * convenient because they can use context and this often means @a aTestData is not used.
+        -:   81: *
+        -:   82: * @param aItem An #EDA_ITEM to examine.
+        -:   83: * @param aTestData is arbitrary data needed by the inspector to determine
+        -:   84: *  if the EDA_ITEM under test meets its match criteria, and is often NULL
+        -:   85: *  with the advent of capturing lambdas.
+        -:   86: * @return A #SEARCH_RESULT type #SEARCH_QUIT if the iterator function is to
+        -:   87: *          stop the scan, else #SEARCH_CONTINUE;
+        -:   88: */
+        -:   89:typedef std::function< INSPECT_RESULT ( EDA_ITEM* aItem, void* aTestData ) > INSPECTOR_FUNC;
+        -:   90:
+        -:   91:/// std::function passed to nested users by ref, avoids copying std::function.
+        -:   92:typedef const INSPECTOR_FUNC& INSPECTOR;
+        -:   93:
+        -:   94:
+        -:   95:/**
+        -:   96: * A base class for most all the KiCad significant classes used in schematics and boards.
+        -:   97: */
+        -:   98:class EDA_ITEM : public KIGFX::VIEW_ITEM, public SERIALIZABLE
+        -:   99:{
+        -:  100:public:
+        -:  101:    virtual ~EDA_ITEM() = default;
+        -:  102:
+        -:  103:    /**
+        -:  104:     * Returns the type of object.
+        -:  105:     *
+        -:  106:     * This attribute should never be changed after a ctor sets it, so there is no public
+        -:  107:     * "setter" method.
+        -:  108:     *
+        -:  109:     * @return the type of object.
+        -:  110:     */
+    #####:  111:    inline KICAD_T Type() const { return m_structType; }
+        -:  112:
+        -:  113:    EDA_ITEM* GetParent() const { return m_parent; }
+        -:  114:    virtual void SetParent( EDA_ITEM* aParent );
+        -:  115:
+        -:  116:    virtual void SetParentGroup( EDA_GROUP* aGroup ) { m_group = aGroup; }
+        -:  117:    virtual EDA_GROUP* GetParentGroup() const { return m_group; }
+        -:  118:
+        -:  119:    KIID GetParentGroupId() const;
+        -:  120:
+        -:  121:    /**
+        -:  122:     * @return true if any ancestor group (recursively) of this item is currently selected.
+        -:  123:     *         Group members do not carry the SELECTED flag themselves, so callers that need to
+        -:  124:     *         know whether an item is moving as part of a group selection should use this helper.
+        -:  125:     */
+        -:  126:    bool HasSelectedAncestorGroup() const;
+        -:  127:
+        -:  128:    virtual bool IsLocked() const { return false; }
+        -:  129:    virtual void SetLocked( bool aLocked ) {}
+        -:  130:
+        -:  131:    inline bool IsModified() const { return m_flags & IS_CHANGED; }
+        -:  132:    inline bool IsNew() const { return m_flags & IS_NEW; }
+        -:  133:    inline bool IsMoving() const { return m_flags & IS_MOVING; }
+        -:  134:
+        -:  135:    inline bool IsSelected() const { return m_flags & SELECTED; }
+        -:  136:    inline bool IsEntered() const { return m_flags & ENTERED; }
+        -:  137:    inline bool IsBrightened() const { return m_flags & BRIGHTENED; }
+        -:  138:
+        -:  139:    inline bool IsRollover() const { return m_isRollover; }
+        -:  140:    inline VECTOR2I GetRolloverPos() const { return m_rolloverPos; }
+        -:  141:    inline void SetIsRollover( bool aIsRollover, const VECTOR2I& aMousePos )
+        -:  142:    {
+        -:  143:        m_isRollover = aIsRollover;
+        -:  144:        m_rolloverPos = aMousePos;
+        -:  145:    }
+        -:  146:
+        -:  147:    inline void SetSelected() { SetFlags( SELECTED ); }
+        -:  148:    inline void SetBrightened() { SetFlags( BRIGHTENED ); }
+        -:  149:
+        -:  150:    inline void ClearSelected() { ClearFlags( SELECTED ); }
+        -:  151:    inline void ClearBrightened() { ClearFlags( BRIGHTENED ); }
+        -:  152:
+        -:  153:    void SetModified();
+        -:  154:
+        -:  155:    void           SetFlags( EDA_ITEM_FLAGS aMask ) { m_flags |= aMask; }
+        -:  156:    void           XorFlags( EDA_ITEM_FLAGS aMask ) { m_flags ^= aMask; }
+        -:  157:    void           ClearFlags( EDA_ITEM_FLAGS aMask = EDA_ITEM_ALL_FLAGS ) { m_flags &= ~aMask; }
+        -:  158:    EDA_ITEM_FLAGS GetFlags() const { return m_flags; }
+        -:  159:    bool           HasFlag( EDA_ITEM_FLAGS aFlag ) const { return ( m_flags & aFlag ) == aFlag; }
+        -:  160:
+        -:  161:    EDA_ITEM_FLAGS GetEditFlags() const
+        -:  162:    {
+        -:  163:        constexpr int mask =
+        -:  164:                ( IS_NEW | IS_PASTED | IS_MOVING | IS_BROKEN | IS_CHANGED | STRUCT_DELETED );
+        -:  165:
+        -:  166:        return m_flags & mask;
+        -:  167:    }
+        -:  168:
+        -:  169:    virtual void ClearEditFlags()
+        -:  170:    {
+        -:  171:        ClearFlags( GetEditFlags() );
+        -:  172:    }
+        -:  173:
+        -:  174:    EDA_ITEM_FLAGS GetTempFlags() const
+        -:  175:    {
+        -:  176:        constexpr int mask = ( CANDIDATE | SELECTED_BY_DRAG | IS_LINKED | SKIP_STRUCT | SELECTION_CANDIDATE
+        -:  177:                               | CONNECTIVITY_CANDIDATE );
+        -:  178:
+        -:  179:        return m_flags & mask;
+        -:  180:    }
+        -:  181:
+        -:  182:    virtual void ClearTempFlags()
+        -:  183:    {
+        -:  184:        ClearFlags( GetTempFlags() );
+        -:  185:    }
+        -:  186:
+        -:  187:    virtual bool RenderAsBitmap( double aWorldScale ) const { return false; }
+        -:  188:
+        -:  189:    void SetIsShownAsBitmap( bool aBitmap )
+        -:  190:    {
+        -:  191:        if( aBitmap )
+        -:  192:            SetFlags( IS_SHOWN_AS_BITMAP );
+        -:  193:        else
+        -:  194:            ClearFlags( IS_SHOWN_AS_BITMAP );
+        -:  195:    }
+        -:  196:
+        -:  197:    inline bool IsShownAsBitmap() const { return m_flags & IS_SHOWN_AS_BITMAP; }
+        -:  198:
+        -:  199:    /**
+        -:  200:     * Check whether the item is one of the listed types.
+        -:  201:     *
+        -:  202:     * @param aScanTypes List of item types
+        -:  203:     * @return true if the item type is contained in the list aScanTypes
+        -:  204:     */
+        -:  205:    virtual bool IsType( const std::vector<KICAD_T>& aScanTypes ) const
+        -:  206:    {
+        -:  207:        for( KICAD_T scanType : aScanTypes )
+        -:  208:        {
+        -:  209:            if( scanType == SCH_LOCATE_ANY_T || scanType == m_structType )
+        -:  210:                return true;
+        -:  211:        }
+        -:  212:
+        -:  213:        return false;
+        -:  214:    }
+        -:  215:
+        -:  216:    /**
+        -:  217:     * Set and clear force visible flag used to force the item to be drawn even if it's draw
+        -:  218:     * attribute is set to not visible.
+        -:  219:     *
+        -:  220:     * @param aEnable True forces the item to be drawn.  False uses the item's visibility
+        -:  221:     *                setting to determine if the item is to be drawn.
+        -:  222:     */
+        -:  223:    void SetForceVisible( bool aEnable ) { m_forceVisible = aEnable; }
+        -:  224:    bool IsForceVisible() const { return m_forceVisible; }
+        -:  225:
+        -:  226:    /**
+        -:  227:     * Populate \a aList of #MSG_PANEL_ITEM objects with it's internal state for display
+        -:  228:     * purposes.
+        -:  229:     *
+        -:  230:     * @param aFrame is the EDA_DRAW_FRAME that displays the message panel
+        -:  231:     * @param aList is the list to populate.
+        -:  232:     */
+        -:  233:    virtual void GetMsgPanelInfo( EDA_DRAW_FRAME* aFrame, std::vector<MSG_PANEL_ITEM>& aList )
+        -:  234:    {
+        -:  235:    }
+        -:  236:
+        -:  237:    virtual wxString GetFriendlyName() const;
+        -:  238:
+        -:  239:    /**
+        -:  240:     * Test if \a aPosition is inside or on the boundary of this item.
+        -:  241:     *
+        -:  242:     * @param aPosition A reference to a VECTOR2I object containing the coordinates to test.
+        -:  243:     * @param aAccuracy Increase the item bounding box by this amount.
+        -:  244:     * @return True if \a aPosition is within the item bounding box.
+        -:  245:     */
+        -:  246:    virtual bool HitTest( const VECTOR2I& aPosition, int aAccuracy = 0 ) const
+        -:  247:    {
+        -:  248:        return false;   // derived classes should override this function
+        -:  249:    }
+        -:  250:
+        -:  251:    /**
+        -:  252:     * Test if \a aRect intersects this item.
+        -:  253:     *
+        -:  254:     * @param aRect A reference to a #BOX2I object containing the rectangle to test.
+        -:  255:     * @param aContained Set to true to test for containment instead of an intersection.
+        -:  256:     * @param aAccuracy Increase \a aRect by this amount.
+        -:  257:     * @return True if \a aRect contains or intersects the item bounding box.
+        -:  258:     */
+        -:  259:    virtual bool HitTest( const BOX2I& aRect, bool aContained, int aAccuracy = 0 ) const
+        -:  260:    {
+        -:  261:        return false;   // derived classes should override this function
+        -:  262:    }
+        -:  263:
+        -:  264:    /**
+        -:  265:     * Test if \a aPoly intersects this item.
+        -:  266:     *
+        -:  267:     * @param aPoly A reference to a #SHAPE_LINE_CHAIN object containing the polygon or polyline to test.
+        -:  268:     * @param aContained Set to true to test for containment instead of an intersection.
+        -:  269:     * @return True if \a aPoly contains or intersects the item.
+        -:  270:     */
+        -:  271:    virtual bool HitTest( const SHAPE_LINE_CHAIN& aPoly, bool aContained ) const
+        -:  272:    {
+        -:  273:        return false; // derived classes should override this function
+        -:  274:    }
+        -:  275:
+        -:  276:    /**
+        -:  277:     * Return the orthogonal bounding box of this object for display purposes.
+        -:  278:     *
+        -:  279:     * This box should be an enclosing perimeter for visible components of this
+        -:  280:     * object, and the units should be in the pcb or schematic coordinate
+        -:  281:     * system.  It is OK to overestimate the size by a few counts.
+        -:  282:     */
+        -:  283:    virtual const BOX2I GetBoundingBox() const;
+        -:  284:
+        -:  285:    virtual VECTOR2I GetPosition() const { return VECTOR2I(); }
+        -:  286:    virtual void     SetPosition( const VECTOR2I& aPos ){};
+        -:  287:
+        -:  288:    /**
+        -:  289:     * Similar to GetPosition() but allows items to return their visual center rather
+        -:  290:     * than their anchor.
+        -:  291:     */
+        -:  292:    virtual const VECTOR2I GetFocusPosition() const { return GetPosition(); }
+        -:  293:
+        -:  294:    /**
+        -:  295:     * Return the coordinates that should be used for sorting this element
+        -:  296:     * visually compared to other elements. For instance, for lines the midpoint
+        -:  297:     * might be a better sorting point than either end.
+        -:  298:     *
+        -:  299:     * @return X,Y coordinate of the sort point
+        -:  300:     */
+        -:  301:    virtual VECTOR2I GetSortPosition() const { return GetPosition(); }
+        -:  302:
+        -:  303:    /**
+        -:  304:     * Create a duplicate of this item with linked list members set to NULL.
+        -:  305:     *
+        -:  306:     * The default version will return NULL in release builds and likely crash the
+        -:  307:     * program.  In debug builds, a warning message indicating the derived class
+        -:  308:     * has not implemented cloning.  This really should be a pure virtual function.
+        -:  309:     * Due to the fact that there are so many objects derived from EDA_ITEM, the
+        -:  310:     * decision was made to return NULL until all the objects derived from EDA_ITEM
+        -:  311:     * implement cloning.  Once that happens, this function should be made pure.
+        -:  312:     *
+        -:  313:     * @return A clone of the item.
+        -:  314:     */
+        -:  315:    virtual EDA_ITEM* Clone() const;
+        -:  316:
+        -:  317:    /**
+        -:  318:     * May be re-implemented for each derived class in order to handle all the types given
+        -:  319:     * by its member data.
+        -:  320:     *
+        -:  321:     * Implementations should call inspector->Inspect() on types in aScanTypes, and may use
+        -:  322:     * #IterateForward() to do so on lists of such data.
+        -:  323:     *
+        -:  324:     * @param inspector An #INSPECTOR instance to use in the inspection.
+        -:  325:     * @param testData Arbitrary data used by the inspector.
+        -:  326:     * @param aScanTypes Which #KICAD_T types are of interest and the order in which they should
+        -:  327:     *                   be processed.
+        -:  328:     * @return #SEARCH_RESULT SEARCH_QUIT if the Iterator is to stop the scan,
+        -:  329:     *         else #SCAN_CONTINUE, and determined by the inspector.
+        -:  330:     */
+        -:  331:    virtual INSPECT_RESULT Visit( INSPECTOR inspector, void* testData,
+        -:  332:                                  const std::vector<KICAD_T>& aScanTypes );
+        -:  333:
+        -:  334:    /**
+        -:  335:     * This changes first parameter to avoid the DList and use the main queue instead.
+        -:  336:     */
+        -:  337:    template< class T >
+        -:  338:    static INSPECT_RESULT IterateForward( std::deque<T>& aList, INSPECTOR inspector, void* testData,
+        -:  339:                                          const std::vector<KICAD_T>& scanTypes )
+        -:  340:    {
+        -:  341:        for( const auto& it : aList )
+        -:  342:        {
+        -:  343:            EDA_ITEM* item = static_cast<EDA_ITEM*>( it );
+        -:  344:
+        -:  345:            if( item && item->Visit( inspector, testData, scanTypes ) == INSPECT_RESULT::QUIT )
+        -:  346:            {
+        -:  347:                return INSPECT_RESULT::QUIT;
+        -:  348:            }
+        -:  349:        }
+        -:  350:
+        -:  351:        return INSPECT_RESULT::CONTINUE;
+        -:  352:    }
+        -:  353:
+        -:  354:    /**
+        -:  355:     * Change first parameter to avoid the DList and use std::vector instead.
+        -:  356:     */
+        -:  357:    template <class T>
+        -:  358:    static INSPECT_RESULT IterateForward( std::vector<T>& aList, INSPECTOR inspector,
+        -:  359:                                          void* testData, const std::vector<KICAD_T>& scanTypes )
+        -:  360:    {
+        -:  361:        for( const auto& it : aList )
+        -:  362:        {
+        -:  363:            EDA_ITEM* item = static_cast<EDA_ITEM*>( it );
+        -:  364:
+        -:  365:            if( item && item->Visit( inspector, testData, scanTypes ) == INSPECT_RESULT::QUIT )
+        -:  366:            {
+        -:  367:                return INSPECT_RESULT::QUIT;
+        -:  368:            }
+        -:  369:        }
+        -:  370:
+        -:  371:        return INSPECT_RESULT::CONTINUE;
+        -:  372:    }
+        -:  373:
+        -:  374:    /**
+        -:  375:     * Return a translated description of the type for this EDA_ITEM for display in user facing
+        -:  376:     * messages.
+        -:  377:     */
+        -:  378:    wxString GetTypeDesc() const;
+        -:  379:
+        -:  380:    /**
+        -:  381:     * Return a user-visible description string of this item.  This description is used in
+        -:  382:     * disambiguation menus, the message panel, ERC/DRC reports, etc.
+        -:  383:     *
+        -:  384:     * The default version of this function raises an assertion in the debug mode and
+        -:  385:     * returns a string to indicate that it was not overridden to provide the object
+        -:  386:     * specific text.
+        -:  387:     *
+        -:  388:     * @param aLong indicates a long string is acceptable
+        -:  389:     * @return The menu text string.
+        -:  390:     */
+        -:  391:    virtual wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const;
+        -:  392:
+        -:  393:    virtual wxString DisambiguateItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const
+        -:  394:    {
+        -:  395:        return GetItemDescription( aUnitsProvider, aFull );
+        -:  396:    }
+        -:  397:
+        -:  398:    /**
+        -:  399:     * Return a pointer to an image to be used in menus.
+        -:  400:     *
+        -:  401:     * The default version returns the right arrow image.  Override this function to provide
+        -:  402:     * object specific menu images.
+        -:  403:     *
+        -:  404:     * @return The menu image associated with the item.
+        -:  405:     */
+        -:  406:    virtual BITMAPS GetMenuImage() const;
+        -:  407:
+        -:  408:    /**
+        -:  409:     * Compare the item against the search criteria in \a aSearchData.
+        -:  410:     *
+        -:  411:     * The base class returns false since many of the objects derived from EDA_ITEM
+        -:  412:     * do not have any text to search.
+        -:  413:     *
+        -:  414:     * @param aSearchData A reference to a wxFindReplaceData object containing the
+        -:  415:     *                    search criteria.
+        -:  416:     * @param aAuxData A pointer to optional data required for the search or NULL if not used.
+        -:  417:     * @return True if the item's text matches the search criteria in \a aSearchData.
+        -:  418:     */
+        -:  419:    virtual bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const
+        -:  420:    {
+        -:  421:        return false;
+        -:  422:    }
+        -:  423:
+        -:  424:    /**
+        -:  425:     * Perform a text replace on \a aText using the find and replace criteria in
+        -:  426:     * \a aSearchData on items that support text find and replace.
+        -:  427:     *
+        -:  428:     * @param aSearchData A reference to a wxFindReplaceData object containing the
+        -:  429:     *                    search and replace criteria.
+        -:  430:     * @param aText A reference to a wxString object containing the text to be replaced.
+        -:  431:     * @return True if \a aText was modified, otherwise false.
+        -:  432:     */
+        -:  433:    static bool Replace( const EDA_SEARCH_DATA& aSearchData, wxString& aText );
+        -:  434:
+        -:  435:    /**
+        -:  436:     * Perform a text replace using the find and replace criteria in \a aSearchData
+        -:  437:     * on items that support text find and replace.
+        -:  438:     *
+        -:  439:     * This function must be overridden for items that support text replace.
+        -:  440:     *
+        -:  441:     * @param aSearchData A reference to a wxFindReplaceData object containing the search and
+        -:  442:     *                    replace criteria.
+        -:  443:     * @param aAuxData A pointer to optional data required for the search or NULL if not used.
+        -:  444:     * @return True if the item text was modified, otherwise false.
+        -:  445:     */
+        -:  446:    virtual bool Replace( const EDA_SEARCH_DATA& aSearchData, void* aAuxData = nullptr )
+        -:  447:    {
+        -:  448:        return false;
+        -:  449:    }
+        -:  450:
+        -:  451:    /**
+        -:  452:     * Override this method in any derived object that supports test find and replace.
+        -:  453:     *
+        -:  454:     * @return True if the item has replaceable text that can be modified using
+        -:  455:     *         the find and replace dialog.
+        -:  456:     */
+        -:  457:    virtual bool IsReplaceable() const { return false; }
+        -:  458:
+        -:  459:    /**
+        -:  460:     * Test if another item is less than this object.
+        -:  461:     *
+        -:  462:     * @param aItem - Item to compare against.
+        -:  463:     * @return - True if \a aItem is less than the item.
+        -:  464:     */
+        -:  465:    bool operator<( const EDA_ITEM& aItem ) const;
+        -:  466:
+        -:  467:    /**
+        -:  468:     * Helper function to be used by the C++ STL sort algorithm for sorting a STL
+        -:  469:     * container of #EDA_ITEM pointers.
+        -:  470:     *
+        -:  471:     * @param aLeft The left hand item to compare.
+        -:  472:     * @param aRight The right hand item to compare.
+        -:  473:     * @return True if \a aLeft is less than \a aRight.
+        -:  474:     */
+        -:  475:    static bool Sort( const EDA_ITEM* aLeft, const EDA_ITEM* aRight ) { return *aLeft < *aRight; }
+        -:  476:
+        -:  477:    /**
+        -:  478:     * Assign the members of \a aItem to another object.
+        -:  479:     */
+        -:  480:    EDA_ITEM& operator=( const EDA_ITEM& aItem );
+        -:  481:
+        -:  482:    virtual const BOX2I ViewBBox() const override;
+        -:  483:
+        -:  484:    virtual std::vector<int> ViewGetLayers() const override;
+        -:  485:
+        -:  486:    virtual EMBEDDED_FILES* GetEmbeddedFiles() { return nullptr; }
+        -:  487:    virtual const std::vector<wxString>* GetEmbeddedFonts() { return nullptr; }
+        -:  488:
+        -:  489:#if defined(DEBUG)
+        -:  490:
+        -:  491:    /**
+        -:  492:     * Output the object tree, currently for debugging only.
+        -:  493:     *
+        -:  494:     * This is pure virtual so compiler warns if somebody mucks up a derived declaration.
+        -:  495:     *
+        -:  496:     * @param nestLevel An aid to prettier tree indenting, and is the level
+        -:  497:     *                  of nesting of this object within the overall tree.
+        -:  498:     * @param os The ostream& to output to.
+        -:  499:     */
+        -:  500:    virtual void Show( int nestLevel, std::ostream& os ) const { ShowDummy( os ); };
+        -:  501:
+        -:  502:    void ShowDummy( std::ostream& os ) const;  ///< call this if you are a lazy developer
+        -:  503:
+        -:  504:    /**
+        -:  505:     * Output nested space for pretty indenting.
+        -:  506:     *
+        -:  507:     * @param nestLevel The nest count.
+        -:  508:     * @param os The ostream&, where to output
+        -:  509:     * @return The std::ostream& for continuation.
+        -:  510:     **/
+        -:  511:    static std::ostream& NestedSpace( int nestLevel, std::ostream& os );
+        -:  512:
+        -:  513:#endif
+        -:  514:
+        -:  515:protected:
+        -:  516:    EDA_ITEM( EDA_ITEM* parent, KICAD_T idType, bool isSCH_ITEM = false, bool isBOARD_ITEM = false );
+        -:  517:    EDA_ITEM( KICAD_T idType, bool isSCH_ITEM = false, bool isBOARD_ITEM = false );
+        -:  518:    EDA_ITEM( const EDA_ITEM& base );
+        -:  519:
+        -:  520:    /**
+        -:  521:     * Compare \a aText against search criteria in \a aSearchData.
+        -:  522:     *
+        -:  523:     * This is a helper function for simplify derived class logic.
+        -:  524:     *
+        -:  525:     * @param aText A reference to a wxString object containing the string to test.
+        -:  526:     * @param aSearchData The criteria to search against.
+        -:  527:     * @return True if \a aText matches the search criteria in \a aSearchData.
+        -:  528:     */
+        -:  529:    bool Matches( const wxString& aText, const EDA_SEARCH_DATA& aSearchData ) const;
+        -:  530:
+        -:  531:    EDA_ITEM* findParent( KICAD_T aType ) const;
+        -:  532:
+        -:  533:public:
+        -:  534:    const KIID  m_Uuid;
+        -:  535:
+        -:  536:private:
+        -:  537:    /**
+        -:  538:     * Run time identification, _keep private_ so it can never be changed after a ctor sets it.
+        -:  539:     *
+        -:  540:     * See comment near SetType() regarding virtual functions.
+        -:  541:     */
+        -:  542:    KICAD_T        m_structType;
+        -:  543:
+        -:  544:protected:
+        -:  545:    EDA_ITEM_FLAGS m_flags;
+        -:  546:    EDA_ITEM*      m_parent;        ///< Owner.
+        -:  547:    EDA_GROUP*     m_group;         ///< The group this item belongs to, if any.  No ownership implied.
+        -:  548:
+        -:  549:    VECTOR2I m_rolloverPos;
+        -:  550:    bool     m_isRollover;
+        -:  551:    bool     m_forceVisible;
+        -:  552:};
+        -:  553:
+        -:  554:
+        -:  555:/**
+        -:  556: * Provide cloning capabilities for all Boost pointer containers of #EDA_ITEM pointers.
+        -:  557: *
+        -:  558: * @param aItem EDA_ITEM to clone.
+        -:  559: * @return Clone of \a aItem.
+        -:  560: */
+        -:  561:inline EDA_ITEM* new_clone( const EDA_ITEM& aItem ) { return aItem.Clone(); }
+        -:  562:
+        -:  563:/**
+        -:  564: * Comparison functor for sorting EDA_ITEM pointers by their UUID.
+        -:  565: */
+        -:  566:struct CompareByUuid
+        -:  567:{
+        -:  568:    bool operator()(const EDA_ITEM* item1, const EDA_ITEM* item2) const
+        -:  569:    {
+        -:  570:        assert( item1 != nullptr && item2 != nullptr );
+        -:  571:
+        -:  572:        if( item1->m_Uuid == item2->m_Uuid )
+        -:  573:            return item1 < item2;
+        -:  574:
+        -:  575:        return item1->m_Uuid < item2->m_Uuid;
+        -:  576:    }
+        -:  577:};
+        -:  578:
+        -:  579:
+        -:  580:/**
+        -:  581: * Define list of drawing items for screens.
+        -:  582: *
+        -:  583: * The standard C++ container was chosen so the pointer can be removed  from a list without
+        -:  584: * it being destroyed.
+        -:  585: */
+        -:  586:typedef std::vector< EDA_ITEM* > EDA_ITEMS;
+        -:  587:
+        -:  588:typedef std::set< EDA_ITEM*, CompareByUuid > EDA_ITEM_SET;
+        -:  589:
+        -:  590:#endif // EDA_ITEM_H

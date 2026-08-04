@@ -1,0 +1,145 @@
+        -:    0:Source:/src/kicad/pcbnew/pcb_field.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:465
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2023 Mike Williams, mike@mikebwilliams.com
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#ifndef PCB_FIELD_H
+        -:   26:#define PCB_FIELD_H
+        -:   27:
+        -:   28:#include <pcb_text.h>
+        -:   29:#include <template_fieldnames.h>
+        -:   30:
+        -:   31:class BOARD_DESIGN_SETTINGS;
+        -:   32:
+        -:   33:class PCB_FIELD : public PCB_TEXT
+        -:   34:{
+        -:   35:public:
+        -:   36:    PCB_FIELD( FOOTPRINT* aParent, FIELD_T aFieldId, const wxString& aName = wxEmptyString );
+        -:   37:
+        -:   38:    PCB_FIELD( const PCB_TEXT& aText, FIELD_T aFieldId, const wxString& aName = wxEmptyString );
+        -:   39:
+        -:   40:    void Serialize( google::protobuf::Any &aContainer ) const override;
+        -:   41:    bool Deserialize( const google::protobuf::Any &aContainer ) override;
+        -:   42:
+        -:   43:    static inline bool ClassOf( const EDA_ITEM* aItem )
+        -:   44:    {
+        -:   45:        return aItem && PCB_FIELD_T == aItem->Type();
+        -:   46:    }
+        -:   47:
+        -:   48:    wxString GetClass() const override { return wxT( "PCB_FIELD" ); }
+        -:   49:
+        -:   50:    bool IsType( const std::vector<KICAD_T>& aScanTypes ) const override
+        -:   51:    {
+        -:   52:        if( BOARD_ITEM::IsType( aScanTypes ) )
+        -:   53:            return true;
+        -:   54:
+        -:   55:        for( KICAD_T scanType : aScanTypes )
+        -:   56:        {
+        -:   57:            if( scanType == PCB_FIELD_LOCATE_REFERENCE_T && m_id == FIELD_T::REFERENCE )
+        -:   58:                return true;
+        -:   59:            else if( scanType == PCB_FIELD_LOCATE_VALUE_T && m_id == FIELD_T::VALUE )
+        -:   60:                return true;
+        -:   61:            else if( scanType == PCB_FIELD_LOCATE_DATASHEET_T && m_id == FIELD_T::DATASHEET )
+        -:   62:                return true;
+        -:   63:        }
+        -:   64:
+        -:   65:        return false;
+        -:   66:    }
+        -:   67:
+        -:   68:    bool IsReference() const { return m_id == FIELD_T::REFERENCE; }
+        -:   69:    bool IsValue() const { return m_id == FIELD_T::VALUE; }
+        -:   70:    bool IsDatasheet() const { return m_id == FIELD_T::DATASHEET; }
+        -:   71:    bool IsComponentClass() const { return GetName() == wxT( "Component Class" ); }
+        -:   72:
+        -:   73:    bool IsMandatory() const;
+        -:   74:
+        -:   75:    bool HasHypertext() const;
+        -:   76:
+        -:   77:    wxString GetTextTypeDescription() const override;
+        -:   78:
+        -:   79:    bool Matches( const EDA_SEARCH_DATA& aSearchData, void* aAuxData ) const override;
+        -:   80:
+        -:   81:    wxString GetItemDescription( UNITS_PROVIDER* aUnitsProvider, bool aFull ) const override;
+        -:   82:
+        -:   83:    double ViewGetLOD( int aLayer, const KIGFX::VIEW* aView ) const override;
+        -:   84:
+        -:   85:    EDA_ITEM* Clone() const override;
+        -:   86:
+        -:   87:    /**
+        -:   88:     * Same as Clone, but returns a PCB_FIELD item.
+        -:   89:     *
+        -:   90:     * Useful mainly for python scripts, because Clone returns an EDA_ITEM.
+        -:   91:     */
+        -:   92:    PCB_FIELD* CloneField() const { return (PCB_FIELD*) Clone(); }
+        -:   93:
+        -:   94:    /**
+        -:   95:     * Return the field name (not translated).
+        -:   96:     *
+        -:   97:     * @param aUseDefaultName When true return the default field name if the field name is
+        -:   98:     *                        empty.  Otherwise the default field name is returned.
+        -:   99:     */
+        -:  100:    wxString GetName( bool aUseDefaultName = true ) const;
+        -:  101:
+        -:  102:    /**
+        -:  103:     * Get a non-language-specific name for a field which can be used for storage, variable
+        -:  104:     * look-up, etc.
+        -:  105:     */
+        -:  106:    wxString GetCanonicalName() const;
+        -:  107:
+        -:  108:    wxString GetShownText( bool aAllowExtraText, int aDepth = 0 ) const override;
+        -:  109:
+        -:  110:    void SetName( const wxString& aName ) { m_name = aName; }
+        -:  111:
+    #####:  112:    FIELD_T GetId() const { return m_id; }
+        -:  113:
+        -:  114:    int GetOrdinal() const
+        -:  115:    {
+        -:  116:        return IsMandatory() ? (int) m_id : m_ordinal;
+        -:  117:    }
+        -:  118:    void SetOrdinal( int aOrdinal )
+        -:  119:    {
+        -:  120:        m_id = FIELD_T::USER;
+        -:  121:        m_ordinal = aOrdinal;
+        -:  122:    }
+        -:  123:
+        -:  124:    double Similarity( const BOARD_ITEM& aOther ) const override;
+        -:  125:
+        -:  126:    bool operator==( const PCB_FIELD& aOther ) const;
+        -:  127:    bool operator==( const BOARD_ITEM& aOther ) const override;
+        -:  128:
+        -:  129:protected:
+        -:  130:    void swapData( BOARD_ITEM* aImage ) override;
+        -:  131:
+        -:  132:private:
+        -:  133:    void setId( FIELD_T aId ) { m_id = aId; }
+        -:  134:
+        -:  135:private:
+        -:  136:    FIELD_T  m_id;           ///< Field id, @see enum FIELD_T
+        -:  137:    int      m_ordinal;      ///< Sort order for non-mandatory fields
+        -:  138:    wxString m_name;
+        -:  139:};
+        -:  140:
+        -:  141:#endif

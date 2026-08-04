@@ -1,0 +1,61 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_export_gerbers.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_gerbers.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_gerbers.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2022 Mark Roszko <mark.roszko@gmail.com>
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software: you can redistribute it and/or modify it
+        -:    8: * under the terms of the GNU General Public License as published by the
+        -:    9: * Free Software Foundation, either version 3 of the License, or (at your
+        -:   10: * option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful, but
+        -:   13: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   15: * General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License along
+        -:   18: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   19: */
+        -:   20:
+        -:   21:#include "command_pcb_export_gerbers.h"
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include "jobs/job_export_pcb_gerbers.h"
+        -:   24:#include <kiface_base.h>
+        -:   25:#include <string_utils.h>
+        -:   26:
+        -:   27:#define ARG_USE_BOARD_PLOT_PARAMS "--board-plot-params"
+        -:   28:
+        -:   29:
+      577:   30:CLI::PCB_EXPORT_GERBERS_COMMAND::PCB_EXPORT_GERBERS_COMMAND() :
+     1154:   31:        PCB_EXPORT_GERBER_COMMAND( "gerbers", IO_TYPE::DIRECTORY )
+        -:   32:{
+     1154:   33:    m_argParser.add_description( UTF8STDSTR( _( "Plot multiple Gerbers for a PCB, including the "
+        -:   34:                                                "ability to use stored board plot settings" ) ) );
+        -:   35:
+      577:   36:    m_argParser.add_argument( ARG_USE_BOARD_PLOT_PARAMS )
+     1154:   37:            .help( UTF8STDSTR( _( "Use the Gerber plot settings already configured in the "
+        -:   38:                                  "board file" ) ) )
+      577:   39:            .flag();
+      577:   40:}
+        -:   41:
+        -:   42:
+       67:   43:int CLI::PCB_EXPORT_GERBERS_COMMAND::doPerform( KIWAY& aKiway )
+        -:   44:{
+      67*:   45:    std::unique_ptr<JOB_EXPORT_PCB_GERBERS> gerberJob( new JOB_EXPORT_PCB_GERBERS() );
+        -:   46:
+       67:   47:    int exitCode = populateJob( gerberJob.get() );
+        -:   48:
+       67:   49:    if( exitCode != EXIT_CODES::OK )
+    #####:   50:        return exitCode;
+        -:   51:
+       67:   52:    gerberJob->m_argLayers = From_UTF8( m_argParser.get<std::string>( ARG_LAYERS ).c_str() );
+       67:   53:    gerberJob->m_argCommonLayers = From_UTF8( m_argParser.get<std::string>( ARG_COMMON_LAYERS ).c_str() );
+       67:   54:    gerberJob->m_useBoardPlotParams = m_argParser.get<bool>( ARG_USE_BOARD_PLOT_PARAMS );
+        -:   55:
+       67:   56:    return aKiway.ProcessJob( KIWAY::FACE_PCB, gerberJob.get() );
+       67:   57:}

@@ -1,0 +1,181 @@
+        -:    0:Source:/usr/include/boost/ptr_container/ptr_map.hpp
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1://
+        -:    2:// Boost.Pointer Container
+        -:    3://
+        -:    4://  Copyright Thorsten Ottosen 2003-2005. Use, modification and
+        -:    5://  distribution is subject to the Boost Software License, Version
+        -:    6://  1.0. (See accompanying file LICENSE_1_0.txt or copy at
+        -:    7://  http://www.boost.org/LICENSE_1_0.txt)
+        -:    8://
+        -:    9:// For more information, see http://www.boost.org/libs/ptr_container/
+        -:   10://
+        -:   11:
+        -:   12:#ifndef BOOST_PTR_CONTAINER_PTR_MAP_HPP
+        -:   13:#define BOOST_PTR_CONTAINER_PTR_MAP_HPP
+        -:   14:
+        -:   15:#if defined(_MSC_VER) && (_MSC_VER >= 1200)
+        -:   16:# pragma once
+        -:   17:#endif
+        -:   18:
+        -:   19:#include <map>
+        -:   20:#include <boost/ptr_container/ptr_map_adapter.hpp>
+        -:   21:#include <boost/ptr_container/detail/ptr_container_disable_deprecated.hpp>
+        -:   22:
+        -:   23:#if defined(BOOST_PTR_CONTAINER_DISABLE_DEPRECATED)
+        -:   24:#pragma GCC diagnostic push
+        -:   25:#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+        -:   26:#endif
+        -:   27:
+        -:   28:namespace boost
+        -:   29:{
+        -:   30:    
+        -:   31:    template
+        -:   32:    < 
+        -:   33:        class Key, 
+        -:   34:        class T, 
+        -:   35:        class Compare        = std::less<Key>,
+        -:   36:        class CloneAllocator = heap_clone_allocator,
+        -:   37:        class Allocator      = std::allocator< std::pair<const Key,typename ptr_container_detail::void_ptr<T>::type> >
+        -:   38:    >
+        -:   39:    class ptr_map : 
+        -:   40:        public ptr_map_adapter<T,std::map<Key,
+        -:   41:            typename ptr_container_detail::void_ptr<T>::type,
+        -:   42:                               Compare,Allocator>,CloneAllocator>
+        -:   43:    {
+        -:   44:        typedef ptr_map_adapter<T,std::map<Key,
+        -:   45:            typename ptr_container_detail::void_ptr<T>::type,
+        -:   46:                                Compare,Allocator>,CloneAllocator>
+        -:   47:            base_type;
+        -:   48:
+        -:   49:        typedef ptr_map<Key,T,Compare,CloneAllocator,Allocator> this_type;
+        -:   50:        
+        -:   51:    public:
+        8:   52:        ptr_map()
+        8:   53:        { }
+        -:   54:        
+        -:   55:        explicit ptr_map( const Compare& comp,
+        -:   56:                          const Allocator& a  = Allocator() ) 
+        -:   57:          : base_type( comp, a ) { }
+        -:   58:
+        -:   59:        template< class InputIterator >
+        -:   60:        ptr_map( InputIterator first, InputIterator last )
+        -:   61:          : base_type( first, last )
+        -:   62:        { }
+        -:   63:        
+        -:   64:        template< class InputIterator >
+        -:   65:        ptr_map( InputIterator first, InputIterator last, 
+        -:   66:                 const Compare& comp,
+        -:   67:                 const Allocator& a  = Allocator() )
+        -:   68:          : base_type( first, last, comp, a ) 
+        -:   69:        { }
+        -:   70:
+        -:   71:        BOOST_PTR_CONTAINER_DEFINE_RELEASE_AND_CLONE( ptr_map, base_type, 
+        -:   72:                                                      this_type )
+        -:   73:
+        -:   74:        template< class U >
+        -:   75:        ptr_map( const ptr_map<Key,U>& r ) : base_type( r )
+        -:   76:        { }
+        -:   77:
+        -:   78:        ptr_map& operator=( ptr_map r )
+        -:   79:        {
+        -:   80:            this->swap( r );
+        -:   81:            return *this;
+        -:   82:        }
+        -:   83:    };
+        -:   84:    
+        -:   85:
+        -:   86:
+        -:   87:    template
+        -:   88:    < 
+        -:   89:        class Key, 
+        -:   90:        class T, 
+        -:   91:        class Compare        = std::less<Key>, 
+        -:   92:        class CloneAllocator = heap_clone_allocator,
+        -:   93:        class Allocator      = std::allocator< std::pair<const Key,void*> >
+        -:   94:    >
+        -:   95:    class ptr_multimap : 
+        -:   96:        public ptr_multimap_adapter<T,std::multimap<Key,void*,
+        -:   97:                                    Compare,Allocator>,CloneAllocator>
+        -:   98:    {
+        -:   99:        typedef ptr_multimap_adapter<T,std::multimap<Key,void*,
+        -:  100:                                     Compare,Allocator>,CloneAllocator>
+        -:  101:             base_type;
+        -:  102:
+        -:  103:        typedef ptr_multimap<Key,T,Compare,CloneAllocator,Allocator> this_type;
+        -:  104:        
+        -:  105:    public:
+        -:  106:        ptr_multimap()
+        -:  107:        { }
+        -:  108:        
+        -:  109:        explicit ptr_multimap( const Compare& comp,
+        -:  110:                               const Allocator& a  = Allocator() ) 
+        -:  111:          : base_type( comp, a ) { }
+        -:  112:
+        -:  113:        template< class InputIterator >
+        -:  114:        ptr_multimap( InputIterator first, InputIterator last )
+        -:  115:          : base_type( first,  last )
+        -:  116:        { }
+        -:  117:        
+        -:  118:        template< class InputIterator >
+        -:  119:        ptr_multimap( InputIterator first, InputIterator last,
+        -:  120:                      const Compare& comp,
+        -:  121:                      const Allocator& a  = Allocator() )
+        -:  122:          : base_type( first, last, comp, a ) 
+        -:  123:        { }
+        -:  124:
+        -:  125:        BOOST_PTR_CONTAINER_DEFINE_RELEASE_AND_CLONE( ptr_multimap, 
+        -:  126:                                                      base_type,
+        -:  127:                                                      this_type )
+        -:  128:
+        -:  129:        template< class U >
+        -:  130:        ptr_multimap( const ptr_multimap<Key,U>& r ) : base_type( r )
+        -:  131:        { }
+        -:  132:
+        -:  133:        ptr_multimap& operator=( ptr_multimap r )
+        -:  134:        {
+        -:  135:            this->swap( r );
+        -:  136:            return *this;
+        -:  137:        }
+        -:  138:    };
+        -:  139:
+        -:  140:    //////////////////////////////////////////////////////////////////////////////
+        -:  141:    // clonability
+        -:  142:
+        -:  143:    template< class K, class T, class C, class CA, class A >
+        -:  144:    inline ptr_map<K,T,C,CA,A>* new_clone( const ptr_map<K,T,C,CA,A>& r )
+        -:  145:    {
+        -:  146:        return r.clone().release();
+        -:  147:    }
+        -:  148:
+        -:  149:    template< class K, class T, class C, class CA, class A >
+        -:  150:    inline ptr_multimap<K,T,C,CA,A>* new_clone( const ptr_multimap<K,T,C,CA,A>& r )
+        -:  151:    {
+        -:  152:        return r.clone().release();
+        -:  153:    }
+        -:  154:
+        -:  155:    /////////////////////////////////////////////////////////////////////////
+        -:  156:    // swap
+        -:  157:
+        -:  158:    template< typename K, typename T, typename C, typename CA, typename A >
+        -:  159:    inline void swap( ptr_map<K,T,C,CA,A>& l, ptr_map<K,T,C,CA,A>& r )
+        -:  160:    {
+        -:  161:        l.swap(r);
+        -:  162:    }
+        -:  163:
+        -:  164:    template< typename K, typename T, typename C, typename CA, typename A >
+        -:  165:    inline void swap( ptr_multimap<K,T,C,CA,A>& l, ptr_multimap<K,T,C,CA,A>& r )
+        -:  166:    {
+        -:  167:        l.swap(r);
+        -:  168:    }
+        -:  169:
+        -:  170:
+        -:  171:}
+        -:  172:
+        -:  173:#if defined(BOOST_PTR_CONTAINER_DISABLE_DEPRECATED)
+        -:  174:#pragma GCC diagnostic pop
+        -:  175:#endif
+        -:  176:
+        -:  177:#endif

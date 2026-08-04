@@ -1,0 +1,292 @@
+        -:    0:Source:/src/kicad/include/bitmap_base.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2018 jean-pierre.charras jp.charras at wanadoo.fr
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 2
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-2.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 2 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#pragma once
+        -:   26:
+        -:   27:#include <wx/bitmap.h>
+        -:   28:#include <wx/image.h>
+        -:   29:
+        -:   30:#include <core/mirror.h>
+        -:   31:#include <kiid.h>
+        -:   32:#include <math/box2.h>
+        -:   33:#include <gal/color4d.h>
+        -:   34:
+        -:   35:class LINE_READER;
+        -:   36:class PLOTTER;
+        -:   37:
+        -:   38:
+        -:   39:/**
+        -:   40: * This class handle bitmap images in KiCad.
+        -:   41: *
+        -:   42: * It is not intended to be used alone, but inside another class so all methods are protected
+        -:   43: * or private.  It is used in #SCH_BITMAP class, #DS_DRAW_ITEM_BITMAP, and possibly others in
+        -:   44: * the future.
+        -:   45: *
+        -:   46: * @warning Not all plotters are able to plot a bitmap.  Mainly GERBER plotters cannot.
+        -:   47: */
+        -:   48:class BITMAP_BASE
+        -:   49:{
+        -:   50:public:
+        -:   51:    BITMAP_BASE( const VECTOR2I& pos = VECTOR2I( 0, 0 ) );
+        -:   52:
+        -:   53:    BITMAP_BASE( const BITMAP_BASE& aSchBitmap );
+        -:   54:
+        -:   55:    ~BITMAP_BASE()
+        -:   56:    {
+        -:   57:        delete m_bitmap;
+        -:   58:        delete m_image;
+        -:   59:        delete m_originalImage;
+        -:   60:    }
+        -:   61:
+        -:   62:    /*
+        -:   63:     * Accessors:
+        -:   64:     */
+        -:   65:    double GetPixelSizeIu() const { return m_pixelSizeIu; }
+        -:   66:    void SetPixelSizeIu( double aPixSize ) { m_pixelSizeIu = aPixSize; }
+        -:   67:
+        -:   68:    wxImage* GetImageData() { return m_image; }
+    #####:   69:    const wxImage* GetImageData() const { return m_image; }
+        -:   70:
+        -:   71:    const wxImage* GetOriginalImageData() const { return m_originalImage; }
+        -:   72:
+        -:   73:    double GetScale() const { return m_scale; }
+        -:   74:    void SetScale( double aScale ) { m_scale = aScale; }
+        -:   75:
+        -:   76:    KIID GetImageID() const { return m_imageId; }
+        -:   77:
+        -:   78:    /**
+        -:   79:     * Copy aItem image to this object and update #m_bitmap.
+        -:   80:     */
+        -:   81:    void ImportData( BITMAP_BASE& aItem );
+        -:   82:
+        -:   83:    /**
+        -:   84:     * This scaling factor depends on #m_pixelSizeIu and #m_scale.
+        -:   85:     *
+        -:   86:     * #m_pixelSizeIu gives the scaling factor between a pixel size and the internal units.
+        -:   87:     * #m_scale is an user dependent value, and gives the "zoom" value.
+        -:   88:     *  - #m_scale = 1.0 = original size of bitmap.
+        -:   89:     *  - #m_scale < 1.0 = the bitmap is drawn smaller than its original size.
+        -:   90:     *  - #m_scale > 1.0 = the bitmap is drawn bigger than its original size.
+        -:   91:     *
+        -:   92:     * @return The scaling factor from pixel size to actual draw size.
+        -:   93:     */
+        -:   94:    double GetScalingFactor() const
+        -:   95:    {
+        -:   96:        return m_pixelSizeIu * m_scale;
+        -:   97:    }
+        -:   98:
+        -:   99:    /**
+        -:  100:     * @return the actual size (in user units, not in pixels) of the image
+        -:  101:     */
+        -:  102:    VECTOR2I GetSize() const;
+        -:  103:
+        -:  104:    /**
+        -:  105:     * @return the size in pixels of the image
+        -:  106:     */
+        -:  107:    VECTOR2I GetSizePixels() const
+        -:  108:    {
+        -:  109:        if( m_image )
+        -:  110:            return VECTOR2I( m_image->GetWidth(), m_image->GetHeight() );
+        -:  111:        else
+        -:  112:            return VECTOR2I( 0, 0 );
+        -:  113:    }
+        -:  114:
+        -:  115:    /**
+        -:  116:     * @return the bitmap definition in ppi, the default is 300 ppi.
+        -:  117:     */
+        -:  118:    int GetPPI() const
+        -:  119:    {
+        -:  120:        return m_ppi;
+        -:  121:    }
+        -:  122:
+        -:  123:    /**
+        -:  124:     * Return the orthogonal, bounding box of this object for display purposes.
+        -:  125:     *
+        -:  126:     * This box should be an enclosing perimeter for visible components of this object,
+        -:  127:     * and the units should be in the pcb or schematic coordinate system.  It is OK to
+        -:  128:     * overestimate the size by a few counts.
+        -:  129:     */
+        -:  130:    const BOX2I GetBoundingBox() const;
+        -:  131:
+        -:  132:    void DrawBitmap( wxDC* aDC, const VECTOR2I& aPos,
+        -:  133:                     const KIGFX::COLOR4D& aBackgroundColor = KIGFX::COLOR4D::UNSPECIFIED ) const;
+        -:  134:
+        -:  135:    /**
+        -:  136:     * Reads and stores in memory an image file.
+        -:  137:     *
+        -:  138:     * Initialize the bitmap format used to draw this item.  Supported images formats are
+        -:  139:     * format supported by wxImage if all handlers are loaded.  By default, .png, .jpeg
+        -:  140:     * are always loaded.
+        -:  141:     *
+        -:  142:     * @param aFullFilename The full filename of the image file to read.
+        -:  143:     * @return  true if success reading else false.
+        -:  144:     */
+        -:  145:    bool ReadImageFile( const wxString& aFullFilename );
+        -:  146:
+        -:  147:    /**
+        -:  148:     * Reads and stores in memory an image file.
+        -:  149:     *
+        -:  150:     * Initialize the bitmap format used to draw this item.
+        -:  151:     *
+        -:  152:     * Supported images formats are format supported by wxImage if all handlers are loaded.
+        -:  153:     * By default, .png, .jpeg are always loaded.
+        -:  154:     *
+        -:  155:     * @param aInStream an input stream containing the file data.
+        -:  156:     * @return true if success reading else false.
+        -:  157:     */
+        -:  158:    bool ReadImageFile( wxInputStream& aInStream );
+        -:  159:
+        -:  160:    /**
+        -:  161:     * Reads and stores in memory an image file.
+        -:  162:     *
+        -:  163:     * Initialize the bitmap format used to draw this item.
+        -:  164:     *
+        -:  165:     * Supported images formats are format supported by wxImage if all handlers are loaded.
+        -:  166:     * By default, .png, .jpeg are always loaded.
+        -:  167:     *
+        -:  168:     * @param aBuf a memory buffer containing the file data.
+        -:  169:     * @return true if success reading else false.
+        -:  170:     */
+        -:  171:    bool ReadImageFile( wxMemoryBuffer& aBuf );
+        -:  172:
+        -:  173:    /**
+        -:  174:     * Set the image from an existing wxImage.
+        -:  175:     */
+        -:  176:    bool SetImage( const wxImage& aImage );
+        -:  177:
+        -:  178:    /**
+        -:  179:    * Write the bitmap data to \a aOutStream.
+        -:  180:    *
+        -:  181:    * This writes binary data, not hexadecimal strings
+        -:  182:    *
+        -:  183:    * @param aOutStream The output stream to write to.
+        -:  184:    * @return true if success writing else false.
+        -:  185:    */
+        -:  186:    bool SaveImageData( wxOutputStream& aOutStream ) const;
+        -:  187:
+        -:  188:    /**
+        -:  189:     * Load an image data saved by #SaveData.
+        -:  190:     *
+        -:  191:     * The file format must be png format in hexadecimal.
+        -:  192:     *
+        -:  193:     * @param aLine the LINE_READER used to read the data file.
+        -:  194:     * @param aErrorMsg Description of the error if an error occurs while loading the
+        -:  195:     *                  png bitmap data.
+        -:  196:     * @return true if the bitmap loaded successfully.
+        -:  197:     */
+        -:  198:    bool LoadLegacyData( LINE_READER& aLine, wxString& aErrorMsg );
+        -:  199:
+        -:  200:    /**
+        -:  201:     * Mirror image vertically (i.e. relative to its horizontal X axis ) or horizontally (i.e
+        -:  202:     * relative to its vertical Y axis).
+        -:  203:     * @param aFlipDirection the direction to flip the image.
+        -:  204:     */
+        -:  205:    void Mirror( FLIP_DIRECTION aFlipDirection );
+        -:  206:
+        -:  207:    /**
+        -:  208:     * Rotate image CW or CCW.
+        -:  209:     *
+        -:  210:     * @param aRotateCCW true to rotate CCW or false to rotate CW.
+        -:  211:     */
+        -:  212:    void Rotate( bool aRotateCCW );
+        -:  213:
+        -:  214:    void ConvertToGreyscale();
+        -:  215:
+        -:  216:    bool IsMirroredX() const { return m_isMirroredX; }
+        -:  217:    bool IsMirroredY() const { return m_isMirroredY; }
+        -:  218:    EDA_ANGLE Rotation() const { return m_rotation; }
+        -:  219:
+        -:  220:    /**
+        -:  221:     * Plot bitmap on plotter.
+        -:  222:     *
+        -:  223:     * If the plotter does not support bitmaps, plot a
+        -:  224:     *
+        -:  225:     * @param aPlotter the plotter to use.
+        -:  226:     * @param aPos the position of the center of the bitmap.
+        -:  227:     * @param aDefaultColor the color used to plot the rectangle when bitmap is not supported.
+        -:  228:     * @param aDefaultPensize the pen size used to plot the rectangle when bitmap is not supported.
+        -:  229:     */
+        -:  230:    void PlotImage( PLOTTER* aPlotter, const VECTOR2I& aPos,
+        -:  231:                    const KIGFX::COLOR4D& aDefaultColor, int aDefaultPensize ) const;
+        -:  232:
+        -:  233:    /**
+        -:  234:     * Return the bitmap type (png, jpeg, etc.)
+        -:  235:     */
+        -:  236:    wxBitmapType GetImageType() const { return m_imageType; }
+        -:  237:
+        -:  238:    /**
+        -:  239:     * Set the bitmap type (png, jpeg, etc.)
+        -:  240:     */
+        -:  241:    void SetImageType( wxBitmapType aType ) { m_imageType = aType; }
+        -:  242:
+        -:  243:private:
+        -:  244:    /**
+        -:  245:     * Resets the image data buffer using the current image data.
+        -:  246:     */
+        -:  247:    void updateImageDataBuffer();
+        -:  248:
+        -:  249:    /**
+        -:  250:     * Rebuild the internal bitmap used to draw/plot image.
+        -:  251:     *
+        -:  252:     * This must be called after a #m_image change.
+        -:  253:     *
+        -:  254:     * @param aResetID is used to reset the cache ID used for OpenGL rendering.
+        -:  255:     */
+        -:  256:    void rebuildBitmap( bool aResetID = true );
+        -:  257:
+        -:  258:    /**
+        -:  259:     * Ensure the cached wxBitmap is up-to-date with the current wxImage.
+        -:  260:     * Rebuilds the bitmap if it has been invalidated by a transform operation.
+        -:  261:     */
+        -:  262:    void ensureBitmapUpToDate() const;
+        -:  263:
+        -:  264:    void updatePPI();
+        -:  265:
+        -:  266:    /**
+        -:  267:     * Mirror the wxImage pixel data in-place without allocating a new image.
+        -:  268:     */
+        -:  269:    static void mirrorImageInPlace( wxImage& aImage, FLIP_DIRECTION aFlipDirection );
+        -:  270:
+        -:  271:    double    m_scale;              ///< The scaling factor of the bitmap
+        -:  272:                                    ///< with #m_pixelSizeIu, controls the actual draw size.
+        -:  273:    mutable wxMemoryBuffer m_imageData; ///< Cached encoded image data (PNG/JPEG).
+        -:  274:    wxBitmapType   m_imageType;     ///< The image type (png, jpeg, etc.).
+        -:  275:
+        -:  276:    wxImage*  m_image;              ///< The raw, uncompressed image data.
+        -:  277:    wxImage*  m_originalImage;      ///< Raw image data, not transformed by rotate/mirror.
+        -:  278:    mutable wxBitmap* m_bitmap;     ///< The bitmap used to draw/plot image.
+        -:  279:    mutable bool      m_bitmapDirty;///< True when m_bitmap needs rebuilding from m_image.
+        -:  280:    double    m_pixelSizeIu;        ///< The scaling factor of the bitmap to convert the bitmap
+        -:  281:                                    ///< size (in pixels) to internal KiCad units.  This usually
+        -:  282:                                    ///< does not change.
+        -:  283:    int       m_ppi;                ///< The bitmap definition. The default is 300PPI.
+        -:  284:    KIID      m_imageId;
+        -:  285:    bool      m_isMirroredX;        // Used for OpenGL rendering only
+        -:  286:    bool      m_isMirroredY;        // Used for OpenGL rendering only
+        -:  287:    EDA_ANGLE m_rotation;           // Used for OpenGL rendering only
+        -:  288:};

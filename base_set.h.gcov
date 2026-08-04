@@ -1,0 +1,557 @@
+        -:    0:Source:/src/kicad/include/base_set.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr.cpp.gcda
+        -:    0:Runs:484
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: *
+        -:    6: * This program is free software: you can redistribute it and/or modify it
+        -:    7: * under the terms of the GNU General Public License as published by the
+        -:    8: * Free Software Foundation, either version 3 of the License, or (at your
+        -:    9: * option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful, but
+        -:   12: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   14: * General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License along
+        -:   17: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   18: */
+        -:   19:#ifndef BASE_SET_H
+        -:   20:#define BASE_SET_H
+        -:   21:
+        -:   22:#include <algorithm>
+        -:   23:#include <iterator>
+        -:   24:#include <limits>
+        -:   25:#include <ostream>
+        -:   26:#include <stdexcept>
+        -:   27:#include <dynamic_bitset.h>
+        -:   28:
+        -:   29:#include <core/arraydim.h>
+        -:   30:#include <core/kicad_algo.h>
+        -:   31:#include <kicommon.h>
+        -:   32:
+        -:   33:#if defined( _MSC_VER )
+        -:   34:// ssize_t is a POSIX extension
+        -:   35:// wx usually defines it on windows as a helper
+        -:   36:// windows does have SSIZE_T (capital) for the same purpose
+        -:   37:#include <BaseTsd.h>
+        -:   38:typedef SSIZE_T ssize_t;
+        -:   39:#endif
+        -:   40:
+        -:   41:class KICOMMON_API BASE_SET : public sul::dynamic_bitset<uint64_t>
+        -:   42:{
+        -:   43:public:
+        -:   44:    class KICOMMON_API iterator
+        -:   45:    {
+        -:   46:    public:
+        -:   47:        using iterator_category = std::random_access_iterator_tag;
+        -:   48:        using value_type = bool;
+        -:   49:        using difference_type = std::ptrdiff_t;
+        -:   50:        using pointer = void;
+        -:   51:        using reference = bool;
+        -:   52:
+        -:   53:        iterator( BASE_SET* set, size_t pos ) : m_set( set ), m_pos( pos ) {}
+        -:   54:        bool operator*() const { return m_set->test( m_pos ); }
+        -:   55:        iterator& operator++()
+        -:   56:        {
+        -:   57:            ++m_pos;
+        -:   58:            return *this;
+        -:   59:        }
+        -:   60:        iterator operator+( difference_type n ) const
+        -:   61:        {
+        -:   62:            return iterator( m_set, m_pos + n );
+        -:   63:        }
+        -:   64:        difference_type operator-( const iterator& other ) const
+        -:   65:        {
+        -:   66:            return static_cast<difference_type>(m_pos) - static_cast<difference_type>(other.m_pos);
+        -:   67:        }
+        -:   68:        auto operator<=>( const iterator& ) const = default;
+        -:   69:
+        -:   70:    private:
+        -:   71:        BASE_SET* m_set;
+        -:   72:        size_t    m_pos;
+        -:   73:    };
+        -:   74:
+        -:   75:    class KICOMMON_API const_iterator
+        -:   76:    {
+        -:   77:    public:
+        -:   78:        using iterator_category = std::random_access_iterator_tag;
+        -:   79:        using value_type = bool;
+        -:   80:        using difference_type = std::ptrdiff_t;
+        -:   81:        using pointer = void;
+        -:   82:        using reference = bool;
+        -:   83:
+        -:   84:        const_iterator( const BASE_SET* set, size_t pos ) : m_set( set ), m_pos( pos ) {}
+        -:   85:        bool operator*() const { return m_set->test( m_pos ); }
+        -:   86:        const_iterator& operator++()
+        -:   87:        {
+        -:   88:            ++m_pos;
+        -:   89:            return *this;
+        -:   90:        }
+        -:   91:        const_iterator operator+( difference_type n ) const
+        -:   92:        {
+        -:   93:            return const_iterator( m_set, m_pos + n );
+        -:   94:        }
+        -:   95:        difference_type operator-( const const_iterator& other ) const
+        -:   96:        {
+        -:   97:            return static_cast<difference_type>(m_pos) - static_cast<difference_type>(other.m_pos);
+        -:   98:        }
+        -:   99:        auto operator<=>( const const_iterator& ) const = default;
+        -:  100:
+        -:  101:    private:
+        -:  102:        const BASE_SET* m_set;
+        -:  103:        size_t          m_pos;
+        -:  104:    };
+        -:  105:
+        -:  106:    iterator begin() { return iterator(this, 0); }
+        -:  107:    iterator end() { return iterator(this, size()); }
+        -:  108:    const_iterator begin() const { return const_iterator(this, 0); }
+        -:  109:    const_iterator end() const { return const_iterator(this, size()); }
+        -:  110:
+        -:  111:    BASE_SET( size_t size = 64 ) : sul::dynamic_bitset<uint64_t>( size ) {}
+        -:  112:
+        -:  113:    // Overloads for set, reset, and flip operations
+        -:  114:
+        -:  115:    // Set a bit at the specified position
+        -:  116:    BASE_SET& set(size_t pos)
+        -:  117:    {
+        -:  118:        if( pos >= size() )
+        -:  119:            sul::dynamic_bitset<uint64_t>::resize( pos + 1 );
+        -:  120:
+        -:  121:        sul::dynamic_bitset<uint64_t>::set(pos);
+        -:  122:        return *this;
+        -:  123:    }
+        -:  124:
+        -:  125:    // Set a bit at the specified position to a given value
+        -:  126:    BASE_SET& set(size_t pos, bool value)
+        -:  127:    {
+        -:  128:        if( pos >= size() )
+        -:  129:            sul::dynamic_bitset<uint64_t>::resize( pos + 1 );
+        -:  130:
+        -:  131:        sul::dynamic_bitset<uint64_t>::set(pos, value);
+        -:  132:        return *this;
+        -:  133:    }
+        -:  134:
+        -:  135:    // Set all bits to 1
+        -:  136:    BASE_SET& set()
+        -:  137:    {
+        -:  138:        sul::dynamic_bitset<uint64_t>::set();
+        -:  139:        return *this;
+        -:  140:    }
+        -:  141:
+        -:  142:    // Reset (clear) a bit at the specified position
+        -:  143:    BASE_SET& reset(size_t pos)
+        -:  144:    {
+        -:  145:        if( pos >= size() )
+        -:  146:            sul::dynamic_bitset<uint64_t>::resize( pos + 1 );
+        -:  147:
+        -:  148:        sul::dynamic_bitset<uint64_t>::reset(pos);
+        -:  149:        return *this;
+        -:  150:    }
+        -:  151:
+        -:  152:    // Reset (clear) all bits
+        -:  153:    BASE_SET& reset()
+        -:  154:    {
+        -:  155:        sul::dynamic_bitset<uint64_t>::reset();
+        -:  156:        return *this;
+        -:  157:    }
+        -:  158:
+        -:  159:    // Flip a bit at the specified position
+        -:  160:    BASE_SET& flip(size_t pos)
+        -:  161:    {
+        -:  162:        if( pos >= size() )
+        -:  163:            sul::dynamic_bitset<uint64_t>::resize( pos + 1 );
+        -:  164:
+        -:  165:        sul::dynamic_bitset<uint64_t>::flip(pos);
+        -:  166:        return *this;
+        -:  167:    }
+        -:  168:
+        -:  169:    // Flip all bits
+    #####:  170:    BASE_SET& flip()
+        -:  171:    {
+    #####:  172:        sul::dynamic_bitset<uint64_t>::flip();
+    #####:  173:        return *this;
+        -:  174:    }
+        -:  175:
+        -:  176:    // Overloads for boolean operators
+        -:  177:
+        -:  178:    // Bitwise NOT operator
+    #####:  179:    BASE_SET operator~() const
+        -:  180:    {
+    #####:  181:        BASE_SET result(*this);
+    #####:  182:        result.flip();
+    #####:  183:        return result;
+    =====:  184:    }
+        -:  185:
+        -:  186:    // Compound assignment AND operator
+    #####:  187:    BASE_SET& operator&=(const BASE_SET& other)
+        -:  188:    {
+    #####:  189:        size_t my_size = size();
+    #####:  190:        size_t other_size = other.size();
+        -:  191:
+    #####:  192:        if( my_size == other_size )
+        -:  193:        {
+    #####:  194:            sul::dynamic_bitset<uint64_t>::operator&=(other);
+        -:  195:        }
+    #####:  196:        else if( my_size < other_size )
+        -:  197:        {
+    #####:  198:            sul::dynamic_bitset<uint64_t>::resize( other_size );
+    #####:  199:            sul::dynamic_bitset<uint64_t>::operator&=( other );
+        -:  200:        }
+        -:  201:        else
+        -:  202:        {
+    #####:  203:            BASE_SET tmp( other );
+    #####:  204:            tmp.resize( my_size );
+    #####:  205:            sul::dynamic_bitset<uint64_t>::operator&=( tmp );
+    #####:  206:        }
+        -:  207:
+    #####:  208:        return *this;
+        -:  209:    }
+        -:  210:
+        -:  211:    // Compound assignment OR operator
+        -:  212:    BASE_SET& operator|=(const BASE_SET& other)
+        -:  213:    {
+        -:  214:        size_t my_size = size();
+        -:  215:        size_t other_size = other.size();
+        -:  216:
+        -:  217:        if( my_size == other_size )
+        -:  218:        {
+        -:  219:            sul::dynamic_bitset<uint64_t>::operator|=(other);
+        -:  220:        }
+        -:  221:        else if( my_size < other_size )
+        -:  222:        {
+        -:  223:            sul::dynamic_bitset<uint64_t>::resize( other_size );
+        -:  224:            sul::dynamic_bitset<uint64_t>::operator|=( other );
+        -:  225:        }
+        -:  226:        else
+        -:  227:        {
+        -:  228:            BASE_SET tmp( other );
+        -:  229:            tmp.resize( my_size );
+        -:  230:            sul::dynamic_bitset<uint64_t>::operator|=( tmp );
+        -:  231:        }
+        -:  232:
+        -:  233:        return *this;
+        -:  234:    }
+        -:  235:
+        -:  236:    // Compound assignment XOR operator
+        -:  237:    BASE_SET& operator^=(const BASE_SET& other)
+        -:  238:    {
+        -:  239:        size_t my_size = size();
+        -:  240:        size_t other_size = other.size();
+        -:  241:
+        -:  242:        if( my_size == other_size )
+        -:  243:        {
+        -:  244:            sul::dynamic_bitset<uint64_t>::operator^=(other);
+        -:  245:        }
+        -:  246:        else if( my_size < other_size )
+        -:  247:        {
+        -:  248:            sul::dynamic_bitset<uint64_t>::resize( other_size );
+        -:  249:            sul::dynamic_bitset<uint64_t>::operator^=( other );
+        -:  250:        }
+        -:  251:        else
+        -:  252:        {
+        -:  253:            BASE_SET tmp( other );
+        -:  254:            tmp.resize( my_size );
+        -:  255:            sul::dynamic_bitset<uint64_t>::operator^=( tmp );
+        -:  256:        }
+        -:  257:
+        -:  258:        return *this;
+        -:  259:    }
+        -:  260:
+        -:  261:    int compare( const BASE_SET& other ) const
+        -:  262:    {
+        -:  263:        return alg::lexicographical_compare_three_way( begin(), end(), other.begin(), other.end() );
+        -:  264:    }
+        -:  265:
+        -:  266:    // Define less-than operator for comparison
+        -:  267:    bool operator<( const BASE_SET& other ) const
+        -:  268:    {
+        -:  269:        return alg::lexicographical_compare_three_way( begin(), end(), other.begin(),
+        -:  270:                                                       other.end() ) < 0;
+        -:  271:    }
+        -:  272:
+        -:  273:    /**
+        -:  274:     * Return a binary string showing contents of this set.
+        -:  275:     */
+        -:  276:    std::string FmtBin() const
+        -:  277:    {
+        -:  278:        std::string ret;
+        -:  279:
+        -:  280:        int     bit_count = size();
+        -:  281:
+        -:  282:        for( int bit=0;  bit<bit_count;  ++bit )
+        -:  283:        {
+        -:  284:            if( bit )
+        -:  285:            {
+        -:  286:                if( !( bit % 8 ) )
+        -:  287:                    ret += '|';
+        -:  288:                else if( !( bit % 4 ) )
+        -:  289:                    ret += '_';
+        -:  290:            }
+        -:  291:
+        -:  292:            ret += (*this)[bit] ? '1' :  '0';
+        -:  293:        }
+        -:  294:
+        -:  295:        // reverse of string
+        -:  296:        return std::string( ret.rbegin(), ret.rend() );
+        -:  297:    }
+        -:  298:
+        -:  299:    /**
+        -:  300:     * Return a hex string showing contents of this set.
+        -:  301:     */
+        -:  302:    std::string FmtHex() const
+        -:  303:    {
+        -:  304:        std::string ret;
+        -:  305:
+        -:  306:        static const char hex[] = "0123456789abcdef";
+        -:  307:
+        -:  308:        size_t nibble_count = ( size() + 3 ) / 4;
+        -:  309:
+        -:  310:        for( size_t nibble = 0; nibble < nibble_count; ++nibble )
+        -:  311:        {
+        -:  312:            unsigned int ndx = 0;
+        -:  313:
+        -:  314:            // test 4 consecutive bits and set ndx to 0-15
+        -:  315:            for( size_t nibble_bit = 0; nibble_bit < 4; ++nibble_bit )
+        -:  316:            {
+        -:  317:                size_t nibble_pos = nibble_bit + ( nibble * 4 );
+        -:  318:                // make sure it's not extra bits that don't exist in the bitset but need to in the
+        -:  319:                // hex format
+        -:  320:                if( nibble_pos >= size() )
+        -:  321:                    break;
+        -:  322:
+        -:  323:                if( ( *this )[nibble_pos] )
+        -:  324:                    ndx |= ( 1 << nibble_bit );
+        -:  325:            }
+        -:  326:
+        -:  327:            if( nibble && !( nibble % 8 ) )
+        -:  328:                ret += '_';
+        -:  329:
+        -:  330:            assert( ndx < arrayDim( hex ) );
+        -:  331:
+        -:  332:            ret += hex[ndx];
+        -:  333:        }
+        -:  334:
+        -:  335:        // reverse of string
+        -:  336:        return std::string( ret.rbegin(), ret.rend() );
+        -:  337:    }
+        -:  338:
+        -:  339:    /**
+        -:  340:     * Convert the output of FmtHex() and replaces this set's values
+        -:  341:     * with those given in the input string.
+        -:  342:     *
+        -:  343:     * Parsing stops at the first non hex ASCII byte, except that marker bytes output from
+        -:  344:     * FmtHex() are not terminators.
+        -:  345:     *
+        -:  346:     * @return the number of bytes consumed.
+        -:  347:     */
+        -:  348:    int ParseHex( const std::string& str )
+        -:  349:    {
+        -:  350:        return ParseHex( str.c_str(), str.length() );
+        -:  351:    }
+        -:  352:
+        -:  353:    /**
+        -:  354:     * Convert the output of FmtHex() and replaces this set's values
+        -:  355:     * with those given in the input string.
+        -:  356:     *
+        -:  357:     * Parsing stops at the first non hex ASCII byte, except that marker bytes output from
+        -:  358:     * FmtHex() are not terminators.
+        -:  359:     *
+        -:  360:     * @return number of bytes consumed.
+        -:  361:     */
+        -:  362:    int ParseHex( const char* aStart, int aCount )
+        -:  363:    {
+        -:  364:        BASE_SET tmp(size());
+        -:  365:
+        -:  366:        const char* rstart = aStart + aCount - 1;
+        -:  367:        const char* rend   = aStart - 1;
+        -:  368:
+        -:  369:        const int bitcount = size();
+        -:  370:
+        -:  371:        int nibble_ndx = 0;
+        -:  372:
+        -:  373:        while( rstart > rend )
+        -:  374:        {
+        -:  375:            int cc = *rstart--;
+        -:  376:
+        -:  377:            if( cc == '_' )
+        -:  378:                continue;
+        -:  379:
+        -:  380:            int nibble;
+        -:  381:
+        -:  382:            if( cc >= '0' && cc <= '9' )
+        -:  383:                nibble = cc - '0';
+        -:  384:            else if( cc >= 'a' && cc <= 'f' )
+        -:  385:                nibble = cc - 'a' + 10;
+        -:  386:            else if( cc >= 'A' && cc <= 'F' )
+        -:  387:                nibble = cc - 'A' + 10;
+        -:  388:            else
+        -:  389:                break;
+        -:  390:
+        -:  391:            int bit = nibble_ndx * 4;
+        -:  392:
+        -:  393:            for( int ndx=0; bit<bitcount && ndx<4; ++bit, ++ndx )
+        -:  394:                if( nibble & (1<<ndx) )
+        -:  395:                    tmp.set( bit );
+        -:  396:
+        -:  397:            if( bit >= bitcount )
+        -:  398:                break;
+        -:  399:
+        -:  400:            ++nibble_ndx;
+        -:  401:        }
+        -:  402:
+        -:  403:        int byte_count = aStart + aCount - 1 - rstart;
+        -:  404:
+        -:  405:        assert( byte_count >= 0 );
+        -:  406:
+        -:  407:        if( byte_count > 0 )
+        -:  408:            *this = tmp;
+        -:  409:
+        -:  410:        return byte_count;
+        -:  411:    }
+        -:  412:
+        -:  413:    // Custom iterator to iterate over set bits
+        -:  414:    class KICOMMON_API set_bits_iterator
+        -:  415:    {
+        -:  416:    public:
+        -:  417:        using iterator_category = std::forward_iterator_tag;
+        -:  418:        using value_type = size_t;
+        -:  419:        using difference_type = std::ptrdiff_t;
+        -:  420:        using pointer = const size_t*;
+        -:  421:        using reference = const size_t&;
+        -:  422:
+        -:  423:        set_bits_iterator( const BASE_SET& baseSet, size_t index ) :
+        -:  424:                m_baseSet( baseSet ), m_index( index )
+        -:  425:        {
+        -:  426:            advance_to_next_set_bit();
+        -:  427:        }
+        -:  428:
+        -:  429:        size_t operator*() const { return m_index; }
+        -:  430:
+        -:  431:        set_bits_iterator& operator++()
+        -:  432:        {
+        -:  433:            ++m_index;
+        -:  434:            advance_to_next_set_bit();
+        -:  435:            return *this;
+        -:  436:        }
+        -:  437:
+        -:  438:        bool operator!=( const set_bits_iterator& other ) const { return m_index != other.m_index; }
+        -:  439:
+        -:  440:        bool operator==( const set_bits_iterator& other ) const { return m_index == other.m_index; }
+        -:  441:
+        -:  442:    protected:
+        -:  443:        void advance_to_next_set_bit()
+        -:  444:        {
+        -:  445:            while( m_index < m_baseSet.size() && !m_baseSet.test( m_index ) )
+        -:  446:                ++m_index;
+        -:  447:        }
+        -:  448:
+        -:  449:        const BASE_SET& m_baseSet;
+        -:  450:        size_t          m_index;
+        -:  451:    };
+        -:  452:
+        -:  453:    // Custom reverse iterator to iterate over set bits in reverse order
+        -:  454:    class KICOMMON_API set_bits_reverse_iterator
+        -:  455:    {
+        -:  456:    public:
+        -:  457:        using iterator_category = std::bidirectional_iterator_tag;
+        -:  458:        using value_type = ssize_t;
+        -:  459:        using difference_type = std::ptrdiff_t;
+        -:  460:        using pointer = const ssize_t*;
+        -:  461:        using reference = const ssize_t&;
+        -:  462:
+        -:  463:        set_bits_reverse_iterator( const BASE_SET& baseSet, ssize_t index ) :
+        -:  464:                m_baseSet( baseSet ), m_index( index )
+        -:  465:        {
+        -:  466:            advance_to_previous_set_bit();
+        -:  467:        }
+        -:  468:
+        -:  469:        ssize_t operator*() const { return m_index; }
+        -:  470:
+        -:  471:        set_bits_reverse_iterator& operator++()
+        -:  472:        {
+        -:  473:            --m_index;
+        -:  474:            advance_to_previous_set_bit();
+        -:  475:            return *this;
+        -:  476:        }
+        -:  477:
+        -:  478:        bool operator!=( const set_bits_reverse_iterator& other ) const
+        -:  479:        {
+        -:  480:            return m_index != other.m_index;
+        -:  481:        }
+        -:  482:
+        -:  483:        bool operator==( const set_bits_reverse_iterator& other ) const
+        -:  484:        {
+        -:  485:            return m_index == other.m_index;
+        -:  486:        }
+        -:  487:
+        -:  488:    protected:
+        -:  489:        void advance_to_previous_set_bit()
+        -:  490:        {
+        -:  491:            while( m_index >= 0 && !m_baseSet.test( m_index ) )
+        -:  492:            {
+        -:  493:                --m_index;
+        -:  494:            }
+        -:  495:        }
+        -:  496:
+        -:  497:        const BASE_SET& m_baseSet;
+        -:  498:        ssize_t         m_index;
+        -:  499:    };
+        -:  500:
+        -:  501:    set_bits_iterator set_bits_begin() const { return set_bits_iterator( *this, 0 ); }
+        -:  502:    set_bits_iterator set_bits_end() const { return set_bits_iterator( *this, size() ); }
+        -:  503:
+        -:  504:    set_bits_reverse_iterator set_bits_rbegin() const
+        -:  505:    {
+        -:  506:        return set_bits_reverse_iterator( *this, size() - 1 );
+        -:  507:    }
+        -:  508:    set_bits_reverse_iterator set_bits_rend() const
+        -:  509:    {
+        -:  510:        return set_bits_reverse_iterator( *this, -1 );
+        -:  511:    }
+        -:  512:
+        -:  513:};
+        -:  514:
+    #####:  515:inline BASE_SET operator&( const BASE_SET& lhs, const BASE_SET& rhs )
+        -:  516:{
+    #####:  517:    BASE_SET result = lhs;
+    #####:  518:    result &= rhs;
+    #####:  519:    return result;
+    =====:  520:}
+        -:  521:
+        -:  522:inline BASE_SET operator|( const BASE_SET& lhs, const BASE_SET& rhs )
+        -:  523:{
+        -:  524:    BASE_SET result = lhs;
+        -:  525:    result |= rhs;
+        -:  526:    return result;
+        -:  527:}
+        -:  528:
+        -:  529:inline BASE_SET operator^( const BASE_SET& lhs, const BASE_SET& rhs )
+        -:  530:{
+        -:  531:    BASE_SET result = lhs;
+        -:  532:    result ^= rhs;
+        -:  533:    return result;
+        -:  534:}
+        -:  535:
+        -:  536:namespace std
+        -:  537:{
+        -:  538:template <>
+        -:  539:struct hash<BASE_SET>
+        -:  540:{
+        -:  541:    size_t operator()( const BASE_SET& bs ) const
+        -:  542:    {
+        -:  543:        size_t hashVal = 0;
+        -:  544:
+        -:  545:        for( const auto& bit : bs )
+        -:  546:            hashVal = hashVal * 31 + std::hash<int>()( bit );
+        -:  547:
+        -:  548:        return hashVal;
+        -:  549:    }
+        -:  550:};
+        -:  551:} // namespace std
+        -:  552:
+        -:  553:#endif // BASE_SET_H

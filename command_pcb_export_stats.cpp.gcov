@@ -1,0 +1,109 @@
+        -:    0:Source:/src/kicad/kicad/cli/command_pcb_export_stats.cpp
+        -:    0:Graph:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_stats.cpp.gcno
+        -:    0:Data:/src/build/kicad/CMakeFiles/kicad-cli.dir/cli/command_pcb_export_stats.cpp.gcda
+        -:    0:Runs:577
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2024 The KiCad Developers
+        -:    5: *
+        -:    6: * This program is free software: you can redistribute it and/or modify it
+        -:    7: * under the terms of the GNU General Public License as published by the
+        -:    8: * Free Software Foundation, either version 3 of the License, or (at your
+        -:    9: * option) any later version.
+        -:   10: *
+        -:   11: * This program is distributed in the hope that it will be useful, but
+        -:   12: * WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   14: * General Public License for more details.
+        -:   15: *
+        -:   16: * You should have received a copy of the GNU General Public License along
+        -:   17: * with this program.  If not, see <http://www.gnu.org/licenses/>.
+        -:   18: */
+        -:   19:
+        -:   20:#include "command_pcb_export_stats.h"
+        -:   21:
+        -:   22:#include <cli/exit_codes.h>
+        -:   23:#include <jobs/job_export_pcb_stats.h>
+        -:   24:#include <string_utils.h>
+        -:   25:#include <wx/crt.h>
+        -:   26:
+        -:   27:#define ARG_EXCLUDE_NO_PADS "--exclude-footprints-without-pads"
+        -:   28:#define ARG_SUBTRACT_HOLES "--subtract-holes-from-board"
+        -:   29:#define ARG_SUBTRACT_HOLES_COPPER "--subtract-holes-from-copper"
+        -:   30:#define ARG_FORMAT "--format"
+        -:   31:#define ARG_UNITS "--units"
+        -:   32:
+      577:   33:CLI::PCB_EXPORT_STATS_COMMAND::PCB_EXPORT_STATS_COMMAND() :
+     1154:   34:        PCB_EXPORT_BASE_COMMAND( "stats", IO_TYPE::FILE, IO_TYPE::FILE )
+        -:   35:{
+     1154:   36:    m_argParser.add_description( UTF8STDSTR( _( "Generate a board statistics report" ) ) );
+        -:   37:
+      577:   38:    m_argParser.add_argument( ARG_FORMAT )
+      577:   39:            .default_value( std::string( "report" ) )
+     1154:   40:            .help( UTF8STDSTR( _( "Output file format, options: json, report" ) ) )
+     1154:   41:            .metavar( "FORMAT" );
+        -:   42:
+      577:   43:    m_argParser.add_argument( ARG_UNITS )
+      577:   44:            .default_value( std::string( "mm" ) )
+     1154:   45:            .help( UTF8STDSTR( _( "Report units; valid options: in, mm" ) ) )
+     1154:   46:            .metavar( "UNITS" );
+        -:   47:
+      577:   48:    m_argParser.add_argument( ARG_EXCLUDE_NO_PADS )
+     1154:   49:            .help( UTF8STDSTR( _( "Exclude footprints without pads" ) ) )
+      577:   50:            .flag();
+        -:   51:
+      577:   52:    m_argParser.add_argument( ARG_SUBTRACT_HOLES )
+     1154:   53:            .help( UTF8STDSTR( _( "Subtract holes from the board area" ) ) )
+      577:   54:            .flag();
+        -:   55:
+      577:   56:    m_argParser.add_argument( ARG_SUBTRACT_HOLES_COPPER )
+     1154:   57:            .help( UTF8STDSTR( _( "Subtract holes from copper areas" ) ) )
+      577:   58:            .flag();
+      577:   59:}
+        -:   60:
+        -:   61:
+       87:   62:int CLI::PCB_EXPORT_STATS_COMMAND::doPerform( KIWAY& aKiway )
+        -:   63:{
+      87*:   64:    std::unique_ptr<JOB_EXPORT_PCB_STATS> statsJob( new JOB_EXPORT_PCB_STATS() );
+        -:   65:
+       87:   66:    statsJob->m_filename = m_argInput;
+        -:   67:
+       87:   68:    if( !wxFile::Exists( statsJob->m_filename ) )
+        -:   69:    {
+    #####:   70:        wxFprintf( stderr, _( "Board file does not exist or is not accessible\n" ) );
+    #####:   71:        return CLI::EXIT_CODES::ERR_INVALID_INPUT_FILE;
+        -:   72:    }
+        -:   73:
+       87:   74:    statsJob->m_excludeFootprintsWithoutPads = m_argParser.get<bool>( ARG_EXCLUDE_NO_PADS );
+       87:   75:    statsJob->m_subtractHolesFromBoardArea   = m_argParser.get<bool>( ARG_SUBTRACT_HOLES );
+       87:   76:    statsJob->m_subtractHolesFromCopperAreas = m_argParser.get<bool>( ARG_SUBTRACT_HOLES_COPPER );
+        -:   77:
+       87:   78:    wxString format = From_UTF8( m_argParser.get<std::string>( ARG_FORMAT ).c_str() );
+        -:   79:
+       87:   80:    if( format == "report" )
+    #####:   81:        statsJob->m_format = JOB_EXPORT_PCB_STATS::OUTPUT_FORMAT::REPORT;
+       87:   82:    else if( format == "json" )
+       87:   83:        statsJob->m_format = JOB_EXPORT_PCB_STATS::OUTPUT_FORMAT::JSON;
+        -:   84:    else
+        -:   85:    {
+    #####:   86:        wxFprintf( stderr, _( "Invalid report format\n" ) );
+    #####:   87:        return EXIT_CODES::ERR_ARGS;
+        -:   88:    }
+        -:   89:
+       87:   90:    wxString units = From_UTF8( m_argParser.get<std::string>( ARG_UNITS ).c_str() );
+        -:   91:
+       87:   92:    if( units == wxS( "mm" ) )
+       87:   93:        statsJob->m_units = JOB_EXPORT_PCB_STATS::UNITS::MM;
+    #####:   94:    else if( units == wxS( "in" ) || units == wxS( "inch" ) )
+    #####:   95:        statsJob->m_units = JOB_EXPORT_PCB_STATS::UNITS::INCH;
+        -:   96:    else
+        -:   97:    {
+    #####:   98:        wxFprintf( stderr, _( "Invalid units specified\n" ) );
+    #####:   99:        return EXIT_CODES::ERR_ARGS;
+        -:  100:    }
+        -:  101:
+       87:  102:    statsJob->SetConfiguredOutputPath( m_argOutput );
+        -:  103:
+       87:  104:    return aKiway.ProcessJob( KIWAY::FACE_PCB, statsJob.get() );
+       87:  105:}

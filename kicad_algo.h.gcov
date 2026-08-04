@@ -1,0 +1,261 @@
+        -:    0:Source:/src/kicad/libs/core/include/core/kicad_algo.h
+        -:    0:Graph:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp.gcno
+        -:    0:Data:/src/build/common/CMakeFiles/pcbcommon.dir/__/pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp.gcda
+        -:    0:Runs:465
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright (C) 2019 CERN
+        -:    5: * Copyright The KiCad Developers, see AUTHORS.TXT for contributors.
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 3
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-3.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 3 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#ifndef INCLUDE_CORE_KICAD_ALGO_H_
+        -:   26:#define INCLUDE_CORE_KICAD_ALGO_H_
+        -:   27:
+        -:   28:#include <algorithm>
+        -:   29:#include <functional> // std::function
+        -:   30:#include <utility>    // std::pair
+        -:   31:#include <vector>
+        -:   32:#include <wx/debug.h> // wxCHECK_MSG
+        -:   33:
+        -:   34:namespace alg
+        -:   35:{
+        -:   36:/**
+        -:   37: *  @brief Apply a function to the first and second element of a std::pair
+        -:   38: *  @param  __pair   A pair of elements (both elements must be the same type).
+        -:   39: *  @param  __f      A unary function object.
+        -:   40: *
+        -:   41: *  Applies the function object @p __f to @p __pair.first and @p __pair.second
+        -:   42: *  If @p __f has a return value it is ignored.
+        -:   43:*/
+        -:   44:template <typename _Type, typename _Function>
+        -:   45:void run_on_pair( std::pair<_Type, _Type>& __pair, _Function __f )
+        -:   46:{
+        -:   47:    __f( __pair.first );
+        -:   48:    __f( __pair.second );
+        -:   49:}
+        -:   50:
+        -:   51:/**
+        -:   52: *  @brief Apply a function to every sequential pair of elements of a sequence.
+        -:   53: *  @param  __first  An input iterator.
+        -:   54: *  @param  __last   An input iterator.
+        -:   55: *  @param  __f      A unary function object.
+        -:   56: *
+        -:   57: *  Applies the function object @p __f to each sequential pair of elements in the range
+        -:   58: *  @p [first,last).  @p __f must not modify the order of the sequence.
+        -:   59: *  If @p __f has a return value it is ignored.
+        -:   60:*/
+        -:   61:template <typename _InputIterator, typename _Function>
+        -:   62:void adjacent_pairs( _InputIterator __first, _InputIterator __last, _Function __f )
+        -:   63:{
+        -:   64:    if( __first != __last )
+        -:   65:    {
+        -:   66:        _InputIterator __follow = __first;
+        -:   67:        ++__first;
+        -:   68:        for( ; __first != __last; ++__first, ++__follow )
+        -:   69:            __f( *__follow, *__first );
+        -:   70:    }
+        -:   71:}
+        -:   72:
+        -:   73:/**
+        -:   74: *  @brief Apply a function to every possible pair of elements of a sequence.
+        -:   75: *  @param  __first  An input iterator.
+        -:   76: *  @param  __last   An input iterator.
+        -:   77: *  @param  __f      A unary function object.
+        -:   78: *
+        -:   79: *  Applies the function object @p __f to every possible pair of elements in the range
+        -:   80: *  @p [first,last).  @p __f must not modify the order of the sequence.
+        -:   81: *  If @p __f has a return value it is ignored.
+        -:   82:*/
+        -:   83:template <typename _InputIterator, typename _Function>
+        -:   84:void for_all_pairs( _InputIterator __first, _InputIterator __last, _Function __f )
+        -:   85:{
+        -:   86:    if( __first != __last )
+        -:   87:    {
+        -:   88:        _InputIterator __follow = __first;
+        -:   89:        ++__first;
+        -:   90:        for( ; __first != __last; ++__first, ++__follow )
+        -:   91:            for( _InputIterator __it = __first; __it != __last; ++__it )
+        -:   92:                __f( *__follow, *__it );
+        -:   93:    }
+        -:   94:}
+        -:   95:
+        -:   96:/**
+        -:   97: * @brief Returns true if the container contains the given value.
+        -:   98: */
+        -:   99:template <class _Container, typename _Value>
+    #####:  100:bool contains( const _Container& __container, _Value __value )
+        -:  101:{
+    #####:  102:    return std::find( __container.begin(), __container.end(), __value ) != __container.end();
+        -:  103:}
+        -:  104:
+        -:  105:/**
+        -:  106: * @brief Returns true if either of the elements in an std::pair contains the given value
+        -:  107: *
+        -:  108: * @param  __pair   A pair of elements (both elements must be the same type).
+        -:  109: * @param  __value  A value to test
+        -:  110: * @return true if @p __value is contained in @p __pair
+        -:  111: */
+        -:  112:template <typename _Type, typename _Value>
+        -:  113:bool pair_contains( const std::pair<_Type, _Type> __pair, _Value __value )
+        -:  114:{
+        -:  115:    return __pair.first == static_cast<_Type>( __value )
+        -:  116:           || __pair.second == static_cast<_Type>( __value );
+        -:  117:}
+        -:  118:
+        -:  119:/**
+        -:  120: * @brief Test if __val lies within __minval and __maxval in a wrapped range.
+        -:  121: *
+        -:  122: * @param  __val     A value to test
+        -:  123: * @param  __minval  Lowest permissible value within the wrapped range
+        -:  124: * @param  __maxval  Highest permissible value within the wrapped range
+        -:  125: * @param  __wrap    Value at which the range wraps around itself (must be positive)
+        -:  126: * @return true if @p __val lies in the wrapped range
+        -:  127: */
+        -:  128:template <class T>
+        -:  129:bool within_wrapped_range( T __val, T __minval, T __maxval, T __wrap )
+        -:  130:{
+        -:  131:    wxCHECK_MSG( __wrap > 0, false, wxT( "Wrap must be positive!" ) );
+        -:  132:
+        -:  133:    while( __maxval >= __wrap )
+        -:  134:        __maxval -= __wrap;
+        -:  135:
+        -:  136:    while( __maxval < 0 )
+        -:  137:        __maxval += __wrap;
+        -:  138:
+        -:  139:    while( __minval >= __wrap )
+        -:  140:        __minval -= __wrap;
+        -:  141:
+        -:  142:    while( __minval < 0 )
+        -:  143:        __minval += __wrap;
+        -:  144:
+        -:  145:    while( __val < 0 )
+        -:  146:        __val += __wrap;
+        -:  147:
+        -:  148:    while( __val >= __wrap )
+        -:  149:        __val -= __wrap;
+        -:  150:
+        -:  151:    if( __maxval > __minval )
+        -:  152:        return __val >= __minval && __val <= __maxval;
+        -:  153:    else
+        -:  154:        return __val >= __minval || __val <= __maxval;
+        -:  155:}
+        -:  156:
+        -:  157:/**
+        -:  158: * @brief Deletes all duplicate values from \a __c.
+        -:  159: */
+        -:  160:template <class _Container>
+        -:  161:void remove_duplicates( _Container& __c )
+        -:  162:{
+        -:  163:    __c.erase( std::unique( __c.begin(), __c.end() ), __c.end() );
+        -:  164:}
+        -:  165:
+        -:  166:template <class _Container, class _Function>
+        -:  167:void remove_duplicates( _Container& __c, _Function&& __f )
+        -:  168:{
+        -:  169:    __c.erase( std::unique( __c.begin(), __c.end(), std::forward<_Function>( __f ) ), __c.end() );
+        -:  170:}
+        -:  171:
+        -:  172:/**
+        -:  173: * @brief Integral version of std::signbit that works all compilers.
+        -:  174: */
+        -:  175:template <typename T, std::enable_if_t<std::is_integral<T>::value, int> = 0>
+        -:  176:bool signbit( T v )
+        -:  177:{
+        -:  178:    return v < 0;
+        -:  179:}
+        -:  180:
+        -:  181:
+        -:  182:/**
+        -:  183: * @brief Returns the length of the longest common subset of values between two containers.
+        -:  184:*/
+        -:  185:template <class _Container>
+        -:  186:size_t longest_common_subset( const _Container& __c1, const _Container& __c2 )
+        -:  187:{
+        -:  188:    size_t __c1_size = __c1.size();
+        -:  189:    size_t __c2_size = __c2.size();
+        -:  190:
+        -:  191:    if( __c1_size == 0 || __c2_size == 0 )
+        -:  192:        return 0;
+        -:  193:
+        -:  194:    // Create a 2D table to store the lengths of common subsets
+        -:  195:    std::vector<std::vector<size_t>> table( __c1_size + 1, std::vector<size_t>( __c2_size + 1, 0 ) );
+        -:  196:
+        -:  197:    size_t longest = 0;
+        -:  198:
+        -:  199:    for( size_t i = 1; i <= __c1_size; ++i )
+        -:  200:    {
+        -:  201:        for( size_t j = 1; j <= __c2_size; ++j )
+        -:  202:        {
+        -:  203:            if( __c1[i - 1] == __c2[j - 1] )
+        -:  204:            {
+        -:  205:                table[i][j] = table[i - 1][j - 1] + 1;
+        -:  206:                longest = std::max( longest, static_cast<size_t>( table[i][j] ) );
+        -:  207:            }
+        -:  208:        }
+        -:  209:    }
+        -:  210:
+        -:  211:    return longest;
+        -:  212:}
+        -:  213:
+        -:  214:/**
+        -:  215: * @brief Compares two containers lexicographically.
+        -:  216: *
+        -:  217: * Returns a negative value if the first container is less than the second,
+        -:  218: * zero if they are equal, and a positive value if the first container is
+        -:  219: * greater than the second.  This is a re-implementation of
+        -:  220: * std::lexicographical_compare_three_way because it is not available in all
+        -:  221: * compilers.
+        -:  222: */
+        -:  223:template <class Container1Iter, class Container2Iter>
+        -:  224:int lexicographical_compare_three_way( Container1Iter aC1_first, Container1Iter aC1_last,
+        -:  225:                                       Container2Iter aC2_first, Container2Iter aC2_last )
+        -:  226:{
+        -:  227:#ifdef __cpp_lib_three_way_comparison // Check to see if we have an optimized version
+        -:  228:    auto retval =
+        -:  229:            std::lexicographical_compare_three_way( aC1_first, aC1_last, aC2_first, aC2_last );
+        -:  230:    return retval == std::strong_ordering::equal
+        -:  231:                   ? 0
+        -:  232:                   : ( retval == std::strong_ordering::less ? -1 : 1 );
+        -:  233:#else
+        -:  234:    Container1Iter it1 = aC1_first;
+        -:  235:    Container2Iter it2 = aC2_first;
+        -:  236:
+        -:  237:    while( it1 != aC1_last && it2 != aC2_last )
+        -:  238:    {
+        -:  239:        if( *it1 < *it2 )
+        -:  240:            return -1;
+        -:  241:        if( *it1 > *it2 )
+        -:  242:            return 1;
+        -:  243:        ++it1;
+        -:  244:        ++it2;
+        -:  245:    }
+        -:  246:
+        -:  247:    if( it2 == aC2_last )
+        -:  248:        return !( it1 == aC1_last );
+        -:  249:    else
+        -:  250:        return -1;
+        -:  251:#endif // __cpp_lib_three_way_comparison
+        -:  252:}
+        -:  253:
+        -:  254:
+        -:  255:} // namespace alg
+        -:  256:
+        -:  257:#endif /* INCLUDE_CORE_KICAD_ALGO_H_ */

@@ -1,0 +1,316 @@
+        -:    0:Source:/src/kicad/eeschema/sch_rtree.h
+        -:    0:Graph:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcno
+        -:    0:Data:/src/build/eeschema/CMakeFiles/eeschema_kiface_objects.dir/erc/erc.cpp.gcda
+        -:    0:Runs:109
+        -:    1:/*
+        -:    2: * This program source code file is part of KiCad, a free EDA CAD application.
+        -:    3: *
+        -:    4: * Copyright The KiCad Developers, see AUTHORS.txt for contributors.
+        -:    5: * Copyright (C) 2020 CERN
+        -:    6: *
+        -:    7: * This program is free software; you can redistribute it and/or
+        -:    8: * modify it under the terms of the GNU General Public License
+        -:    9: * as published by the Free Software Foundation; either version 3
+        -:   10: * of the License, or (at your option) any later version.
+        -:   11: *
+        -:   12: * This program is distributed in the hope that it will be useful,
+        -:   13: * but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   14: * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   15: * GNU General Public License for more details.
+        -:   16: *
+        -:   17: * You should have received a copy of the GNU General Public License
+        -:   18: * along with this program; if not, you may find one here:
+        -:   19: * http://www.gnu.org/licenses/old-licenses/gpl-3.0.html
+        -:   20: * or you may search the http://www.gnu.org website for the version 3 license,
+        -:   21: * or you may write to the Free Software Foundation, Inc.,
+        -:   22: * 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+        -:   23: */
+        -:   24:
+        -:   25:#ifndef EESCHEMA_SCH_RTREE_H_
+        -:   26:#define EESCHEMA_SCH_RTREE_H_
+        -:   27:
+        -:   28:#include <core/typeinfo.h>
+        -:   29:#include <sch_item.h>
+        -:   30:#include <set>
+        -:   31:#include <vector>
+        -:   32:
+        -:   33:#include <geometry/rtree.h>
+        -:   34:
+        -:   35:/**
+        -:   36: * Implement an R-tree for fast spatial and type indexing of schematic items.
+        -:   37: * Non-owning.
+        -:   38: */
+        -:   39:class EE_RTREE
+        -:   40:{
+        -:   41:private:
+        -:   42:    using ee_rtree = RTree<SCH_ITEM*, int, 3, double>;
+        -:   43:
+        -:   44:public:
+        -:   45:    EE_RTREE()
+        -:   46:    {
+        -:   47:        this->m_tree = new ee_rtree();
+        -:   48:        m_count      = 0;
+        -:   49:    }
+        -:   50:
+        -:   51:    ~EE_RTREE()
+        -:   52:    {
+        -:   53:        delete this->m_tree;
+        -:   54:    }
+        -:   55:
+        -:   56:    /**
+        -:   57:     * Insert an item into the tree. Item's bounding box is taken via its BBox() method.
+        -:   58:     */
+        -:   59:    void insert( SCH_ITEM* aItem )
+        -:   60:    {
+        -:   61:        BOX2I bbox = aItem->GetBoundingBox();
+        -:   62:
+        -:   63:        // Inflate a bit for safety, selection shadows, etc.
+        -:   64:        bbox.Inflate( aItem->GetPenWidth() );
+        -:   65:
+        -:   66:        const int type    = int( aItem->Type() );
+        -:   67:        const int mmin[3] = { type, bbox.GetX(), bbox.GetY() };
+        -:   68:        const int mmax[3] = { type, bbox.GetRight(), bbox.GetBottom() };
+        -:   69:
+        -:   70:        m_tree->Insert( mmin, mmax, aItem );
+        -:   71:        m_count++;
+        -:   72:    }
+        -:   73:
+        -:   74:    /**
+        -:   75:     * Remove an item from the tree.
+        -:   76:     *
+        -:   77:     * Removal is done by comparing pointers, attempting to remove a copy of the item will fail.
+        -:   78:     */
+        -:   79:    bool remove( SCH_ITEM* aItem )
+        -:   80:    {
+        -:   81:        // First, attempt to remove the item using its given BBox
+        -:   82:        BOX2I bbox = aItem->GetBoundingBox();
+        -:   83:
+        -:   84:        // Inflate a bit for safety, selection shadows, etc.
+        -:   85:        bbox.Inflate( aItem->GetPenWidth() );
+        -:   86:
+        -:   87:        const int type    = int( aItem->Type() );
+        -:   88:        const int mmin[3] = { type, bbox.GetX(), bbox.GetY() };
+        -:   89:        const int mmax[3] = { type, bbox.GetRight(), bbox.GetBottom() };
+        -:   90:
+        -:   91:        // If we are not successful ( true == not found ), then we expand
+        -:   92:        // the search to the full tree
+        -:   93:        if( m_tree->Remove( mmin, mmax, aItem ) )
+        -:   94:        {
+        -:   95:            // N.B. We must search the whole tree for the pointer to remove
+        -:   96:            // because the item may have been moved before we have the chance to
+        -:   97:            // delete it from the tree
+        -:   98:            const int mmin2[3] = { INT_MIN, INT_MIN, INT_MIN };
+        -:   99:            const int mmax2[3] = { INT_MAX, INT_MAX, INT_MAX };
+        -:  100:
+        -:  101:            if( m_tree->Remove( mmin2, mmax2, aItem ) )
+        -:  102:                return false;
+        -:  103:        }
+        -:  104:
+        -:  105:        m_count--;
+        -:  106:        return true;
+        -:  107:    }
+        -:  108:
+        -:  109:    /**
+        -:  110:     * Remove all items from the RTree
+        -:  111:     */
+        -:  112:    void clear()
+        -:  113:    {
+        -:  114:        m_tree->RemoveAll();
+        -:  115:        m_count = 0;
+        -:  116:    }
+        -:  117:
+        -:  118:    /**
+        -:  119:     * Determine if a given item exists in the tree.
+        -:  120:     *
+        -:  121:     * @note This does not search the full tree so if the item has been moved, this will return
+        -:  122:     *       false when it should be true.
+        -:  123:     *
+        -:  124:     * @param aItem Item that may potentially exist in the tree.
+        -:  125:     * @param aRobust If true, search the whole tree, not just the bounding box.
+        -:  126:     * @return true if the item definitely exists, false if it does not exist within bbox.
+        -:  127:     */
+        -:  128:    bool contains( const SCH_ITEM* aItem, bool aRobust = false ) const
+        -:  129:    {
+        -:  130:        BOX2I bbox = aItem->GetBoundingBox();
+        -:  131:
+        -:  132:        // Inflate a bit for safety, selection shadows, etc.
+        -:  133:        bbox.Inflate( aItem->GetPenWidth() );
+        -:  134:
+        -:  135:        const int type    = int( aItem->Type() );
+        -:  136:        const int mmin[3] = { type, bbox.GetX(), bbox.GetY() };
+        -:  137:        const int mmax[3] = { type, bbox.GetRight(), bbox.GetBottom() };
+        -:  138:        bool      found   = false;
+        -:  139:
+        -:  140:        auto search =
+        -:  141:                [&found, &aItem]( const SCH_ITEM* aSearchItem )
+        -:  142:                {
+        -:  143:                    if( aSearchItem == aItem )
+        -:  144:                    {
+        -:  145:                        found = true;
+        -:  146:                        return false;
+        -:  147:                    }
+        -:  148:
+        -:  149:                    return true;
+        -:  150:                };
+        -:  151:
+        -:  152:        m_tree->Search( mmin, mmax, search );
+        -:  153:
+        -:  154:        if( !found && aRobust )
+        -:  155:        {
+        -:  156:            // N.B. We must search the whole tree for the pointer to remove
+        -:  157:            // because the item may have been moved.  We do not expand the item
+        -:  158:            // type search as this should not change.
+        -:  159:
+        -:  160:            const int mmin2[3] = { type, INT_MIN, INT_MIN };
+        -:  161:            const int mmax2[3] = { type, INT_MAX, INT_MAX };
+        -:  162:
+        -:  163:            m_tree->Search( mmin2, mmax2, search );
+        -:  164:        }
+        -:  165:
+        -:  166:        return found;
+        -:  167:    }
+        -:  168:
+        -:  169:    /**
+        -:  170:     * Return the number of items in the tree.
+        -:  171:     *
+        -:  172:     * @return number of elements in the tree.
+        -:  173:     */
+        -:  174:    size_t size() const
+        -:  175:    {
+        -:  176:        return m_count;
+        -:  177:    }
+        -:  178:
+        -:  179:    bool empty() const
+        -:  180:    {
+        -:  181:        return m_count == 0;
+        -:  182:    }
+        -:  183:
+        -:  184:    using iterator = typename ee_rtree::Iterator;
+        -:  185:
+        -:  186:    /**
+        -:  187:     * The #EE_TYPE struct provides a type-specific auto-range iterator to the RTree.  Using
+        -:  188:     * this struct, one can write lines like:
+        -:  189:     *
+        -:  190:     * for( auto item : rtree.OfType( SCH_SYMBOL_T ) )
+        -:  191:     *
+        -:  192:     * and iterate over the RTree items that are symbols only
+        -:  193:     */
+        -:  194:    struct EE_TYPE
+        -:  195:    {
+    #####:  196:        EE_TYPE( ee_rtree* aTree, KICAD_T aType ) : type_tree( aTree )
+        -:  197:        {
+    #####:  198:            KICAD_T type = BaseType( aType );
+        -:  199:
+    #####:  200:            if( type == SCH_LOCATE_ANY_T )
+    #####:  201:                m_rect = { { INT_MIN, INT_MIN, INT_MIN }, { INT_MAX, INT_MAX, INT_MAX } };
+        -:  202:            else
+    #####:  203:                m_rect = { { type, INT_MIN, INT_MIN }, { type, INT_MAX, INT_MAX } };
+    #####:  204:        };
+        -:  205:
+      615:  206:        EE_TYPE( ee_rtree* aTree, KICAD_T aType, const BOX2I& aRect ) : type_tree( aTree )
+        -:  207:        {
+      615:  208:            KICAD_T type = BaseType( aType );
+        -:  209:
+      615:  210:            if( type == SCH_LOCATE_ANY_T )
+        -:  211:            {
+      558:  212:                m_rect = { { INT_MIN, aRect.GetX(),     aRect.GetY() },
+      558:  213:                           { INT_MAX, aRect.GetRight(), aRect.GetBottom() } };
+        -:  214:            }
+        -:  215:            else
+        -:  216:            {
+       57:  217:                m_rect = { { type, aRect.GetX(),     aRect.GetY() },
+       57:  218:                           { type, aRect.GetRight(), aRect.GetBottom() } };
+        -:  219:            }
+      615:  220:        };
+        -:  221:
+        -:  222:        ee_rtree::Rect m_rect;
+        -:  223:        ee_rtree*      type_tree;
+        -:  224:
+    #####:  225:        iterator begin()
+        -:  226:        {
+    #####:  227:            return type_tree->begin( m_rect );
+        -:  228:        }
+        -:  229:
+    #####:  230:        iterator end()
+        -:  231:        {
+    #####:  232:            return type_tree->end( m_rect );
+        -:  233:        }
+        -:  234:
+        -:  235:        bool empty()
+        -:  236:        {
+        -:  237:            return type_tree->Count() == 0;
+        -:  238:        }
+        -:  239:    };
+        -:  240:
+    #####:  241:    EE_TYPE OfType( KICAD_T aType ) const
+        -:  242:    {
+    #####:  243:        return EE_TYPE( m_tree, aType );
+        -:  244:    }
+        -:  245:
+        -:  246:    EE_TYPE Overlapping( const BOX2I& aRect ) const
+        -:  247:    {
+        -:  248:        return EE_TYPE( m_tree, SCH_LOCATE_ANY_T, aRect );
+        -:  249:    }
+        -:  250:
+        -:  251:    EE_TYPE Overlapping( const VECTOR2I& aPoint, int aAccuracy = 0 ) const
+        -:  252:    {
+        -:  253:        BOX2I rect( aPoint, VECTOR2I( 0, 0 ) );
+        -:  254:        rect.Inflate( aAccuracy );
+        -:  255:        return EE_TYPE( m_tree, SCH_LOCATE_ANY_T, rect );
+        -:  256:    }
+        -:  257:
+       14:  258:    EE_TYPE Overlapping( KICAD_T aType, const VECTOR2I& aPoint, int aAccuracy = 0 ) const
+        -:  259:    {
+       14:  260:        BOX2I rect( aPoint, VECTOR2I( 0, 0 ) );
+       14:  261:        rect.Inflate( aAccuracy );
+       28:  262:        return EE_TYPE( m_tree, aType, rect );
+        -:  263:    }
+        -:  264:
+        -:  265:    EE_TYPE Overlapping( KICAD_T aType, const BOX2I& aRect ) const
+        -:  266:    {
+        -:  267:        return EE_TYPE( m_tree, aType, aRect );
+        -:  268:    }
+        -:  269:
+        -:  270:    /**
+        -:  271:     * Return a read/write iterator that points to the first.
+        -:  272:     * element in the #EE_RTREE.
+        -:  273:     *
+        -:  274:     * @note The iteration order of the RTree is not readily apparent and will change
+        -:  275:     * if/when you add or move items and the RTree is re-balanced.  Any exposure of the
+        -:  276:     * RTree contents to the user MUST be sorted before being presented.  See
+        -:  277:     * SCH_IO_KICAD_SEXPR::Format() or SCH_EDITOR_CONTROL::nextMatch() for examples.
+        -:  278:     *
+        -:  279:     * @return Complete RTree of the screen's items.
+        -:  280:     */
+    #####:  281:    iterator begin()
+        -:  282:    {
+    #####:  283:        return m_tree->begin();
+        -:  284:    }
+        -:  285:
+        -:  286:    /**
+        -:  287:     * Return a read/write iterator that points to one past the last element in the #EE_RTREE.
+        -:  288:     */
+    #####:  289:    iterator end()
+        -:  290:    {
+    #####:  291:        return m_tree->end();
+        -:  292:    }
+        -:  293:
+        -:  294:
+        -:  295:    const iterator begin() const
+        -:  296:    {
+        -:  297:        return m_tree->begin();
+        -:  298:    }
+        -:  299:
+        -:  300:    const iterator end() const
+        -:  301:    {
+        -:  302:        return m_tree->end();
+        -:  303:    }
+        -:  304:
+        -:  305:
+        -:  306:private:
+        -:  307:    ee_rtree* m_tree;
+        -:  308:    size_t    m_count;
+        -:  309:};
+        -:  310:
+        -:  311:
+        -:  312:#endif /* EESCHEMA_SCH_RTREE_H_ */
