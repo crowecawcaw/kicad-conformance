@@ -1,0 +1,3 @@
+concept = "A (table ...) of table_cell text items on F.Cu is parsed and its border/cell text plots as copper geometry."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

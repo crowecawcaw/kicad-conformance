@@ -1,0 +1,3 @@
+concept = "A via's (front_post_machining counterbore ...) / (back_post_machining countersink ...) drill spec is parsed and documented as a manufacturing comment in the drill file."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

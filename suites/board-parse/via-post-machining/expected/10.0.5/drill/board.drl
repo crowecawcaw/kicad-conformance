@@ -1,0 +1,19 @@
+M48
+; DRILL file KiCad 10.0.5 date NORMALIZED
+; FORMAT={-:-/ absolute / metric / decimal}
+; #@! TF.CreationDate,NORMALIZED
+; #@! TF.GenerationSoftware,Kicad,Pcbnew,10.0.5
+; #@! TF.FileFunction,MixedPlating,1,2
+FMAT,2
+METRIC
+; #@! TA.AperFunction,Plated,PTH,ViaDrill
+T1C0.800
+; Post-machining
+%
+G90
+G05
+T1
+; Post-machining front counterbore dia 1.600mm depth 0.200mm
+; Post-machining back countersink dia 1.800mm depth 0.150mm angle 90deg
+X10.0Y-10.0
+M30

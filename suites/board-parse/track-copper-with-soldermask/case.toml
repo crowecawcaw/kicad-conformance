@@ -1,0 +1,3 @@
+concept = "A track segment with a plural (layers \"F.Cu\" \"F.Mask\") layer set and its own (solder_mask_margin ...) is parsed and plots a soldermask relief around the track, not just the copper trace."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

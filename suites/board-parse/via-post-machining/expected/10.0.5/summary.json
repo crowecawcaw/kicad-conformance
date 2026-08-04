@@ -1,0 +1,44 @@
+{
+  "counts": {
+    "footprints": {
+      "smd": 0,
+      "tht": 0,
+      "total": 0,
+      "unspecified": 0
+    },
+    "pads": {
+      "castellated": 0,
+      "connector": 0,
+      "npth": 0,
+      "press_fit": 0,
+      "smd": 0,
+      "through_hole": 0
+    },
+    "vias": {
+      "blind": 0,
+      "buried": 0,
+      "micro": 0,
+      "through": 1
+    }
+  },
+  "drill_holes": [
+    {
+      "count": 1,
+      "plated": true,
+      "shape": "Round",
+      "source": "Via",
+      "start_layer": "F.Cu",
+      "stop_layer": "B.Cu",
+      "x_size": "0.8000 mm",
+      "y_size": "0.8000 mm"
+    }
+  ],
+  "has_outline": true,
+  "kind": "board",
+  "min_drill_diameter": "0.8000 mm",
+  "min_track_width": "0.2500 mm",
+  "nets": {
+    "NET-1": []
+  },
+  "placement": {}
+}

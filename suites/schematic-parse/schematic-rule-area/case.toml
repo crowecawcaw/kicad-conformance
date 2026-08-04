@@ -1,0 +1,3 @@
+concept = "A (rule_area ...) region's polygon boundary is parsed and drawn in the render, independent of its exclude_from_sim/in_bom/on_board/dnp flags."
+doc     = "sexpr-schematic"
+input   = "sheet.kicad_sch"

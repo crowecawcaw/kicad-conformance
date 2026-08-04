@@ -1,0 +1,3 @@
+concept = "A (target ...) alignment/fiducial mark on F.Cu is parsed and plots as copper geometry."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

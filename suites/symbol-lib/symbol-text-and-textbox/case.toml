@@ -1,0 +1,3 @@
+concept = "A symbol body drawn with free graphic text and a text box (no rectangle) renders both in the exported SVG."
+doc     = "sexpr-symbol-lib"
+input   = "lib.kicad_sym"

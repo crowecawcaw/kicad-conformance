@@ -1,0 +1,3 @@
+concept = "A (body_styles \"Front\" \"Back\") declaration -- naming alternate body styles instead of DeMorgan Standard/Alternate -- makes the second style's exported SVG filename derive from the declared name."
+doc     = "sexpr-symbol-lib"
+input   = "lib.kicad_sym"

@@ -1,0 +1,134 @@
+<?xml version="1.0" standalone="no"?>
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"> 
+<svg
+  xmlns:svg="http://www.w3.org/2000/svg"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+  version="1.1"
+  width="29.9974mm" height="19.9898mm" viewBox="0.0000 0.0000 29.9974 19.9898">
+<title>NORMALIZED</title>
+  <desc>NORMALIZED</desc>
+<g style="fill:#000000; fill-opacity:1.0000;stroke:#000000; stroke-opacity:1.0000;
+stroke-linecap:round; stroke-linejoin:round;"
+ transform="translate(0 0) scale(1 1)">
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.1500; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<text x="10.0000" y="8.0000"
+textLength="2.0595" font-size="1.3333" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">A1</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M9.2857 7.6691
+L9.7619 7.6691
+" />
+<path d="M9.1905 7.9548
+L9.5238 6.9548
+" />
+<path d="M9.5238 6.9548
+L9.8571 7.9548
+" />
+<path d="M10.7143 7.9548
+L10.1429 7.9548
+" />
+<path d="M10.4286 7.9548
+L10.4286 6.9548
+" />
+<path d="M10.4286 6.9548
+L10.3333 7.0977
+" />
+<path d="M10.3333 7.0977
+L10.2381 7.1929
+" />
+<path d="M10.2381 7.1929
+L10.1429 7.2405
+" />
+</g><text x="20.0000" y="8.0000"
+textLength="2.2024" font-size="1.3333" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">B1</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M19.5952 7.4310
+L19.7381 7.4786
+" />
+<path d="M19.7381 7.4786
+L19.7857 7.5262
+" />
+<path d="M19.7857 7.5262
+L19.8333 7.6215
+" />
+<path d="M19.8333 7.6215
+L19.8333 7.7643
+" />
+<path d="M19.8333 7.7643
+L19.7857 7.8596
+" />
+<path d="M19.7857 7.8596
+L19.7381 7.9072
+" />
+<path d="M19.7381 7.9072
+L19.6429 7.9548
+" />
+<path d="M19.6429 7.9548
+L19.2619 7.9548
+" />
+<path d="M19.2619 7.9548
+L19.2619 6.9548
+" />
+<path d="M19.2619 6.9548
+L19.5952 6.9548
+" />
+<path d="M19.5952 6.9548
+L19.6905 7.0024
+" />
+<path d="M19.6905 7.0024
+L19.7381 7.0501
+" />
+<path d="M19.7381 7.0501
+L19.7857 7.1453
+" />
+<path d="M19.7857 7.1453
+L19.7857 7.2405
+" />
+<path d="M19.7857 7.2405
+L19.7381 7.3358
+" />
+<path d="M19.7381 7.3358
+L19.6905 7.3834
+" />
+<path d="M19.6905 7.3834
+L19.5952 7.4310
+" />
+<path d="M19.5952 7.4310
+L19.2619 7.4310
+" />
+<path d="M20.7857 7.9548
+L20.2143 7.9548
+" />
+<path d="M20.5000 7.9548
+L20.5000 6.9548
+" />
+<path d="M20.5000 6.9548
+L20.4048 7.0977
+" />
+<path d="M20.4048 7.0977
+L20.3095 7.1929
+" />
+<path d="M20.3095 7.1929
+L20.2143 7.2405
+" />
+</g><path d="M5.0000 5.0000
+L25.0000 5.0000
+" />
+<path d="M25.0000 5.0000
+L25.0000 10.0000
+" />
+<path d="M25.0000 10.0000
+L5.0000 10.0000
+" />
+<path d="M5.0000 10.0000
+L5.0000 5.0000
+" />
+</g> 
+</svg>

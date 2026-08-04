@@ -1,0 +1,3 @@
+concept = "A via with a (padstack (mode front_inner_back) ...) block has a different annular size on its inner layers and back layer than on front, and each layer's gerber shows its own aperture."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"

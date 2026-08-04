@@ -1,0 +1,3 @@
+concept = "An (image ...) reference bitmap embedded on a sheet is parsed and rasterizes into the render."
+doc     = "sexpr-schematic"
+input   = "sheet.kicad_sch"
