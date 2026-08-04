@@ -1,0 +1,4 @@
+concept = "A board with no Edge.Cuts geometry at all reports an invalid_outline violation."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

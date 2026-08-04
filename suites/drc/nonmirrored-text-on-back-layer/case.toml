@@ -1,0 +1,4 @@
+concept = "Back-silkscreen text that is NOT marked mirrored reports a nonmirrored_text_on_back_layer violation."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

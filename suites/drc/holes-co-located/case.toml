@@ -1,0 +1,4 @@
+concept = "Two through-hole pads on different nets placed at the exact same coordinate report holes_co_located."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

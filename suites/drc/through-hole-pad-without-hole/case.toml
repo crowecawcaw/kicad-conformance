@@ -1,0 +1,4 @@
+concept = "A through-hole pad with no drill at all reports through_hole_pad_without_hole."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

@@ -1,0 +1,19 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Zone [Net-2] on F.Cu, priority 0",
+          "pos": {
+            "x": 5.0,
+            "y": 5.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "isolated_copper"
+    }
+  ]
+}

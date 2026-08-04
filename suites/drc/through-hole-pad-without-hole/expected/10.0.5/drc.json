@@ -1,0 +1,19 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "PTH pad 1 [Net-1] of ",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "through_hole_pad_without_hole"
+    }
+  ]
+}

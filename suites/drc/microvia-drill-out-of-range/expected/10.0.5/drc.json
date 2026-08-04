@@ -1,0 +1,19 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Micro via [Net-1] on F.Cu - B.Cu",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "microvia_drill_out_of_range"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+concept = "A footprint whose F.CrtYd outline is two disjoint line segments (not closed) reports malformed_courtyard."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

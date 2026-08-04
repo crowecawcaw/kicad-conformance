@@ -1,0 +1,26 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Pad 1 [GND] of  on F.Cu",
+          "pos": {
+            "x": 11.05,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Pad 1 [Net-1] of  on F.Cu",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "clearance"
+    }
+  ]
+}

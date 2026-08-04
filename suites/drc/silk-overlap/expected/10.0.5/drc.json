@@ -1,0 +1,52 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Footprint R1",
+          "pos": {
+            "x": 5.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "lib_footprint_issues"
+    },
+    {
+      "items": [
+        {
+          "description": "Footprint R2",
+          "pos": {
+            "x": 25.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "lib_footprint_issues"
+    },
+    {
+      "items": [
+        {
+          "description": "Reference field of R1",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Reference field of R2",
+          "pos": {
+            "x": 10.5,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "silk_overlap"
+    }
+  ]
+}

@@ -1,0 +1,106 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "PTH pad 1 [GND] of ",
+          "pos": {
+            "x": 10.9,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "PTH pad 1 [Net-1] of ",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "hole_to_hole"
+    },
+    {
+      "items": [
+        {
+          "description": "PTH pad 1 [GND] of ",
+          "pos": {
+            "x": 10.9,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "PTH pad 1 [Net-1] of ",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "shorting_items"
+    },
+    {
+      "items": [
+        {
+          "description": "PTH pad 1 [GND] of ",
+          "pos": {
+            "x": 10.9,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "PTH pad 1 [Net-1] of ",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "shorting_items"
+    },
+    {
+      "items": [
+        {
+          "description": "PTH pad 1 [GND] of ",
+          "pos": {
+            "x": 10.9,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "PTH pad 1 [Net-1] of ",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "solder_mask_bridge"
+    },
+    {
+      "items": [
+        {
+          "description": "PTH pad 1 [GND] of ",
+          "pos": {
+            "x": 10.9,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "PTH pad 1 [Net-1] of ",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "solder_mask_bridge"
+    }
+  ]
+}

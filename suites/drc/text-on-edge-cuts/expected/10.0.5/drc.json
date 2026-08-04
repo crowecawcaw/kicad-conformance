@@ -1,0 +1,19 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "PCB text 'HELLO' on Edge.Cuts",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "text_on_edge_cuts"
+    }
+  ]
+}

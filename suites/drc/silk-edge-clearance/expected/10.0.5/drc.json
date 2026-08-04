@@ -1,0 +1,26 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Rectangle on Edge.Cuts",
+          "pos": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        {
+          "description": "Segment on F.Silkscreen",
+          "pos": {
+            "x": -2.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "silk_edge_clearance"
+    }
+  ]
+}

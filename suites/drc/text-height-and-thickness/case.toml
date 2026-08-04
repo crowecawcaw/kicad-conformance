@@ -1,0 +1,4 @@
+concept = "Silkscreen text sized below the board's minimum text height and stroke thickness reports both text_height and text_thickness violations."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

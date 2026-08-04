@@ -1,0 +1,4 @@
+concept = "A track on In1.Cu on a board whose layers table only defines F.Cu/B.Cu reports item_on_disabled_layer."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

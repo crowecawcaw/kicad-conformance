@@ -1,0 +1,4 @@
+concept = "Two footprints with overlapping 4x4 mm F.CrtYd courtyard rectangles report courtyards_overlap."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

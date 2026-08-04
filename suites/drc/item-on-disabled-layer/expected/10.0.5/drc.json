@@ -1,0 +1,73 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [
+    {
+      "items": [
+        {
+          "description": "Pad 1 [Net-1] of  on F.Cu",
+          "pos": {
+            "x": 5.0,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
+          "pos": {
+            "x": 5.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "unconnected_items"
+    },
+    {
+      "items": [
+        {
+          "description": "Pad 1 [Net-1] of  on F.Cu",
+          "pos": {
+            "x": 15.0,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
+          "pos": {
+            "x": 5.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "unconnected_items"
+    }
+  ],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
+          "pos": {
+            "x": 5.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "item_on_disabled_layer"
+    },
+    {
+      "items": [
+        {
+          "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
+          "pos": {
+            "x": 5.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "track_dangling"
+    }
+  ]
+}

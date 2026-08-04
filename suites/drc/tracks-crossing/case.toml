@@ -1,0 +1,4 @@
+concept = "Two pad-anchored tracks on different nets that cross at a mid-point report tracks_crossing."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

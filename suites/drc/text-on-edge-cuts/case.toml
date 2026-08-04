@@ -1,0 +1,4 @@
+concept = "Text placed on the Edge.Cuts layer reports a text_on_edge_cuts violation."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

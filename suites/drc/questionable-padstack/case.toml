@@ -1,0 +1,4 @@
+concept = "A through-hole pad whose copper (0.4 mm) is smaller than its drill (0.8 mm) reports padstack as a questionable padstack."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

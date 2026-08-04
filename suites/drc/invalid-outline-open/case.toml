@@ -1,0 +1,4 @@
+concept = "A board whose Edge.Cuts outline is an open (unclosed) polyline reports an invalid_outline violation."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

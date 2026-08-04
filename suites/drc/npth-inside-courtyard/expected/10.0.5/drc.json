@@ -1,0 +1,26 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Footprint <no reference designator>",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "NPTH pad of ",
+          "pos": {
+            "x": 11.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "npth_inside_courtyard"
+    }
+  ]
+}

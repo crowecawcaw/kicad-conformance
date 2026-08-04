@@ -1,0 +1,39 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Footprint <no reference designator>",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "lib_footprint_issues"
+    },
+    {
+      "items": [
+        {
+          "description": "Pad 1 [Net-1] of  on F.Cu",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Segment on F.Silkscreen",
+          "pos": {
+            "x": 9.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "silk_over_copper"
+    }
+  ]
+}

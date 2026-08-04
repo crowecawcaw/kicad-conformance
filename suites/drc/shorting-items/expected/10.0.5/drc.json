@@ -1,0 +1,46 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Pad 1 [GND] of  on F.Cu",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Track [Net-1] on F.Cu, length 10.0000 mm",
+          "pos": {
+            "x": 5.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "shorting_items"
+    },
+    {
+      "items": [
+        {
+          "description": "Pad 1 [GND] of  on F.Cu",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Track [Net-1] on F.Cu, length 10.0000 mm",
+          "pos": {
+            "x": 5.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "solder_mask_bridge"
+    }
+  ]
+}

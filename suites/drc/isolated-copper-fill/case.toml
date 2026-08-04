@@ -1,0 +1,4 @@
+concept = "A zone on a net with no pad connected to its fill reports isolated_copper."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

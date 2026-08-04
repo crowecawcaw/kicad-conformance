@@ -1,0 +1,32 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Footprint <no reference designator>",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "malformed_courtyard"
+    },
+    {
+      "items": [
+        {
+          "description": "Footprint <no reference designator>",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "malformed_courtyard"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Footprint <no reference designator>",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Footprint <no reference designator>",
+          "pos": {
+            "x": 13.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "courtyards_overlap"
+    }
+  ]
+}

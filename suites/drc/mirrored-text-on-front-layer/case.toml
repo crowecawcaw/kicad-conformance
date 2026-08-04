@@ -1,0 +1,4 @@
+concept = "Front-silkscreen text marked mirrored reports a mirrored_text_on_front_layer violation."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

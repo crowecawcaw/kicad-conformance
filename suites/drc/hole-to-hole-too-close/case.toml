@@ -1,0 +1,4 @@
+concept = "Two 0.8 mm drills 0.9 mm apart report hole_to_hole against the board's 0.25 mm default hole-to-hole spacing."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

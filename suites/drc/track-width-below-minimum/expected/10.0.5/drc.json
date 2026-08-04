@@ -1,0 +1,19 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Track [Net-1] on F.Cu, length 10.0000 mm",
+          "pos": {
+            "x": 5.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "track_width"
+    }
+  ]
+}

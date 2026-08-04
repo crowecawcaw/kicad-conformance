@@ -1,0 +1,4 @@
+concept = "A via with a 0.32 mm outer diameter over a 0.3 mm drill reports both annular_width and via_diameter against the board's default minimums."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

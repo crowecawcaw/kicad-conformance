@@ -1,0 +1,4 @@
+concept = "A track of one net laid straight across a pad of a different net reports shorting_items."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

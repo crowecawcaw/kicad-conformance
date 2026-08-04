@@ -1,0 +1,4 @@
+concept = "A silkscreen line crossing a pad's solder-mask opening reports a silk_over_copper violation."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

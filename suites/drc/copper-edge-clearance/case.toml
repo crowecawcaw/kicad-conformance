@@ -1,0 +1,4 @@
+concept = "A pad centred 0.2 mm inside the Edge.Cuts outline reports copper_edge_clearance against the board's 0.5 mm default edge clearance."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

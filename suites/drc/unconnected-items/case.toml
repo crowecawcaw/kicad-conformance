@@ -1,0 +1,4 @@
+concept = "Two same-net pads with no copper between them are reported in the JSON's separate unconnected_items array, not violations."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

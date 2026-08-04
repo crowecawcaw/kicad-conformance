@@ -1,0 +1,26 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Pad 1 [Net-1] of  on F.Cu",
+          "pos": {
+            "x": 0.7,
+            "y": 10.0
+          }
+        },
+        {
+          "description": "Rectangle on Edge.Cuts",
+          "pos": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "copper_edge_clearance"
+    }
+  ]
+}

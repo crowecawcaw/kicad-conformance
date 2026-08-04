@@ -1,0 +1,19 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "PCB text 'BACK' on B.Silkscreen",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "nonmirrored_text_on_back_layer"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+concept = "A through-hole pad from one footprint placed inside another footprint's courtyard reports pth_inside_courtyard."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

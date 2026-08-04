@@ -1,0 +1,32 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "PCB text 'x' on F.Silkscreen",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "text_height"
+    },
+    {
+      "items": [
+        {
+          "description": "PCB text 'x' on F.Silkscreen",
+          "pos": {
+            "x": 10.0,
+            "y": 10.0
+          }
+        }
+      ],
+      "severity": "warning",
+      "type": "text_thickness"
+    }
+  ]
+}

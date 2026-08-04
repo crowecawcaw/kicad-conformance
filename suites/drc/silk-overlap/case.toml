@@ -1,0 +1,4 @@
+concept = "Two silkscreen lines closer together than the silkscreen clearance rule report a silk_overlap violation."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

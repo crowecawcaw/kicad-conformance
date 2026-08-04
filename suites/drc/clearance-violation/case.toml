@@ -1,0 +1,4 @@
+concept = "Two 1x1 mm SMD pads on F.Cu, different nets, 0.05 mm apart report a clearance violation against the board's 0.2 mm default netclass clearance."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

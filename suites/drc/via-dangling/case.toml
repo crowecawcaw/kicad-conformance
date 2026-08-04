@@ -1,0 +1,4 @@
+concept = "A via with a net assigned but no track or pad touching it on either layer reports via_dangling."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

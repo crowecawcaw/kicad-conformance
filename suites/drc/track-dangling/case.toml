@@ -1,0 +1,4 @@
+concept = "A track with one end not touching any pad or other track reports track_dangling."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

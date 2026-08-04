@@ -1,0 +1,4 @@
+concept = "A silkscreen line that crosses the board's Edge.Cuts outline reports a silk_edge_clearance violation."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

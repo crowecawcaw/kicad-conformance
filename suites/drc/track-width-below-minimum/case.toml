@@ -1,0 +1,4 @@
+concept = "A 0.05 mm track reports track_width against the board's 0.2 mm default minimum track width."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

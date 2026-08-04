@@ -1,0 +1,46 @@
+{
+  "schematic_parity": [],
+  "unconnected_items": [],
+  "violations": [
+    {
+      "items": [
+        {
+          "description": "Segment on Edge.Cuts",
+          "pos": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        {
+          "description": "Segment on Edge.Cuts",
+          "pos": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "invalid_outline"
+    },
+    {
+      "items": [
+        {
+          "description": "Segment on Edge.Cuts",
+          "pos": {
+            "x": 0.0,
+            "y": 0.0
+          }
+        },
+        {
+          "description": "Segment on Edge.Cuts",
+          "pos": {
+            "x": 20.0,
+            "y": 20.0
+          }
+        }
+      ],
+      "severity": "error",
+      "type": "invalid_outline"
+    }
+  ]
+}

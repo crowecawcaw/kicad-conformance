@@ -1,0 +1,4 @@
+concept = "A through-hole pad with a 0.05 mm drill reports drill_out_of_range against the board's default minimum hole size."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

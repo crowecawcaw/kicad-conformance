@@ -1,0 +1,4 @@
+concept = "A micro via with a 0.05 mm drill reports microvia_drill_out_of_range against the board's default minimum microvia hole size."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
