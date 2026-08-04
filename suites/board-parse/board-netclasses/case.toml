@@ -1,0 +1,42 @@
+concept = "A (net_class ...) that gives one net a tighter clearance than the board default makes DRC report a violation a same-gap pair on two default-class nets would not."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
+
+# Hand-authored fixture (DL-0011). NOT canonicalized with `kicad-cli pcb upgrade --force`
+# -- deliberately, and that is itself a finding: running `upgrade --force` on this exact
+# file (verified in Docker) SILENTLY DELETES the `(net_class ...)` block on save. Current
+# (20260206) kicad-cli only ever WRITES netclass data into a project's `.kicad_pro` file;
+# `pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp::parseNETCLASS` is a
+# READ-side/back-compat path for the legacy inline board net_class block (the
+# `dev-docs.kicad.org` sexpr-pcb example still shows it, unquoted name + description
+# string + `via_dia`/`via_drill`, NOT `via_diameter` -- an easy guess to get wrong, and
+# initially got wrong while authoring this: an `(add_net ...)`-only block with a quoted
+# name, no description string, and `via_diameter` is rejected with "Expecting ''symbol''"
+# at top level and "Unexpected net_class" inside `(setup ...)`; the legacy shape above is
+# accepted at the top level, in the current 20260206 version, and is NOT rejected as an
+# old-version-only construct). So: hand-write with `pcb export stats`/`pcb drc` as the
+# validation oracle instead of `upgrade --force`, and leave the file exactly as
+# hand-written (already matching `populated-board`'s indentation/field style).
+#
+# `parseNETCLASS` (60 lines) and `parseDefaults` (61 lines, the board's own baseline
+# clearance/track-width fallback these interact with) are both 0% in docs/COVERAGE.md
+# §4b; an independent grep of every fixture under suites/ for `(net_class` confirms zero
+# hits before this case.
+#
+# Design: two parallel 0.2mm-wide F.Cu segments, edge-to-edge gap exactly 0.3mm (y=10 vs
+# y=10.5, both 0.2mm wide). `NET_A` is the sole member of netclass "Tight" (clearance
+# 0.5mm); `NET_B` gets the board's built-in default clearance (0.2mm, KiCad's hardcoded
+# fallback when no netclass declares one -- verified against a sibling case with no
+# `net_class` block at all, e.g. zone-keepout-rule-area, which DRC-checks cleanly with no
+# explicit default declared). 0.3mm satisfies the 0.2mm default but violates the 0.5mm
+# Tight requirement, so DRC reports exactly one `clearance` violation naming netclass
+# 'Tight' (plus two incidental `track_dangling` findings from the segments' free ends,
+# unrelated to the concept -- verified present with or without the net_class block).
+#
+# Falsifiable (verified in Docker against a scratch copy, NOT regenerated): deleting the
+# `(add_net "NET_A")` line (or the whole `net_class` block) drops NET_A back to the
+# 0.2mm default, and the same 0.3mm gap no longer violates anything -- `drc.json`'s
+# violation count drops from 3 to 2 and the `clearance` entry specifically disappears,
+# while `summary.json`/`render.svg`/gerbers (unaffected by netclass, since these
+# segments' widths are explicit, not netclass-derived) are untouched either way.
