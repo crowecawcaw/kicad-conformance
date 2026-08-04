@@ -165,10 +165,55 @@ def reduce_drc(raw: dict) -> dict:
     }
 
 
-# ERC JSON (`sch erc --format json`) shares the same top-level violations/severity/items
-# shape as DRC in KiCad 10.x, so the same reduction applies. Kept as a distinct name so
-# a future divergence in the ERC report shape doesn't silently corrupt DRC's reduction.
-reduce_erc = reduce_drc
+def _sheet_violation_sort_key(v: dict) -> tuple:
+    items_key = tuple(sorted((_item_sort_key(i) for i in v.get("items", []))))
+    return (v.get("sheet", ""), v.get("type", ""), v.get("severity", ""), items_key)
+
+
+def reduce_erc(raw: dict) -> dict:
+    """ERC JSON (`sch erc --format json`) -> canonical reduction.
+
+    ERC's report shape is NOT the same as DRC's (a prior version of this function
+    aliased `reduce_erc = reduce_drc`, which silently reduced every ERC case to
+    `{"violations": [], "unconnected_items": [], "schematic_parity": []}` no matter what
+    ERC actually reported -- verified against real `kicad-cli 10.0.5 sch erc --format
+    json` output on the `schematic-parse/hierarchical-sheet` fixture: top-level keys are
+    `$schema, coordinate_units, date, ignored_checks, included_severities,
+    kicad_version, sheets, source`. There is no top-level `violations` key at all, and
+    no `unconnected_items`/`schematic_parity` anywhere in the ERC report (those are
+    DRC-only checks -- a board-vs-schematic parity check and a ratsnest check that have
+    no ERC equivalent). ERC's findings live under `sheets[].violations[]`, one array
+    per sheet in the schematic hierarchy.
+
+    This flattens every sheet's `violations[]` into one content-sorted list, stamping
+    each violation with which sheet it came from via `sheet` (the sheet's `path`, e.g.
+    `"/"` or `"/sub/"`) -- that path string is derived from the schematic's own
+    Sheetname/Sheetfile content, not a UUID, so it is stable and meaningful, and it is
+    the only way to tell a root-sheet violation apart from the identical-looking
+    violation on an identically-named component in a sub-sheet. Item/violation content
+    sorting matches `_reduce_violation_list` (never by UUID, DESIGN §3b).
+    """
+    flattened = []
+    for sheet in raw.get("sheets", []):
+        sheet_path = sheet.get("path", "")
+        for v in sheet.get("violations", []):
+            items = sorted(
+                (
+                    {"description": i.get("description", ""), "pos": i.get("pos")}
+                    for i in v.get("items", [])
+                ),
+                key=_item_sort_key,
+            )
+            flattened.append(
+                {
+                    "sheet": sheet_path,
+                    "type": v.get("type", ""),
+                    "severity": v.get("severity", ""),
+                    "items": items,
+                }
+            )
+    flattened.sort(key=_sheet_violation_sort_key)
+    return {"violations": flattened}
 
 
 def reduce_netlist(text: str) -> dict[str, list[str]]:

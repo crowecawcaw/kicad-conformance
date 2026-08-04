@@ -12,6 +12,7 @@ from runner.adapter import Adapter
 from runner.determinism import check_determinism
 from runner.engine import Engine, FAIL, PASS, REGENERATED, SKIP, XFAIL, make_tmp_root
 from runner.manifest import CaseError, discover_cases, load_case
+from runner.reduction_selftest import run_reduction_selftest
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,6 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--determinism-check", action="store_true",
         help="instead of a normal run, run every rich-output check twice per case and "
              "assert the normalized/reduced result is identical both times (§4a)",
+    )
+    p.add_argument(
+        "--reduction-selftest", action="store_true",
+        help="instead of a normal run, feed every reduction in runner/reduce.py and "
+             "runner/summary.py hand-built non-empty input and assert the reduced result "
+             "is both non-trivial and input-dependent -- no adapter/Docker/kicad-cli "
+             "needed. Guards against a reduction (like the erc.json one this caught) "
+             "that always returns the same shape regardless of its input.",
     )
     return p
 
@@ -134,9 +143,27 @@ def run_determinism_mode(adapter: Adapter, case_dirs: list[Path]) -> int:
     return 1 if any_fail else 0
 
 
+def run_reduction_selftest_mode() -> int:
+    """No adapter, no case discovery, no Docker -- see `runner/reduction_selftest.py`."""
+    print("Reduction self-test: feeding every reduce_*/build_*_summary function "
+          "hand-built non-empty input and asserting a non-trivial, input-dependent "
+          "result (no adapter/Docker/kicad-cli needed).\n")
+    any_fail = False
+    for outcome in run_reduction_selftest():
+        status = "PASS" if outcome.ok else "FAIL"
+        print(f"  [{status}] {outcome.label}: {outcome.detail}")
+        if not outcome.ok:
+            any_fail = True
+    print("\nREDUCTION-SELFTEST: " + ("FAIL" if any_fail else "PASS"))
+    return 1 if any_fail else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.reduction_selftest:
+        return run_reduction_selftest_mode()
 
     adapter = Adapter(Path(args.adapter)) if args.adapter else Adapter()
     roots = [Path(p) for p in args.paths]
