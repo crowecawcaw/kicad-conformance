@@ -1,0 +1,55 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "10.0.5")
+	(uuid "e0110001-0000-4000-8000-000000000000")
+	(paper "A4")
+	(lib_symbols)
+	(sheet
+		(at 25.4 25.4)
+		(size 25.4 25.4)
+		(stroke (width 0.1524) (type solid))
+		(fill (color 0 0 0 0.0))
+		(uuid "e0110001-0000-4000-8000-0000000000s1")
+		(property "Sheetname" "SUB"
+			(at 25.4 24.13 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Sheetfile" "sub_a.kicad_sch"
+			(at 25.4 52.07 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(instances
+			(project ""
+				(path "/e0110001-0000-4000-8000-0000000000s1"
+					(page "2")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 63.5 25.4)
+		(size 25.4 25.4)
+		(stroke (width 0.1524) (type solid))
+		(fill (color 0 0 0 0.0))
+		(uuid "e0110001-0000-4000-8000-0000000000s2")
+		(property "Sheetname" "SUB2"
+			(at 63.5 24.13 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Sheetfile" "sub_b.kicad_sch"
+			(at 63.5 52.07 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(instances
+			(project ""
+				(path "/e0110001-0000-4000-8000-0000000000s2"
+					(page "3")
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/" (page "1"))
+	)
+)

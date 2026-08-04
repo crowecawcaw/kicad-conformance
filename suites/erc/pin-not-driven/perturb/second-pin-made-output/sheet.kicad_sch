@@ -1,0 +1,174 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "10.0.5")
+	(uuid "e0040001-0000-4000-8000-000000000000")
+	(paper "A4")
+	(lib_symbols
+		(symbol "PIN_IN"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(property "Reference" "U"
+				(at 0 -2.54 0)
+				(effects (font (size 1.27 1.27)))
+			)
+			(property "Value" "PIN_IN"
+				(at 0 5.08 0)
+				(effects (font (size 1.27 1.27)))
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(hide yes)
+				(effects (font (size 1.27 1.27)))
+			)
+			(symbol "PIN_IN_0_1"
+				(rectangle
+					(start -1.27 -0.635)
+					(end 1.27 3.175)
+					(stroke (width 0.254) (type default))
+					(fill (type none))
+				)
+			)
+			(symbol "PIN_IN_1_1"
+				(pin input line
+					(at 0 0 0)
+					(length 0)
+					(name "1" (effects (font (size 1.27 1.27))))
+					(number "1" (effects (font (size 1.27 1.27))))
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "PIN_OUT"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(property "Reference" "U"
+				(at 0 -2.54 0)
+				(effects (font (size 1.27 1.27)))
+			)
+			(property "Value" "PIN_OUT"
+				(at 0 5.08 0)
+				(effects (font (size 1.27 1.27)))
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(hide yes)
+				(effects (font (size 1.27 1.27)))
+			)
+			(symbol "PIN_OUT_0_1"
+				(rectangle
+					(start -1.27 -0.635)
+					(end 1.27 3.175)
+					(stroke (width 0.254) (type default))
+					(fill (type none))
+				)
+			)
+			(symbol "PIN_OUT_1_1"
+				(pin output line
+					(at 0 0 0)
+					(length 0)
+					(name "1" (effects (font (size 1.27 1.27))))
+					(number "1" (effects (font (size 1.27 1.27))))
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(symbol
+		(lib_id "PIN_IN")
+		(at 12.7 12.7 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "e0040001-0000-4000-8000-0000000000u1")
+		(property "Reference" "U1"
+			(at 12.7 10.16 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "PIN_IN"
+			(at 12.7 17.78 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" ""
+			(at 12.7 12.7 0)
+			(show_name no)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(pin "1" (uuid "e0040001-0000-4000-8000-0000000010a1"))
+		(instances
+			(project ""
+				(path "/"
+					(reference "U1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "PIN_OUT")
+		(at 25.4 12.7 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "e0040001-0000-4000-8000-0000000000u2")
+		(property "Reference" "U2"
+			(at 25.4 10.16 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "PIN_OUT"
+			(at 25.4 17.78 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" ""
+			(at 25.4 12.7 0)
+			(show_name no)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(pin "1" (uuid "e0040001-0000-4000-8000-0000000020a1"))
+		(instances
+			(project ""
+				(path "/"
+					(reference "U2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(wire
+		(pts
+			(xy 12.7 12.7) (xy 25.4 12.7)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e0040001-0000-4000-8000-00000000w001")
+	)
+	(sheet_instances
+		(path "/" (page "1"))
+	)
+)

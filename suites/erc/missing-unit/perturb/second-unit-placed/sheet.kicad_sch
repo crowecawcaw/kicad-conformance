@@ -1,0 +1,133 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "10.0.5")
+	(uuid "e0140001-0000-4000-8000-000000000000")
+	(paper "A4")
+	(lib_symbols
+		(symbol "DUAL"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(in_pos_files yes)
+			(property "Reference" "U"
+				(at 0 -2.54 0)
+				(effects (font (size 1.27 1.27)))
+			)
+			(property "Value" "DUAL"
+				(at 0 5.08 0)
+				(effects (font (size 1.27 1.27)))
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(show_name no)
+				(hide yes)
+				(effects (font (size 1.27 1.27)))
+			)
+			(symbol "DUAL_1_1"
+				(rectangle
+					(start -1.27 -0.635)
+					(end 1.27 3.175)
+					(stroke (width 0.254) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at 0 0 0)
+					(length 0)
+					(name "1" (effects (font (size 1.27 1.27))))
+					(number "1" (effects (font (size 1.27 1.27))))
+				)
+			)
+			(symbol "DUAL_2_1"
+				(rectangle
+					(start -1.27 -0.635)
+					(end 1.27 3.175)
+					(stroke (width 0.254) (type default))
+					(fill (type none))
+				)
+				(pin passive line
+					(at 0 0 0)
+					(length 0)
+					(name "2" (effects (font (size 1.27 1.27))))
+					(number "2" (effects (font (size 1.27 1.27))))
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(symbol
+		(lib_id "DUAL")
+		(at 12.7 12.7 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "e0140001-0000-4000-8000-0000000000u1")
+		(property "Reference" "U1"
+			(at 12.7 10.16 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "DUAL"
+			(at 12.7 17.78 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" ""
+			(at 12.7 12.7 0)
+			(show_name no)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(pin "1" (uuid "e0140001-0000-4000-8000-0000000010a1"))
+		(instances
+			(project ""
+				(path "/"
+					(reference "U1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "DUAL")
+		(at 25.4 12.7 0)
+		(unit 2)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "e0140001-0000-4000-8000-0000000000u2")
+		(property "Reference" "U1"
+			(at 25.4 10.16 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Value" "DUAL"
+			(at 25.4 17.78 0)
+			(effects (font (size 1.27 1.27)))
+		)
+		(property "Footprint" ""
+			(at 25.4 12.7 0)
+			(show_name no)
+			(hide yes)
+			(effects (font (size 1.27 1.27)))
+		)
+		(pin "2" (uuid "e0140001-0000-4000-8000-0000000020a2"))
+		(instances
+			(project ""
+				(path "/"
+					(reference "U1")
+					(unit 2)
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/" (page "1"))
+	)
+)

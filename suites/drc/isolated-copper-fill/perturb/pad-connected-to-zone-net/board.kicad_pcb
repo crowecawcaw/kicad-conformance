@@ -1,0 +1,56 @@
+(kicad_pcb
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(general
+		(thickness 1.6)
+	)
+	(paper "A4")
+	(layers
+		(0 "F.Cu" signal)
+		(2 "B.Cu" signal)
+		(25 "Edge.Cuts" user)
+	)
+	(setup
+		(pad_to_mask_clearance 0)
+	)
+	(footprint "TestPad"
+		(layer "F.Cu")
+		(uuid "6f3a1c2e-0000-4000-8000-0000000000b1")
+		(at 7 7 0)
+		(attr smd)
+		(pad "1" smd rect (at 0 0 0) (size 1 1) (layers "F.Cu" "F.Mask" "F.Paste") (net "Net-2") (uuid "6f3a1c2e-0000-4000-8000-0000000000b4"))
+	)
+	(zone
+		(net "Net-2")
+		(layer "F.Cu")
+		(uuid "6f3a1c2e-0000-4000-8000-0000000000d1")
+		(hatch edge 0.5)
+		(connect_pads (clearance 0.2))
+		(min_thickness 0.1)
+		(fill yes
+			(thermal_gap 0.2)
+			(thermal_bridge_width 0.2)
+			(island_removal_mode 0)
+		)
+		(polygon
+			(pts
+				(xy 5 5) (xy 10 5) (xy 10 10) (xy 5 10)
+			)
+		)
+		(filled_polygon
+			(layer "F.Cu")
+			(pts
+				(xy 5 5) (xy 10 5) (xy 10 10) (xy 5 10)
+			)
+		)
+	)
+	(gr_rect
+		(start 0 0)
+		(end 30 30)
+		(stroke (width 0.1) (type default))
+		(fill no)
+		(layer "Edge.Cuts")
+		(uuid "6f3a1c2e-0000-4000-8000-0000000000aa")
+	)
+)
