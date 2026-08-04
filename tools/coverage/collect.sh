@@ -32,6 +32,15 @@ echo "grafting $n_gcda .gcda files from $graft -> $BUILD_DIR"
 [ "$n_gcda" -gt 0 ] || { echo "ERROR: profile tree exists but is empty -- kicad-cli never ran, or ran a binary that was not the instrumented one." >&2; exit 1; }
 cp -a "$graft/." "$BUILD_DIR/"
 
+# CMake's compiler-identification probe (CMakeFiles/<ver>/CompilerIdCXX/) is itself
+# compiled with our CMAKE_CXX_FLAGS, so it leaves a .gcno behind for a throwaway
+# source file that no longer exists and that nothing ever runs. gcovr 7.2 treats
+# "cannot open data file" + "cannot open source file" on the same object as a fatal
+# `no_working_dir_found` and aborts the entire run over it. It contributes nothing to
+# the report, so drop it before gcovr walks the tree (this is the image's own
+# throwaway copy of /src/build, never the host's).
+rm -rf "$BUILD_DIR"/CMakeFiles/*/CompilerId* "$BUILD_DIR"/CMakeFiles/CMakeScratch
+
 mkdir -p "$OUTDIR/html"
 
 # --filter keeps only KiCad's own sources; everything under /usr (system headers,
@@ -51,6 +60,9 @@ GCOVR_ARGS=(
     --exclude '.*_wrap\.cxx'
     --exclude '.*\.pb\.(cc|h)'
     --gcov-ignore-parse-errors
+    # Belt-and-braces with the CompilerId removal above: any other object whose source
+    # gcov cannot resolve should downgrade that one file, never abort the whole report.
+    --gcov-ignore-errors=no_working_dir_found
     --exclude-unreachable-branches
     --exclude-throw-branches
     --print-summary
@@ -74,21 +86,33 @@ gcovr "${GCOVR_ARGS[@]}" \
 # so this goes through lcov itself. lcov 2.x is strict about inconsistencies that are
 # routine in a large C++ tree, hence the --ignore-errors list; the whole block is
 # non-fatal because the gcovr outputs above are the primary artifacts.
-if command -v lcov >/dev/null 2>&1; then
-    lcov --capture \
+#
+# WHY THIS IS TIME-BOUNDED. lcov 2.x is a Perl program and this image has no
+# JSON::XS/Cpanel::JSON::XS, so it falls back to the pure-Perl JSON::PP and warns as
+# much (see lcov-stderr.txt). On a ~1900-object tree that is slow enough to be
+# indistinguishable from a hang -- observed still running after 15+ minutes with gcovr
+# itself having finished the same tree in ~5. The tracefile is a convenience artifact,
+# not the deliverable: focus.json (below) is what the gap report is read from, and it
+# must not be held hostage to it. Raise COVERAGE_LCOV_TIMEOUT, or install JSON::XS in
+# the image, if you actually need coverage.info; set COVERAGE_SKIP_LCOV=1 to skip.
+LCOV_TIMEOUT="${COVERAGE_LCOV_TIMEOUT:-900}"
+if [ "${COVERAGE_SKIP_LCOV:-0}" = "1" ]; then
+    echo "skipping lcov tracefile (COVERAGE_SKIP_LCOV=1)" >&2
+elif command -v lcov >/dev/null 2>&1; then
+    timeout "$LCOV_TIMEOUT" lcov --capture \
          --directory "$BUILD_DIR" \
          --base-directory "$SRC_DIR" \
          --output-file "$OUTDIR/coverage.raw.info" \
          --rc geninfo_unexecuted_blocks=1 \
          --ignore-errors mismatch,negative,unused,source,gcov,empty,inconsistent \
          >/dev/null 2>"$OUTDIR/lcov-stderr.txt" \
-    && lcov --remove "$OUTDIR/coverage.raw.info" \
+    && timeout "$LCOV_TIMEOUT" lcov --remove "$OUTDIR/coverage.raw.info" \
          '/usr/*' '*/thirdparty/*' '*/qa/*' '*/build/*' '*_wrap.cxx' '*.pb.cc' \
          --output-file "$OUTDIR/coverage.info" \
          --ignore-errors unused,empty,inconsistent \
          >/dev/null 2>>"$OUTDIR/lcov-stderr.txt" \
     && rm -f "$OUTDIR/coverage.raw.info" \
-    || echo "warning: lcov tracefile generation failed (non-fatal; see $OUTDIR/lcov-stderr.txt)" >&2
+    || echo "warning: lcov tracefile generation failed or timed out after ${LCOV_TIMEOUT}s (non-fatal; see $OUTDIR/lcov-stderr.txt)" >&2
 fi
 
 # Roll the per-file numbers up to subsystem level. The global percentage is close to

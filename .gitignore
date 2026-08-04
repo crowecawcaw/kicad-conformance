@@ -2,3 +2,6 @@
 __pycache__/
 *.pyc
 .venv/
+
+# Coverage measurement artifacts (tools/coverage/README.md)
+tools/coverage/out/

@@ -165,14 +165,28 @@ RUN set -eux; \
 #                                      is the whole point here.
 #   -O0                             no inlining => line/branch mapping matches the
 #                                      source the way a reader expects.
-#   -g0                             DEBUG INFO IS DELIBERATELY OFF. gcov does not use
-#                                      DWARF at all (it uses the .gcno files), and a
-#                                      full -g build of KiCad costs tens of GB of
-#                                      object files plus multi-GB link peaks. This is
-#                                      the single biggest disk/RAM saving here. Add
-#                                      -g back only if you need to debug the build.
 #
-# CMAKE_BUILD_TYPE=Debug selects the *_DEBUG flag variables we override above.
+# WHERE THE FLAGS GO -- read this before "simplifying" it.
+#
+# The flags MUST ride in CMAKE_C_FLAGS / CMAKE_CXX_FLAGS, *not* in the _DEBUG
+# variants. KiCad's own CMakeLists.txt:441-446 does an unconditional, non-cache
+#     set( CMAKE_CXX_FLAGS_DEBUG "-g3 -ggdb3" )
+# for GCC/Clang, which silently CLOBBERS anything passed as
+# -DCMAKE_CXX_FLAGS_DEBUG=... on the command line. The cache entry survives (so
+# CMakeCache.txt still *shows* the coverage flags and looks correct), but the
+# directory-scope variable is what the generator emits, so build.ninja gets
+# `-g3 -ggdb3` and no instrumentation whatsoever. That mistake produced a 26.7 GB
+# image with zero .gcno files in it. CMAKE_CXX_FLAGS, by contrast, KiCad only ever
+# APPENDS to, so our flags survive; they are also emitted first, ahead of
+# ${CMAKE_CXX_FLAGS_DEBUG}, which is why -g0 is pointless here (a later -g3/-g1
+# wins) and why KICAD_BUILD_SMALL_DEBUG_FILES=ON is used instead to hold the debug
+# info -- and hence the object-file size -- down to -g1.
+#
+# The `grep -q profile-arcs build.ninja` assertion below exists so this can never
+# regress silently again: it fails the build, not the report.
+#
+# CMAKE_BUILD_TYPE=Debug is kept (it is what leaves wxASSERT enabled and matches the
+# recipe that is known to configure cleanly against Debian's release-only wx).
 # KICAD_STDLIB_DEBUG / _LIGHT_DEBUG must stay OFF: they define _GLIBCXX_DEBUG, which
 # changes libstdc++ ABI and would not match the distro-built wxWidgets/OCC.
 #
@@ -188,7 +202,7 @@ RUN set -eux; \
 # ---------------------------------------------------------------------------
 FROM source AS build
 ENV CCACHE_DIR=/ccache
-ARG COVERAGE_FLAGS="-O0 -g0 -fprofile-arcs -ftest-coverage -fprofile-update=atomic"
+ARG COVERAGE_FLAGS="-O0 -fprofile-arcs -ftest-coverage -fprofile-update=atomic"
 ARG KICAD_PREFIX=/opt/kicad-cov
 
 RUN --mount=type=cache,target=/ccache,sharing=locked \
@@ -196,8 +210,8 @@ RUN --mount=type=cache,target=/ccache,sharing=locked \
     cmake -S /src/kicad -B /src/build -G Ninja \
         -DCMAKE_BUILD_TYPE=Debug \
         -DCMAKE_INSTALL_PREFIX="${KICAD_PREFIX}" \
-        -DCMAKE_C_FLAGS_DEBUG="${COVERAGE_FLAGS}" \
-        -DCMAKE_CXX_FLAGS_DEBUG="${COVERAGE_FLAGS}" \
+        -DCMAKE_C_FLAGS="${COVERAGE_FLAGS}" \
+        -DCMAKE_CXX_FLAGS="${COVERAGE_FLAGS}" \
         -DCMAKE_EXE_LINKER_FLAGS="--coverage" \
         -DCMAKE_SHARED_LINKER_FLAGS="--coverage" \
         -DCMAKE_MODULE_LINKER_FLAGS="--coverage" \
@@ -207,12 +221,17 @@ RUN --mount=type=cache,target=/ccache,sharing=locked \
         -DKICAD_SCRIPTING_WXPYTHON=OFF \
         -DKICAD_STDLIB_DEBUG=OFF \
         -DKICAD_STDLIB_LIGHT_DEBUG=OFF \
+        -DKICAD_BUILD_SMALL_DEBUG_FILES=ON \
         -DKICAD_USE_VALGRIND=OFF \
         -DKICAD_SANITIZE_ADDRESS=OFF \
         -DKICAD_SANITIZE_THREADS=OFF \
     ; \
     echo '=== configure OK ==='; \
-    grep -E '^(CMAKE_CXX_FLAGS_DEBUG|CMAKE_BUILD_TYPE):' /src/build/CMakeCache.txt
+    grep -E '^(CMAKE_CXX_FLAGS|CMAKE_BUILD_TYPE):' /src/build/CMakeCache.txt; \
+    echo '=== asserting the generator actually emitted the coverage flags ==='; \
+    grep -m1 '^  FLAGS = ' /src/build/build.ninja; \
+    grep -q 'profile-arcs' /src/build/build.ninja \
+        || { echo "FATAL: build.ninja carries no -fprofile-arcs -- KiCad's CMakeLists clobbered our flags; see the comment above this RUN"; exit 1; }
 
 # ---------------------------------------------------------------------------
 # 4. Build + install -- MINIMAL TARGET SET, not the default `all`.
@@ -270,7 +289,11 @@ RUN --mount=type=cache,target=/ccache,sharing=locked \
     set -eux; \
     ccache --zero-stats; \
     cmake --build /src/build --parallel "${BUILD_JOBS}" -- ${KICAD_TARGETS}; \
-    ccache --show-stats | head -20
+    ccache --show-stats | head -20; \
+    n_gcno="$(find /src/build -name '*.gcno' | wc -l)"; \
+    echo "=== .gcno files emitted: ${n_gcno} ==="; \
+    test "${n_gcno}" -gt 1000 \
+        || { echo "FATAL: only ${n_gcno} .gcno files -- this build is NOT instrumented and gcov would report nothing"; exit 1; }
 
 # ---------------------------------------------------------------------------
 # 4b. Install -- manual, not `cmake --install`.
