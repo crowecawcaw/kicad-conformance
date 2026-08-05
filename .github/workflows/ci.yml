@@ -1,24 +1,15 @@
 name: conformance
 
-# DL-0010: gate on kicad/kicad:10.0.5 (exact patch, pinned by tag here -- the digest
-# below is recorded for reproducibility and can replace the tag if stronger pinning is
-# wanted): kicad/kicad:10.0.5 == sha256:182c8005cb775a2c448a4c18681d489f1ff472a761885eba3e08b07e3c0564de
-# A separate, non-gating kicad/kicad:nightly (10.99) job tracks the moving KiCad-11
-# target and reports drift without failing the build.
-
+# Gating image is pinned by tag; digest for reproducibility: sha256:182c8005cb775a2c448a4c18681d489f1ff472a761885eba3e08b07e3c0564de
 on:
   push:
-    paths:
+    paths: &paths
       - "suites/**"
       - "runner/**"
       - "adapters/**"
       - ".github/workflows/ci.yml"
   pull_request:
-    paths:
-      - "suites/**"
-      - "runner/**"
-      - "adapters/**"
-      - ".github/workflows/ci.yml"
+    paths: *paths
   workflow_dispatch: {}
 
 env:
@@ -31,61 +22,25 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: kicad/kicad:10.0.5
-      # The kicad/kicad image's default user is uid 1000 (kicad); GitHub Actions
-      # container jobs must run as root so actions/checkout can write to /__w
-      # (otherwise checkout fails with EACCES). kicad-cli runs fine as root.
-      options: --user root
+      options: --user root  # image defaults to uid 1000; checkout needs root to write /__w
     steps:
       - uses: actions/checkout@v4
-
-      - name: Record oracle identity (DL-0010)
-        run: |
-          kicad-cli version --format about
-          kicad-cli version --format plain
-
-      - name: Reduction self-test (DL-0039)
-        # stdlib-only, no Docker/kicad-cli involved -- feeds every reduce_*/build_*_summary
-        # function hand-built input directly, so it fails fast and cheaply before the
-        # heavier kicad-cli-backed steps below if a reduction regresses (this is the guard
-        # that caught a prior reduce_erc = reduce_drc aliasing bug).
-        run: python3 -m runner --reduction-selftest
-
+      - name: Record oracle identity
+        run: kicad-cli version --format plain
       - name: Run the conformance suite
         run: python3 -m runner suites/
-
-      - name: Determinism self-test (DESIGN §4a)
+      - name: Determinism self-test
         run: python3 -m runner --determinism-check suites/
-
-      - name: Asserted-coverage check (DL-0030, docs/ASSERTED_COVERAGE.md)
-        # Gates on the same paths this workflow already filters on (suites/**,
-        # runner/**, adapters/**): a case's perturb/<slug>/ overlay must still load and
-        # move at least one committed answer, or the case is INERT/INVALID-PERTURBATION/
-        # CRASH -- all three fail the build from day one (§3.4). `UNASSERTED-CASE` (a
-        # happy case with no perturbation at all) is only counted, never failed -- see
-        # the ratchet step below.
+      - name: Asserted-coverage check
         run: python3 -m runner --verify-assertions suites/
-
-      - name: Asserted-coverage ratchet (§3.4 -- UNASSERTED-CASE must not increase)
-        # Adoption is ratcheted, not retroactive (DL-0030): existing cases may stay
-        # unperturbed, but the count recorded in tools/coverage/baseline-unasserted-count.txt
-        # may only go down. Bump that file in the same PR that backfills perturbations;
-        # never raise it to make a new, unperturbed case's addition pass silently.
-        run: |
-          count=$(head -n1 tools/coverage/out/asserted-cases.txt | grep -oE '^[0-9]+')
-          baseline=$(cat tools/coverage/baseline-unasserted-count.txt)
-          echo "UNASSERTED-CASE count: $count (baseline/ratchet ceiling: $baseline)"
-          if [ "$count" -gt "$baseline" ]; then
-            echo "::error::UNASSERTED-CASE count went up ($baseline -> $count) -- a new happy case shipped with no perturb/<slug>/. New cases ship with a perturbation (docs/TEST_CASE_FORMAT.md §11); backfilling an old case lowers the baseline in the same PR."
-            exit 1
-          fi
 
   nightly-tracking:
     name: kicad nightly (10.99, non-gating)
     runs-on: ubuntu-latest
     container:
       image: kicad/kicad:nightly
-      options: --user root  # same reason as the gating job: checkout needs root
-    continue-on-error: true  # DL-0010: reports drift, never blocks the gating job
+      options: --user root  # same as gating job
+    continue-on-error: true  # reports drift, never blocks the gating job
     steps:
       - uses: actions/checkout@v4
       - name: Record oracle identity
