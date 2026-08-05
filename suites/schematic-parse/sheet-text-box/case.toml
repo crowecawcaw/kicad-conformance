@@ -2,22 +2,5 @@ concept = "A (text_box ...) on a sheet wraps its content to the box's declared w
 doc     = "sexpr-schematic"
 input   = "sheet.kicad_sch"
 
-# Hand-authored fixture (DL-0011), canonicalized with `kicad-cli sch upgrade --force`
-# (bumped the file to the current 10.0.5 schematic version, 20260306 -- NOTE: sibling
-# fixtures in this suite, e.g. schematic-graphic-shapes/sheet.kicad_sch, are still
-# stamped 20250114; this is the same staleness observation as
-# suites/symbol-lib/symbol-arc-and-bezier/case.toml's note, not fixed here).
-#
-# `eeschema/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp::parseSchTextBoxContent`
-# (95 lines) is 0% in docs/COVERAGE.md §4b, and an independent grep of every fixture
-# under suites/ for a top-level `(text_box ...)` on a sheet (as opposed to inside a
-# symbol body) confirms zero hits before this case. One T2 component plus one long
-# `text_box` (deliberately longer than its 40x25mm box, so wrapping is forced, not
-# incidental) is the whole sheet.
-#
-# Falsifiable (verified in Docker against a scratch copy, NOT regenerated): shrinking
-# the box from `(size 40 25)` to `(size 15 25)` forces the same text to wrap onto more
-# lines, changing `render.svg`'s glyph paths/positions, while `summary.json` (one
-# component, no nets) is untouched -- proving the box's dimensions, not just its
-# presence, are exercised. Deleting the `text_box` entirely also changes `render.svg`
-# (the paragraph disappears) with the same unchanged `summary.json`.
+# One T2 component plus one long text_box, deliberately longer than its 40x25mm
+# box, so wrapping is forced, not incidental.

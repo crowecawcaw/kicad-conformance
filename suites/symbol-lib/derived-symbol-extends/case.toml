@@ -2,13 +2,5 @@ concept = "A symbol that extends another inherits the parent's graphics and pins
 doc     = "sexpr-symbol-lib"
 input   = "lib.kicad_sym"
 
-# Hand-authored fixture (DL-0011), canonicalized with `kicad-cli sym upgrade --force`:
-# "Base" is the usual rectangle-body 1-pin part; "Derived" carries only
-# (extends "Base") plus its own Reference/Value/Footprint/Datasheet/Description
-# properties (Value "Derived", distinct from Base's) and NO body/pin sub-symbols of its
-# own -- confirmed against a real stock example (4xxx.kicad_sym's "14538", which extends
-# "4538" the same way) that this is sufficient. `sym export svg` must render
-# Derived_unit1.svg with Base's rectangle and pin but Derived's own Value text.
-# Falsifiable: changing Base's rectangle changes BOTH Base_unit1.svg and
-# Derived_unit1.svg; changing only Derived's Value property changes just
-# Derived_unit1.svg's text.
+# "Derived" carries only (extends "Base") plus its own Value property, no body/pin
+# sub-symbols of its own; its rendered SVG should still show Base's rectangle and pin.

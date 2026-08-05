@@ -2,17 +2,6 @@ concept = "A through-hole pad with no drill at all reports through_hole_pad_with
 doc     = "cli:pcb-drc"
 input   = "board.kicad_pcb"
 extra   = ["drc", "roundtrip"]
+xfail   = "DIV-0005"
 
-# `roundtrip` (DL-0040): this fixture is the DIV-0005 reproduction. `pcb upgrade --force`
-# silently deletes the pad's `(drill 0)` token on save (verified: the re-serialized pad
-# carries no `drill` entry at all). Re-running DRC on the re-serialized board reports 2
-# violations of DIFFERENT types (`drill_out_of_range`, `padstack_invalid`) instead of the
-# original single `through_hole_pad_without_hole` -- not a missing finding but a wrong
-# pair standing in for it, since the pad's declared type is reinterpreted once its
-# explicit zero-diameter hole vanishes. `summary.json`'s pad counts move too. Declared as
-# a known, tracked writer defect -- see docs/DIVERGENCES.md DIV-0005.
-[known_divergence]
-kind     = "writer-data-loss"
-answer   = "roundtrip"
-reason   = "kicad-cli 10.0.5's `pcb upgrade --force` silently deletes this pad's (drill 0) token on save. Re-running DRC on the re-serialized board reports {drill_out_of_range, padstack_invalid} instead of through_hole_pad_without_hole -- see docs/DIVERGENCES.md DIV-0005."
-tracking = "TODO: file upstream"
+# see docs/FINDINGS.md DIV-0005 (upgrade --force drops (drill 0), roundtrip DRC differs)

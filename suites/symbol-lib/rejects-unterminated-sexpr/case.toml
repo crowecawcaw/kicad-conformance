@@ -4,33 +4,5 @@ input   = "lib.kicad_sym"
 control = "control.kicad_sym"          # same library with the closing paren restored -> must exit 0
 error_contains = "Unable to load library"
 
-# Hand-authored fixture (DL-0011): the same minimal "T2" 2-pin part used across
-# symbol-lib (single-symbol-library's lib.kicad_sym), with the (version 20231120) form's
-# closing paren deleted so the whole file is one paren short and never balances.
-# `command_sym_upgrade.cpp::doPerform` is 0.00% of 12 per docs/COVERAGE.md -- the
-# `parse-sym` verb (`sym upgrade --force`) is implemented in adapters/kicad.py but no
-# existing symbol-lib case is a rejection case, so it was never invoked. Verified in
-# Docker (kicad/kicad:10.0.5): `sym upgrade --force` on this exact truncated file exits 2
-# with stderr "Unable to load library" (no crash, no parse position -- unlike the PCB
-# loader, KiCad's symbol-library loader does not surface a line/offset here); the control
-# (paren restored) exits 0, "Saving symbol library in updated format". Falsifiable: the
-# control is accepted and the truncated copy is rejected on the identical bytes minus one
-# paren -- there is no other difference between them.
-#
-# ADAPTER BUG FOUND WHILE AUTHORING THIS CASE (not fixed here -- out of scope, adapters/
-# is owned by the reference adapter, not by suite authors): `adapters/kicad.py`'s
-# `cmd_parse_sym` never creates `--out` before running `sym upgrade --force -o
-# <out>/<stem>.kicad_sym <src>`, and nothing upstream of it creates that directory
-# either. Verified directly (bypassing this case's control machinery entirely):
-# `python3 adapters/kicad.py parse-sym --in <any well-formed .kicad_sym> --out /tmp/nodir`
-# prints "Saving symbol library in updated format" / "Unable to save library" and exits 2
-# -- i.e. `parse-sym` currently fails on EVERY input, well-formed or not, whenever its
-# `--out` directory doesn't already exist (which the runner's own scratch dirs don't,
-# for the control path -- see `runner/engine.py::_check_control`). This is exactly why
-# `command_sym_upgrade.cpp::doPerform` sits at 0.00% in docs/COVERAGE.md: no case had
-# ever invoked `parse-sym`, so this was never triggered. Until `cmd_parse_sym` adds an
-# `out_dir.mkdir(parents=True, exist_ok=True)` (the same fix `cmd_render`'s `.kicad_sym`/
-# `.pretty` branches already apply), THIS case's positive control cannot exit OK through
-# the harness, so the runner reports NOT-EVIDENCE, not PASS -- even though the fixture
-# pair itself is verified correct via direct `kicad-cli sym upgrade --force` calls (see
-# above). Not a defect in this case's concept or fixtures.
+# Same minimal "T2" 2-pin part as single-symbol-library, with the (version ...) form's
+# closing paren deleted so the whole file is one paren short.

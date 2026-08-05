@@ -2,10 +2,5 @@ concept = "A junction where a wire's endpoint lands on another wire's crossing p
 doc     = "sexpr-schematic#connectivity"
 input   = "sheet.kicad_sch"
 
-# Hand-authored fixture (DL-0011): U1 (100,100) and U2 (140,100) share a horizontal wire
-# on pin 1. U3 (120,80) has a vertical wire whose far endpoint (120,100) lands exactly on
-# the MIDPOINT of the U1-U2 wire, not on either of its own endpoints -- a T-crossing, not
-# a shared endpoint. A (junction (at 120 100)) sits on that point. Falsifiable by simply
-# deleting the junction: U3 becomes its own singleton net while U1/U2 stay merged,
-# proving the junction -- not mere geometric overlap -- is what ties the third wire in
-# (SC-08).
+# U3's wire endpoint (120,100) lands on the midpoint of the U1-U2 wire (a
+# T-crossing, not a shared endpoint), with a (junction (at 120 100)) marking it.

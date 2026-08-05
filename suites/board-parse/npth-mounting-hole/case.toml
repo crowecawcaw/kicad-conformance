@@ -2,9 +2,5 @@ concept = "A np_thru_hole mounting-hole pad counts as npth (not through_hole) an
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 
-# Formerly RUNNER-GAP-blocked: runner/reduce.py's IPC-D-356 record regex only matched
-# rectype 317/327; kicad-cli 10.0.5 emits rectype 367 for this board's np_thru_hole
-# (unplated, netless -- "N/C") feature, so `summary` crashed with
-# ValueError('unrecognized IPC-D-356 record'). Fixed by teaching reduce_ipcd356 the
-# 367 (netless) and 307 (blind/buried via) record types (see runner/reduce.py's
-# _IPCD356_RECORD_RE docstring for the full verified record-type table).
+# np_thru_hole emits IPC-D-356 record type "367" (unplated, netless, net "N/C")
+# with plating code 'U', vs 'P' for a plated hole.

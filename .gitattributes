@@ -1,8 +1,3 @@
-# Expected files and curated fixtures are Docker-Linux-authored and LF-canonical
-# (DESIGN.md §4, "Line endings & the canonical platform"). Windows checkouts must not
-# re-mangle them to CRLF, and Windows-side git must not re-mangle them back on commit
-# either -- force LF for everything under suites/.
+# Expected files and fixtures are Docker-Linux-authored and LF-canonical; force LF
+# so Windows checkouts don't mangle them.
 suites/**       text eol=lf
-
-# Runner source: normal git-native line-ending handling (no forced LF), since
-# contributors edit it directly with their own editor's line endings.

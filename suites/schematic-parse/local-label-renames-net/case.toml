@@ -2,10 +2,5 @@ concept = "A local label renames the net it sits on to /LABEL, and two pins with
 doc     = "sexpr-schematic#labels"
 input   = "sheet.kicad_sch"
 
-# Hand-authored fixture (DL-0011): two minimal custom "T2" symbols (same one used by the
-# two-nets-one-shared-pin and hierarchical-sheet fixtures), U1 and U2, placed far apart
-# with NO wire between them. Each has a local (label "MYNET") sitting exactly on its pin
-# 1 (T2's pin 1 is a zero-length pin, so its electrical point equals the placement
-# origin -- no stub wire is needed for the label to land on it). Proves SC-13: a local
-# label alone -- not a wire -- is what ties two pins into one net, and the net's name in
-# summary.json becomes "/MYNET", not the auto-generated "Net-(U1-Pad1)".
+# U1/U2 placed far apart with no wire between them; each has a local label "MYNET"
+# on pin 1 (zero-length pin, at the placement origin) - the label alone should merge them.

@@ -1,9 +1,8 @@
-"""Host-side helper for invoking an adapter executable (DESIGN.md §2, DL-0007).
+"""Host-side helper for invoking an adapter executable.
 
-The adapter itself is just an executable satisfying the verb protocol — this module is
-the runner-side half of that contract: it builds the argv/environment for each call and
-returns a small result object. It does not know anything KiCad-specific; that lives in
-`runner/adapters/kicad.py`.
+The adapter is just an executable satisfying the verb protocol; this is the runner-side
+half of that contract -- it builds the argv/environment for each call and returns a small
+result object. It knows nothing KiCad-specific; that lives in `adapters/kicad.py`.
 """
 from __future__ import annotations
 
@@ -42,8 +41,8 @@ class Adapter:
 
     def _run(self, args: list[str]) -> AdapterResult:
         env = dict(os.environ)
-        # DESIGN §4: environment pinning happens at the runner, not the adapter, so it
-        # applies uniformly no matter which adapter is under test.
+        # Environment pinning happens at the runner, not the adapter, so it applies
+        # uniformly no matter which adapter is under test.
         env["LC_ALL"] = "C.UTF-8"
         env["TZ"] = "UTC"
         proc = subprocess.run(
@@ -78,25 +77,13 @@ class Adapter:
         return result.stdout.strip() if result.returncode == 0 else "unknown"
 
     def identity(self) -> str:
-        """`version --format about` -- the fuller oracle-identity record (DL-0010:
-        "Record kicad-cli version --format about in every run")."""
+        """`version --format about` -- the fuller oracle-identity record."""
         result = self._run(["version", "--format", "about"])
         return result.stdout.strip() if result.returncode == 0 else "unknown"
 
-    def invoke(
-        self,
-        verb: str,
-        inputs: list[Path],
-        out_dir: Path,
-        root: str | None = None,
-        fmt: str | None = None,
-    ) -> AdapterResult:
+    def invoke(self, verb: str, inputs: list[Path], out_dir: Path) -> AdapterResult:
         args = [verb]
         for p in inputs:
             args += ["--in", str(p)]
         args += ["--out", str(out_dir)]
-        if root:
-            args += ["--root", root]
-        if fmt:
-            args += ["--format", fmt]
         return self._run(args)

@@ -1,17 +1,13 @@
-"""The determinism self-test (DESIGN.md §4a): run every answer in a happy case's
-battery TWICE on the same fixture and assert the *normalized/reduced* result is byte-/
-value-identical both times. This is what proves a normalizer is load-bearing rather than
-decorative -- "a test that cannot fail is not evidence" (ROADMAP.md, standing rule).
+"""The determinism self-test: run every answer a happy case records TWICE on the same
+fixture and assert the normalized result is identical both times. A normalizer that lets
+drift through is caught here rather than as a mystery failure later.
 
-For each qualifying answer this also reports whether the RAW (pre-normalization) output
-already differed between the two runs. That is informational, not a failure condition --
-some outputs are provably stable and get no normalizer at all (the honesty rule, §4) --
-but when raw output *does* differ while the normalized result does not, that is the
-concrete, printed proof that the normalizer is doing real work (rather than "a
-normalizer that never changes anything is either dead or masking something").
+Each answer also reports whether the RAW (pre-normalization) output differed between the
+two runs. That is informational, not a failure: some outputs are provably stable and get
+no normalizer at all. But when raw output differs while the normalized result does not,
+that is printed proof the normalizer is load-bearing.
 
-a rejection case has no recorded answers (TEST_CASE_FORMAT.md §7) and are excluded --
-there is nothing rich to compare twice.
+Rejection cases record no answers and are excluded -- there is nothing to compare twice.
 """
 from __future__ import annotations
 
@@ -34,7 +30,7 @@ class DeterminismOutcome:
 def check_determinism(adapter: Adapter, case_dir: Path, tmp_root: Path) -> list[DeterminismOutcome]:
     case = load_case(case_dir)
     outcomes: list[DeterminismOutcome] = []
-    if case.skip_reason or case.polarity == "failure":
+    if case.polarity == "failure":
         return outcomes
 
     input_paths = case.input_paths
@@ -45,8 +41,8 @@ def check_determinism(adapter: Adapter, case_dir: Path, tmp_root: Path) -> list[
         label = answer.name
         out_a = tmp_root / f"{label}_run1"
         out_b = tmp_root / f"{label}_run2"
-        result_a = adapter.invoke(answer.verb, input_paths, out_a, root=case.root, fmt=answer.fmt)
-        result_b = adapter.invoke(answer.verb, input_paths, out_b, root=case.root, fmt=answer.fmt)
+        result_a = adapter.invoke(answer.verb, input_paths, out_a)
+        result_b = adapter.invoke(answer.verb, input_paths, out_b)
         if result_a.returncode != 0 or result_b.returncode != 0:
             outcomes.append(DeterminismOutcome(
                 label, ok=False, raw_identical=False,
@@ -59,15 +55,10 @@ def check_determinism(adapter: Adapter, case_dir: Path, tmp_root: Path) -> list[
             norm_a = _engine.normalized_snapshot(answer, out_a, input_path)
             norm_b = _engine.normalized_snapshot(answer, out_b, input_path)
         except (FileNotFoundError, ValueError, OSError) as e:
-            # Broad but bounded: these are the "artifact wasn't shaped the way this
-            # answer expects" exceptions (missing file, a kind="json" artifact that
-            # isn't JSON, a reduce()/raw_reader that can't parse its input) -- i.e. a
-            # real, reportable defect in a case, the adapter, or an Answer's own
-            # wiring, never something to crash the whole suite over (a future failure
-            # must be diagnosable: which case, which answer, which artifact).
-            # Anything outside this tuple (TypeError, AttributeError, ...) is left to
-            # propagate -- that shape of error means the comparison code itself is
-            # broken, which should stay loud, not get laundered into a routine FAIL.
+            # "The artifact wasn't shaped the way this answer expects" -- a reportable
+            # defect in a case, the adapter, or an Answer's wiring, never something to
+            # crash the whole suite over. Anything outside this tuple means the
+            # comparison code itself is broken and stays loud.
             artifact_a = answer.artifact(out_a, input_path)
             outcomes.append(DeterminismOutcome(
                 label, ok=False, raw_identical=False,

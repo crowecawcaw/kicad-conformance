@@ -1,13 +1,6 @@
 concept = "A sheet nested inside a sheet inside the root reports the full sheet-name path per component, three levels deep."
 doc     = "sexpr-schematic#hierarchy"
-inputs  = ["root.kicad_sch", "mid.kicad_sch", "leaf.kicad_sch"]
-root    = "root.kicad_sch"
+input   = "root.kicad_sch"
 
-# Hand-authored fixture (DL-0011): root.kicad_sch instantiates mid.kicad_sch (sheet name
-# "mid"), which in turn instantiates leaf.kicad_sch (sheet name "leaf"); leaf.kicad_sch
-# places the only component, a minimal T2 (U1). Each file's `path` (used by both
-# `(sheet (instances ...))` and the child file's own `(sheet_instances ...)`) accumulates
-# the full chain of sheet UUIDs from the root, exactly as hierarchical-sheet's two-level
-# case does for one level. Proves SC-31: summary.json's components.U1.sheet is
-# "/mid/leaf/" -- the full human-readable sheet-name path, not just the immediate
-# parent's name.
+# root -> mid -> leaf, three sheets deep; U1 lives in leaf. netlist.net's
+# components.U1.sheet should be the full path "/mid/leaf/", not just "leaf".

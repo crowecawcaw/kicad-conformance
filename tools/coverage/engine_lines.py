@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """
-engine_lines.py -- stages 3 and 4 of the engine-coverage denominator.
+engine_lines.py -- stages 3 and 4 of the engine-coverage denominator (see
+engine-scope.sh).
 
 `scan`   runs gcov over every .gcno in the instrumented build and caches, for each
-         (source file, line), the mangled name of the function that owns it and the
-         execution count. gcov's JSON intermediate format carries `function_name` on
-         every line record, which is the exact join key the ELF reference graph
-         produces -- no name demangling, no heuristics.
+         (source file, line), the mangled name of the owning function and the
+         execution count -- gcov's JSON format carries `function_name` per line,
+         the exact join key the ELF reference graph produces.
+`report` joins that cache against the reachability closure from engine_scope.py
+         and emits the denominator plus engine coverage.
 
-`report` joins that cache against the reachability closure from engine_scope.py and
-         emits the denominator plus engine coverage.
-
-Filters mirror `collect.sh`'s gcovr invocation exactly (same --filter and --exclude
-set), so the totals here are comparable line-for-line with docs/COVERAGE.md.
+Filters mirror `collect.sh`'s gcovr invocation exactly, so totals are comparable
+line-for-line with the main coverage report.
 
     python3 engine_lines.py scan   --build-dir /src/build --raw /coverage/raw \\
                                    --out /scope/lines/linemap.jsonl.gz
@@ -191,8 +190,8 @@ def load_scope(scopedir, graphdir):
 
 
 # Same ordered bucket list as collect.sh's focus.json rollup, so an engine figure
-# can be read next to docs/COVERAGE.md 3 without re-deriving anything. FIRST match
-# wins, so `gui` must stay last.
+# is directly comparable to the main coverage report. FIRST match wins, so `gui`
+# must stay last.
 BUCKETS = [
     ("io/board",     ("pcbnew/pcb_io",)),
     ("io/schematic", ("eeschema/sch_io",)),
@@ -245,8 +244,8 @@ def cmd_report(args):
     file_entry = collections.defaultdict(collections.Counter)
     # (file, mangled name) -> [n_lines, entered?]. FUNCTION-ENTRY coverage is the
     # honest target for "complete engine coverage": 100% of engine *lines* is not
-    # reachable (see docs/ENGINE_COVERAGE.md), but "every in-scope function is
-    # entered at least once" is a target that can actually be closed.
+    # reachable, but "every in-scope function is entered at least once" is a target
+    # that can actually be closed.
     fnstate = {}
 
     CLASSES = ("engine", "deferred", "out")
@@ -403,7 +402,7 @@ def cmd_report(args):
              f"{out['engine_percent']}%")
     L.append(f"engine+deferred = {tot['engine_covered']+tot['deferred_covered']}/"
              f"{tot['engine']+tot['deferred']} = {out['engine_plus_deferred_percent']}%")
-    L.append(f"global (cf. docs/COVERAGE.md) = {tot['covered']}/{tot['lines']} = "
+    L.append(f"global (cf. the main coverage report) = {tot['covered']}/{tot['lines']} = "
              f"{out['global_percent']}%")
     if floor:
         L.append("")

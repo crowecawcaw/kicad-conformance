@@ -1,56 +1,91 @@
 {
-  "violations": [
-    {
-      "description": "Label not connected",
-      "items": [
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
         {
-          "description": "Label 'SIG'",
-          "pos": {
-            "x": 0.127,
-            "y": 0.127
-          }
-        }
-      ],
-      "severity": "error",
-      "sheet": "/",
-      "type": "label_dangling"
-    },
-    {
-      "description": "Label not connected",
-      "items": [
-        {
-          "description": "Label 'sig'",
-          "pos": {
-            "x": 0.254,
-            "y": 0.254
-          }
-        }
-      ],
-      "severity": "error",
-      "sheet": "/",
-      "type": "label_dangling"
-    },
-    {
-      "description": "Labels are similar (lower/upper case difference only)",
-      "items": [
-        {
-          "description": "Label 'SIG'",
-          "pos": {
-            "x": 0.127,
-            "y": 0.127
-          }
+            "description": "Global label only appears once in the schematic",
+            "key": "single_global_label"
         },
         {
-          "description": "Label 'sig'",
-          "pos": {
-            "x": 0.254,
-            "y": 0.254
-          }
+            "description": "Four connection points are joined together",
+            "key": "four_way_junction"
+        },
+        {
+            "description": "SPICE model issue",
+            "key": "simulation_model_issue"
+        },
+        {
+            "description": "Assigned footprint doesn't match footprint filters",
+            "key": "footprint_filter"
         }
-      ],
-      "severity": "warning",
-      "sheet": "/",
-      "type": "similar_labels"
-    }
-  ]
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/NORMALIZED-UUID",
+            "violations": [
+                {
+                    "description": "Label not connected",
+                    "items": [
+                        {
+                            "description": "Label 'SIG'",
+                            "pos": {
+                                "x": 0.127,
+                                "y": 0.127
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "label_dangling"
+                },
+                {
+                    "description": "Label not connected",
+                    "items": [
+                        {
+                            "description": "Label 'sig'",
+                            "pos": {
+                                "x": 0.254,
+                                "y": 0.254
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "label_dangling"
+                },
+                {
+                    "description": "Labels are similar (lower/upper case difference only)",
+                    "items": [
+                        {
+                            "description": "Label 'SIG'",
+                            "pos": {
+                                "x": 0.127,
+                                "y": 0.127
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        },
+                        {
+                            "description": "Label 'sig'",
+                            "pos": {
+                                "x": 0.254,
+                                "y": 0.254
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "similar_labels"
+                }
+            ]
+        }
+    ],
+    "source": "sheet.kicad_sch"
 }

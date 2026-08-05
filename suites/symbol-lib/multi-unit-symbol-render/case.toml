@@ -2,10 +2,5 @@ concept = "A two-unit symbol exports one SVG per unit, with the shared unit-0 bo
 doc     = "sexpr-symbol-lib"
 input   = "lib.kicad_sym"
 
-# Hand-authored fixture (DL-0011), canonicalized with `kicad-cli sym upgrade --force`:
-# "T2U" has a common "T2U_0_1" sub-symbol (the rectangle body, unit 0 = shared across all
-# units per the docs) plus "T2U_1_1" (pin "1") and "T2U_2_1" (pin "2"). Verified via a
-# probe library (kicad-conformance-research/_tmp3/probe.kicad_sym) that `sym export svg`
-# writes exactly "T2U_unit1.svg" and "T2U_unit2.svg" -- SY-12. Falsifiable: removing the
-# unit-0 rectangle changes BOTH unit SVGs (the shared body vanishes from each); removing
-# only "T2U_2_1"'s pin changes only unit2's file.
+# "T2U" has a shared unit-0 body (rectangle) plus per-unit pins ("1"/"2"); expect
+# separate T2U_unit1.svg / T2U_unit2.svg, each including the shared body.

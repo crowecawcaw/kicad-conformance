@@ -2,28 +2,5 @@ concept = "A symbol body drawn with an arc and a bezier (no rectangle) renders b
 doc     = "sexpr-symbol-lib"
 input   = "lib.kicad_sym"
 
-# Hand-authored fixture (DL-0011), canonicalized with `kicad-cli sym upgrade --force`
-# (bumped the file to the current 10.0.5 symbol version, 20251024 -- NOTE: every sibling
-# fixture in this suite, e.g. single-symbol-library/lib.kicad_sym, is still stamped
-# 20231120; this file shows what today's `sym upgrade --force` actually writes, so those
-# older fixtures look stale by comparison -- a possible doc/corpus-staleness finding, not
-# fixed here since re-stamping someone else's existing fixture is out of this case's
-# scope).
-#
-# `eeschema/sch_io/kicad_sexpr/sch_io_kicad_sexpr_parser.cpp::parseSymbolArc` (104 lines)
-# and `::parseSymbolBezier` (47 lines) are both listed 0% in docs/COVERAGE.md §4b, and an
-# independent grep of every fixture under suites/ for `(arc`/`(bezier` inside a symbol
-# body confirms zero hits before this case. "ArcBezier"'s unit-1 body ("ArcBezier_0_1")
-# is exactly one `(arc ...)` and one `(bezier (pts ...) ...)` -- no rectangle, no other
-# graphic item, so both parse functions are unavoidably entered and both curves are
-# unavoidably load-bearing in the rendered drawing.
-#
-# Falsifiable (verified in Docker against a temp copy, NOT regenerated): flattening the
-# arc's `(mid 0 -3.302)` to the chord midpoint `(mid 0 -2.54)` changes the arc from a
-# shallow bow to a straight line, and changing one bezier control point (e.g. `(xy 1.27
-# -1.27)` -> `(xy 1.27 1.27)`) changes the curve's shape -- both edits change
-# `render/ArcBezier_unit1.svg`'s bytes (its `<path>` data), while leaving the pin/unit-2
-# body untouched. Neither edit changes the file's line count or any other structural
-# fact `summary.json`-style projections would catch -- this is a pure geometry-in-SVG
-# assertion, which is why `render` (not `summary`, which does not apply to libraries,
-# TEST_CASE_FORMAT.md §2) is the entire standard answer set here.
+# Symbol body is exactly one arc + one bezier (no rectangle), so both curves are
+# unavoidably load-bearing in the rendered SVG.

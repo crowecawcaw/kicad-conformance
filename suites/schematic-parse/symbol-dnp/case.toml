@@ -1,11 +1,6 @@
-concept = "A do-not-populate symbol is drawn with a DNP cross in the render while remaining an ordinary component in the netlist summary."
+concept = "A do-not-populate symbol is drawn with a DNP cross in the render and carries a dnp property in the netlist, while staying an ordinary component with ordinary nets."
 doc     = "sexpr-schematic#symbols"
 input   = "sheet.kicad_sch"
 
-# Hand-authored fixture (DL-0011): a single minimal T2 part with (dnp yes) instead of the
-# usual (dnp no). Per the inventory's measured fact (SC-25), `dnp` reaches
-# `sch export netlist` as a `(property (name "dnp"))` field that `runner/summary.py`
-# does not read -- so summary.json is identical to a plain T2 placement. This case's
-# evidence is entirely in render.svg (the DNP cross overlaid on the body). Falsifiable
-# by flipping `dnp` back to "no": render.svg loses the cross while summary.json stays
-# byte-identical.
+# Single T2 part with (dnp yes) instead of the usual (dnp no); should reach the
+# netlist as a property without changing any net.

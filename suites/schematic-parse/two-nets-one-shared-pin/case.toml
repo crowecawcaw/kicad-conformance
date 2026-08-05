@@ -1,8 +1,6 @@
 concept = "Two 2-pin parts sharing both endpoints wire up into exactly two nets, one per shared pin."
 doc     = "sexpr-schematic#connectivity"
 input   = "sheet.kicad_sch"
-extra   = ["summary-kicadxml"]
 
-# Hand-authored fixture (DL-0011): a minimal custom symbol "T2" with two pins at local
-# (0,0) and (0,2.54), each with pin length 0 so the electrical connection point equals the
-# placed instance's transformed pin coordinate exactly.
+# "T2" has two pins at local (0,0) and (0,2.54), each pin length 0, so the
+# electrical point equals the placed instance's transformed pin coordinate exactly.

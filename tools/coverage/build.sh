@@ -3,17 +3,12 @@
 #
 #   tools/coverage/build.sh [--jobs N] [--tag NAME] [--kicad-tag 10.0.5] [--retries N]
 #
-# This is a long build (see README.md for measured timings). It is safe to
-# interrupt and re-run: compiled objects persist in the BuildKit `ccache` cache
-# mount, so a resumed build replays them at cache-hit speed.
+# This is a long build. Safe to interrupt and re-run: compiled objects persist in
+# the BuildKit `ccache` mount, so a resumed build replays them at cache-hit speed.
 #
 # Resilience: Docker Desktop's BuildKit RPC connection has been observed to drop
-# ("failed to receive status: rpc error: code = Unavailable desc = error reading
-# from server: EOF") under a sustained ~40-minute compile, taking the whole daemon
-# down with it. That is a BuildKit/Desktop stability problem, not a recipe error --
-# ccache makes a retry cheap (already-compiled objects replay in seconds), so this
-# script retries the build automatically, restarting Docker Desktop first if the
-# daemon itself died.
+# under a sustained ~40-minute compile, taking the whole daemon down with it. This
+# script retries automatically, restarting Docker Desktop first if the daemon died.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,7 +25,7 @@ while [ $# -gt 0 ]; do
         --tag)       TAG="$2"; shift 2 ;;
         --kicad-tag) KICAD_TAG="$2"; shift 2 ;;
         --retries)   RETRIES="$2"; shift 2 ;;
-        -h|--help)   sed -n '2,12p' "${BASH_SOURCE[0]}"; exit 0 ;;
+        -h|--help)   sed -n '2,11p' "${BASH_SOURCE[0]}"; exit 0 ;;
         *)           echo "unknown arg: $1" >&2; exit 2 ;;
     esac
 done

@@ -1,16 +1,12 @@
-"""`--verify-assertions` (docs/ASSERTED_COVERAGE.md, DL-0030): per case, per
-`perturb/<slug>/` directory, checks that running the case with the perturbation
-substituted for its declared input(s) -- against the case's own *committed*
-`expected/<version>/` answers -- makes at least one comparison FAIL. That is the
-mechanized version of the contributor checklist's manual, unrecorded step
-(`docs/TEST_CASE_FORMAT.md` §11: "broke the input and watched it go red").
+"""`--verify-assertions`: per case, per `perturb/<slug>/` directory, checks that running
+the case with the perturbation substituted for its input -- against the case's own
+*committed* answers -- makes at least one comparison FAIL. This is the mechanized version
+of "broke the input and watched it go red".
 
-This module is the sibling of `runner/determinism.py`: it owns the per-case loop and the
-four perturbation statuses (`ASSERTED`/`INERT`/`INVALID-PERTURBATION`/`CRASH`) plus the
-case-level `UNASSERTED-CASE` count (§3.4). `runner/cli.py` owns printing/exit-code
-plumbing, same division as the determinism mode. `runner/engine.py` owns the mechanism
-(input substitution + short-circuited generation, reusing the existing comparators
-unchanged) -- nothing here re-implements a comparator or writes to `expected/`.
+Sibling of `runner/determinism.py`: this owns the per-case loop and the four perturbation
+statuses (ASSERTED / INERT / INVALID-PERTURBATION / CRASH) plus the case-level
+UNASSERTED-CASE count. `cli.py` prints; `engine.py` owns the mechanism. Nothing here
+re-implements a comparator or writes to `expected/`.
 """
 from __future__ import annotations
 
@@ -34,11 +30,10 @@ INERT = "INERT"
 INVALID_PERTURBATION = "INVALID-PERTURBATION"
 CRASH = "CRASH"
 # Case-level, not a perturbation status: a happy case that carries no `perturb/` at all.
-# Counted and printed, never a failure (§3.4's adoption ratchet).
+# Counted and printed, never a failure.
 UNASSERTED_CASE = "UNASSERTED-CASE"
 
-# Perturbation statuses that fail the build from day one (§3.2's status table) -- unlike
-# `UNASSERTED_CASE`, which is only ever counted.
+# Perturbation statuses that fail the build -- unlike UNASSERTED_CASE, only ever counted.
 FAILING_STATUSES = {INERT, INVALID_PERTURBATION, CRASH}
 
 
@@ -48,7 +43,7 @@ class PerturbationOutcome:
     slug: str
     status: str
     moved: list[str] = field(default_factory=list)
-    # "semantic" | "byte-only" (§3.2, DL-0015/DL-0026) -- only set when status == ASSERTED.
+    # "semantic" | "byte-only" -- only set when status == ASSERTED.
     label: Optional[str] = None
     detail: str = ""
 
@@ -58,9 +53,8 @@ class CaseAssertionResult:
     case_dir: Path
     concept: str
     outcomes: list[PerturbationOutcome] = field(default_factory=list)
-    # True iff this is a happy, non-skipped case with zero `perturb/<slug>/` directories
-    # -- the §3.4 ratchet count. A rejection case is never unasserted: its `control` is
-    # already its falsifiability check (DL-0013), so it isn't counted either way.
+    # True iff this is a happy case with zero `perturb/<slug>/` directories. A rejection
+    # case is never unasserted: its `control` is already its falsifiability check.
     unasserted: bool = False
     skipped: bool = False
     skip_reason: str = ""
@@ -73,10 +67,9 @@ class CaseAssertionResult:
 
 
 def _diff_excerpt(original: Path, perturbed: Path, max_lines: int = 16) -> str:
-    """`diff <input> perturb/<slug>/<input>` (§3.1 rule 4's "complete statement of the
-    perturbation"), truncated so a large fixture doesn't flood the report. Read as text
-    with replacement on decode error -- fixtures are always text s-expressions, but this
-    must never raise and hide the real INERT finding behind an encoding exception."""
+    """`diff <input> perturb/<slug>/<input>`, truncated so a large fixture doesn't flood
+    the report. Decoded with replacement so this can never raise and hide the real INERT
+    finding behind an encoding exception."""
     orig_lines = original.read_text(encoding="utf-8", errors="replace").splitlines()
     pert_lines = perturbed.read_text(encoding="utf-8", errors="replace").splitlines()
     diff = list(difflib.unified_diff(
@@ -92,11 +85,9 @@ def _run_one_perturbation(
     engine: Engine, case: Case, pert: Perturbation, tmp_root: Path,
 ) -> PerturbationOutcome:
     if pert.error is not None:
-        # Rule 2: an overlay filename matching no declared input is an error, not a
-        # silent no-op.
         return PerturbationOutcome(case.path, pert.slug, INVALID_PERTURBATION, detail=pert.error)
 
-    input_paths = [pert.overlay.get(Path(p).name, case.path / p) for p in case.inputs]
+    input_paths = [pert.overlay.get(name, case.path / name) for name in case.inputs]
     answers = _engine.answers_in_assertion_order(case)
 
     outcomes = _engine.generate_and_compare_against_committed(
@@ -117,15 +108,14 @@ def _run_one_perturbation(
             detail=f"oracle CRASHED on the perturbed input while generating {last.name!r}: {last.detail}",
         )
     if last.verdict is Verdict.REJECT:
-        # Rule 3: a perturbation of a happy case must still LOAD. A perturbation that
-        # simply breaks the file trivially "changes the answer" and is a rejection case
-        # wearing a disguise -- INVALID-PERTURBATION, never ASSERTED.
+        # A perturbation of a happy case must still LOAD: one that simply breaks the
+        # file trivially "changes the answer" and is a rejection case in disguise.
         return PerturbationOutcome(
             case.path, pert.slug, INVALID_PERTURBATION,
             detail=(
                 f"perturbed input was REJECTED by the oracle while generating {last.name!r} "
-                f"-- a happy-case perturbation must still load (§3.1 rule 3); this is a "
-                f"defect in the perturbation itself, not evidence of anything: {last.detail}"
+                f"-- a happy-case perturbation must still load; this is a defect in the "
+                f"perturbation itself, not evidence of anything: {last.detail}"
             ),
         )
     if last.differs is None:
@@ -151,7 +141,7 @@ def _run_one_perturbation(
     detail = (
         "perturbed input differs from the case input, but every recorded answer is "
         "identical. Either the case does not assert this behaviour, or the perturbation "
-        "is semantically a no-op. Adjudicate; do not delete (§3.2/§6.6).\n"
+        "is semantically a no-op.\n"
         + "\n".join(diff_blocks)
     )
     return PerturbationOutcome(case.path, pert.slug, INERT, detail=detail)
@@ -161,14 +151,10 @@ def check_case_assertions(engine: Engine, case_dir: Path, tmp_root: Path) -> Cas
     """The per-case entry point, mirroring `determinism.check_determinism`'s shape."""
     case = load_case(case_dir)
 
-    if case.skip_reason:
-        return CaseAssertionResult(case_dir, case.concept, skipped=True, skip_reason=case.skip_reason)
-
     if case.polarity == "failure":
-        # Rule 5: a rejection case must not carry `perturb/` at all -- its `control`
-        # already is a falsifiability check (§2.2). Surface the violation if present;
-        # otherwise a rejection case contributes nothing to this report (neither
-        # `UNASSERTED-CASE` nor any perturbation outcome).
+        # A rejection case must not carry `perturb/` at all -- its `control` already is a
+        # falsifiability check. Surface the violation if present; otherwise a rejection
+        # case contributes nothing to this report.
         try:
             discover_perturbations(case)
         except PerturbationError as e:

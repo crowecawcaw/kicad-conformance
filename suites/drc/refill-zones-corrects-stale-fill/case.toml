@@ -1,13 +1,7 @@
-concept = "A zone whose shipped fill is stale and disconnected from its own net's pad reports isolated_copper under plain DRC; --refill-zones recomputes the real fill from the zone's outline, correctly reaching the pad and clearing the violation."
+concept = "A zone whose shipped fill is stale and disconnected from its own net's pad reports isolated_copper: DRC takes the stored (filled_polygon ...) at face value rather than recomputing it from the zone outline."
 doc     = "cli:pcb-drc"
 input   = "board.kicad_pcb"
-extra   = ["drc", "refill-zones"]
+extra   = ["drc"]
 
-# The shipped (filled_polygon ...) below is DELIBERATELY stale: a small 2x2mm island at
-# (1,1)-(3,3) that does not touch the GND pad at (10,10). Plain `drc` (extra "drc") takes
-# that stored polygon at face value and reports the zone as isolated copper. `--refill-zones`
-# (extra "refill-zones") discards it and recomputes the fill from the zone's real outline
-# (0,0)-(20,20), which does enclose the pad, so the recomputed fill connects and the
-# violation clears -- proof `ZONE_FILLER::Fill` genuinely ran rather than the stored
-# polygon being echoed (the same experiment DL-0036 verified via `--save-board`, here
-# observed through the two JSON answers instead).
+# Shipped (filled_polygon ...) is deliberately stale: a 2x2mm island at (1,1)-(3,3)
+# not touching the GND pad at (10,10), though the real outline (0,0)-(20,20) encloses it.

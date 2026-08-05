@@ -1,12 +1,6 @@
-concept = "A no_connect flag marks an unused pin in the render without changing any net name in the summary."
+concept = "A no_connect flag marks an unused pin in the render without changing any net name in the netlist."
 doc     = "sexpr-schematic#connectivity"
 input   = "sheet.kicad_sch"
 
-# Hand-authored fixture (DL-0011): a single T2 symbol, pin 1 dangling, pin 2 dangling and
-# marked with (no_connect (at ...)) at its exact electrical point. Per the inventory's
-# measured fact (SC-09 / DESIGN §1.1 item 6), no_connect is invisible to
-# `sch export netlist` -- summary.json's nets are identical whether or not the
-# no_connect is present ("unconnected-(U1-Pad2)" either way). This case's evidence lives
-# entirely in render.svg (the X glyph at the no_connect site); falsifiable by deleting
-# the no_connect token and watching the render diff disappear while summary.json stays
-# byte-identical.
+# Pin 2 is dangling and marked with (no_connect ...) at its electrical point; pin 1
+# is left dangling with no marker for comparison.

@@ -1,22 +1,17 @@
 #!/usr/bin/env bash
 # Per-FUNCTION coverage for named source files, from the raw counters left in the
-# Docker volume by run-suite.sh. focus.json/coverage.json are per FILE; this is the
-# tool that answers "was ERC_TESTER::TestPinToPin ever entered", which is the question
-# docs/COVERAGE.md §4 is actually about.
+# Docker volume by run-suite.sh. focus.json/coverage.json are per FILE; this answers
+# "was ERC_TESTER::TestPinToPin ever entered".
 #
 #   tools/coverage/funcs.sh erc.cpp zone_filler.cpp PDF_plotter.cpp
 #   tools/coverage/funcs.sh --zero-only command_pcb_drc.cpp    # only dead functions
 #
 # Each argument is the BASENAME of a .cpp whose .gcda to look up. Runs `gcov -f -m`
-# inside the coverage image against a grafted copy of the counters -- the same graft
-# collect.sh does, so the numbers come from the data gcovr saw. Parsing is delegated to
-# gcovfuncs.py (mounted from the repo) rather than an inline awk/python one-liner:
-# quoting a parser through `docker run bash -c` is a reliable way to get an empty table
-# that reads as "no coverage".
+# inside the coverage image (same graft collect.sh does), parsed by gcovfuncs.py
+# rather than an inline awk/python one-liner (quoting through `docker run bash -c`
+# is a reliable way to get an empty table that reads as "no coverage").
 #
-# "NO .gcda" is itself a result: no process in the run ever loaded that translation
-# unit's object -- libgcov writes a .gcda for every instrumented object in a process
-# that exits, so it means the containing binary never ran.
+# "NO .gcda" means no process in the run ever loaded that translation unit's object.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,7 +26,7 @@ while [ "${1:-}" = "--zero-only" ] || [ "${1:-}" = "--min-lines" ]; do
         --min-lines)  PYARGS="$PYARGS --min-lines $2"; shift 2 ;;
     esac
 done
-[ $# -gt 0 ] || { sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 2; }
+[ $# -gt 0 ] || { sed -n '2,14p' "${BASH_SOURCE[0]}"; exit 2; }
 
 win() { case "$(uname -s)" in MINGW*|MSYS*) cygpath -w "$1" ;; *) printf '%s' "$1" ;; esac; }
 

@@ -33,33 +33,12 @@ ENV DEBIAN_FRONTEND=noninteractive
 # ---------------------------------------------------------------------------
 # 1. Toolchain + KiCad's build dependencies.
 #
-# The Debian source package `kicad` (9.0.2 in trixie) declares the full
-# Build-Depends set; `apt-get build-dep kicad` installs it verbatim. We do NOT use
-# build-dep directly because ~two thirds of that set (texlive-lang-*, dblatex,
-# docbook-*, doxygen, asciidoctor, xmlto, po4a, imagemagick) exists only to build
-# the Debian *documentation* packages: 687 packages / several GB for zero effect on
-# kicad-cli. The list below is that Build-Depends set with the documentation
-# toolchain removed, plus the handful of extras KiCad 10 needs on top of 9.
-# `tools/coverage/verify-builddeps.sh` re-derives the upstream list and diffs it
-# against this one, so drift is detectable.
-#
-# THREE packages here are NOT in trixie's Build-Depends and were found the hard way,
-# by CMake configure failing. Trixie packages KiCad 9.0.2; these are 10.x additions:
-#   libspnav-dev             CMakeLists.txt:835 does `find_package( SPNAV REQUIRED )`
-#                            unconditionally on non-Apple UNIX -- there is no option
-#                            to switch it off, even though a 3Dconnexion space mouse
-#                            is pure GUI and irrelevant to kicad-cli.
-#   libwxgtk-webview3.2-dev  CMakeLists.txt:1096 requires the wxWidgets `webview`
-#                            component; Debian splits it into its own package and
-#                            libwxgtk3.2-dev does NOT depend on it.
-#   libpoppler-*-dev         libs/kiplatform/CMakeLists.txt:93 does
-#                            `find_package( Poppler REQUIRED )` on GTK builds (PDF
-#                            printing). cmake/FindPoppler.cmake's Core component wants
-#                            poppler's own headers, which Debian keeps in
-#                            libpoppler-private-dev, so all three are needed.
-#   libpixman-1-dev          CMakeLists.txt:845 `find_package( Pixman 0.30 REQUIRED )`
-#                            (transitively present via libcairo2-dev, listed
-#                            explicitly so it cannot silently disappear).
+# This is Debian's `kicad` source package Build-Depends with the documentation
+# toolchain (texlive-lang-*, dblatex, docbook-*, doxygen, imagemagick, ...) stripped
+# out -- it exists only for the Debian doc packages, not kicad-cli. Four packages
+# (libspnav-dev, libwxgtk-webview3.2-dev, libpoppler-*-dev, libpixman-1-dev) are
+# 10.x additions not in trixie's (9.0.2) Build-Depends, found by CMake configure
+# failing without them. `verify-builddeps.sh` diffs this list against upstream.
 # ---------------------------------------------------------------------------
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
@@ -155,50 +134,22 @@ RUN set -eux; \
 # ---------------------------------------------------------------------------
 # 3. Configure.
 #
-# Coverage flags:
-#   -fprofile-arcs -ftest-coverage  == --coverage; emits .gcno at compile time and
-#                                      .gcda at run time.
-#   -fprofile-update=atomic         KiCad runs DRC/ERC and parsing on thread pools.
-#                                      Without atomic counter updates, concurrent
-#                                      increments are lost and coverage silently
-#                                      under-reports. Costs some speed; correctness
-#                                      is the whole point here.
-#   -O0                             no inlining => line/branch mapping matches the
-#                                      source the way a reader expects.
+# -fprofile-update=atomic: KiCad runs DRC/ERC/parsing on thread pools, so
+# non-atomic counters would silently under-report. -O0: no inlining, so line/branch
+# mapping matches the source.
 #
-# WHERE THE FLAGS GO -- read this before "simplifying" it.
+# THE FLAGS MUST RIDE IN CMAKE_C_FLAGS / CMAKE_CXX_FLAGS, NOT THE _DEBUG VARIANTS.
+# KiCad's CMakeLists.txt:441-446 unconditionally sets CMAKE_CXX_FLAGS_DEBUG,
+# clobbering anything passed via -DCMAKE_CXX_FLAGS_DEBUG=... (produced a 26.7 GB
+# image with zero .gcno files, once). CMAKE_CXX_FLAGS is only ever appended to, so
+# it survives; KICAD_BUILD_SMALL_DEBUG_FILES=ON holds debug info to -g1 instead.
+# The `grep -q profile-arcs build.ninja` assertion below catches a regression here.
 #
-# The flags MUST ride in CMAKE_C_FLAGS / CMAKE_CXX_FLAGS, *not* in the _DEBUG
-# variants. KiCad's own CMakeLists.txt:441-446 does an unconditional, non-cache
-#     set( CMAKE_CXX_FLAGS_DEBUG "-g3 -ggdb3" )
-# for GCC/Clang, which silently CLOBBERS anything passed as
-# -DCMAKE_CXX_FLAGS_DEBUG=... on the command line. The cache entry survives (so
-# CMakeCache.txt still *shows* the coverage flags and looks correct), but the
-# directory-scope variable is what the generator emits, so build.ninja gets
-# `-g3 -ggdb3` and no instrumentation whatsoever. That mistake produced a 26.7 GB
-# image with zero .gcno files in it. CMAKE_CXX_FLAGS, by contrast, KiCad only ever
-# APPENDS to, so our flags survive; they are also emitted first, ahead of
-# ${CMAKE_CXX_FLAGS_DEBUG}, which is why -g0 is pointless here (a later -g3/-g1
-# wins) and why KICAD_BUILD_SMALL_DEBUG_FILES=ON is used instead to hold the debug
-# info -- and hence the object-file size -- down to -g1.
-#
-# The `grep -q profile-arcs build.ninja` assertion below exists so this can never
-# regress silently again: it fails the build, not the report.
-#
-# CMAKE_BUILD_TYPE=Debug is kept (it is what leaves wxASSERT enabled and matches the
-# recipe that is known to configure cleanly against Debian's release-only wx).
-# KICAD_STDLIB_DEBUG / _LIGHT_DEBUG must stay OFF: they define _GLIBCXX_DEBUG, which
+# KICAD_STDLIB_DEBUG/_LIGHT_DEBUG stay OFF: they define _GLIBCXX_DEBUG, which
 # changes libstdc++ ABI and would not match the distro-built wxWidgets/OCC.
-#
-# Disabled features and why (each one shrinks the build without touching anything
-# the conformance suite exercises):
-#   KICAD_BUILD_QA_TESTS=OFF   upstream's own unit tests -- not our suite, and their
-#                              source would pollute the coverage denominator.
-#   KICAD_SCRIPTING_WXPYTHON=OFF  the SWIG-generated pcbnew_wrap.cxx is one of the
-#                              largest translation units in the project and a peak-RAM
-#                              hazard on a 6 GB builder. kicad-cli does not use it.
-#                              (Caveat: Python scripting coverage is therefore out of
-#                              scope -- documented in README.md.)
+# KICAD_BUILD_QA_TESTS=OFF (upstream's own unit tests, not ours) and
+# KICAD_SCRIPTING_WXPYTHON=OFF (SWIG pcbnew_wrap.cxx is a peak-RAM hazard and
+# kicad-cli doesn't use it -- Python scripting coverage is out of scope).
 # ---------------------------------------------------------------------------
 FROM source AS build
 ENV CCACHE_DIR=/ccache
@@ -236,71 +187,25 @@ RUN --mount=type=cache,target=/ccache,sharing=locked \
 # ---------------------------------------------------------------------------
 # 4. Build + install -- MINIMAL TARGET SET, not the default `all`.
 #
-# We only need kicad-cli. Its own CMakeLists.txt (kicad/CMakeLists.txt) links it
-# against `common`/`gal`/`kicommon`/`core`/etc. -- never against pcbnew or eeschema
-# directly -- because pcbnew and eeschema are KIFACEs: shared modules
-# (`_pcbnew.kiface`, `_eeschema.kiface`) that kicad-cli dlopen()s at runtime via
-# KIWAY (see common/kiway.cpp). `sym`/`fp` upgrade also route through these two
-# kifaces. So the target set that actually matters is:
+# We only need kicad-cli plus the pcbnew/eeschema/cvpcb KIFACEs it dlopen()s at
+# runtime (see common/kiway.cpp) -- never the GUI apps or QA targets:
 #     kicad-cli        the executable (kicad/CMakeLists.txt:120)
 #     pcbnew_kiface     -> _pcbnew.kiface   (pcbnew/CMakeLists.txt:854)
 #     eeschema_kiface   -> _eeschema.kiface (eeschema/CMakeLists.txt:639)
 #     cvpcb_kiface      -> _cvpcb.kiface    (cvpcb/CMakeLists.txt:59)
 #
-# THE THIRD ONE IS NOT OPTIONAL, and leaving it out silently killed every ERC case
-# in the 2026-08-04 run (docs/COVERAGE.md §2c). `sch erc` is not self-contained:
-# `eeschema/eeschema_jobs_handler.cpp:1353` calls
-#     ercTester.RunTests( drawingSheet.get(), nullptr,
-#                         m_kiway->KiFACE( KIWAY::FACE_CVPCB ), ... )
-# UNCONDITIONALLY -- cvpcb owns the footprint-link tester that
-# `ERC_TESTER::TestFootprintLinkIssues` calls through
-# `aCvPcb->IfaceOrAddress( KIFACE_TEST_FOOTPRINT_LINK )` (erc.cpp:1816-1831). With
-# `_cvpcb.kiface` absent, `KIWAY::KiFACE()` throws `IO_ERROR: Failed to load kiface
-# library` (kiway.cpp:284) BEFORE any ERC test runs, kicad-cli exits 255, and
-# `eeschema/erc/**` reads ~0% no matter how many ERC cases the suite has. The
-# failure is loud in stderr but exits with a code the runner reports as CRASH, so
-# it is easy to mistake for a suite problem rather than an image problem.
-# Adding it took the build from 2009 to 2032 ninja edges -- 23 edges, 22 of them
-# `Building CXX object cvpcb/...` plus the link, counted in the 2026-08-04 build log.
-# A rounding error, for the difference between eeschema/erc/** at 5.5% and at 56.0%.
+# THE THIRD ONE IS NOT OPTIONAL: `eeschema_jobs_handler.cpp` calls unconditionally
+# into cvpcb's footprint-link tester during `sch erc`, so without `_cvpcb.kiface`
+# KIWAY::KiFACE() throws before any ERC test runs, kicad-cli exits 255, and
+# `eeschema/erc/**` reads ~0% no matter how many ERC cases the suite has -- and it
+# fails loud enough in stderr to look like a suite problem, not an image one.
+# Costs ~1% more build time (23 of ~2032 ninja edges).
 #
-# Confirmed by reading the CMake graph, not guessed:
-#   - `add_dependencies( pcbnew pcbnew_kiface )` / `add_dependencies( eeschema
-#     eeschema_kiface )` point FROM the GUI executable TO the kiface, never the
-#     reverse -- so asking ninja for the kiface targets does not pull in the GUI
-#     apps (kicad/pcbnew/eeschema/gerbview/cvpcb/pcb_calculator/pl_editor/
-#     bitmap2component) or their dialogs.
-#   - `pnsrouter_qa` (a QA-only static lib pulled into the default `all` target
-#     regardless of KICAD_BUILD_QA_TESTS, and the thing edge 1043/2353 was stuck
-#     on in the first failed attempt) is not in PCBNEW_KIFACE_LIBRARIES, so it is
-#     never built at all with this target list.
-#   - Verified with `ninja -n kicad-cli pcbnew_kiface eeschema_kiface`: 2010 edges
-#     vs 2354 for the default `all` target (~15% smaller); 2032 once cvpcb_kiface
-#     joined the list, which is still ~14% smaller. The saving is modest,
-#     not the ~60% one might hope for, because pcbnew_kiface's own dependency
-#     closure (3d-viewer, connectivity, every pcb_io/sch_io format plugin, the
-#     SWIG-generated pcbnew_wrap.cxx -- KiCad 10 has no build switch to omit that
-#     one) is most of the historically-slow part of the graph anyway. What it
-#     reliably skips is the kicad GUI shell, the four standalone GUI apps, and QA.
-#
-# -j is bounded by the builder VM's RAM, not by its core count. Measured on this
-# workstation (16 vCPU / 5.75 GiB VM):
-#   -j6   ~1.4 edges/s, container peak 1.1 GiB  -- lots of idle cores
-#   -j12  ~1.0 edges/s in the heavy pcbnew/eeschema region, MemAvailable down to
-#         1.85 GiB of 6.0 GiB -- no swapping, but not much headroom either
-# 8 is the balanced default. Going higher is only worth it after raising the VM's
-# memory in %USERPROFILE%\.wslconfig; an OOM kill part-way through costs more than
-# the parallelism buys. With the smaller target set above, lower -j (e.g. 4-6) is
-# also a reasonable choice if BuildKit's RPC connection turns out to be the more
-# fragile constraint than raw CPU time -- fewer edges in flight per unit wall time
-# means fewer surprises if the daemon hiccups, at the cost of a slower build.
-#
-# The ccache cache mount is what makes an interrupted build cheap to resume: BuildKit
-# throws away the partial layer, but the compiled objects are still in /ccache, so a
-# retry replays them at cache-hit speed instead of recompiling. This RUN is
-# deliberately narrowed to JUST the compile+link (no install, no stats/du) so a
-# retry's ccache replay is not followed by unrelated work before the layer can
-# commit.
+# -j is bounded by the builder VM's RAM, not core count -- 8 is a balanced default
+# on a 16 vCPU / 6 GiB VM; raise %USERPROFILE%\.wslconfig memory before raising -j.
+# The ccache mount makes an interrupted build cheap to resume; this RUN stays
+# narrowed to compile+link only so a retry's cache replay isn't blocked on
+# unrelated work before the layer commits.
 # ---------------------------------------------------------------------------
 ARG BUILD_JOBS=8
 ARG KICAD_TARGETS="kicad-cli pcbnew_kiface eeschema_kiface cvpcb_kiface"
@@ -315,22 +220,11 @@ RUN --mount=type=cache,target=/ccache,sharing=locked \
         || { echo "FATAL: only ${n_gcno} .gcno files -- this build is NOT instrumented and gcov would report nothing"; exit 1; }
 
 # ---------------------------------------------------------------------------
-# 4b. Install -- manual, not `cmake --install`.
-#
-# `cmake --install` walks EVERY install() rule in the project. kicad-cli and both
-# kifaces share COMPONENT "binary" with kicad/pcbnew/eeschema/gerbview/cvpcb/
-# pcb_calculator/pl_editor/bitmap2component -- none of which were built above --
-# so `cmake --install` (even with `--component binary`) would abort trying to
-# install artifacts that do not exist. Since KICAD_KIFACE == KICAD_BIN on Linux
-# (CMakeLists.txt:694 -- "For now, the kifaces are just in the normal bin
-# folder"), the three artifacts we actually built all belong in one flat
-# directory anyway, so copying them there directly is both correct and simpler
-# than fighting cmake_install.cmake's component graph.
-#
-# No stock symbol/footprint libraries are installed (they live in separate
-# kicad-symbols/kicad-footprints repos this Dockerfile never fetches) -- this is
-# expected, documented in README.md's usage of the suite against this image, and
-# NOT something to route around here.
+# 4b. Install -- manual copy, not `cmake --install`: that walks every install()
+# rule and would abort on the GUI/QA COMPONENT "binary" targets we never built.
+# KICAD_KIFACE == KICAD_BIN on Linux, so the three artifacts belong in one flat
+# directory anyway. No stock symbol/footprint libraries are installed (they live
+# in separate kicad-symbols/kicad-footprints repos this Dockerfile never fetches).
 # ---------------------------------------------------------------------------
 RUN set -eux; \
     mkdir -p "${KICAD_PREFIX}/bin"; \
@@ -343,20 +237,11 @@ RUN set -eux; \
     du -sh /src/build "${KICAD_PREFIX}"
 
 # ---------------------------------------------------------------------------
-# 5. Runtime wiring.
-#
-# The .gcno files live next to the objects in /src/build and MUST stay in the image:
-# gcov pairs each runtime .gcda with the .gcno emitted at compile time.
-#
-# GCOV_PREFIX redirects .gcda writes out of the (throwaway) container layer into a
-# bind-mounted directory. GCOV_PREFIX_STRIP=0 keeps the full object path, so the
-# tree under /coverage/raw mirrors /src/build exactly and collect.sh can graft it
-# back on top. Each run appends into the existing counters, so several suite runs
-# merge naturally.
-#
-# KICAD_CLI is the first thing adapters/kicad.py checks (discover_kicad_cli:
-# KICAD_CLI env -> PATH -> per-OS install dirs), so the instrumented binary is
-# picked up with zero changes to the adapter or the runner.
+# 5. Runtime wiring. The .gcno files stay in /src/build (gcov pairs them with the
+# runtime .gcda). GCOV_PREFIX_STRIP=0 keeps the full object path so /coverage/raw
+# mirrors /src/build and collect.sh can graft it back on; counters accumulate
+# across runs. KICAD_CLI is what adapters/kicad.py's discover_kicad_cli() checks
+# first, so the instrumented binary needs zero adapter/runner changes.
 # ---------------------------------------------------------------------------
 ENV KICAD_PREFIX=/opt/kicad-cov \
     KICAD_CLI=/opt/kicad-cov/bin/kicad-cli \

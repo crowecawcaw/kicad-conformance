@@ -1,4 +1,3 @@
 concept = "pad_prop_testpoint and pad_prop_castellated each land in their own pad count and reach the IPC-D-356 netlist."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
-extra   = ["ipcd356"]

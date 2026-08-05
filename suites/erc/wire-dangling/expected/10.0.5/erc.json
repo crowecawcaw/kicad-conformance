@@ -1,49 +1,83 @@
 {
-  "violations": [
-    {
-      "description": "Unconnected wire endpoint",
-      "items": [
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
         {
-          "description": "Horizontal Wire, length 0.1270 mm",
-          "pos": {
-            "x": 0.127,
-            "y": 0.127
-          }
-        }
-      ],
-      "severity": "warning",
-      "sheet": "/",
-      "type": "unconnected_wire_endpoint"
-    },
-    {
-      "description": "Unconnected wire endpoint",
-      "items": [
+            "description": "Global label only appears once in the schematic",
+            "key": "single_global_label"
+        },
         {
-          "description": "Horizontal Wire, length 0.1270 mm",
-          "pos": {
-            "x": 0.127,
-            "y": 0.127
-          }
-        }
-      ],
-      "severity": "warning",
-      "sheet": "/",
-      "type": "unconnected_wire_endpoint"
-    },
-    {
-      "description": "Wires not connected to anything",
-      "items": [
+            "description": "Four connection points are joined together",
+            "key": "four_way_junction"
+        },
         {
-          "description": "Horizontal Wire, length 0.1270 mm",
-          "pos": {
-            "x": 0.127,
-            "y": 0.127
-          }
+            "description": "SPICE model issue",
+            "key": "simulation_model_issue"
+        },
+        {
+            "description": "Assigned footprint doesn't match footprint filters",
+            "key": "footprint_filter"
         }
-      ],
-      "severity": "error",
-      "sheet": "/",
-      "type": "wire_dangling"
-    }
-  ]
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/NORMALIZED-UUID",
+            "violations": [
+                {
+                    "description": "Wires not connected to anything",
+                    "items": [
+                        {
+                            "description": "Horizontal Wire, length 0.1270 mm",
+                            "pos": {
+                                "x": 0.127,
+                                "y": 0.127
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "wire_dangling"
+                },
+                {
+                    "description": "Unconnected wire endpoint",
+                    "items": [
+                        {
+                            "description": "Horizontal Wire, length 0.1270 mm",
+                            "pos": {
+                                "x": 0.127,
+                                "y": 0.127
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "unconnected_wire_endpoint"
+                },
+                {
+                    "description": "Unconnected wire endpoint",
+                    "items": [
+                        {
+                            "description": "Horizontal Wire, length 0.1270 mm",
+                            "pos": {
+                                "x": 0.127,
+                                "y": 0.127
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "unconnected_wire_endpoint"
+                }
+            ]
+        }
+    ],
+    "source": "sheet.kicad_sch"
 }

@@ -2,43 +2,5 @@ concept = "A thru-hole pad with a (padstack (mode front_inner_back) ...) block h
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 
-# Hand-authored fixture (DL-0011), canonicalized with `kicad-cli pcb upgrade --force`
-# (confirmed this preserves the `(padstack ...)` block byte-for-byte in substance --
-# unlike `net_class`, see suites/board-parse/board-netclasses/case.toml's finding,
-# `padstack` is a live, currently-written construct, not a legacy read-only one).
-#
-# `pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp::parsePadstack` (208 lines,
-# the single largest uncovered parser function per docs/COVERAGE.md §4b) is 0% -- an
-# independent grep of every fixture under suites/ for `(padstack` confirms zero hits
-# before this case. The exact grammar isn't in KiCad's published file-format docs
-# (checked dev-docs.kicad.org's sexpr-pcb/sexpr-footprint/sexpr-intro pages -- none
-# document it); it was read directly from
-# `pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp`'s `parsePadstack` (~line 7213
-# in the KiCad/kicad-source-mirror `master` branch) and cross-checked against the
-# writer's `PCB_IO_KICAD_SEXPR::format( const PAD* )` (~line 2395): `(mode
-# front_inner_back)` covers front/inner/back as three logical zones; the front
-# layer's shape/size are the pad's own top-level `(size ...)`/shape word (unchanged);
-# `(layer "Inner" ...)` overrides every actual inner copper layer at once; `(layer
-# "B.Cu" ...)` overrides the back layer. `(mode custom)` (one block per real copper
-# layer, keyed by canonical layer name) exists too but isn't exercised here -- a
-# possible follow-up case, not this one's job.
-#
-# Board reuses the four-layer-stackup suite's stackup (F.Cu/In1.Cu/In2.Cu/B.Cu, the
-# same `pcbplotparams.layerselection` that already proves inner-layer gerbers get
-# plotted) with a single thru-hole pad: front (top-level) `size 1.6x1.6`, shape circle
-# (the pad's own declared shape); inner override `rect 1x1`; back override `circle
-# 1.2x1.2`. Verified directly with `kicad-cli pcb export gerbers` (not just the parser
-# accepting the file): `board-F_Cu.gtl` apertures as `%ADD10C,1.600000*%` (circle,
-# front size), `board-In1_Cu.g1` (and `In2_Cu.g2`, identically) as
-# `%ADD10R,1.000000X1.000000*%` (rect, inner override), `board-B_Cu.gbl` as
-# `%ADD10C,1.200000*%` (circle, back override, a DIFFERENT size than front despite the
-# same shape word) -- three distinct apertures from one pad definition, each traceable
-# to a specific `(layer ...)` block or the top-level fallback.
-#
-# Falsifiable: changing the back override's `(size 1.2 1.2)` to any other value changes
-# ONLY `gerbers/board-B_Cu.gbl`'s aperture macro (and `render-F_Cu.svg`/`summary.json`
-# are untouched, since F.Cu's own geometry is unrelated to the back override); changing
-# the inner override's shape from `rect` to `circle` changes ONLY
-# `gerbers/board-In1_Cu.g1` and `board-In2_Cu.g2`'s aperture type identically on both
-# inner layers, proving `(layer "Inner" ...)` applies to every inner copper layer at
-# once, not just one.
+# Thru-hole pad on the four-layer-stackup: front size 1.6mm circle (top-level), inner
+# override 1x1mm rect (applies to all inner layers), back override 1.2mm circle.

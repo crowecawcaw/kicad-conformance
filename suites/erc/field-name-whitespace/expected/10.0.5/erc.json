@@ -1,56 +1,91 @@
 {
-  "violations": [
-    {
-      "description": "Field name has leading or trailing whitespace: ' Spaced '",
-      "items": [
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
         {
-          "description": "Field  Spaced  'v'",
-          "pos": {
-            "x": 0.127,
-            "y": 0.2032
-          }
+            "description": "Global label only appears once in the schematic",
+            "key": "single_global_label"
         },
         {
-          "description": "Symbol U1 [P1]",
-          "pos": {
-            "x": 0.127,
-            "y": 0.127
-          }
-        }
-      ],
-      "severity": "warning",
-      "sheet": "/",
-      "type": "field_name_whitespace"
-    },
-    {
-      "description": "The current configuration does not include the symbol library ''",
-      "items": [
+            "description": "Four connection points are joined together",
+            "key": "four_way_junction"
+        },
         {
-          "description": "Symbol U1 [P1]",
-          "pos": {
-            "x": 0.127,
-            "y": 0.127
-          }
-        }
-      ],
-      "severity": "warning",
-      "sheet": "/",
-      "type": "lib_symbol_issues"
-    },
-    {
-      "description": "Pin not connected",
-      "items": [
+            "description": "SPICE model issue",
+            "key": "simulation_model_issue"
+        },
         {
-          "description": "Symbol U1 Pin 1 [1, Passive, Line]",
-          "pos": {
-            "x": 0.127,
-            "y": 0.127
-          }
+            "description": "Assigned footprint doesn't match footprint filters",
+            "key": "footprint_filter"
         }
-      ],
-      "severity": "error",
-      "sheet": "/",
-      "type": "pin_not_connected"
-    }
-  ]
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/NORMALIZED-UUID",
+            "violations": [
+                {
+                    "description": "Pin not connected",
+                    "items": [
+                        {
+                            "description": "Symbol U1 Pin 1 [1, Passive, Line]",
+                            "pos": {
+                                "x": 0.127,
+                                "y": 0.127
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "pin_not_connected"
+                },
+                {
+                    "description": "The current configuration does not include the symbol library ''",
+                    "items": [
+                        {
+                            "description": "Symbol U1 [P1]",
+                            "pos": {
+                                "x": 0.127,
+                                "y": 0.127
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "lib_symbol_issues"
+                },
+                {
+                    "description": "Field name has leading or trailing whitespace: ' Spaced '",
+                    "items": [
+                        {
+                            "description": "Field  Spaced  'v'",
+                            "pos": {
+                                "x": 0.127,
+                                "y": 0.2032
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        },
+                        {
+                            "description": "Symbol U1 [P1]",
+                            "pos": {
+                                "x": 0.127,
+                                "y": 0.127
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        }
+                    ],
+                    "severity": "warning",
+                    "type": "field_name_whitespace"
+                }
+            ]
+        }
+    ],
+    "source": "sheet.kicad_sch"
 }
