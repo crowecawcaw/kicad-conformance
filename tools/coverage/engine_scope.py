@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
 """
-engine_scope.py -- stage 2 of the engine-coverage denominator.
-
-Takes the symbol reference graph produced by `engine_elf.py` and a declarative
-root set (`engine-roots.json`), and answers: which symbols can a `kicad-cli`
-invocation reach?
+engine_scope.py -- stage 2 of the engine-coverage denominator (see engine-scope.sh).
+Takes the reference graph from `engine_elf.py` and a declarative root set
+(`engine-roots.json`), and answers: which symbols can a `kicad-cli` invocation
+reach? The closure is a plain BFS; the interesting part is entirely in the root
+set and in vtables being nodes (Rapid Type Analysis -- over-approximates, never
+under-approximates, as long as the graph has every edge).
 
 Subcommands
 -----------
   grep    REGEX        list defined symbols matching a regex (used to author roots)
   close                compute the closure and write scope.jsonl.gz + closure-stats.json
   why     SYMBOL       print one shortest root -> SYMBOL path (audit a classification)
-
-The closure is a plain BFS. The interesting part is entirely in the root set and
-in the fact that vtables are nodes (see engine_elf.py's header), so it is Rapid
-Type Analysis: over-approximating, never under-approximating, as long as the
-graph itself has every edge.
 """
 
 import argparse
@@ -184,8 +180,7 @@ def cmd_close(args):
     # Cross-check the roots against the DEFINED symbols, not just the graph nodes.
     # A node only exists if some relocation touches it, so a root that is defined but
     # isolated would silently contribute an empty closure -- an under-approximated
-    # denominator with no error message. This is the same class of failure as the
-    # missing `_cvpcb.kiface` (docs/COVERAGE.md 2c): a report that looks complete.
+    # denominator with no error message.
     sym_src, _obj_src, _loc, _kind, _n = load_defs(args.graphdir)
     all_defined = list(sym_src)
     graph_bare = {bare(n) for n in names}
@@ -196,13 +191,12 @@ def cmd_close(args):
     root_report = {}
     missing_roots = {}
 
-    # `excluded` groups are BARRIERS in every closure, not merely non-roots. Declaring
-    # them and then not enforcing them is not enough: the three `IFACE` objects are
-    # file-scope statics, so their constructors are reachable from the static-init
-    # roots, and a constructor references its class's vtable -- which put
-    # IFACE::CreateKiWindow back in scope through RTA and dragged the entire editor
-    # frame / tool / dialog tree with it. Measured: enforcing the barrier is the
-    # difference between 199550 and 12639 init-only lines.
+    # `excluded` groups are BARRIERS in every closure, not merely non-roots: the
+    # three IFACE objects are file-scope statics reachable from the static-init
+    # roots, and their constructors reference their class's vtable -- which put
+    # CreateKiWindow back in scope through RTA and dragged in the whole editor
+    # frame/tool/dialog tree. Enforcing this barrier took init-only lines from
+    # 199550 to 12639.
     hard_barriers = set()
     for gid, g in groups.items():
         if g.get("kind") == "excluded":
@@ -240,14 +234,11 @@ def cmd_close(args):
           file=sys.stderr, flush=True)
 
     # THE ENGINE CLOSURE IS SEEDED FROM BOTH ROOT KINDS. Static initialisers are not
-    # a separate, lesser category: KiCad registers its DRC test providers, its IO
-    # plugins and its property descriptors from file-scope statics, so the ONLY
-    # static path to DRC_TEST_PROVIDER_COPPER_CLEARANCE::Run runs through
-    # _GLOBAL__sub_I_. Splitting them put demonstrably-executed rule-engine code in
-    # the out-of-scope bucket. The "static constructors inflate the number" problem
-    # is real but is not answered by a second closure -- it is answered by MEASURING
-    # the floor (`engine-scope.sh floor`), which records what a no-op `kicad-cli`
-    # invocation executes all by itself.
+    # a lesser category: KiCad registers DRC test providers, IO plugins and property
+    # descriptors from file-scope statics, so the only static path to some of them
+    # runs through _GLOBAL__sub_I_. The "static constructors inflate the number"
+    # problem is real, but is answered by MEASURING the floor (`engine-scope.sh
+    # floor`), not by excluding demonstrably-executed rule-engine code.
     work_only = bfs(adj, work_seeds, hard_barriers)
     init = bfs(adj, init_seeds, hard_barriers) if init_seeds else set()
     work = work_only | init
@@ -257,7 +248,7 @@ def cmd_close(args):
           file=sys.stderr, flush=True)
 
     # Per-root-group closures, for attribution (which subcommand reaches what) and
-    # for separating the deferred scope (3D/STEP, DL-0012).
+    # for separating the deferred scope (3D/STEP).
     print(f"per-group closures for {len(per_group)} groups...", file=sys.stderr,
           flush=True)
     group_sets = {}
@@ -267,13 +258,11 @@ def cmd_close(args):
             print(f"  ... {k+1}/{len(per_group)} ({time.time()-t0:.0f}s)",
                   file=sys.stderr, flush=True)
 
-    # Deferred subsystems (3D/STEP per DL-0012, third-party import per ROADMAP.md).
-    # These CANNOT be separated by per-verb closures, because IFACE::HandleJob
-    # dispatches on job type and therefore reaches *every* job handler, so every
-    # exporter is reachable from the kiface root regardless of which CLI verb was
-    # asked for. The separable question is instead a CUT: remove the deferred entry
-    # points from the graph and re-run the closure; whatever drops out was reachable
-    # only through them.
+    # Deferred subsystems (3D/STEP; third-party import per ROADMAP.md). These CANNOT
+    # be separated by per-verb closures, because IFACE::HandleJob dispatches on job
+    # type and reaches every job handler from the kiface root regardless of which
+    # CLI verb was asked for. Instead: CUT the deferred entry points from the graph
+    # and re-run the closure; whatever drops out was reachable only through them.
     barrier_spec = spec.get("deferred_cut", {})
     barriers = set(hard_barriers)
     for pat in barrier_spec:

@@ -8,17 +8,11 @@
 # Default runner args are `suites/`, i.e. the same invocation the project's normal
 # docker one-liner uses -- only the image and two env vars differ.
 #
-# WHY THE RAW COUNTERS LIVE IN A DOCKER VOLUME, NOT A BIND MOUNT.
-# libgcov dumps one .gcda per instrumented object at every process exit -- ~1900 small
-# files for a KiCad-sized tree, once per kicad-cli invocation, and a single board case
-# makes six invocations. On Docker Desktop for Windows a bind-mounted host directory
-# crosses the VM/host filesystem boundary, and that dump was MEASURED at 3.39 s per
-# `kicad-cli version` versus 0.32 s writing to the VM's own filesystem -- a >10x
-# penalty applied to every invocation in the suite. Keeping the counters in a named
-# volume (which lives inside the VM) is the difference between a ~2.5-hour run and a
-# ~20-minute one, and costs nothing: collect.sh runs inside a container anyway, so it
-# just mounts the same volume. The report -- a few MB, written once -- still lands on
-# the host.
+# Raw counters live in a Docker volume, not a bind mount: on Docker Desktop for
+# Windows, libgcov's ~1900 .gcda writes per kicad-cli invocation crossed the
+# VM/host boundary at a MEASURED >10x penalty (3.39s vs 0.32s per invocation) --
+# the difference between a ~2.5-hour run and a ~20-minute one. collect.sh runs
+# inside a container anyway, so it just mounts the same volume.
 #
 # Counters ACCUMULATE across runs in the volume. Pass --fresh (or docker volume rm it)
 # to start a clean measurement; keep it to merge several suite invocations.
@@ -40,7 +34,7 @@ while [ $# -gt 0 ]; do
         --raw-volume) RAW_VOLUME="$2"; shift 2 ;;
         --fresh)      FRESH=1; shift ;;
         --)           shift; RUNNER_ARGS=("$@"); break ;;
-        -h|--help) sed -n '2,22p' "${BASH_SOURCE[0]}"; exit 0 ;;
+        -h|--help) sed -n '2,18p' "${BASH_SOURCE[0]}"; exit 0 ;;
         *)       echo "unknown arg: $1" >&2; exit 2 ;;
     esac
 done

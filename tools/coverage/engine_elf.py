@@ -1,35 +1,16 @@
 #!/usr/bin/env python3
 """
-engine_elf.py -- build a symbol-level reference graph from the relocatable objects
-of the instrumented KiCad build.
+engine_elf.py -- stage 1 of the engine-scope denominator (see engine-scope.sh).
+Builds a symbol-level reference graph from the instrumented build's relocatable
+objects: node = mangled symbol (LOCAL symbols namespaced by object file), edge
+u -> v = a relocation inside u's byte range points at v. Reads ELF64 .o files
+directly rather than shelling out to readelf/objdump (~20x faster on a 3 GB tree).
 
-Stage 1 of the engine-scope denominator (see docs/ENGINE_COVERAGE.md).
+Vtables (`_ZTV*`, `_ZTC*`, ...) are ordinary nodes, so "constructor runs -> vtable
+referenced -> methods reachable" falls out of plain transitive closure -- Rapid
+Type Analysis. It over-approximates, which is the safe direction for a denominator.
 
-It reads ELF64 .o files directly (no readelf/objdump text parsing, which is ~20x
-slower on a 3 GB object tree) and emits a deduplicated, global reference graph:
-
-  node  = a mangled symbol name (LOCAL symbols are namespaced by their object file,
-          because `static` functions in different TUs share a name)
-  edge  u -> v  = "some relocation inside u's byte range points at v"
-
-At -O0 GCC emits one `call` per source-level call, with a relocation against the
-callee, so the relocation set of a function's byte range is a superset of its
-direct callees. Inline/template functions live in their own `.text._Z...` comdat
-section with exactly one symbol, so they are attributed individually rather than
-smeared over the whole TU.
-
-Virtual dispatch is handled by treating a vtable (`_ZTV*`, `_ZTC*`, ...) as an
-ordinary node: its slots are relocations against the virtual methods, so
-"constructor runs -> vtable referenced -> vtable's methods reachable" falls out of
-plain transitive closure. That is Rapid Type Analysis. It over-approximates -- a
-class that is instantiated anywhere makes *all* of its virtuals in scope, even ones
-no reachable call site can dispatch to. Over-approximation is the safe direction
-for a coverage denominator: it can only make coverage look worse than it is.
-
-Outputs (into --outdir):
-    edges.txt.gz    "u\\tv" per line, deduplicated
-    defs.jsonl.gz   {"o": objpath, "src": source, "syms": [[name, bind, type, secname]]}
-    elf-stats.json  counters, so a silent parse regression is visible
+Outputs (into --outdir): edges.txt.gz, defs.jsonl.gz, elf-stats.json.
 
 Usage (inside the coverage image):
     python3 engine_elf.py --build-dir /src/build --outdir /work/tools/coverage/out/scope
@@ -197,14 +178,9 @@ def parse_object(path, objrel, graph, stats):
     starts = {k: [x[0] for x in v] for k, v in sized.items()}
 
     # --- alias unification ---------------------------------------------------
-    # GCC emits a constructor three times -- `C1` (complete), `C2` (base) and `C5`
-    # (the unified body they alias) -- as three symbols at ONE address; destructors
-    # get D0/D1/D2/D5 the same way. Callers relocate against `C1`; gcov attributes
-    # the lines to whichever name owns the body. Without unification every
-    # constructor and destructor in KiCad falls out of the closure while the suite
-    # is visibly executing it: BOARD_DESIGN_SETTINGS, EESCHEMA_SETTINGS, every
-    # *_DESC property registration, every CLI COMMAND. Symbols sharing an address
-    # ARE the same code, so link them both ways.
+    # GCC emits ctors (C1/C2/C5) and dtors (D0/D1/D2/D5) as multiple symbols at ONE
+    # address. Callers relocate against C1 but gcov attributes lines to whichever
+    # name owns the body, so symbols sharing an address are linked both ways.
     for shndx, lst in sized.items():
         i = 0
         while i < len(lst):
@@ -278,16 +254,11 @@ def parse_object(path, objrel, graph, stats):
             # Which defined symbol owns the byte range this relocation sits in?
             fi = owner(target, r_offset)
             if fi < 0 or nodeid[fi] is None:
-                # An anonymous relocation site: a `.init_array` slot, a jump table,
-                # compiler-generated constant data. It is NOT given a per-section
-                # pseudo-node: doing that once, and it made anonymous `.rodata` a
-                # TU-level hub that smeared every string literal into every other
-                # function of the same object (it put PNS::ConvexHull two hops from
-                # `kicad-cli version`). Anonymous data that points at code points at
-                # jump-table labels inside a function that is already reachable, or
-                # at `_GLOBAL__sub_I_*`, which is rooted by name instead. Counted so
-                # the drop is auditable, and asserted to be ~zero for `.text`, where
-                # it would mean losing a real call edge.
+                # An anonymous relocation site (.init_array slot, jump table,
+                # compiler-generated data). Deliberately NOT a per-section pseudo-node
+                # -- that once smeared every string literal into every function of the
+                # same object. Counted for auditability; must be ~zero for `.text`,
+                # where it would mean losing a real call edge.
                 stats["site_anon"] += 1
                 k = "site_anon_by_section"
                 stats[k][tname] = stats[k].get(tname, 0) + 1
@@ -318,17 +289,13 @@ def parse_object(path, objrel, graph, stats):
             graph.add(u, v)
 
     # --- intra-.text direct calls, recovered by disassembly -------------------
-    # A `call` from one LOCAL symbol to another LOCAL symbol IN THE SAME SECTION is
-    # resolved by the assembler and leaves NO RELOCATION, so a relocation-only graph
-    # silently loses every static->static call. That is not a corner case: it is how
-    # GCC emits `_GLOBAL__sub_I_<tu>` -> `_Z41__static_initialization_and_destruction_0v`,
-    # and with those edges missing every DRC test provider (registered from a file-scope
-    # static) fell OUT of the denominator while the suite was demonstrably executing it.
-    # It was caught by the executed-but-out-of-scope check, not by inspection.
-    #
-    # objdump resolves the branch target for us. Call sites that DO carry a relocation
-    # are skipped, because there the displacement field is a zero placeholder and the
-    # "target" objdump prints is meaningless.
+    # A `call` between two LOCAL symbols in the SAME section is resolved by the
+    # assembler and leaves NO relocation, so a relocation-only graph silently loses
+    # every static->static call (e.g. `_GLOBAL__sub_I_<tu>` calling the TU's static
+    # init function) -- with those missing, DRC test providers fell out of the
+    # denominator while the suite was demonstrably executing them. objdump recovers
+    # the branch target; sites that DO carry a relocation are skipped (there the
+    # displacement is a zero placeholder and the printed "target" is meaningless).
     if text_shndx is not None and sized.get(text_shndx):
         stats["disasm_objects"] += 1
         try:

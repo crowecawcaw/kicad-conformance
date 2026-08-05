@@ -1,19 +1,13 @@
 #!/usr/bin/env python3
 """
-engine_validate.py -- check the engine/out classification in BOTH directions.
+engine_validate.py -- check the engine/out classification from engine-scope.sh in
+BOTH directions, each falsifiable:
 
-An unvalidated classifier is exactly the kind of plausible-but-unchecked number this
-project has been burned by twice. Two checks, both falsifiable:
-
-  A. POSITIVE. Run a handful of `kicad-cli` verbs the committed suite does not
-     exercise, into an ISOLATED gcov prefix, and list the files the rule calls
-     `engine` that went from 0 executed lines to some. If the rule says "a CLI run
-     can reach this" and a CLI run does, the engine claim is supported.
-
+  A. POSITIVE. Run `kicad-cli` verbs the committed suite doesn't exercise, into an
+     isolated gcov prefix, and list files the rule calls `engine` that went from 0
+     executed lines to some -- supports "a CLI run can reach this".
   B. NEGATIVE. Any line the rule calls `out` that the suite EXECUTED is a
-     counter-example: the closure is missing an edge. Reported per file and ranked,
-     because the count -- not zero, but how far from zero -- is the honest measure
-     of how sound the closure is.
+     counter-example: the closure is missing an edge.
 
 Usage (inside the coverage image, with /scope mounted):
     python3 engine_validate.py positive --raw /scratch/raw --scope /scope/scope \\

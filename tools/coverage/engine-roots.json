@@ -1,15 +1,12 @@
 {
   "_": [
-    "Root specification for the engine-coverage denominator. See docs/ENGINE_COVERAGE.md.",
-    "",
+    "Root specification for the engine-coverage denominator (see engine-scope.sh).",
     "Every entry names symbols in the pinned instrumented build",
     "(kicad-conformance/kicad-coverage:10.0.5, KiCad 10.0.5 @ 18fb9289ff0e). A root is",
-    "a place control enters KiCad from outside. Everything transitively reachable from",
-    "the `work` roots is the engine; everything else is out of scope BY CONSTRUCTION,",
-    "not by opinion.",
-    "",
-    "`regex` and `exact` are matched against the demangled-free mangled symbol name",
-    "with any object-file namespace stripped (engine_scope.py:bare)."
+    "a place control enters KiCad from outside; everything transitively reachable from",
+    "the `work` roots is the engine, everything else is out of scope BY CONSTRUCTION.",
+    "`regex`/`exact` match the mangled symbol name with any object-file namespace",
+    "stripped (engine_scope.py:bare)."
   ],
 
   "groups": {
@@ -42,22 +39,13 @@
       "regex": "^_ZN(3PCB|3SCH|2CV)5IFACE(13OnKifaceStart|11OnKifaceEnd|5Reset|14IfaceOrAddress|9HandleJob|16PreloadLibraries|13CancelPreload|14ProjectChanged|10SaveFileAs)",
       "why": [
         "kicad-cli dlopen()s _pcbnew/_eeschema/_cvpcb.kiface and calls into them through",
-        "the KIFACE vtable (common/kiway.cpp:759 HandleJob, kiway.cpp KiFACE() ->",
-        "OnKifaceStart, common/project.cpp:433 and eeschema/erc/erc.cpp:1816 ->",
-        "IfaceOrAddress). A static reference graph cannot cross a dlopen boundary or an",
-        "indirect vtable call, so these are explicit roots.",
-        "",
-        "THE RULE FOR CHOOSING THEM, applied to the KIFACE vtable in include/kiway.h:155:",
-        "root every KIFACE virtual whose SIGNATURE is free of GUI types. That excludes",
-        "exactly CreateKiWindow(wxWindow*,int,KIWAY*,int) and HandleJobConfig(JOB*,",
-        "wxWindow*) -- the two that hand back or take a window -- and GetActions(",
-        "std::vector<TOOL_ACTION*>&), which is the interactive tool framework. It is a",
-        "mechanical rule over a 12-entry interface, not a curated file list, and",
-        "`assert_unreachable` below turns it into a checkable claim.",
-        "",
-        "SaveFileAs, ProjectChanged, CancelPreload and PreloadLibraries are rooted even",
-        "though no kicad-cli path is known to call SaveFileAs: rooting them can only",
-        "widen the denominator, which is the safe direction for a coverage figure."
+        "the KIFACE vtable (common/kiway.cpp). A static reference graph cannot cross a",
+        "dlopen boundary or an indirect vtable call, so these are explicit roots.",
+        "Rule: root every KIFACE virtual (include/kiway.h:155) whose signature is free",
+        "of GUI types -- excludes CreateKiWindow, HandleJobConfig and GetActions.",
+        "SaveFileAs/ProjectChanged/CancelPreload/PreloadLibraries are rooted even where",
+        "no CLI path is known to call them: rooting can only widen the denominator,",
+        "the safe direction for a coverage figure."
       ]
     },
 
@@ -65,13 +53,11 @@
       "kind": "init",
       "regex": "^_GLOBAL__sub_I_",
       "why": [
-        "Static initialisers of every object in the build. These genuinely execute on",
-        "every kicad-cli invocation (or every kiface load), so their lines are trivially",
-        "'covered' -- that is the inflation behind cli/jobs' 43.9%. They are also load-",
-        "bearing: KiCad registers DRC test providers, IO plugins and settings schemas",
-        "from file-scope statics, so a closure that ignored them would MISS real engine",
-        "code. Kept, and kept SEPARATE: engine_report.py reports work-reachable lines",
-        "and init-only lines as two columns."
+        "Static initialisers of every object in the build. They genuinely execute on",
+        "every kicad-cli invocation, which trivially inflates coverage -- but they are",
+        "also load-bearing (KiCad registers DRC test providers, IO plugins and settings",
+        "schemas from file-scope statics), so excluding them would MISS real engine",
+        "code. Kept, and reported SEPARATELY from work-reachable lines."
       ]
     },
 
@@ -90,33 +76,18 @@
       "kind": "excluded",
       "regex": "(16wxTopLevelWindow|8wxDialog|7wxFrame|8wxBitmap|11wxGLCanvas|10wxGLCanvas|[0-9]wx[A-Za-z]*Event)",
       "why": [
-        "THE SIGNATURE RULE, applied to every function rather than just the KIFACE",
-        "vtable: a function that takes or returns a top-level wxWidgets GUI type, or a",
-        "wxWidgets *event*, cannot be called by kicad-cli -- it never constructs a window",
-        "and never runs an event loop. Matched on the Itanium-mangled name, so the",
-        "`<length><name>` form makes it an exact token match, not a substring guess.",
-        "`[0-9]wx[A-Za-z]*Event` is the whole wxEvent family (wxCommandEvent,",
-        "wxMouseEvent, wxPaintEvent, wxPanGestureEvent, ...).",
-        "",
-        "`8wxWindow` IS DELIBERATELY ABSENT, and this is the clearest case of the",
-        "validation earning its keep. It was in this list until the positive probe",
-        "(docs/ENGINE_COVERAGE.md 6.1) showed `pcb drc --refill-zones` executing 95 lines",
-        "of pcbnew/zone_filler.cpp that the barrier had just moved out of scope: KiCad's",
-        "ZONE_FILLER_TOOL::FillAllZones( wxWindow* aCaller, ... ) takes a wxWindow* that",
-        "the CLI simply passes as nullptr. A wxWindow* parameter is very often an",
-        "OPTIONAL PARENT, not a proof of GUI-ness. wxDialog/wxFrame/wxTopLevelWindow and",
-        "the event family do not have that escape hatch.",
-        "KiCad's own TOOL_EVENT is likewise not matched, for the same reason.",
-        "",
-        "Needed because RTA seeds off constructors: a file-scope static of a class whose",
+        "The signature rule, applied to every function, not just the KIFACE vtable: a",
+        "function taking/returning a top-level wxWidgets GUI type or a wxWidgets event",
+        "cannot be called by kicad-cli. Matched on the Itanium-mangled name (exact token,",
+        "not substring). `[0-9]wx[A-Za-z]*Event` covers the whole wxEvent family.",
+        "`8wxWindow` is DELIBERATELY ABSENT: a wxWindow* parameter is very often an",
+        "optional parent, not proof of GUI-ness (e.g. ZONE_FILLER_TOOL::FillAllZones",
+        "takes one but the CLI passes nullptr) -- excluding it dropped real DRC/refill",
+        "code from scope. wxDialog/wxFrame/wxTopLevelWindow don't have that escape",
+        "hatch. Needed because RTA seeds off constructors: a file-scope static whose",
         "vtable contains window-taking methods re-imports the GUI through the back door.",
-        "Measured effect (2026-08-05): the `gui` bucket's contribution to the engine",
-        "denominator, and `common/bitmap_info.cpp`'s 5090-line icon table, which reached",
-        "the closure only through BITMAP_STORE's wxBitmap accessors.",
-        "",
-        "VALIDATED: adding this barrier must not increase the executed-but-out-of-scope",
-        "count (`engine_validate.py negative`). If it does, it has cut something the",
-        "suite demonstrably runs, and it is wrong."
+        "Validated: adding this barrier must not increase the executed-but-out-of-scope",
+        "count (`engine_validate.py negative`), or it cut something the suite runs."
       ]
     },
 
@@ -125,23 +96,19 @@
       "regex": "14setTransitionsEv$",
       "why": [
         "TOOL_INTERACTIVE::setTransitions() is where each interactive tool binds its",
-        "TOOL_EVENT handlers. A CLI run has no TOOL_DISPATCHER and no event loop, so no",
-        "transition is ever taken -- but every tool's constructor calls it, which made it",
-        "the single RTA hub that pulled the whole editor tool set into scope (it is the",
-        "edge that put EDA_3D_CANVAS::DisplayStatus 13 hops from a CLI root).",
-        "",
-        "This does NOT exclude tool code the CLI genuinely uses: ZONE_FILLER_TOOL is",
-        "called directly by the DRC/refill path, and the probe run in",
-        "`docs/ENGINE_COVERAGE.md` 6.1 executes 33 of its lines with this barrier in",
-        "place."
+        "TOOL_EVENT handlers. A CLI run has no event loop, so no transition is ever",
+        "taken -- but every tool's constructor calls it, making it the single RTA hub",
+        "that pulled the whole editor tool set into scope. Does NOT exclude tool code",
+        "the CLI genuinely uses: ZONE_FILLER_TOOL is still reachable via the DRC/refill",
+        "path with this barrier in place."
       ]
     }
   },
 
   "deferred_cut": {
-    "^_ZN3CLI21PCB_EXPORT_3D_COMMAND9doPerformER5KIWAY$": "3D/STEP/GLB/VRML export CLI verb -- deferred by DL-0012",
-    "^_ZN3CLI18PCB_RENDER_COMMAND9doPerformER5KIWAY$": "raytraced render CLI verb -- 3D, deferred by DL-0012",
-    "^_ZN3CLI18PCB_IMPORT_COMMAND9doPerformER5KIWAY$": "third-party board import verb -- 'Later/conditional' in ROADMAP.md, see docs/COVERAGE.md 5(c)",
+    "^_ZN3CLI21PCB_EXPORT_3D_COMMAND9doPerformER5KIWAY$": "3D/STEP/GLB/VRML export CLI verb -- deferred, not in the committed suite",
+    "^_ZN3CLI18PCB_RENDER_COMMAND9doPerformER5KIWAY$": "raytraced render CLI verb -- 3D, deferred",
+    "^_ZN3CLI18PCB_IMPORT_COMMAND9doPerformER5KIWAY$": "third-party board import verb -- not covered by the suite",
     "^_ZN19PCBNEW_JOBS_HANDLER13JobExportStepEP3JOB$": "the kiface side of `pcb export step/glb/vrml`",
     "^_ZN19PCBNEW_JOBS_HANDLER15JobExportRenderEP3JOB$": "the kiface side of `pcb render`",
     "^_ZN19PCBNEW_JOBS_HANDLER9JobImportEP3JOB$": "the kiface side of `pcb import`",

@@ -9,14 +9,12 @@
 #   tools/coverage/engine-scope.sh report     # 4. join + print             (~1 min)
 #   tools/coverage/engine-scope.sh why SYM…   # audit one classification
 #
-# WHAT THIS ANSWERS that docs/COVERAGE.md cannot: which KiCad lines are *in scope*
-# for a CLI-only conformance suite. The global 9.8% figure divides by all of KiCad,
-# most of which is GUI a `kicad-cli` run can never enter; the per-subsystem buckets
-# divide by hand-drawn directory patterns. This divides by the transitive closure of
-# the CLI entry points over the real symbol reference graph of the built objects.
-#
-# See docs/ENGINE_COVERAGE.md for the definition, the rejected alternatives, the
-# edge cases and the validation.
+# WHAT THIS ANSWERS that the main coverage report cannot: which KiCad lines are
+# *in scope* for a CLI-only conformance suite. The global % divides by all of
+# KiCad, most of which is GUI a `kicad-cli` run can never enter; this instead
+# divides by the transitive closure of the CLI entry points over the real symbol
+# reference graph of the built objects (see engine_elf.py, engine_scope.py,
+# engine-roots.json for the definition and the rejected alternatives).
 #
 # Everything runs inside the pinned coverage image, so the answer is a function of
 # (image, engine-roots.json) and nothing else. Intermediates live in the
@@ -73,8 +71,7 @@ stage_floor() {
     # The FREE FLOOR. `kicad-cli version` does no work at all, but it runs every
     # static constructor in kicad-cli and (because it constructs the COMMAND objects)
     # every subcommand's argparse setup. Those lines are "covered" in any run and
-    # tell you nothing -- this is the measured size of that effect, and it is what
-    # makes `cli/jobs` read 43.9% in docs/COVERAGE.md 3.
+    # tell you nothing -- this is the measured size of that effect.
     echo "== free floor: what a no-op kicad-cli invocation executes by itself =="
     run "set -e
          rm -rf /scope/floor && mkdir -p /scope/floor/raw

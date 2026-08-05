@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
 """Two views of a gcovr --json-summary that `focus.json` cannot give:
 
-  corrected   the four subsystem buckets docs/COVERAGE.md §3a says are misleading as
-              printed, recomputed with the exclusions that make them answer the
-              question actually being asked (rule-editor GUI out of `drc`,
-              third-party importers out of `io/board`/`io/schematic`, 3D out of
-              `export/plot`).
-  dead        every file with line_covered == 0, largest first, after dropping the
-              areas docs/COVERAGE.md §4a already classified as unreachable from a
-              CLI run. This is the round-N target list's raw material -- it is NOT
-              a to-do list until each entry is triaged.
+  corrected   the four subsystem buckets, recomputed with the exclusions that make
+              them answer the question actually being asked (rule-editor GUI out of
+              `drc`, third-party importers out of `io/board`/`io/schematic`, 3D out
+              of `export/plot`).
+  dead        every CLI-reachable file with line_covered == 0, largest first. Raw
+              material for a target list, not a to-do list until each is triaged.
 
     python3 tools/coverage/gaps.py coverage.json corrected
     python3 tools/coverage/gaps.py coverage.json dead [--top N] [--min-lines N]
@@ -20,9 +17,8 @@ import argparse
 import json
 import sys
 
-# docs/COVERAGE.md §4a: legitimately unreachable from a `kicad-cli` run. Excluded from
-# the `dead` list so it names only code a case could plausibly reach. Anything removed
-# here must be justified in COVERAGE.md §4a, not just here.
+# Legitimately unreachable from a `kicad-cli` run. Excluded from the `dead` list so
+# it names only code a case could plausibly reach.
 UNREACHABLE = (
     "/dialogs/", "/widgets/", "/tools/", "common/gal", "preview_items", "3d-viewer",
     "pcbnew/drc/rule_editor/",
