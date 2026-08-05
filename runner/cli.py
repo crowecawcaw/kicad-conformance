@@ -206,15 +206,8 @@ def run_verify_assertions_mode(adapter: Adapter, case_dirs: list[Path]) -> int:
     print(f"\n{unasserted_count} of {total_happy} happy cases carry no perturbation "
           f"({UNASSERTED_CASE})")
 
-    out_path = Path("tools/coverage/out/asserted-cases.txt")
-    try:
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        lines = [f"{unasserted_count} of {total_happy} happy cases carry no perturb/ directory"]
-        lines += [p.as_posix() for p in unasserted_case_dirs]
-        out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        print(f"wrote {out_path}")
-    except OSError as e:
-        print(f"(could not write {out_path}: {e})")
+    for p in unasserted_case_dirs:
+        print(f"  {p.as_posix()}")
 
     print("\nASSERTED-COVERAGE: " + ("FAIL" if any_fail else "PASS"))
     return 1 if any_fail else 0

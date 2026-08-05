@@ -2,22 +2,5 @@ concept = "Without a .kicad_pro project backing it, kicad-cli does NOT disambigu
 doc     = "sexpr-schematic#hierarchy"
 input   = "root.kicad_sch"
 
-# Hand-authored fixture (DL-0011): root.kicad_sch places TWO (sheet ...) blocks -- named
-# "inst1" and "inst2" -- both pointing at the SAME Sheetfile "shared.kicad_sch". That one
-# sub-sheet file places a single T2 symbol whose (instances (project "" ...)) block lists
-# TWO (path ...) entries, one per sheet instance UUID, each giving the SAME physical
-# placement a different reference ("U2" under /inst1, "U3" under /inst2) -- KiCad's
-# documented per-instance annotation mechanism (this is exactly SC-30's premise).
-#
-# MEASURED, NOT ASSUMED: this suite's harness runs `kicad-cli sch export netlist`
-# directly against the scratch-copied files with no `.kicad_pro` alongside them (see
-# `adapters/kicad.py` -- no project file is ever synthesized for any multi-sheet case in
-# this repo). Under that condition, kicad-cli 10.0.5 does NOT honor the second
-# `(path ...)`'s own "U3" reference: netlist.net carries TWO `(comp ...)` blocks that are
-# BOTH ref "U2" (the first instance's), one per sheetpath, plus stderr:
-# "Warning: schematic has annotation errors, please use the schematic editor to fix
-# them." This is the opposite of the expected two-distinct-refs outcome, and is recorded
-# here instead, per this suite's convention of pinning real behaviour over expected
-# behaviour.
-# Falsifiable: deleting the second (sheet ...) block (only one instance) removes the
-# duplicate/"_1"-suffixed net names and the annotation warning.
+# Two (sheet ...) blocks ("inst1"/"inst2") point at the same sub-sheet file; without
+# a .kicad_pro, both instances collapse onto the first instance's reference ("U2").

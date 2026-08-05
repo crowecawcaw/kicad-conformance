@@ -2,10 +2,5 @@ concept = "A schematic's (bus_alias ...) block names a bus whose members are sep
 doc     = "sexpr-schematic#buses"
 input   = "sheet.kicad_sch"
 
-# Hand-authored fixture (DL-0011): two symbols (U1/U2), each driving a labelled stub net
-# ("A"/"B") through a `bus_entry` into a bus wire labelled "MYBUS", plus a top-level
-# `(bus_alias "MYBUS" (members "A" "B"))` block -- the smallest schematic that actually
-# uses `bus_alias`. Modeled on `suites/schematic-parse/bus-vector-expansion`'s layout
-# (same symbol library, same wiring shape), swapping the vector labels ("D0"/"D1") for
-# named bus-alias members ("A"/"B").
-#
+# Two symbols each drive a labelled net (A/B) tapped into a bus wire aliased as
+# "MYBUS" via a top-level (bus_alias "MYBUS" (members "A" "B")) block.

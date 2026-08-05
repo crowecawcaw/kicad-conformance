@@ -2,12 +2,5 @@ concept = "The three fill types -- none, outline and background -- draw three vi
 doc     = "sexpr-intro#fill"
 input   = "lib.kicad_sym"
 
-# Hand-authored fixture (DL-0011), canonicalized with `kicad-cli sym upgrade --force`:
-# three symbols, "FillNone"/"FillOutline"/"FillBackground", identical rectangle bodies
-# differing only in `(fill (type ...))`. `none` was already covered indirectly by an
-# inline lib_symbols block in the schematic suite (SY-17); this case is the first to
-# cover `outline` and `background`, and the first to do so as a real .kicad_sym library.
-# Falsifiable: render/FillOutline_unit1.svg and render/FillBackground_unit1.svg differ
-# from render/FillNone_unit1.svg (and from each other) in exactly the fill-related SVG
-# content; changing any one symbol's fill type back to `none` makes its render collapse
-# to FillNone's.
+# Three symbols, "FillNone"/"FillOutline"/"FillBackground", identical rectangle
+# bodies differing only in (fill (type ...)).

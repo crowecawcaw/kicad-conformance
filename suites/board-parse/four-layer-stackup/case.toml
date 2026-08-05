@@ -1,10 +1,3 @@
 concept = "A four-layer board with In1.Cu and In2.Cu plots two extra inner-copper gerbers (.g1/.g2) alongside F.Cu/B.Cu."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
-
-# Formerly RUNNER-GAP-blocked: runner/normalize.py's _GERBER_LAYER_SUFFIXES tuple listed
-# only the Protel-style outer-layer extensions, omitting the numbered inner-copper
-# extensions KiCad itself writes (.g1, .g2, .g3, ... -- verified `board-In1_Cu.g1`,
-# `board-In2_Cu.g2` for this exact fixture), so their CreationDate lines were never
-# stripped and the gerbers answer flaked on wall-clock time. Fixed: normalize_for now
-# recognizes any `.g<digits>` suffix as a gerber (see runner/normalize.py).

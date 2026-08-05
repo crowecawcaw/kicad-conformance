@@ -3,11 +3,3 @@ doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 control = "control.kicad_pcb"           # same board with the extra In1.Cu entry removed -> must exit 0
 error_contains = "is not a valid layer count"
-
-# Formerly blocked on a KNOWN ORACLE DIVERGENCE: the runner's old `parse-pcb` probe was
-# `pcb upgrade --force`, which SIGSEGVs on every malformed board immediately after
-# printing this correct message. DL-0029 remapped `parse-pcb` to `pcb export stats`,
-# which rejects the same bytes gracefully (verified: exit 3, "Failed to load board:
-# 3 is not a valid layer count ..." on stderr) -- this case now genuinely PASSes. See
-# docs/DECISIONS.md DL-0029 and docs/DIVERGENCES.md's DIV-0001 (kept open, but only via
-# the now-non-default `pcb upgrade --force` path).

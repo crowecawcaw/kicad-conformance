@@ -2,13 +2,5 @@ concept = "Each of the nine pin graphic styles draws its own distinct decoration
 doc     = "sexpr-intro#pin"
 input   = "lib.kicad_sym"
 
-# Hand-authored fixture (DL-0011), canonicalized with `kicad-cli sym upgrade --force`:
-# one symbol, "Styles", with nine input pins stacked vertically, one per graphic style --
-# line, inverted, clock, inverted_clock, input_low, clock_low, output_low,
-# edge_clock_high, non_logic. Confirmed against KiCad 10.0.5's own bundled symbol
-# libraries (`grep -rho "(pin [a-z_]* STYLE" /usr/share/kicad/symbols/*.kicad_sym`) that
-# every style except edge_clock_high appears in stock parts; edge_clock_high is confirmed
-# only from the kicad binary's own string table (SY-19 -- "the highest-value
-# symbol-lib case" per the inventory, since electrical TYPE mostly doesn't draw anything
-# but GRAPHIC STYLE always does). Falsifiable: changing any one pin's style word changes
-# only that pin's glyph in the rendered SVG.
+# One symbol, "Styles", with nine input pins stacked vertically, one per graphic
+# style: line, inverted, clock, inverted_clock, input_low, clock_low, output_low, edge_clock_high, non_logic.

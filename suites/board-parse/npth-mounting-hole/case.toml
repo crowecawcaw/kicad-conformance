@@ -2,6 +2,5 @@ concept = "A np_thru_hole mounting-hole pad counts as npth (not through_hole) an
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 
-# kicad-cli 10.0.5 emits IPC-D-356 record type "367" for this board's np_thru_hole
-# (unplated, netless -- net field "N/C") feature, with a `U` plating code where a plated
-# hole carries `P` -- visible directly in this case's recorded ipcd356.d356.
+# np_thru_hole emits IPC-D-356 record type "367" (unplated, netless, net "N/C")
+# with plating code 'U', vs 'P' for a plated hole.

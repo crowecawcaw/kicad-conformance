@@ -2,10 +2,5 @@ concept = "A root sheet instantiating one sub-sheet, with a component on each an
 doc     = "sexpr-schematic#hierarchy"
 input   = "root.kicad_sch"
 
-# Hand-authored fixture (DL-0011): the root sheet places U1 (the same minimal custom "T2"
-# symbol the two-nets fixture uses) and instantiates one sub-sheet ("sub.kicad_sch",
-# Sheetfile property) which places U2. Both U1 pin 1 and U2 pin 1 carry a GLOBAL label
-# named "SIG" -- global labels are visible project-wide, so this is a real net crossing
-# the sheet boundary, not two same-named-but-unconnected local labels. Proves support-file
-# discovery: `sch export netlist` must see BOTH schematic files to find U2 at all, and
-# must merge them to find the cross-sheet "SIG" net.
+# Root places U1, sub.kicad_sch places U2; both pin 1s carry a global label "SIG"
+# crossing the sheet boundary - the export must see both files to merge the net.

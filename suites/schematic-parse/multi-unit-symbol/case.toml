@@ -2,11 +2,5 @@ concept = "Two units of one multi-unit symbol placed separately on the sheet sha
 doc     = "sexpr-schematic#symbols"
 input   = "sheet.kicad_sch"
 
-# Hand-authored fixture (DL-0011): a custom 2-unit symbol "T2U" (unit 0 holds a common
-# body rectangle, unit 1 holds pin "1", unit 2 holds pin "2" -- the same
-# common-body-plus-per-unit-pins pattern KiCad's own multi-gate parts use). Two placed
-# `(symbol (lib_id "T2U") (unit 1) ...)` / `(unit 2) ...)` instances, at different
-# schematic locations, both carry Reference "U1". `sch export netlist` groups them under
-# one <comp ref="U1"> with two <unit> pin blocks; netlist.net therefore shows exactly
-# one component "U1" whose "pins" list is ["1", "2"] -- the union across both placed
-# units, not two separate components (SC-23).
+# 2-unit symbol "T2U" (unit0=shared body, unit1=pin "1", unit2=pin "2") placed as
+# two separate instances at different locations, both carrying Reference "U1".

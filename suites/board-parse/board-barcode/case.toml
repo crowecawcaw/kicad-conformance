@@ -2,32 +2,5 @@ concept = "A (barcode ...) item -- new in KiCad 10 -- is parsed and plots its QR
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 
-# Hand-authored fixture (DL-0011), canonicalized with `kicad-cli pcb upgrade --force`
-# (which normalized `(type qrcode)` to KiCad's own canonical spelling `(type qr)` and
-# added its `(hide no)`/`(knockout no)` defaults -- confirmed non-destructive here,
-# unlike the net_class finding in suites/board-parse/board-netclasses/case.toml).
-#
-# `pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp::parsePCB_BARCODE` (99 lines)
-# is 0% in docs/COVERAGE.md §4b and explicitly flagged there as "new in KiCad 10" -- an
-# independent grep of every fixture under suites/ for `(barcode` confirms zero hits
-# before this case, so this is the first fixture in the whole suite to pin a KiCad-10-
-# only token. Not documented on dev-docs.kicad.org's sexpr-pcb/sexpr-intro pages (checked
-# while authoring); the exact grammar (`type`/`at`/`layer`/`size`/`text`/`text_height`/
-# `ecc_level`/`uuid`, and the five recognized `type` values code39/code128/datamatrix/
-# qr/microqr) was read directly from `parsePCB_BARCODE` in
-# `pcbnew/pcb_io/kicad_sexpr/pcb_io_kicad_sexpr_parser.cpp` (KiCad/kicad-source-mirror,
-# `master`, ~line 4361).
-#
-# Placed directly on F.Cu (not silkscreen) so it lands in BOTH `render-F_Cu.svg` (the
-# render verb's only recorded layer) and `gerbers/board-F_Cu.gtl` -- verified in Docker:
-# the plotted QR renders as 46 distinct `<path>`/`<rect>` elements in the SVG and ~1400
-# extra lines of aperture-flash data in the gerber, i.e. real module geometry, not an
-# empty/degenerate code.
-#
-# Falsifiable (verified in Docker against a scratch copy, NOT regenerated): changing
-# `(text "KICAD-CONFORMANCE")` to a different string regenerates a different QR module
-# pattern, changing both `render-F_Cu.svg` and `gerbers/board-F_Cu.gtl` (the module
-# layout is a hash of the text, so almost any edit changes nearly every module);
-# changing `(size 6 6)` to a different value rescales every module, again changing both
-# files, while `stats.json`/`pos.csv`/`ipcd356.d356` (no footprints/pads/vias/nets on this board) are untouched
-# by either edit -- the barcode is graphics, not connectivity.
+# QR barcode placed directly on F.Cu (not silkscreen): plots as real module geometry
+# (paths in render-F_Cu.svg, aperture flashes in the gerber), not an empty code.

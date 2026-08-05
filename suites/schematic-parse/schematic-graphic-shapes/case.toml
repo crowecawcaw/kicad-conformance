@@ -2,13 +2,5 @@ concept = "Schematic-level arc, circle, rectangle and bezier graphics -- undocum
 doc     = "sexpr-intro#graphic-items"
 input   = "sheet.kicad_sch"
 
-# Hand-authored fixture (DL-0011). Per the inventory's §8.7 finding, `sexpr-schematic`
-# documents only `polyline` and `text` as sheet-level graphics, but 10.0.5 files (and its
-# own bundled demos, e.g. vme-wren/fpga-power.kicad_sch, which contains a top-level
-# `(rectangle ...)`) also carry `arc`, `circle` and `bezier` directly on the sheet, using
-# the same field shapes `sexpr-intro`'s common "Graphic Items" section defines for
-# footprint/symbol graphics (start/mid/end, center/radius, pts). This fixture places one
-# of each alongside a single T2 component (so netlist.net has non-trivial content) with
-# no wire touching any of the four shapes. Falsifiable via render.svg: deleting any one
-# shape changes the render while netlist.net (components/nets) stays identical --
-# proving these are graphics, not connectivity.
+# One arc, circle, rectangle and bezier placed directly on the sheet alongside a
+# single T2 component, with no wire touching any of the four shapes.

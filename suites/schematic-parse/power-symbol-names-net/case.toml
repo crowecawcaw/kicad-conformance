@@ -2,10 +2,5 @@ concept = "A power symbol's Value property becomes the net name for every pin wi
 doc     = "sexpr-schematic#connectivity"
 input   = "sheet.kicad_sch"
 
-# Hand-authored fixture (DL-0011): the stock power:GND symbol, copied verbatim from
-# KiCad 10.0.5's bundled power.kicad_sym (a (power global) symbol with one power_in pin
-# and Value "GND"), placed as ref "#PWR01" and wired to pin 1 of a minimal T2 part (U1).
-# Per SC-27, the resulting net in netlist.net is named "GND" -- the power symbol's
-# Value, not an auto-generated Net-(...) name and not a label. Falsifiable by changing
-# the power symbol's Value from "GND" to something else (e.g. "+3V3"): the net's name in
-# netlist.net tracks the edit exactly.
+# Stock power:GND symbol (Value "GND") wired to U1 pin 1; expect the net named
+# "GND" (the power symbol's Value), not an auto-generated Net-(...) name.

@@ -2,7 +2,5 @@ concept = "A do-not-populate symbol is drawn with a DNP cross in the render and 
 doc     = "sexpr-schematic#symbols"
 input   = "sheet.kicad_sch"
 
-# Hand-authored fixture (DL-0011): a single minimal T2 part with (dnp yes) instead of the
-# usual (dnp no). `dnp` reaches `sch export netlist` as a `(property (name "dnp"))` field
-# on the component and changes nothing about its nets. Falsifiable by flipping `dnp` back
-# to "no": render.svg loses the cross and the netlist loses the property.
+# Single T2 part with (dnp yes) instead of the usual (dnp no); should reach the
+# netlist as a property without changing any net.

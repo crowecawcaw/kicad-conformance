@@ -2,6 +2,5 @@ concept = "Blind and buried vias on a four-layer board are counted separately in
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 
-# `pcb export ipcd356` emits IPC-D-356 record type "307" for a blind/buried via
-# (through vias are "317", SMD pads "327", netless features "367") -- visible directly
-# in this case's recorded ipcd356.d356.
+# Blind/buried vias emit IPC-D-356 record type "307" (through vias "317", SMD
+# pads "327", netless features "367").

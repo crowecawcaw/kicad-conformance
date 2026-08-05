@@ -3,7 +3,5 @@ doc     = "cli:pcb-drc"
 input   = "board.kicad_pcb"
 extra   = ["drc"]
 
-# The shipped (filled_polygon ...) is DELIBERATELY stale: a small 2x2mm island at
-# (1,1)-(3,3) that does not touch the GND pad at (10,10), while the zone's real outline
-# (0,0)-(20,20) does enclose it. DRC reports isolated_copper, which is only possible if
-# the stored polygon -- not the outline -- is what the checker reads.
+# Shipped (filled_polygon ...) is deliberately stale: a 2x2mm island at (1,1)-(3,3)
+# not touching the GND pad at (10,10), though the real outline (0,0)-(20,20) encloses it.
