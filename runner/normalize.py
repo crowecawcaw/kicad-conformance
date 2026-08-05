@@ -1,13 +1,13 @@
-"""The normalization layer (DESIGN.md §4).
+"""Per-format normalizers for recorded answers.
 
-Each function strips exactly one *observed* source of run-to-run noise and says so in
-its docstring, per the "honesty rule" (§4): no normalizer is added for output that is
-already byte-stable, and every normalizer here is exercised by the determinism self-test
-(`runner/determinism.py`) so a normalizer that stops mattering is noticed.
+Each function strips exactly one *observed* source of run-to-run noise -- wall-clock
+dates, embedded file paths, freshly-minted UUIDs -- and nothing else. Output verified
+byte-stable across repeat runs gets no normalizer at all, because an identity normalizer
+would imply a nondeterminism that does not exist. `--determinism-check` runs every answer
+twice and is what keeps this file honest.
 
-Environment pinning (LC_ALL=C.UTF-8, TZ=UTC) is done by the engine when it invokes the
-adapter (DESIGN §4) — that removes a whole class of drift *before* it is ever written to
-a file, so it is not duplicated here.
+Locale/timezone pinning (LC_ALL=C.UTF-8, TZ=UTC) happens where the adapter is launched
+(runner/adapter.py), which removes a class of drift before it is ever written to a file.
 """
 from __future__ import annotations
 
@@ -16,22 +16,88 @@ import re
 from pathlib import Path
 
 # --- CRLF -> LF -----------------------------------------------------------------
-# DL-0016: kicad-cli's native-Windows build writes CRLF; the Docker-Linux build (== CI)
-# writes LF. Expected files are committed LF-canonical, so every text compare normalizes CRLF
-# to LF first, whichever platform produced the bytes being compared.
+# kicad-cli's native-Windows build writes CRLF; the Docker-Linux build (== CI) writes LF.
+# Expected files are committed LF-canonical, so every text compare normalizes first.
 
 
 def normalize_crlf(data: bytes) -> bytes:
     return data.replace(b"\r\n", b"\n")
 
 
+# --- Volatile content shared by the structured text answers ------------------------
+# Observed on KiCad 10.0.5 by running each export twice, seconds apart, on the same
+# fixture and diffing:
+#
+#   stats.json    only `metadata.date` moved.
+#   drc.json      only `date` moved.
+#   erc.json      `date` moved, plus a violation item `uuid` minted fresh per run.
+#   netlist.net   `(date ...)` moved; `(source ...)` and the `Sheetfile` property both
+#                 carry the scratch directory's path; every `(tstamps "<uuid>")` was
+#                 minted fresh.
+#   pos.csv       byte-identical.
+#   ipcd356.d356  byte-identical (no header date in this exporter).
+#
+# So three redactions cover all of it, and the same three apply to both the JSON reports
+# and the s-expression netlist: ISO timestamps, UUIDs, and the directory part of an
+# embedded `.kicad_*` path (the basename is kept -- it names which file, and is stable).
+_ISO_DATE_RE = re.compile(rb"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
+_UUID_RE = re.compile(
+    rb"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+)
+_KICAD_PATH_RE = re.compile(rb'"[^"\n]*/([^"/\n]*\.kicad_[a-z]+)"')
+
+
+def normalize_report(data: bytes) -> bytes:
+    """`stats.json`, `netlist.net`, and the textual half of the DRC/ERC reports.
+    Idempotent: the replacement text matches none of the three patterns, so
+    re-normalizing a committed expected file is a no-op."""
+    data = normalize_crlf(data)
+    data = _ISO_DATE_RE.sub(b"NORMALIZED-DATE", data)
+    data = _UUID_RE.sub(b"NORMALIZED-UUID", data)
+    data = _KICAD_PATH_RE.sub(rb'"\1"', data)
+    return data
+
+
+# --- DRC / ERC reports -------------------------------------------------------------
+# One more thing moves in these two, and only in these two: the ORDER of the `items[]`
+# inside a single violation. Observed on suites/drc/holes-co-located, where two pads sit
+# at the same point -- eight consecutive runs produced the same order seven times and the
+# swapped order once. Violation order itself never moved across those runs, and neither
+# did anything in stats.json/pos.csv/ipcd356.d356/netlist.net, so the sort is scoped to
+# exactly the list that was seen to wobble.
+#
+# Sorting needs structure, so these two files (and no others) are re-serialized. The
+# textual redactions run FIRST, so the sort key never contains a freshly-minted UUID.
+# kicad-cli emits these reports with 4-space indent and a trailing newline, which is what
+# json.dumps reproduces here; recognition is by the `$schema` these reports carry and
+# nothing else does.
+_KICAD_SCHEMA_PREFIX = "https://schemas.kicad.org/"
+
+
+def _sort_violation_items(node) -> None:
+    if isinstance(node, dict):
+        items = node.get("items")
+        if isinstance(items, list):
+            items.sort(key=lambda i: json.dumps(i, sort_keys=True))
+        for value in node.values():
+            _sort_violation_items(value)
+    elif isinstance(node, list):
+        for value in node:
+            _sort_violation_items(value)
+
+
+def normalize_json(data: bytes) -> bytes:
+    data = normalize_report(data)
+    obj = json.loads(data.decode("utf-8"))
+    if not isinstance(obj, dict) or not str(obj.get("$schema", "")).startswith(_KICAD_SCHEMA_PREFIX):
+        return data  # stats.json and anything else: nothing observed to reorder
+    _sort_violation_items(obj)
+    return (json.dumps(obj, indent=4, ensure_ascii=False) + "\n").encode("utf-8")
+
+
 # --- Gerber (RS-274X) -------------------------------------------------------------
-# Observed (KiCad 10.0.5, `pcb export gerbers`): every plot stamps its own wall-clock
-# creation time twice — once as a machine-readable attribute (`%TF.CreationDate,...*%`)
-# and once in a human comment (`G04 Created by KiCad (PCBNEW <ver>) date ...*`) — for
-# otherwise byte-identical geometry. Confirmed by running the same export twice 2s
-# apart: only these two lines (plus the mirrored date in `%TF.GenerationSoftware`'s
-# sibling .gbrjob, handled separately below) differed.
+# Observed (`pcb export gerbers`): every plot stamps its wall-clock creation time twice,
+# once machine-readable and once in a human comment, for otherwise identical geometry.
 _GERBER_CREATION_DATE_RE = re.compile(rb"%TF\.CreationDate,[^*]*\*%")
 _GERBER_CREATED_BY_RE = re.compile(rb"G04 Created by KiCad[^\n]*\*")
 
@@ -44,11 +110,9 @@ def normalize_gerber(data: bytes) -> bytes:
 
 
 # --- Gerber job file (.gbrjob) -----------------------------------------------------
-# The .gbrjob is JSON, not RS-274X text, and carries its OWN copy of the creation date
-# under `Header.CreationDate` (observed key path on 10.0.5 — DESIGN.md's table names
-# `GeneralSpecs/CreationDate`, which was not what 10.0.5 actually emits; this is a
-# documented correction, see the runner README). This is a separate normalizer from the
-# gerber one above because it's a different file/format with the same underlying date.
+# JSON, not RS-274X, carrying its own copy of the creation date under `Header/
+# CreationDate` (the key 10.0.5 actually emits). Re-serialized deterministically; both
+# sides of every compare go through this same function.
 def normalize_gbrjob(data: bytes) -> bytes:
     data = normalize_crlf(data)
     obj = json.loads(data.decode("utf-8"))
@@ -59,17 +123,12 @@ def normalize_gbrjob(data: bytes) -> bytes:
         gs = header.get("GenerationSoftware")
         if isinstance(gs, dict) and "Version" in gs:
             gs["Version"] = "NORMALIZED"
-    # Re-serialize deterministically. This is a normalizing re-encode (not a literal
-    # byte pass-through of kicad-cli's own formatting) but both sides of every compare
-    # go through this same function, so it stays a faithful, content-only comparison.
     return (json.dumps(obj, indent=2, sort_keys=False) + "\n").encode("utf-8")
 
 
 # --- Excellon drill (.drl) ---------------------------------------------------------
-# Observed (KiCad 10.0.5, `pcb export drill`, run twice 2s apart, on both the populated
-# and the empty-holes fixture): exactly two lines carry a wall-clock timestamp, mirroring
-# the gerber date pair above but in Excellon's own comment syntax (DESIGN.md §4,
-# DL-0026). Nothing else in the file (tool table, hit records, `M48`/`M30` framing) moved.
+# Observed (`pcb export drill`): exactly two lines carry a wall-clock timestamp,
+# mirroring the gerber date pair in Excellon's own comment syntax.
 _DRILL_HEADER_DATE_RE = re.compile(rb"(; DRILL file KiCad [^\n]* date )\S+")
 _DRILL_TF_CREATIONDATE_RE = re.compile(rb"(; #@! TF\.CreationDate,)[^\r\n]*")
 
@@ -81,22 +140,10 @@ def normalize_drill(data: bytes) -> bytes:
     return data
 
 
-# --- DRC / ERC JSON ---------------------------------------------------------------
-# See runner/reduce.py: for `structured` checks the "normalizer" and the "reduction"
-# are the same step (DL-0014) — the expected file stores the reduced form directly, there is
-# no separate normalize-then-store. Kept out of this module to avoid a false split.
-
-
-# --- SVG (L3 render, DESIGN.md §3b.2/§4.3, DL-0021) -----------------------------
-# Observed (KiCad 10.0.5, `pcb export svg` / `sch export svg`, run twice 1s apart): the
-# ONLY run-to-run difference is the `<title>` line (`SVG Image created as <filename>
-# date <ISO-timestamp>` — both the scratch-copy filename and the wall-clock date leak
-# in). Path geometry and fills are byte-stable. `<desc>` was NOT observed to vary in
-# that probe (`Image generated by PCBNEW ` / `Image generated by Eeschema-SVG `, stable
-# per exporter) — it is normalized anyway because DESIGN.md §3c/DL-0021 explicitly
-# names it alongside `<title>` (a `sym`/`fp` export's `<desc>` may embed a per-symbol
-# name that *does* vary case-to-case, even if not run-to-run within one case), so this
-# is a documented, not invented, normalizer.
+# --- SVG (render answers) ----------------------------------------------------------
+# Observed (`pcb/sch/sym/fp export svg`): the only run-to-run difference is the `<title>`
+# line, which embeds both the scratch-copy filename and the wall-clock date. `<desc>` did
+# not vary run-to-run but does embed the exporter/symbol name, so it is normalized too.
 _SVG_TITLE_RE = re.compile(rb"<title>.*?</title>", re.DOTALL)
 _SVG_DESC_RE = re.compile(rb"<desc>.*?</desc>", re.DOTALL)
 
@@ -108,66 +155,30 @@ def normalize_svg(data: bytes) -> bytes:
     return data
 
 
-# --- PDF (`export-pdf`, DL-0037) --------------------------------------------------
-# Observed (KiCad 10.0.5, `pcb export pdf` / `sch export pdf`, run twice 2s apart, with
-# the adapter's FIXED output filename both times so `/Title` never varies): the ONLY
-# byte difference across the two runs is `/CreationDate (D:YYYY:MM:DD:HH:MM:SS)`. There
-# is no `/ModDate` and no `/ID` trailer entry at all in this plot mode -- checked
-# directly (grepped the raw bytes for both), not assumed. Deliberately NOT run through
-# `normalize_crlf`: PDF is a binary format whose compressed content streams can contain
-# the byte pair `\r\n` incidentally, and a blind CRLF rewrite would corrupt them.
-_PDF_CREATION_DATE_RE = re.compile(rb"/CreationDate \(D:[^)]*\)")
-
-
-def normalize_pdf(data: bytes) -> bytes:
-    return _PDF_CREATION_DATE_RE.sub(b"/CreationDate (NORMALIZED)", data)
-
-
-# --- DXF (`export-dxf`, DL-0037) --------------------------------------------------
-# Observed (KiCad 10.0.5, `pcb export dxf`, run twice 2s apart): BYTE-IDENTICAL. No
-# timestamp, no embedded filename, nothing wall-clock. Per the honesty rule (§4: "an
-# identity normalizer would imply a nondeterminism that does not exist"), this
-# deliberately has NO dedicated normalizer -- `.dxf` isn't in `_BY_SUFFIX` below, so it
-# falls through to the generic CRLF->LF pass every unrecognized text suffix gets, same
-# as `.net`/`.csv`.
-
-
 # --- Dispatch by output kind -------------------------------------------------------
-# Every extension `pcb export gerbers` actually writes for a layer file (DESIGN.md
-# §7.1, DL-0026) -- Protel-style per-layer extensions where KiCad has one (.gtl/.gbl/...),
-# else the generic `.gbr` (margin, courtyard, user layers, ...).
+# Protel-style per-layer gerber extensions where KiCad has one, else the generic `.gbr`.
 _GERBER_LAYER_SUFFIXES = (
     ".gtl", ".gbl", ".gts", ".gbs", ".gto", ".gbo", ".gtp", ".gbp",
     ".gta", ".gba", ".gm1", ".gbr",
 )
 
-# Numbered inner-copper layers (`In1.Cu`, `In2.Cu`, ... — any board with 4+ copper
-# layers) have no fixed Protel name, so KiCad names them `.g1`, `.g2`, `.g3`, ...
-# (verified: a 4-layer board's `In1.Cu`/`In2.Cu` plot to `board-In1_Cu.g1`/
-# `board-In2_Cu.g2`). A hardcoded list would need a new entry for every additional
-# inner-layer count a board might have (a 32-layer board has 30 of these); instead,
-# recognize the whole family by its shape -- `.g` followed by one or more digits --
-# which covers every inner layer KiCad can ever emit without growing this file. Same
-# underlying per-plot creation-date stamp as every other gerber (DL-0026's G1/G2), so
-# it gets the identical `normalize_gerber` treatment; this was previously missed
-# because the fixed tuple above never matched it, leaving those two lines
-# wall-clock-timestamped and the gerbers answer flaky on any 4+-copper-layer board.
+# Numbered inner-copper layers (`In1.Cu`, `In2.Cu`, ...) have no fixed Protel name, so
+# KiCad names them `.g1`, `.g2`, ... -- recognized by shape so any layer count is covered.
 _GERBER_INNER_COPPER_RE = re.compile(r"^\.g\d+$")
 
 _BY_SUFFIX = {
     ".gbrjob": normalize_gbrjob,
     ".drl": normalize_drill,
     ".svg": normalize_svg,
-    ".pdf": normalize_pdf,
+    ".json": normalize_json,
+    ".net": normalize_report,
 }
 _BY_SUFFIX.update({suffix: normalize_gerber for suffix in _GERBER_LAYER_SUFFIXES})
 
 
 def normalize_for(path: Path, data: bytes) -> bytes:
-    """Pick a normalizer by file suffix. Anything without a specific normalizer above
-    (`.net`, `.csv`, `.rpt`, `.pos`, ...) still gets CRLF->LF (DL-0016) — that one
-    applies to every text expected file — but no other rewriting: per the honesty rule (§4),
-    we do not invent a normalizer for a kind of drift we have not observed."""
+    """Pick a normalizer by file suffix. Anything without one (`.csv`, `.d356`) still
+    gets CRLF->LF, which applies to every text answer, but no other rewriting."""
     suffix = path.suffix
     if suffix in _BY_SUFFIX:
         return _BY_SUFFIX[suffix](data)

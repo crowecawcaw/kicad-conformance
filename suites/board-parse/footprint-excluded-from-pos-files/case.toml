@@ -1,3 +1,3 @@
-concept = "attr exclude_from_pos_files removes the footprint from the placement summary entirely, while its copper stays on the board."
+concept = "attr exclude_from_pos_files removes the footprint from pos.csv entirely, while its copper stays on the board."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"

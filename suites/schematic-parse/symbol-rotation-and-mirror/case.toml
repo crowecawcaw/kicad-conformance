@@ -11,5 +11,5 @@ input   = "sheet.kicad_sch"
 # naive X, Y+2.54 you would get by treating the symbol's local Y axis as the sheet's.
 # U2's pin 1 wires to U1 pin 1 (100,100); U3's pin 1 wires to U1 pin 2's transformed point
 # (97.46,100). Falsifiable by changing the angle or dropping the mirror: the wire to
-# U1 pin 2 then misses, and that pin reverts to "unconnected-(U1-Pad2)" in summary.json
+# U1 pin 2 then misses, and that pin reverts to "unconnected-(U1-Pad2)" in netlist.net
 # (SC-24; `mirror` is undocumented per the inventory's §8.7).

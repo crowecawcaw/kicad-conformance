@@ -24,6 +24,6 @@ input   = "lib.kicad_sym"
 # -1.27)` -> `(xy 1.27 1.27)`) changes the curve's shape -- both edits change
 # `render/ArcBezier_unit1.svg`'s bytes (its `<path>` data), while leaving the pin/unit-2
 # body untouched. Neither edit changes the file's line count or any other structural
-# fact `summary.json`-style projections would catch -- this is a pure geometry-in-SVG
-# assertion, which is why `render` (not `summary`, which does not apply to libraries,
+# fact a structured projection would catch -- this is a pure geometry-in-SVG
+# assertion, which is why `render` (the only answer that applies to libraries,
 # TEST_CASE_FORMAT.md §2) is the entire standard answer set here.

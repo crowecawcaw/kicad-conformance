@@ -1,3 +1,3 @@
-concept = "An empty root schematic sheet (title block only, no symbols) parses into an empty-but-well-formed summary."
+concept = "An empty root schematic sheet (title block only, no symbols) parses into an empty-but-well-formed netlist."
 doc     = "sexpr-schematic"
 input   = "sheet.kicad_sch"

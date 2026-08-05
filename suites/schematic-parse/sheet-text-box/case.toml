@@ -17,7 +17,7 @@ input   = "sheet.kicad_sch"
 #
 # Falsifiable (verified in Docker against a scratch copy, NOT regenerated): shrinking
 # the box from `(size 40 25)` to `(size 15 25)` forces the same text to wrap onto more
-# lines, changing `render.svg`'s glyph paths/positions, while `summary.json` (one
+# lines, changing `render.svg`'s glyph paths/positions, while `netlist.net` (one
 # component, no nets) is untouched -- proving the box's dimensions, not just its
 # presence, are exercised. Deleting the `text_box` entirely also changes `render.svg`
-# (the paragraph disappears) with the same unchanged `summary.json`.
+# (the paragraph disappears) with the same unchanged `netlist.net`.

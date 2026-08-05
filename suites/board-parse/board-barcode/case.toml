@@ -29,5 +29,5 @@ input   = "board.kicad_pcb"
 # pattern, changing both `render-F_Cu.svg` and `gerbers/board-F_Cu.gtl` (the module
 # layout is a hash of the text, so almost any edit changes nearly every module);
 # changing `(size 6 6)` to a different value rescales every module, again changing both
-# files, while `summary.json` (no footprints/pads/vias/nets on this board) is untouched
+# files, while `stats.json`/`pos.csv`/`ipcd356.d356` (no footprints/pads/vias/nets on this board) are untouched
 # by either edit -- the barcode is graphics, not connectivity.

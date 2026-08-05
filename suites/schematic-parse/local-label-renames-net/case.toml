@@ -8,4 +8,4 @@ input   = "sheet.kicad_sch"
 # 1 (T2's pin 1 is a zero-length pin, so its electrical point equals the placement
 # origin -- no stub wire is needed for the label to land on it). Proves SC-13: a local
 # label alone -- not a wire -- is what ties two pins into one net, and the net's name in
-# summary.json becomes "/MYNET", not the auto-generated "Net-(U1-Pad1)".
+# netlist.net becomes "/MYNET", not the auto-generated "Net-(U1-Pad1)".

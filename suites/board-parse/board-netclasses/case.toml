@@ -2,6 +2,7 @@ concept = "A (net_class ...) that gives one net a tighter clearance than the boa
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["drc", "roundtrip"]
+xfail   = "DIV-0004"
 
 # Hand-authored fixture (DL-0011). NOT canonicalized with `kicad-cli pcb upgrade --force`
 # -- deliberately, and that is itself a finding: running `upgrade --force` on this exact
@@ -38,17 +39,10 @@ extra   = ["drc", "roundtrip"]
 # `(add_net "NET_A")` line (or the whole `net_class` block) drops NET_A back to the
 # 0.2mm default, and the same 0.3mm gap no longer violates anything -- `drc.json`'s
 # violation count drops from 3 to 2 and the `clearance` entry specifically disappears,
-# while `summary.json`/`render.svg`/gerbers (unaffected by netclass, since these
+# while `stats.json`/`pos.csv`/`render-F_Cu.svg`/gerbers (unaffected by netclass, since these
 # segments' widths are explicit, not netclass-derived) are untouched either way.
 #
-# `roundtrip` (DL-0040): this fixture IS the DIV-0004 reproduction -- `pcb upgrade
-# --force` silently deletes the `(net_class ...)` block on save (confirmed above), and
-# the round-trip invariant is built to notice exactly that: re-running DRC on the
-# re-serialized board drops from 3 violations to 2 and the `clearance` finding vanishes,
-# same numbers as the falsifiability note above. Declared as a known, tracked writer
-# defect rather than a plain failure -- see docs/DIVERGENCES.md DIV-0004.
-[known_divergence]
-kind     = "writer-data-loss"
-answer   = "roundtrip"
-reason   = "kicad-cli 10.0.5's `pcb upgrade --force` silently deletes this board's inline (net_class ...) block on save (verified: `grep -c net_class` on the re-serialized file is 0) -- current kicad-cli only ever writes netclass data into a project's .kicad_pro file. Re-running DRC on the re-serialized board drops from 3 violations to 2 and the `clearance` finding disappears -- see docs/DIVERGENCES.md DIV-0004."
-tracking = "TODO: file upstream"
+# `roundtrip`/`xfail = "DIV-0004"`: this fixture IS the DIV-0004 reproduction -- `pcb
+# upgrade --force` silently deletes the `(net_class ...)` block on save (confirmed
+# above), and the round-trip invariant notices exactly that: re-running DRC on the
+# re-serialized board drops from 3 violations to 2 and the `clearance` finding vanishes.

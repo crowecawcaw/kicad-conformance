@@ -1,7 +1,6 @@
-concept = "A schematic's (bus_alias ...) block is silently dropped by sch upgrade --force, with no trace in the netlist or ERC -- a round-trip write-path loss the standard answers alone can never see."
+concept = "A schematic's (bus_alias ...) block names a bus whose members are separate labelled nets: the alias itself leaves no trace in the exported netlist, which carries only the member nets."
 doc     = "sexpr-schematic#buses"
 input   = "sheet.kicad_sch"
-extra   = ["roundtrip"]
 
 # Hand-authored fixture (DL-0011): two symbols (U1/U2), each driving a labelled stub net
 # ("A"/"B") through a `bus_entry` into a bus wire labelled "MYBUS", plus a top-level
@@ -10,18 +9,3 @@ extra   = ["roundtrip"]
 # (same symbol library, same wiring shape), swapping the vector labels ("D0"/"D1") for
 # named bus-alias members ("A"/"B").
 #
-# `roundtrip` (DL-0040): this is the DIV-0006 reproduction. `sch upgrade --force`
-# silently deletes the `(bus_alias ...)` block on save (verified: `grep -c bus_alias` on
-# the re-serialized file is 0), and -- unlike DIV-0004/DIV-0005 -- NOTHING else moves:
-# `sch export netlist` and `sch erc --severity-all` are byte-identical (modulo the
-# filename/date/tstamps the summary already drops) whether or not the alias is present
-# at all (docs/UNDOCUMENTED.md UD-17; re-verified directly for this case). A
-# `summary`/`erc`-based comparison, however reduced, can therefore never notice this
-# specific loss -- which is exactly why the round-trip invariant's schematic half also
-# builds a targeted `bus_alias` census straight from the file's own s-expression text
-# (DESIGN.md §3e). See docs/DIVERGENCES.md DIV-0006.
-[known_divergence]
-kind     = "writer-data-loss"
-answer   = "roundtrip"
-reason   = "kicad-cli 10.0.5's `sch upgrade --force` silently deletes this schematic's (bus_alias ...) block on save, with no effect on any kicad-cli export (netlist/ERC are byte-identical with or without it) -- see docs/DIVERGENCES.md DIV-0006."
-tracking = "TODO: file upstream"

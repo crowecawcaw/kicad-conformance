@@ -3,19 +3,3 @@ doc     = "sexpr-intro"
 input   = "board.kicad_pcb"
 control = "control.kicad_pcb"          # well-formed board -> must exit 0
 error_contains = "Expecting"           # PCB surfaces e.g. "Expecting ')' ... line 3, offset 2."
-
-# KNOWN ORACLE DIVERGENCE (DL-0018, docs/DIVERGENCES.md, DIV-0001). kicad-cli 10.0.5
-# prints the correct "Expecting" message and then segfaults instead of exiting
-# gracefully -- but ONLY via `pcb upgrade --force`. Since DL-0029 remapped the runner's
-# default `parse-pcb` probe to `pcb export stats` (which rejects this exact fixture
-# gracefully, exit 3 -- verified), this case would otherwise silently become an ordinary
-# PASS and stop documenting the segfault at all. `probe` below deliberately overrides
-# the probe back to the old crashing command for THIS case only, so DIV-0001 keeps being
-# exercised on its own (now non-default) path. Declared as a strict xfail: today's CRASH
-# reports XFAIL; if a future KiCad rejects this cleanly via `pcb upgrade --force` too,
-# the case XPASSes and FAILS the build until the ledger and this marker are updated.
-[known_divergence]
-kind     = "crash"
-probe    = "parse-pcb-upgrade"
-reason   = "kicad-cli 10.0.5 segfaults (SIGSEGV) after printing the correct 'Expecting' parse-position message on this truncated board via `pcb upgrade --force` (no longer the default `parse-pcb` probe, DL-0029 -- this case pins itself to that verb via `probe` specifically to keep this documented), instead of exiting with a graceful non-zero code -- see docs/DIVERGENCES.md."
-tracking = "TODO: file upstream"

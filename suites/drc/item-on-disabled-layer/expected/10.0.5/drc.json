@@ -1,77 +1,115 @@
 {
-  "schematic_parity": [],
-  "unconnected_items": [
-    {
-      "description": "Missing connection between items",
-      "items": [
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
         {
-          "description": "Pad 1 [Net-1] of  on F.Cu",
-          "pos": {
-            "x": 5.0,
-            "y": 10.0
-          }
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
         },
         {
-          "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
-          "pos": {
-            "x": 5.0,
-            "y": 10.0
-          }
-        }
-      ],
-      "severity": "error",
-      "type": "unconnected_items"
-    },
-    {
-      "description": "Missing connection between items",
-      "items": [
-        {
-          "description": "Pad 1 [Net-1] of  on F.Cu",
-          "pos": {
-            "x": 15.0,
-            "y": 10.0
-          }
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
         },
         {
-          "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
-          "pos": {
-            "x": 5.0,
-            "y": 10.0
-          }
-        }
-      ],
-      "severity": "error",
-      "type": "unconnected_items"
-    }
-  ],
-  "violations": [
-    {
-      "description": "Item on a disabled copper layer (layer In1.Cu)",
-      "items": [
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
         {
-          "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
-          "pos": {
-            "x": 5.0,
-            "y": 10.0
-          }
-        }
-      ],
-      "severity": "error",
-      "type": "item_on_disabled_layer"
-    },
-    {
-      "description": "Track has unconnected end",
-      "items": [
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
         {
-          "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
-          "pos": {
-            "x": 5.0,
-            "y": 10.0
-          }
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
         }
-      ],
-      "severity": "warning",
-      "type": "track_dangling"
-    }
-  ]
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "board.kicad_pcb",
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 1 [Net-1] of  on F.Cu",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "Pad 1 [Net-1] of  on F.Cu",
+                    "pos": {
+                        "x": 15.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
+    "violations": [
+        {
+            "description": "Item on a disabled copper layer (layer In1.Cu)",
+            "items": [
+                {
+                    "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "item_on_disabled_layer"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [Net-1] on In1.Cu, length 10.0000 mm",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        }
+    ]
 }

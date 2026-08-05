@@ -9,7 +9,7 @@ input   = "sheet.kicad_sch"
 # unrotated placement transform). Each pin's stub wire carries its own local (label "D0")
 # / (label "D1") and taps into a vertical bus through a (bus_entry ...); the bus itself
 # carries (label "D[0..1]") purely as the vector's documentation. `sch export netlist`
-# resolves the two member wires into distinct nets "/D0" and "/D1" in summary.json,
+# resolves the two member wires into distinct nets "/D0" and "/D1" in netlist.net,
 # proving the vector notation expands per-member rather than collapsing to one bus net
 # (SC-12). A smaller D[0..1] (2 members) was used instead of the inventory's D[0..7]
 # example (8 members) -- two members already proves expansion happens; more members

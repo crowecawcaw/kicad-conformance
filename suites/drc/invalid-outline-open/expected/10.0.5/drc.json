@@ -1,48 +1,84 @@
 {
-  "schematic_parity": [],
-  "unconnected_items": [],
-  "violations": [
-    {
-      "description": "Board has malformed outline (not a closed shape)",
-      "items": [
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
         {
-          "description": "Segment on Edge.Cuts",
-          "pos": {
-            "x": 0.0,
-            "y": 0.0
-          }
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
         },
         {
-          "description": "Segment on Edge.Cuts",
-          "pos": {
-            "x": 0.0,
-            "y": 0.0
-          }
-        }
-      ],
-      "severity": "error",
-      "type": "invalid_outline"
-    },
-    {
-      "description": "Board has malformed outline (not a closed shape) (gap 19.9000 mm)",
-      "items": [
-        {
-          "description": "Segment on Edge.Cuts",
-          "pos": {
-            "x": 0.0,
-            "y": 0.0
-          }
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
         },
         {
-          "description": "Segment on Edge.Cuts",
-          "pos": {
-            "x": 20.0,
-            "y": 20.0
-          }
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
         }
-      ],
-      "severity": "error",
-      "type": "invalid_outline"
-    }
-  ]
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "board.kicad_pcb",
+    "unconnected_items": [],
+    "violations": [
+        {
+            "description": "Board has malformed outline (not a closed shape)",
+            "items": [
+                {
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "invalid_outline"
+        },
+        {
+            "description": "Board has malformed outline (not a closed shape) (gap 19.9000 mm)",
+            "items": [
+                {
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 20.0,
+                        "y": 20.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "invalid_outline"
+        }
+    ]
 }

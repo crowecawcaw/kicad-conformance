@@ -8,7 +8,7 @@ input   = "sheet.kicad_sch"
 # `(rectangle ...)`) also carry `arc`, `circle` and `bezier` directly on the sheet, using
 # the same field shapes `sexpr-intro`'s common "Graphic Items" section defines for
 # footprint/symbol graphics (start/mid/end, center/radius, pts). This fixture places one
-# of each alongside a single T2 component (so summary.json has non-trivial content) with
+# of each alongside a single T2 component (so netlist.net has non-trivial content) with
 # no wire touching any of the four shapes. Falsifiable via render.svg: deleting any one
-# shape changes the render while summary.json (components/nets) stays identical --
+# shape changes the render while netlist.net (components/nets) stays identical --
 # proving these are graphics, not connectivity.

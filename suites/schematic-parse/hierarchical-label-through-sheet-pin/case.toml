@@ -1,7 +1,6 @@
 concept = "A net crosses a sheet boundary through a sheet pin matched by name to a hierarchical_label inside the sub-sheet, not through a global label."
 doc     = "sexpr-schematic#hierarchy"
-inputs  = ["root.kicad_sch", "sub.kicad_sch"]
-root    = "root.kicad_sch"
+input   = "root.kicad_sch"
 
 # Hand-authored fixture (DL-0011), a sibling of hierarchical-sheet/ that swaps the
 # cross-sheet mechanism: the root places U1 and wires its pin 1 to a (pin "SIG" input ...)
@@ -9,8 +8,8 @@ root    = "root.kicad_sch"
 # not a label. Inside sub.kicad_sch, a (hierarchical_label "SIG" ...) wired to U2 pin 1 is
 # what the parent's sheet pin resolves against, purely by NAME (the two files use
 # unrelated local coordinates for "SIG" -- KiCad matches hierarchical sheet pins to
-# hierarchical labels by string, not by position). Proves SC-29: summary.json shows one
+# hierarchical labels by string, not by position). Proves SC-29: netlist.net shows one
 # merged net spanning U1.1 and U2.1 -- named "/sub/SIG", sheet-scoped by the sub-sheet's
 # own name (MEASURED: not the bare "SIG" a global_label would produce -- a hierarchical
 # label's net name carries its sheet prefix, unlike hierarchical-sheet's
-# global_label-based crossing, which lands in summary.json as bare "SIG").
+# global_label-based crossing, which lands in netlist.net as bare "SIG").

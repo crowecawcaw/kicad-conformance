@@ -1,19 +1,53 @@
 {
-  "violations": [
-    {
-      "description": "Unresolved text variable",
-      "items": [
+    "$schema": "https://schemas.kicad.org/erc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
         {
-          "description": "Graphic Text '${NO_SUCH_VAR}'",
-          "pos": {
-            "x": 0.127,
-            "y": 0.127
-          }
+            "description": "Global label only appears once in the schematic",
+            "key": "single_global_label"
+        },
+        {
+            "description": "Four connection points are joined together",
+            "key": "four_way_junction"
+        },
+        {
+            "description": "SPICE model issue",
+            "key": "simulation_model_issue"
+        },
+        {
+            "description": "Assigned footprint doesn't match footprint filters",
+            "key": "footprint_filter"
         }
-      ],
-      "severity": "error",
-      "sheet": "/",
-      "type": "unresolved_variable"
-    }
-  ]
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "sheets": [
+        {
+            "path": "/",
+            "uuid_path": "/NORMALIZED-UUID",
+            "violations": [
+                {
+                    "description": "Unresolved text variable",
+                    "items": [
+                        {
+                            "description": "Graphic Text '${NO_SUCH_VAR}'",
+                            "pos": {
+                                "x": 0.127,
+                                "y": 0.127
+                            },
+                            "uuid": "NORMALIZED-UUID"
+                        }
+                    ],
+                    "severity": "error",
+                    "type": "unresolved_variable"
+                }
+            ]
+        }
+    ],
+    "source": "sheet.kicad_sch"
 }

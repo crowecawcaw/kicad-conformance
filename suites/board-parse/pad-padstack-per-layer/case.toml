@@ -36,7 +36,7 @@ input   = "board.kicad_pcb"
 # to a specific `(layer ...)` block or the top-level fallback.
 #
 # Falsifiable: changing the back override's `(size 1.2 1.2)` to any other value changes
-# ONLY `gerbers/board-B_Cu.gbl`'s aperture macro (and `render-F_Cu.svg`/`summary.json`
+# ONLY `gerbers/board-B_Cu.gbl`'s aperture macro (and `render-F_Cu.svg`/`stats.json`
 # are untouched, since F.Cu's own geometry is unrelated to the back override); changing
 # the inner override's shape from `rect` to `circle` changes ONLY
 # `gerbers/board-In1_Cu.g1` and `board-In2_Cu.g2`'s aperture type identically on both
