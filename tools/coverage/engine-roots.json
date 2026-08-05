@@ -1,0 +1,174 @@
+{
+  "_": [
+    "Root specification for the engine-coverage denominator. See docs/ENGINE_COVERAGE.md.",
+    "",
+    "Every entry names symbols in the pinned instrumented build",
+    "(kicad-conformance/kicad-coverage:10.0.5, KiCad 10.0.5 @ 18fb9289ff0e). A root is",
+    "a place control enters KiCad from outside. Everything transitively reachable from",
+    "the `work` roots is the engine; everything else is out of scope BY CONSTRUCTION,",
+    "not by opinion.",
+    "",
+    "`regex` and `exact` are matched against the demangled-free mangled symbol name",
+    "with any object-file namespace stripped (engine_scope.py:bare)."
+  ],
+
+  "groups": {
+    "cli.main": {
+      "kind": "work",
+      "exact": ["main"],
+      "why": [
+        "kicad/kicad_cli.cpp. Process entry. Reaches PGM_KICAD startup, argparse, the",
+        "COMMAND_ENTRY table walk and COMMAND::Perform. NOTE the `main` node is shared",
+        "with thirdparty/lemon/lemon.c, which gcovr excludes from the report anyway."
+      ]
+    },
+
+    "cli.doPerform": {
+      "kind": "work",
+      "regex": "9doPerformER5KIWAY$",
+      "per_symbol": true,
+      "why": [
+        "CLI::<X>_COMMAND::doPerform(KIWAY&) -- the 30 kicad-cli subcommands plus the",
+        "CLI::COMMAND base. These have to be roots rather than fall out of `main`,",
+        "because the COMMAND objects are file-scope statics (kicad/kicad_cli.cpp:124-176)",
+        "whose only constructor call is in _GLOBAL__sub_I_, and main dispatches through",
+        "COMMAND::Perform -> virtual doPerform. `per_symbol` gives one closure per",
+        "subcommand so a gap can be attributed to the verb that would reach it."
+      ]
+    },
+
+    "kiface.entry": {
+      "kind": "work",
+      "regex": "^_ZN(3PCB|3SCH|2CV)5IFACE(13OnKifaceStart|11OnKifaceEnd|5Reset|14IfaceOrAddress|9HandleJob|16PreloadLibraries|13CancelPreload|14ProjectChanged|10SaveFileAs)",
+      "why": [
+        "kicad-cli dlopen()s _pcbnew/_eeschema/_cvpcb.kiface and calls into them through",
+        "the KIFACE vtable (common/kiway.cpp:759 HandleJob, kiway.cpp KiFACE() ->",
+        "OnKifaceStart, common/project.cpp:433 and eeschema/erc/erc.cpp:1816 ->",
+        "IfaceOrAddress). A static reference graph cannot cross a dlopen boundary or an",
+        "indirect vtable call, so these are explicit roots.",
+        "",
+        "THE RULE FOR CHOOSING THEM, applied to the KIFACE vtable in include/kiway.h:155:",
+        "root every KIFACE virtual whose SIGNATURE is free of GUI types. That excludes",
+        "exactly CreateKiWindow(wxWindow*,int,KIWAY*,int) and HandleJobConfig(JOB*,",
+        "wxWindow*) -- the two that hand back or take a window -- and GetActions(",
+        "std::vector<TOOL_ACTION*>&), which is the interactive tool framework. It is a",
+        "mechanical rule over a 12-entry interface, not a curated file list, and",
+        "`assert_unreachable` below turns it into a checkable claim.",
+        "",
+        "SaveFileAs, ProjectChanged, CancelPreload and PreloadLibraries are rooted even",
+        "though no kicad-cli path is known to call SaveFileAs: rooting them can only",
+        "widen the denominator, which is the safe direction for a coverage figure."
+      ]
+    },
+
+    "static.init": {
+      "kind": "init",
+      "regex": "^_GLOBAL__sub_I_",
+      "why": [
+        "Static initialisers of every object in the build. These genuinely execute on",
+        "every kicad-cli invocation (or every kiface load), so their lines are trivially",
+        "'covered' -- that is the inflation behind cli/jobs' 43.9%. They are also load-",
+        "bearing: KiCad registers DRC test providers, IO plugins and settings schemas",
+        "from file-scope statics, so a closure that ignored them would MISS real engine",
+        "code. Kept, and kept SEPARATE: engine_report.py reports work-reachable lines",
+        "and init-only lines as two columns."
+      ]
+    },
+
+    "gui.excluded.CreateKiWindow": {
+      "kind": "excluded",
+      "regex": "^_ZN(3PCB|3SCH|2CV)5IFACE14CreateKiWindowE",
+      "why": "Returns a wxWindow*. The whole editor-frame/tool/dialog tree hangs off it."
+    },
+    "gui.excluded.HandleJobConfig": {
+      "kind": "excluded",
+      "regex": "^_ZN(3PCB|3SCH)5IFACE15HandleJobConfigE",
+      "why": "Takes a wxWindow* parent; its only caller is kicad/dialogs/panel_jobset.cpp."
+    },
+
+    "gui.excluded.window_signature": {
+      "kind": "excluded",
+      "regex": "(16wxTopLevelWindow|8wxDialog|7wxFrame|8wxBitmap|11wxGLCanvas|10wxGLCanvas|[0-9]wx[A-Za-z]*Event)",
+      "why": [
+        "THE SIGNATURE RULE, applied to every function rather than just the KIFACE",
+        "vtable: a function that takes or returns a top-level wxWidgets GUI type, or a",
+        "wxWidgets *event*, cannot be called by kicad-cli -- it never constructs a window",
+        "and never runs an event loop. Matched on the Itanium-mangled name, so the",
+        "`<length><name>` form makes it an exact token match, not a substring guess.",
+        "`[0-9]wx[A-Za-z]*Event` is the whole wxEvent family (wxCommandEvent,",
+        "wxMouseEvent, wxPaintEvent, wxPanGestureEvent, ...).",
+        "",
+        "`8wxWindow` IS DELIBERATELY ABSENT, and this is the clearest case of the",
+        "validation earning its keep. It was in this list until the positive probe",
+        "(docs/ENGINE_COVERAGE.md 6.1) showed `pcb drc --refill-zones` executing 95 lines",
+        "of pcbnew/zone_filler.cpp that the barrier had just moved out of scope: KiCad's",
+        "ZONE_FILLER_TOOL::FillAllZones( wxWindow* aCaller, ... ) takes a wxWindow* that",
+        "the CLI simply passes as nullptr. A wxWindow* parameter is very often an",
+        "OPTIONAL PARENT, not a proof of GUI-ness. wxDialog/wxFrame/wxTopLevelWindow and",
+        "the event family do not have that escape hatch.",
+        "KiCad's own TOOL_EVENT is likewise not matched, for the same reason.",
+        "",
+        "Needed because RTA seeds off constructors: a file-scope static of a class whose",
+        "vtable contains window-taking methods re-imports the GUI through the back door.",
+        "Measured effect (2026-08-05): the `gui` bucket's contribution to the engine",
+        "denominator, and `common/bitmap_info.cpp`'s 5090-line icon table, which reached",
+        "the closure only through BITMAP_STORE's wxBitmap accessors.",
+        "",
+        "VALIDATED: adding this barrier must not increase the executed-but-out-of-scope",
+        "count (`engine_validate.py negative`). If it does, it has cut something the",
+        "suite demonstrably runs, and it is wrong."
+      ]
+    },
+
+    "gui.excluded.tool_transitions": {
+      "kind": "excluded",
+      "regex": "14setTransitionsEv$",
+      "why": [
+        "TOOL_INTERACTIVE::setTransitions() is where each interactive tool binds its",
+        "TOOL_EVENT handlers. A CLI run has no TOOL_DISPATCHER and no event loop, so no",
+        "transition is ever taken -- but every tool's constructor calls it, which made it",
+        "the single RTA hub that pulled the whole editor tool set into scope (it is the",
+        "edge that put EDA_3D_CANVAS::DisplayStatus 13 hops from a CLI root).",
+        "",
+        "This does NOT exclude tool code the CLI genuinely uses: ZONE_FILLER_TOOL is",
+        "called directly by the DRC/refill path, and the probe run in",
+        "`docs/ENGINE_COVERAGE.md` 6.1 executes 33 of its lines with this barrier in",
+        "place."
+      ]
+    }
+  },
+
+  "deferred_cut": {
+    "^_ZN3CLI21PCB_EXPORT_3D_COMMAND9doPerformER5KIWAY$": "3D/STEP/GLB/VRML export CLI verb -- deferred by DL-0012",
+    "^_ZN3CLI18PCB_RENDER_COMMAND9doPerformER5KIWAY$": "raytraced render CLI verb -- 3D, deferred by DL-0012",
+    "^_ZN3CLI18PCB_IMPORT_COMMAND9doPerformER5KIWAY$": "third-party board import verb -- 'Later/conditional' in ROADMAP.md, see docs/COVERAGE.md 5(c)",
+    "^_ZN19PCBNEW_JOBS_HANDLER13JobExportStepEP3JOB$": "the kiface side of `pcb export step/glb/vrml`",
+    "^_ZN19PCBNEW_JOBS_HANDLER15JobExportRenderEP3JOB$": "the kiface side of `pcb render`",
+    "^_ZN19PCBNEW_JOBS_HANDLER9JobImportEP3JOB$": "the kiface side of `pcb import`",
+    "_deferred_cut_note": [
+      "These are BARRIERS, not roots. The closure is computed twice -- once normally,",
+      "once with these nodes never entered -- and the difference is the code that only",
+      "a deferred CLI path can reach. A per-verb closure cannot answer this, because",
+      "IFACE::HandleJob dispatches on job type and so reaches every job handler from",
+      "the single kiface root; cutting the entry point is the only separable question.",
+      "Both halves of each verb have to be cut: the kicad-cli-side doPerform AND the",
+      "kiface-side handler, because the two are in different binaries and the handler",
+      "is reachable from the jobs-handler constructor, not from doPerform."
+    ]
+  },
+
+  "assert_unreachable": {
+    "^_ZN(3PCB|3SCH|2CV)5IFACE14CreateKiWindowE": "the GUI cut itself: if this is reachable the cut leaked",
+    "^_ZN(3PCB|3SCH)5IFACE15HandleJobConfigE": "same",
+    "^_ZN5KIWAY6PlayerE": "KIWAY::Player creates editor frames (common/kiway.cpp:436)",
+    "^_ZN14PCB_EDIT_FRAMEC": "the pcbnew editor frame constructor",
+    "^_ZN14SCH_EDIT_FRAMEC": "the eeschema editor frame constructor",
+    "^_ZN13EDA_DRAW_FRAMEC": "base class of every editor canvas frame",
+    "^_ZN18PCB_SELECTION_TOOL": "interactive selection tool",
+    "^_ZN9DIALOG_[A-Z_]*C[12]E": "any dialog constructor",
+    "^_ZN1[0-9]DIALOG_[A-Z_]*C[12]E": "any dialog constructor (longer names)",
+    "^_ZN2[0-9]DIALOG_[A-Z_]*C[12]E": "any dialog constructor (longer names)",
+    "^_ZN3PNS": "the interactive push-and-shove router",
+    "^_ZN13EDA_3D_CANVAS": "3D viewer canvas"
+  }
+}

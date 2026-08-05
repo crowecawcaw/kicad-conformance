@@ -1322,6 +1322,96 @@ plus a `[known_divergence]` table; `suites/schematic-parse/schematic-bus-alias/`
 
 ---
 
+## DL-0041 — "The engine" is the reachability closure of the CLI entry points, not a directory list
+**Status:** accepted (2026-08-05)
+
+**Context.** The owner's goal is "complete coverage of the KiCad engine and no coverage of
+the GUI", and the open question was how to measure it. Nothing in the repo could: the
+global figure in [`COVERAGE.md`](COVERAGE.md) (**9.8%**, 49550/504805) divides by all of
+KiCad, ~32% of which is GUI a `kicad-cli` process cannot enter — that document says in as
+many words that the global number "is not a finding". The per-subsystem buckets divide by
+hand-drawn directory prefixes in `collect.sh`, and round 2 measured four of them wrong by
+8–25 points once the GUI was excluded by hand ([`COVERAGE.md`](COVERAGE.md) §3a), while
+`cli/jobs`' 43.9% is inflated by argparse constructors that run on every invocation. A
+denominator built from path patterns also has no failure mode: no experiment falsifies
+"`pcbnew/router/**` is out of scope".
+
+**Decision.** Define the engine as **the transitive closure of the CLI entry points over
+the symbol reference graph of the built objects**, minus an explicitly declared and
+separately verified set of GUI barriers. Out-of-scope becomes a proof, not an opinion.
+
+Mechanised in four new files under `tools/coverage/` and documented in
+[`ENGINE_COVERAGE.md`](ENGINE_COVERAGE.md):
+
+* `engine_elf.py` — parses the 1924 relocatable objects of the pinned instrumented image
+  directly (ELF64, no `readelf`/`objdump` text parsing) into a symbol reference graph:
+  1916316 edges in 168.5 s, no rebuild required. Vtables are nodes, so virtual dispatch
+  resolves as Rapid Type Analysis — deliberately over-approximating, which is the safe
+  direction for a denominator.
+* `engine_scope.py` — the closure, the barriers, and `why SYM` (prints a root→symbol path,
+  so any single verdict is auditable).
+* `engine_lines.py` — joins the closure to gcov's own per-line `function_name`
+  attribution, so the join key is exact.
+* `engine-roots.json` — the declarative root set, the barrier set, the deferred-scope cut,
+  and an `assert_unreachable` block re-checked on every run.
+
+**Rationale.** Three alternatives were weighed and rejected in
+[`ENGINE_COVERAGE.md`](ENGINE_COVERAGE.md) §4. *Linkage-based* filtering is already done by
+the Dockerfile's reduced target set and is not enough — `_pcbnew.kiface` is a 531 MB object
+containing every pcbnew dialog, because the kiface **is** the application.
+*GUI-type exclusion* fails both ways as a primary rule (`pcbnew/board.cpp` mentions no wx
+type and is still 70% unreachable; `bitmap_info.cpp`'s icon table mentions none either),
+but is excellent as an edge filter inside the closure, which is where it is used.
+*Curated paths done rigorously* is what already exists and what already measured wrong.
+`-fcallgraph-info` is the textbook answer and was rejected on reproducibility grounds: it
+needs a 24–30 min rebuild that invalidates the whole BuildKit compile layer, on a machine
+whose Docker has crashed under load.
+
+The decisive property is falsifiability. Every line the rule calls out-of-scope that the
+suite **executed** is a counter-example, and that count is published beside the figure. It
+started at 17118 (34.5% of all executed lines) and is now **2795 (5.6%)**; each drop was a
+real defect the count found and inspection had not — anonymous `.rodata` acting as a
+translation-unit hub, assembler-resolved local calls that carry no relocation (which had
+dropped every statically-registered DRC test provider out of the denominator while the
+suite ran them), and constructor `C1`/`C2`/`C5` aliasing.
+
+**Consequences.**
+
+* **The first engine measurement, 2026-08-05T06:08:24Z, against round 2b's counters:**
+  engine line coverage **46755 / 204964 = 22.8%** (global 9.8% unchanged and reproduced
+  exactly by this pipeline, which is the cross-check that it measures the same tree);
+  engine **function-entry** coverage **5573 / 17407 = 32.0%**; **649 of 1294** engine files
+  never executed a line. 11953 lines are `deferred` (3D/STEP per [DL-0012], `pcb import`
+  per `ROADMAP.md`), 287888 are provably out of scope.
+* **`collect.sh`, `run-suite.sh`, `focus.json` and [`COVERAGE.md`](COVERAGE.md) are
+  unchanged.** This is a second, additive denominator, not a replacement; the two are
+  reconciled in [`ENGINE_COVERAGE.md`](ENGINE_COVERAGE.md) §3.2. Notably the closure
+  reproduces round 2's *hand-derived* `drc` correction (22.2% → 33.4% after excluding
+  `pcbnew/drc/rule_editor/`) as **33.8%** from first principles, never having heard of
+  `rule_editor`.
+* **Static-constructor inflation is measured, not modelled.** `engine-scope.sh floor` runs
+  `kicad-cli version` into an isolated `GCOV_PREFIX` and records what a no-op invocation
+  executes by itself: **4335 engine lines**. The report subtracts it from both sides
+  (earned: 42420/200629 = 21.1%). An earlier design that split static initialisers into
+  their own class was abandoned because it put demonstrably-executed rule-engine code
+  out of scope — KiCad registers DRC providers and IO plugins from file-scope statics.
+* **The headline target changes.** "Complete engine coverage" is an asymptote: the
+  denominator over-approximates by construction (RTA), and much of it is error handling
+  no conformance suite reaches. The closable target is **function-entry coverage and zero
+  in-scope files at zero**. See [`ENGINE_COVERAGE.md`](ENGINE_COVERAGE.md) §7.3 for what a
+  success number looks like.
+* **Known error, left in and named rather than special-cased:** `common/bitmap_info.cpp`
+  (5090 lines, 2.5% of the denominator) is KiCad's icon table and is a false positive; its
+  root→symbol path is printed in [`ENGINE_COVERAGE.md`](ENGINE_COVERAGE.md) §7.1.
+
+**Files.** New: `docs/ENGINE_COVERAGE.md`, `tools/coverage/engine_elf.py`,
+`tools/coverage/engine_scope.py`, `tools/coverage/engine_lines.py`,
+`tools/coverage/engine_validate.py`, `tools/coverage/engine-roots.json`,
+`tools/coverage/engine-scope.sh`. Artifacts under `tools/coverage/out/engine/`.
+No existing file's behaviour is changed.
+
+---
+
 ## Superseded
 
 Entries below are retired: their mechanism no longer exists in the code, and their
