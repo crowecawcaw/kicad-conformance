@@ -200,3 +200,117 @@ revisits. See [DL-0018] and `docs/TEST_CASE_FORMAT.md` §8 for the schema, and
 - **Resolution path:** if a future case ever needs to assert `unconnected_items` on a
   board with this shape, this entry must be resolved (or the case redesigned to avoid the
   ambiguity) first -- do not paper over it with a wider tolerance in the reduction.
+
+---
+
+### DIV-0004 -- `pcb upgrade --force` silently deletes an inline `(net_class ...)` board block
+
+- **Status:** open (confirmed KiCad 10.0.5 defect, tracked as an answer-scoped strict xfail, [DL-0040])
+- **Case:** [`suites/board-parse/board-netclasses`](../suites/board-parse/board-netclasses/case.toml) (`extra = ["drc", "roundtrip"]`, `known_divergence.answer = "roundtrip"`)
+- **Input:** `board.kicad_pcb` -- a hand-authored board with one `(net_class Tight ...)`
+  block giving `NET_A` a tighter clearance (0.5mm) than the board's hardcoded default
+  (0.2mm); see the case's own extensive `case.toml` commentary for why this fixture is
+  hand-authored and never run through `upgrade --force` for its own committed answers.
+- **Command:** `pcb upgrade --force` on a scratch copy (the round-trip check's first
+  half, `adapters/kicad.py`'s `cmd_roundtrip`/`_board_semantic_view`).
+- **Expected (desired) behavior:** the re-serialized board's DRC result is unchanged --
+  the `clearance` violation naming netclass `Tight` still fires, exactly as it does
+  before round-tripping.
+- **Observed behavior (KiCad 10.0.5, Docker Linux, verified directly for this feature,
+  2026-08-05):** `pcb upgrade --force` exits 0 ("Successfully saved board file using the
+  latest format") and silently drops the entire `(net_class ...)` block -- `grep -c
+  net_class` on the re-serialized file returns `0`. Current (20260206) kicad-cli only
+  ever *writes* netclass data into a project's `.kicad_pro` file; the inline board block
+  is read-only/back-compat on the parse side (`parseNETCLASS`) and is never re-emitted.
+  Re-running DRC on the re-serialized board (no `.kicad_pro` alongside it, matching the
+  committed fixture) drops from **3 violations to 2**, and the `clearance` finding
+  disappears entirely -- `NET_A` silently reverts to the board's 0.2mm default.
+- **Why this is a strict xfail, not a plain failure.** The `roundtrip` invariant exists
+  precisely to catch this; scoring it a bare `FAIL` would rot the gating build over a
+  confirmed, already-understood KiCad bug that isn't this repo's to fix. `case.toml`'s
+  `[known_divergence]` (`kind = "writer-data-loss"`, `answer = "roundtrip"`) scores it
+  `XFAIL` instead -- every other answer on the same case (`summary.json`, `drc.json`,
+  `render-F_Cu.svg`, gerbers, drill) is unaffected and still scored as an ordinary
+  PASS/FAIL.
+- **Verdict per this reproduction:** confirmed KiCad bug (silent data loss on a
+  documented, still-parseable construct), not a harness/suite defect. Filed upstream:
+  **TODO**.
+- **Resolution path:** when a KiCad release preserves (or explicitly, loudly rejects) an
+  inline `net_class` block through `upgrade --force`, the check `XPASS`es and fails the
+  build. Fix: remove the `[known_divergence]` table from `board-netclasses/case.toml`,
+  flip this entry's **Status** to `resolved`, and note the fixed version here.
+
+---
+
+### DIV-0005 -- `pcb upgrade --force` silently deletes a thru-hole pad's `(drill 0)`
+
+- **Status:** open (confirmed KiCad 10.0.5 defect, tracked as an answer-scoped strict xfail, [DL-0040])
+- **Case:** [`suites/drc/through-hole-pad-without-hole`](../suites/drc/through-hole-pad-without-hole/case.toml) (`extra = ["drc", "roundtrip"]`, `known_divergence.answer = "roundtrip"`)
+- **Input:** `board.kicad_pcb` -- a `thru_hole` pad whose `(drill 0)` documents "no
+  actual hole," which today reports the single, specific `through_hole_pad_without_hole`
+  DRC finding.
+- **Command:** `pcb upgrade --force` on a scratch copy (`cmd_roundtrip`/
+  `_board_semantic_view`).
+- **Expected (desired) behavior:** the re-serialized board still reports
+  `through_hole_pad_without_hole`, unchanged.
+- **Observed behavior (KiCad 10.0.5, Docker Linux, verified directly for this feature,
+  2026-08-05):** `pcb upgrade --force` exits 0 and the `(drill 0)` token is gone from the
+  re-serialized pad entirely (verified: `grep drill` on the output shows only an
+  unrelated `(drillshape 1)` token from the board's via, no pad-level `drill` at all).
+  DRC on the re-serialized board reports **2** violations of **different** types --
+  `drill_out_of_range` and `padstack_invalid` -- and `through_hole_pad_without_hole` is
+  gone. The pad's declared type is reinterpreted on reload once its explicit
+  zero-diameter hole vanishes, so this is not merely a missing finding but a
+  **different, wrong pair of findings standing in for the original one** -- the same
+  "does not just miss things, it fabricates" shape [DL-0032]'s audit found for a
+  different bug. `summary.json`'s `counts.pads` also moves (the pad's counted type
+  changes), so this defect is visible in more than one projection, unlike DIV-0004/
+  DIV-0006.
+- **Why this is a strict xfail, not a plain failure.** Same reasoning as DIV-0004:
+  `known_divergence` (`kind = "writer-data-loss"`, `answer = "roundtrip"`) scores this
+  `XFAIL`, leaving every other answer on the case scored normally.
+- **Verdict per this reproduction:** confirmed KiCad bug (silent, semantics-changing data
+  loss). Filed upstream: **TODO**.
+- **Resolution path:** when a KiCad release preserves `(drill 0)` (or an equivalent
+  explicit "no hole" marker) through `upgrade --force`, the check `XPASS`es. Fix: remove
+  the `[known_divergence]` table from `through-hole-pad-without-hole/case.toml`, flip
+  this entry's **Status** to `resolved`, and note the fixed version here.
+
+---
+
+### DIV-0006 -- `sch upgrade --force` silently deletes `(bus_alias ...)` blocks, with no other observable trace
+
+- **Status:** open (confirmed KiCad 10.0.5 defect, tracked as an answer-scoped strict xfail, [DL-0040])
+- **Case:** [`suites/schematic-parse/schematic-bus-alias`](../suites/schematic-parse/schematic-bus-alias/case.toml) (`extra = ["roundtrip"]`, `known_divergence.answer = "roundtrip"`)
+- **Input:** `sheet.kicad_sch` -- two symbols each driving a labelled stub net (`A`,
+  `B`) into a bus via `bus_entry`s, a bus wire labelled `MYBUS`, and a top-level
+  `(bus_alias "MYBUS" (members "A" "B"))` block.
+- **Command:** `sch upgrade --force` on a scratch copy (`cmd_roundtrip`/
+  `_sch_semantic_view`), which also builds a `bus_alias` census directly from the
+  schematic's own s-expression text (see `DESIGN.md` §3e).
+- **Expected (desired) behavior:** the re-serialized schematic still contains the
+  `bus_alias` block, and the census (`{"MYBUS": ["A", "B"]}`) is unchanged.
+- **Observed behavior (KiCad 10.0.5, Docker Linux, verified directly for this feature,
+  2026-08-05, corroborating the independent finding already on record at
+  `docs/UNDOCUMENTED.md` UD-17):** `sch upgrade --force` exits 0 and the `(bus_alias
+  ...)` block is gone entirely (`grep -c bus_alias` on the re-serialized file: `0`).
+  Unlike DIV-0004/DIV-0005, **nothing else moves at all**: `sch export netlist` on the
+  two files is identical apart from the embedded filename/timestamp/UUIDs the summary
+  already drops, and `sch erc --severity-all` reports the byte-identical 19 violations
+  (including the same `bus_to_net_conflict`/`net_not_bus_member` findings that show the
+  alias was never honoured by ERC even *before* round-tripping) on both files -- verified
+  directly, not merely cited from UD-17. This is *why* the `roundtrip` invariant's
+  schematic half includes the targeted `bus_alias` census (`DESIGN.md` §3e): a
+  `summary`/`erc`-based comparison alone, however reduced, has no way to ever notice this
+  specific loss, because the alias has no effect on either export whether present or
+  absent.
+- **Why this is a strict xfail, not a plain failure.** `known_divergence` (`kind =
+  "writer-data-loss"`, `answer = "roundtrip"`) scores this `XFAIL`; the case's
+  `summary.json`/`render.svg` are unaffected and scored normally.
+- **Verdict per this reproduction:** confirmed KiCad bug -- round-trip data loss through
+  a documented, still-parseable token, with no compensating signal anywhere in
+  `kicad-cli`'s output. Filed upstream: **TODO**.
+- **Resolution path:** when a KiCad release preserves `bus_alias` through `sch upgrade
+  --force`, the check `XPASS`es. Fix: remove the `[known_divergence]` table from
+  `schematic-bus-alias/case.toml`, flip this entry's **Status** to `resolved`, and note
+  the fixed version here.

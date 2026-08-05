@@ -56,6 +56,7 @@ class KnownDivergence:
     kind: str
     tracking: Optional[str] = None
     probe: Optional[str] = None
+    answer: Optional[str] = None
     # `probe` (DL-0029) is a narrow, deliberate escape hatch, not a general per-case verb
     # knob (DL-0025/DL-0027 removed exactly that): it exists ONLY so a `known_divergence`
     # can keep documenting a crash that lives on a *non-default* code path after the
@@ -68,6 +69,19 @@ class KnownDivergence:
     # and tested instead of silently going untested once the default probe stopped
     # tripping over it. `runner/engine.py`'s `_run_failure_case` substitutes this verb for
     # the derived `LOADER_VERB[kind]` (main check AND control) when set.
+    #
+    # `answer` (DL-0040) is the happy-case counterpart of `probe`: it scopes a divergence
+    # to ONE named recorded answer (e.g. `"roundtrip"`) instead of the whole case. A
+    # rejection case has exactly one check, so `probe`/`kind` alone are enough to score it
+    # (DL-0018/DL-0029, `_run_failure_case`); a happy case has several *independent*
+    # answers (summary, render, gerbers, drill, any `extra`), and a case-wide marker would
+    # have no way to say WHICH one is allowed to diverge -- silently loosening every other
+    # answer's assertion along with it. `answer` names exactly one `Answer.name` (matched
+    # by `runner/engine.py`'s `_apply_known_divergence`, called from `_run_happy_case`);
+    # every other answer on the same case is scored normally, with no divergence layer
+    # applied. The two mechanisms never overlap: `_run_failure_case` only ever consults a
+    # divergence when `answer is None`; `_apply_known_divergence` only ever fires when
+    # `answer` matches the answer being scored.
 
 
 # The extras a case may opt into (TEST_CASE_FORMAT.md §6). One name, one answer file --
@@ -89,6 +103,12 @@ EXTRA_NAMES = frozenset(
         # DL-0037: PDF/DXF export, opt-in (least-diffable formats; not part of any
         # standard battery).
         "pdf", "dxf",
+        # DL-0040: a pure round-trip write-path invariant -- `<kind> upgrade --force`
+        # the input, rebuild the same semantic view (summary + drc/erc, plus a
+        # documented-construct census for schematics) from the re-serialized copy, and
+        # assert it equals the view built from the original. No expected file (there is
+        # nothing to regenerate): see `runner/engine.py`'s `Answer.kind == "invariant"`.
+        "roundtrip",
     }
 )
 
@@ -152,7 +172,12 @@ def _parse_known_divergence(raw: object, where: str) -> Optional[KnownDivergence
     probe = raw.get("probe")
     if probe is not None and not isinstance(probe, str):
         raise CaseError(f"{where}: known_divergence.probe must be a string (a verb name)")
-    return KnownDivergence(reason=reason, kind=kind, tracking=raw.get("tracking"), probe=probe)
+    answer = raw.get("answer")
+    if answer is not None and not isinstance(answer, str):
+        raise CaseError(f"{where}: known_divergence.answer must be a string (an answer name, e.g. 'roundtrip')")
+    return KnownDivergence(
+        reason=reason, kind=kind, tracking=raw.get("tracking"), probe=probe, answer=answer,
+    )
 
 
 def _polarity_from_manifest(control: Optional[str]) -> str:
@@ -223,6 +248,26 @@ def load_case(case_dir: Path) -> Case:
                 f"at all, so `extra` is not valid here"
             )
 
+    known_divergence = _parse_known_divergence(raw.get("known_divergence"), str(toml_path))
+    if known_divergence is not None:
+        # DL-0040: `answer` scopes a divergence to ONE happy-case answer; a rejection
+        # case has exactly one check (scored via `probe`/`kind` alone, DL-0018/DL-0029)
+        # and a happy case has several INDEPENDENT ones -- each polarity must use its own
+        # half of the field, loudly, not silently ignore the other.
+        if polarity == "failure" and known_divergence.answer is not None:
+            raise CaseError(
+                f"{toml_path}: known_divergence.answer is only valid on a happy case -- "
+                f"a rejection case (sets `control`) has exactly one check, scored via "
+                f"`kind`/`probe` alone (DL-0018/DL-0029)"
+            )
+        if polarity == "happy" and known_divergence.answer is None:
+            raise CaseError(
+                f"{toml_path}: a happy case's known_divergence must set `answer`, naming "
+                f"which recorded answer (e.g. 'roundtrip') is expected to diverge (DL-0040) "
+                f"-- a happy case has several independent answers, and a case-wide marker "
+                f"would silently loosen every one of them, not just the one that diverges"
+            )
+
     return Case(
         path=case_dir,
         concept=raw["concept"],
@@ -234,7 +279,7 @@ def load_case(case_dir: Path) -> Case:
         error_contains=error_contains,
         error_contains_any=list(error_contains_any) if error_contains_any else None,
         skip_reason=raw.get("skip_reason"),
-        known_divergence=_parse_known_divergence(raw.get("known_divergence"), str(toml_path)),
+        known_divergence=known_divergence,
         polarity=polarity,
     )
 

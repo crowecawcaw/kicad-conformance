@@ -315,6 +315,26 @@ def answer_for_extra(name: str) -> Answer:
             "pdf", verb="export-pdf", expected_name="pdf.pdf", kind="file",
             artifact=lambda out, inp: out / "pdf.pdf",
         )
+    if name == "roundtrip":
+        # DL-0040: round-trip write-path testing. `PCB_IO_KICAD_SEXPR::format` (the
+        # writer half of the board/schematic format) had ZERO coverage -- every case
+        # reads KiCad's files and none writes them. Rather than resurrect the L1
+        # byte-re-serialize layer DL-0024 deleted (which over-fits KiCad's exact
+        # formatting and is useless cross-implementation), this is a PURE INVARIANT: no
+        # expected file, nothing to regenerate, nothing to churn on a KiCad bump.
+        #
+        # The `roundtrip` verb (adapters/kicad.py's `cmd_roundtrip`) does the entire
+        # comparison-input composition itself -- `<kind> upgrade --force`s a scratch copy
+        # and builds the SAME semantic view (summary + drc/erc, plus a schematic's
+        # bus_alias census -- see module docstring there) from both the original and the
+        # re-serialized file, writing `{"original": ..., "roundtripped": ...}` to
+        # `roundtrip.json`. `kind="invariant"` (below) is the one answer kind that never
+        # touches `expected/` in either direction: `_compare_invariant` asserts the two
+        # halves of THAT SAME artifact are equal to each other, not to a committed file.
+        return Answer(
+            "roundtrip", verb="roundtrip", expected_name="roundtrip.json", kind="invariant",
+            artifact=lambda out, inp: out / "roundtrip.json",
+        )
     if name == "dxf":
         # DL-0037: DXF_plotter.cpp (0/651, docs/COVERAGE.md) -- board-only, opt-in.
         # Verified byte-identical run-to-run (no normalizer registered for `.dxf`;
@@ -329,7 +349,7 @@ def answer_for_extra(name: str) -> Answer:
 
 assert set() == EXTRA_NAMES - {
     "drc", "erc", "pos", "stats", "ipcd356", "netlist", "summary-kicadxml",
-    "refill-zones", "parity", "pdf", "dxf",
+    "refill-zones", "parity", "pdf", "dxf", "roundtrip",
 }, "answer_for_extra must handle every name in manifest.EXTRA_NAMES"
 
 
@@ -389,6 +409,17 @@ def expected_normalized(case: Case, answer: Answer, version: str):
         if not expected_path.exists():
             raise FileNotFoundError(f"{answer.name}: no committed expected directory at {expected_path}")
         return dir_snapshot(expected_path, normalized=True)
+    if answer.kind == "invariant":
+        # DL-0040: a `kind="invariant"` answer (`roundtrip`) has no committed
+        # `expected/` file by design (it compares two halves of the SAME run's artifact
+        # to each other, never to a recorded answer) -- there is nothing here to read.
+        # `generate_and_compare_against_committed` skips this kind entirely before ever
+        # reaching this function; this branch exists only so a future caller gets a
+        # clear error instead of a confusing missing-file one.
+        raise ValueError(
+            f"{answer.name}: kind='invariant' answers have no expected/ file to read "
+            f"(DL-0040) -- callers must skip this kind, not call expected_normalized on it"
+        )
     raise ValueError(f"no expected-normalized reader for answer kind {answer.kind!r}")
 
 
@@ -423,6 +454,19 @@ def generate_and_compare_against_committed(
     input_path = input_paths[0]
     for answer in answers:
         if not engine.adapter.supports(answer.verb):
+            continue
+        if answer.kind == "invariant":
+            # DL-0040: `roundtrip` has no committed `expected/` answer to compare a
+            # perturbation against -- it asserts the original and re-serialized halves
+            # of ONE run agree with EACH OTHER, which a perturbed input doesn't change
+            # the shape of. Falsifiability for this answer comes from a different place
+            # (like a rejection case's `control`): it is already known to fail on real
+            # writer defects (docs/DIVERGENCES.md DIV-0004/0005/0006), which is the
+            # falsifiability proof -- see docs/ASSERTED_COVERAGE.md's `--verify-
+            # assertions` scope note in docs/DECISIONS.md DL-0040. The case's OTHER
+            # answers (summary.json, drc.json, ...) still need a `perturb/` per the
+            # ordinary DL-0030 ratchet; this one is simply skipped here, not counted as
+            # unverifiable.
             continue
         out_dir = tmp_root / f"{label_prefix}_{answer.name}"
         result = engine.adapter.invoke(answer.verb, input_paths, out_dir, root=case.root, fmt=answer.fmt)
@@ -491,6 +535,14 @@ def raw_snapshot(answer: Answer, out_dir: Path, input_path: Path):
         return artifact.read_bytes()
     if answer.kind == "dir":
         return dir_snapshot(artifact, normalized=False)
+    if answer.kind == "invariant":
+        # roundtrip (DL-0040): the artifact IS already the fully-reduced comparison
+        # document (`{"original": ..., "roundtripped": ...}`, built from already-
+        # deterministic `summary`/`drc`/`erc` reductions plus the `bus_alias` census) --
+        # there is no further reduction step, so raw and normalized are the same read.
+        if not artifact.exists():
+            raise FileNotFoundError(f"{answer.name}: no artifact written at {artifact}")
+        return _json_bytes(artifact)
     raise ValueError(f"no raw snapshot for answer kind {answer.kind!r}")
 
 
@@ -508,6 +560,8 @@ def normalized_snapshot(answer: Answer, out_dir: Path, input_path: Path):
         return normalize.normalize_for(artifact, artifact.read_bytes())
     if answer.kind == "dir":
         return dir_snapshot(artifact, normalized=True)
+    if answer.kind == "invariant":
+        return _json_bytes(artifact)
     raise ValueError(f"no normalized snapshot for answer kind {answer.kind!r}")
 
 
@@ -566,15 +620,18 @@ class Engine:
                 continue
 
             if answer.kind == "json":
-                results.append(self._compare_json(case, answer, label, out_dir, input_path))
+                result = self._compare_json(case, answer, label, out_dir, input_path)
             elif answer.kind == "svg":
-                results.append(self._compare_svg(case, answer, label, out_dir, input_path))
+                result = self._compare_svg(case, answer, label, out_dir, input_path)
             elif answer.kind == "file":
-                results.append(self._compare_file(case, answer, label, out_dir, input_path))
+                result = self._compare_file(case, answer, label, out_dir, input_path)
             elif answer.kind == "dir":
-                results.append(self._compare_dir(case, answer, label, out_dir, input_path))
+                result = self._compare_dir(case, answer, label, out_dir, input_path)
+            elif answer.kind == "invariant":
+                result = self._compare_invariant(answer, label, out_dir, input_path)
             else:
                 raise ValueError(f"answer kind {answer.kind!r} has no comparator")
+            results.append(self._apply_known_divergence(case, label, result))
 
         if not results:
             return CaseResult(case=case, skipped=True, skip_reason="no answer's verb is supported by this adapter")
@@ -696,6 +753,62 @@ class Engine:
         if mismatches:
             return CheckResult(label, FAIL, f"{label}: {len(mismatches)} file(s) differ vs {expected_dir}: {mismatches}")
         return CheckResult(label, PASS)
+
+    def _compare_invariant(self, answer: Answer, label: str, out_dir: Path, input_path: Path) -> CheckResult:
+        # roundtrip (DL-0040): the ONE answer kind that never reads or writes
+        # `expected/`. The adapter has already built BOTH halves of the comparison into
+        # one artifact (`{"original": ..., "roundtripped": ...}`) -- this just asserts
+        # they're equal. `--regenerate` does not apply here (there is nothing to
+        # (re)write for a pure invariant); this check runs the same way in every mode.
+        artifact = answer.artifact(out_dir, input_path)
+        if not artifact.exists():
+            return CheckResult(label, FAIL, f"{label}: adapter did not write invariant artifact at {artifact}")
+        doc = json.loads(artifact.read_text(encoding="utf-8"))
+        if "original" not in doc or "roundtripped" not in doc:
+            return CheckResult(
+                label, FAIL,
+                f"{label}: malformed invariant artifact at {artifact} -- expected "
+                f"top-level 'original'/'roundtripped' keys, got {sorted(doc.keys())}",
+            )
+        original, roundtripped = doc["original"], doc["roundtripped"]
+        if original == roundtripped:
+            return CheckResult(label, PASS)
+        notes = reduce.describe_structured_mismatch(original, roundtripped)
+        return CheckResult(
+            label, FAIL,
+            f"{label}: round-trip semantic mismatch -- re-serializing the fixture and "
+            f"reading it back no longer means the same thing as the original ({'; '.join(notes)}). "
+            f"The writer lost or changed information the reader accepted.",
+        )
+
+    def _apply_known_divergence(self, case: Case, label: str, result: CheckResult) -> CheckResult:
+        """Reinterpret ONE happy-case answer's result as a declared, tracked oracle
+        divergence (DL-0018's strict-xfail layer, extended by DL-0040 to a single named
+        answer instead of the whole case). A no-op unless `case.known_divergence.answer`
+        names exactly this answer's `label` -- every other answer on the same case is
+        scored as-is, so a divergence on `roundtrip` can never launder a genuine mismatch
+        in `summary.json`/`drc.json`/anything else."""
+        kd = case.known_divergence
+        if kd is None or kd.answer != label:
+            return result
+        if result.status == PASS:
+            detail = (
+                f"{label}: XPASS -- known divergence ({kd.kind}) no longer reproduces: "
+                f"this answer now matches instead of diverging as declared. Update "
+                f"docs/DIVERGENCES.md and remove the `known_divergence` marker from "
+                f"case.toml.\n  declared reason: {kd.reason}"
+            )
+            if kd.tracking:
+                detail += f"\n  tracking: {kd.tracking}"
+            return CheckResult(label, XPASS, detail)
+        if result.status in (FAIL, CRASH):
+            detail = f"{label}: XFAIL (known divergence, kind={kd.kind}) -- {kd.reason}"
+            if kd.tracking:
+                detail += f" [tracking: {kd.tracking}]"
+            detail += f"\n{result.detail}"
+            return CheckResult(label, XFAIL, detail)
+        # NEEDS_REGEN/SKIP/REGENERATED aren't a verdict this layer reinterprets.
+        return result
 
     # --- rejection case: the type's loader, exit + stderr + control -----------------
 

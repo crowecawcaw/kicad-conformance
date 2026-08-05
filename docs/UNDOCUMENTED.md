@@ -638,6 +638,13 @@ silently does nothing in the CLI. Any CLI-driven flow (CI netlist generation, au
 BOM) on a design that uses bus aliases produces wrong connectivity and reports ERC errors
 that the GUI would not.
 
+**Now a tracked, tested case.** [DL-0040]'s round-trip write-path testing formalizes this
+as `suites/schematic-parse/schematic-bus-alias` (`extra = ["roundtrip"]`,
+`known_divergence.answer = "roundtrip"`) and `docs/DIVERGENCES.md`'s DIV-0006 — this is
+the finding that motivated that check to include a targeted `bus_alias` census
+(`DESIGN.md` §3e) rather than rely on `summary`/`erc` alone, precisely because this entry
+already showed neither would ever notice the loss.
+
 ---
 
 ### UD-18 — Schematic tokens 10.0.5 writes that the page does not document **[DOC]**

@@ -1206,6 +1206,122 @@ unwired.
 
 ---
 
+## DL-0040 — `roundtrip` extra: round-trip write-path testing as a pure semantic invariant, not a resurrected byte layer
+**Status:** accepted (2026-08-05)
+
+**Context.** A coverage sweep found every overload of `PCB_IO_KICAD_SEXPR::format` at
+0% — the suite reads every KiCad file format and writes none of them, which is half the
+file-format contract this project exists to test, entirely untested. This is not an
+oversight to patch quietly: [DL-0024] deleted the old L1 layer (a byte comparison of
+`... upgrade --force`'s re-saved output against the original) *on purpose*, because a
+byte golden pins KiCad's own formatting (token order, whitespace, which fields get
+re-emitted) and fails a second, equally-conformant implementation for reasons that are
+not bugs. Simply re-adding L1 would repeat that mistake to close this gap.
+
+**Decision.** A new `roundtrip` extra (`TEST_CASE_FORMAT.md` §6) tests the writer
+**semantically**: `<kind> upgrade --force`s a scratch copy of the fixture, then builds
+the SAME semantic view — the existing `summary` composition, plus a `drc`/`erc` run,
+plus (schematic only) a targeted `bus_alias` census — from both the original and the
+re-serialized file, and asserts they are equal. This is a **pure invariant, not a
+recorded answer**: the comparison artifact, `roundtrip.json`, holds
+`{"original": ..., "roundtripped": ...}` and is never written to or read from
+`expected/`. `--regenerate` is a no-op for it.
+
+**Why a pure invariant, not an answer file (the design choice the task explicitly
+called out as needing a deliberate decision).** An answer-file design would commit
+`expected/<version>/roundtrip.json` and compare a fresh run's round-tripped output
+against that committed snapshot, the same shape every other extra uses. This was
+rejected: the "correct" content of that snapshot is circular — it can only ever be
+"whatever `<kind> upgrade --force` currently produces," captured the first time someone
+ran `--regenerate`. If the writer has a bug (as three now-confirmed cases show it does),
+`--regenerate` would silently bake the buggy output in as "the answer," and the case
+would pass forever regardless of the defect — the identical failure mode DIV-0002
+documents for `ipcd356`'s uninitialised `soldermask` field, arrived at generically
+instead of by accident. A pure invariant has no such snapshot to go stale: there is
+nothing to regenerate, and nothing to churn when the pinned `kicad-cli` version bumps.
+
+**Why the semantic view is `summary` + `drc`/`erc` (+ a targeted census), not `summary`
+alone.** Verified directly against the three defects used as this feature's acceptance
+test (below): a lost inline `(net_class ...)` block and a pad's vanished `(drill 0)`
+change nothing in `stats`/`pos`/`ipcd356` — neither is a `summary.json` field
+(`DESIGN.md` §3b.1) — but change what `pcb drc` reports. A schematic's dropped
+`(bus_alias ...)` block is invisible to *everything* `kicad-cli` exports: `sch export
+netlist`/`sch erc` were verified to produce byte-identical output whether or not the
+alias is present at all (`docs/UNDOCUMENTED.md` UD-17), so no summary- or ERC-based
+comparison, however reduced, could ever notice it disappearing on save. A schematic
+`roundtrip` therefore also builds a narrow, targeted `bus_alias` census read directly
+from the file's own s-expression text (`runner/reduce.py`'s existing minimal reader —
+the same idiom `runner/summary.py` already uses to walk a netlist, NOT a general
+s-expression comparator and NOT a byte diff: it is insensitive to whitespace, ordering,
+and every other token in the file). Composing from more than one projection, and adding
+the census, is not scope creep — a `summary`-only invariant would have missed two of
+the three known losses.
+
+**Acceptance test: does it detect all three known writer losses?** Yes, verified
+directly (Docker, `kicad/kicad:10.0.5`), and this is the bar the feature was held to,
+not an incidental result:
+
+| Divergence | Loss | What moves |
+|---|---|---|
+| DIV-0004 | inline `(net_class ...)` dropped from a board | `drc`: 3 violations → 2 (the `clearance` finding vanishes) |
+| DIV-0005 | a thru-hole pad's `(drill 0)` dropped | `drc`: `through_hole_pad_without_hole` → `{drill_out_of_range, padstack_invalid}`; `summary.counts.pads` also moves |
+| DIV-0006 | a schematic's `(bus_alias ...)` dropped | `bus_aliases`: `{"MYBUS": ["A","B"]}` → `{}`; nothing else moves |
+
+Also verified: run against a defect-free board and a defect-free schematic (the existing
+`populated-board`/`two-nets-one-shared-pin` fixtures), `original == roundtripped`
+exactly — no false positive.
+
+**Known-loss handling extends `known_divergence` (DL-0018) to a single happy-case
+answer.** DL-0018's strict-xfail layer was built for rejection cases, which have
+exactly one check. A happy case has several independent answers (the standard battery
+plus any `extra`), so `known_divergence` gains an `answer` field: set, it scopes the
+XFAIL/XPASS reinterpretation to ONE named answer (`runner/engine.py`'s
+`_apply_known_divergence`, called from `_run_happy_case`); every other answer on the
+same case is still scored as an ordinary PASS/FAIL. `manifest.py` now requires `answer`
+on a happy case's `known_divergence` and forbids it on a rejection case's, so the two
+mechanisms (`_run_failure_case`'s whole-case scoring vs. this new per-answer scoring)
+can never both apply to the same case and can never silently pick the wrong one.
+`board-parse/board-netclasses` and `drc/through-hole-pad-without-hole` (the two
+hand-authored fixtures that motivated DIV-0004/DIV-0005 originally) both gain
+`extra = ["roundtrip"]` plus this marker rather than new cases, since they already
+demonstrate the exact defect; a new case, `schematic-parse/schematic-bus-alias`, is
+authored for DIV-0006 (no existing fixture used a `bus_alias`).
+
+**Falsifiability, and why `roundtrip` needs no `perturb/` of its own.** [DL-0030]'s
+`--verify-assertions` checks that a perturbed input makes at least one *committed*
+answer differ — `roundtrip` has no committed answer, so there is nothing for that
+mechanism to check. This is not a gap: a rejection case's `control` plays exactly this
+role without a `perturb/` either (§7, DL-0013), and `roundtrip` is falsifiable the same
+way — it is *already* known to fail on three real, confirmed defects, which is a
+stronger falsifiability proof than one hand-picked perturbation would be.
+`answers_in_assertion_order`'s perturbation walk (`runner/engine.py`) skips
+`kind="invariant"` answers explicitly rather than erroring on the missing expected
+file. A `roundtrip` case's OTHER answers (`summary.json`, `drc.json` if `extra =
+["drc"]` is also set) are unaffected and still need an ordinary `perturb/` under the
+existing ratchet.
+
+**Scope.** Board and schematic only. Symbol/footprint libraries are deliberately out of
+scope for this decision: `kicad-cli` 10.0.5 has no structured export to build a semantic
+view from beyond `render` (`DESIGN.md` §3b.4), so a library round-trip check would have
+to compare rendered SVGs before/after `sym`/`fp upgrade --force` — plausible future work,
+not implemented here, and not needed to close the acceptance test above.
+
+**Consequences.** `runner/manifest.py` (`EXTRA_NAMES` gains `"roundtrip"`;
+`KnownDivergence.answer`; `load_case`'s new polarity/`answer` cross-validation).
+`runner/engine.py` (`Answer.kind == "invariant"`; `answer_for_extra("roundtrip")`;
+`Engine._compare_invariant`; `Engine._apply_known_divergence`, now called for every
+happy-case answer; `generate_and_compare_against_committed` skips `kind="invariant"`;
+`expected_normalized` gains a defensive branch for it). `adapters/kicad.py` (new
+`roundtrip` verb, `cmd_roundtrip`, `_board_semantic_view`, `_sch_semantic_view`,
+`_census_bus_aliases`). `docs/DESIGN.md` §2's verb table and new §3e. `docs/
+TEST_CASE_FORMAT.md` §6's extras table and §8's `known_divergence` field table.
+`docs/DIVERGENCES.md` gains DIV-0004/DIV-0005/DIV-0006.
+`suites/board-parse/board-netclasses/case.toml` and
+`suites/drc/through-hole-pad-without-hole/case.toml` each gain `"roundtrip"` in `extra`
+plus a `[known_divergence]` table; `suites/schematic-parse/schematic-bus-alias/` is new.
+
+---
+
 ## Superseded
 
 Entries below are retired: their mechanism no longer exists in the code, and their

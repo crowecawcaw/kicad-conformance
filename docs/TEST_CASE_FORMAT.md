@@ -278,9 +278,21 @@ Each name adds exactly one more answer, and the name is the filename:
 | `parity` | a DRC run with `--schematic-parity` against a same-stem `.kicad_sch` sibling (§4 below) — board/schematic parity findings ([DL-0038]) | `parity.json` |
 | `pdf` | a PDF export (board: fixed `F.Cu` layer, single file; schematic: the whole hierarchy, one multi-page file) ([DL-0037]) | `pdf.pdf` |
 | `dxf` | a DXF export of the board (fixed `F.Cu` layer) — board-only, kicad-cli has no `sch export dxf` ([DL-0037]) | `dxf.dxf` |
+| `roundtrip` | round-trip write-path testing: `<kind> upgrade --force`s the fixture and asserts the re-serialized copy's semantic view (summary + drc/erc, plus a schematic's `bus_alias` census) equals the original's — board or schematic only ([DL-0040]) | `roundtrip.json`, but see below — **never committed to `expected/`** |
 
-That `summary-kicadxml` row is the only entry that adds no file, and it is the reason the
-list is strings rather than a lookup by filename.
+That `summary-kicadxml` row adds no file, and `roundtrip` adds a file that is never
+committed — between the two, that is why the list is strings rather than a lookup by
+filename.
+
+**`roundtrip` is a pure invariant, not a recorded answer.** Every other extra's file
+lands under `expected/<version>/` and is regenerated/diff-reviewed on a KiCad bump.
+`roundtrip.json` never does: it holds `{"original": ..., "roundtripped": ...}`, both
+halves built by the SAME run, and the check is simply that they're equal. There is
+nothing to regenerate and nothing to churn when the pinned `kicad-cli` bumps ([DL-0040]
+weighs this against recording an answer file and explains why an answer file would
+silently bake in whatever the writer currently does, bug included, the first time
+someone ran `--regenerate`). A case that wants this extra needs no `expected/` entry for
+it at all — `--regenerate` is a no-op for this answer.
 
 **`refill-zones`/`parity` inherit a nondeterminism risk from plain `drc`, not one they
 introduce.** Both extras record the same three-part shape `drc` does
@@ -346,11 +358,30 @@ behaviour the case asserts:
 | `kind` | **yes** | string | The category — currently `"crash"`. |
 | `tracking` | no | string | Upstream issue URL/id, or `"TODO: file upstream"`. |
 | `probe` | no | string | A verb name that overrides the derived loader verb for THIS case only ([DL-0029]). A narrow escape hatch, not a general per-case verb knob — its only current use is `rejects-unterminated-sexpr` pinning itself to `"parse-pcb-upgrade"` so it keeps exercising a crash that moved off the default `parse-pcb` probe's path. |
+| `answer` | cond | string | **Required on a happy case, forbidden on a rejection case** ([DL-0040]). Names the ONE recorded answer (e.g. `"roundtrip"`) this divergence applies to — a happy case has several independent answers, and a case-wide marker would silently loosen every one of them, not just the one that's expected to diverge. |
 
 If the actual verdict matches the declared `kind`, the case scores **`XFAIL`** and the
 build stays green. If it instead comes back clean — the oracle got fixed — that is an
 **`XPASS`**, which **fails the build** until a human retires the marker and updates the
 ledger. A bad verdict that is *not* the declared kind is an ordinary `FAIL`/`CRASH`.
+
+**A rejection case has exactly one check**, so `kind`/`probe` alone say everything there
+is to say about it (§9's worked example, [DL-0018]/[DL-0029]). **A happy case has
+several** (the standard battery plus any `extra`), so a `known_divergence` on a happy
+case must also set `answer`, naming which one is expected to diverge — every other
+answer on the same case is still scored normally, FAIL and all. This is how
+`extra = ["roundtrip"]` documents a confirmed writer defect (§6, [DL-0040]) without
+loosening the same case's `summary.json`/`drc.json` assertions:
+
+```toml
+extra = ["drc", "roundtrip"]
+
+[known_divergence]
+kind     = "writer-data-loss"
+answer   = "roundtrip"
+reason   = "kicad-cli 10.0.5's `pcb upgrade --force` silently deletes this board's inline (net_class ...) block -- see docs/DIVERGENCES.md DIV-0004."
+tracking = "TODO: file upstream"
+```
 
 ---
 

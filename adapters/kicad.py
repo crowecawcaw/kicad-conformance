@@ -50,6 +50,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
+from runner import reduce as reducemod  # noqa: E402
 from runner import summary as summarymod  # noqa: E402
 
 # The verbs this adapter implements, answered by the `capabilities` meta-verb (DESIGN.md
@@ -61,6 +62,7 @@ IMPLEMENTED_VERBS = (
     "version", "parse-sch", "parse-pcb", "parse-pcb-upgrade", "parse-sym", "parse-fp",
     "summary", "erc", "drc", "drc-refill-zones", "drc-parity", "netlist", "pos", "stats",
     "ipcd356", "render", "export-gerbers", "export-drill", "export-pdf", "export-dxf",
+    "roundtrip",
 )
 
 
@@ -709,6 +711,152 @@ def cmd_summary(cli: str, ins: list[str], out: str, root: str | None, fmt: str |
     sys.exit(0)
 
 
+def _board_semantic_view(cli: str, board_path: Path) -> dict:
+    """Everything `roundtrip` asserts about a board: the same `summary` composition
+    `cmd_summary` builds (`stats`+`pos`+`ipcd356`), plus a `drc` run -- DRC is what
+    actually observes a dropped inline `(net_class ...)` block or a pad's vanished
+    `(drill 0)` (neither changes `stats`/`pos`/`ipcd356` themselves: a net-class-only
+    clearance rule and a pad's hole are not summary fields, DESIGN.md §3b.1 -- verified
+    directly against `suites/board-parse/board-netclasses` and
+    `suites/drc/through-hole-pad-without-hole`, see docs/DIVERGENCES.md DIV-0004/DIV-0005).
+    `board_path` must already be a scratch copy (with recognized siblings alongside it,
+    `_scratch_copy_board`) -- this function only reads exports, never copies anything
+    itself."""
+    scratch = _fresh_scratch_dir()
+    stats_path = scratch / "stats.json"
+    pos_path = scratch / "pos.csv"
+    d356_path = scratch / "board.d356"
+    drc_path = scratch / "drc.json"
+    steps = [
+        [cli, "pcb", "export", "stats", "--format", "json", "-o", str(stats_path), str(board_path)],
+        [cli, "pcb", "export", "pos", "--format", "csv", "--side", "both",
+         "--units", "mm", "-o", str(pos_path), str(board_path)],
+        [cli, "pcb", "export", "ipcd356", "-o", str(d356_path), str(board_path)],
+        [cli, "pcb", "drc", "--format", "json", "--units", "mm", "--severity-all",
+         "-o", str(drc_path), str(board_path)],
+    ]
+    for step in steps:
+        rc = _run_step(step)
+        if rc != 0:
+            _relay_and_exit(rc)
+    summary = summarymod.build_board_summary(
+        json.loads(stats_path.read_text(encoding="utf-8")),
+        pos_path.read_text(encoding="utf-8"),
+        d356_path.read_text(encoding="utf-8"),
+    )
+    drc = reducemod.reduce_drc(json.loads(drc_path.read_text(encoding="utf-8")))
+    return {"summary": summary, "drc": drc}
+
+
+def _census_bus_aliases(sch_text: str) -> dict[str, list[str]]:
+    """A narrowly-scoped STRUCTURAL census of `(bus_alias "NAME" (members "A" "B" ...))`
+    top-level blocks -- name -> sorted member list -- read directly from the
+    schematic's own s-expression text via `runner/reduce.py`'s existing minimal reader
+    (`parse_all`/`find_all`/`find_one`; the same idiom `runner/summary.py`'s
+    `_sexpr_components` already uses to walk a netlist). This is NOT a byte diff (it is
+    insensitive to whitespace, indentation, and block order) and NOT a general
+    s-expression comparator -- it exists only because `bus_alias` is a documented,
+    genuinely lossy round-trip case with NO other observable trace: verified directly
+    (docs/UNDOCUMENTED.md UD-17, re-confirmed for this feature, DIVERGENCES.md DIV-0006)
+    that `sch export netlist`/`sch erc` produce BYTE-IDENTICAL output whether or not the
+    alias is present at all -- so a `summary`/`erc`-based comparison alone can never
+    flag this loss, no matter how it's reduced."""
+    forms = reducemod.parse_all(sch_text)
+    if not forms:
+        return {}
+    root = forms[0]
+    census: dict[str, list[str]] = {}
+    for form in reducemod.find_all(root, "bus_alias"):
+        name = form[1] if len(form) > 1 and isinstance(form[1], str) else ""
+        members_form = reducemod.find_one(form, "members")
+        members = [m for m in (members_form[1:] if members_form else []) if isinstance(m, str)]
+        census[name] = sorted(members)
+    return census
+
+
+def _sch_semantic_view(cli: str, sch_path: Path) -> dict:
+    """Everything `roundtrip` asserts about a schematic: the same `summary` composition
+    `cmd_summary` builds (`sch export netlist`), an `erc` run, and the `bus_alias`
+    census above. `sch_path` must already be a scratch copy of the ROOT sheet (produced
+    by `_scratch_copy_all`, sibling sheets alongside it) -- like `cmd_parse`'s `sch`
+    branch, this only round-trips/re-reads the ROOT file; a sub-sheet's own losses are
+    out of scope for this first cut (matching `cmd_parse`'s existing single-sheet-rewrite
+    scope, DL-0032's docstring)."""
+    scratch = _fresh_scratch_dir()
+    net_path = scratch / "netlist.net"
+    erc_path = scratch / "erc.json"
+    rc = _run_step(
+        [cli, "sch", "export", "netlist", "--format", "kicadsexpr", "-o", str(net_path), str(sch_path)]
+    )
+    if rc != 0:
+        _relay_and_exit(rc)
+    rc = _run_step(
+        [cli, "sch", "erc", "--format", "json", "--severity-all", "-o", str(erc_path), str(sch_path)]
+    )
+    if rc != 0:
+        _relay_and_exit(rc)
+    summary = summarymod.build_schematic_summary(net_path.read_text(encoding="utf-8"), "kicadsexpr")
+    erc = reducemod.reduce_erc(json.loads(erc_path.read_text(encoding="utf-8")))
+    bus_aliases = _census_bus_aliases(sch_path.read_text(encoding="utf-8"))
+    return {"summary": summary, "erc": erc, "bus_aliases": bus_aliases}
+
+
+def cmd_roundtrip(cli: str, ins: list[str], out: str, root: str | None) -> None:
+    """New verb: `roundtrip` (DL-0040) -- round-trip write-path testing.
+
+    `PCB_IO_KICAD_SEXPR::format`'s every overload sat at 0% coverage: the suite reads
+    KiCad's files and never writes them. Rather than resurrect the L1 byte-re-serialize
+    comparison DL-0024 deleted (which over-fits KiCad's own formatting and asserts
+    nothing a second implementation could also be judged on), this builds the SAME
+    semantic view (`_board_semantic_view`/`_sch_semantic_view` above) from the ORIGINAL
+    fixture and from a `<kind> upgrade --force`d copy of it, and writes both halves --
+    `runner/engine.py`'s `_compare_invariant` is what actually asserts they're equal; this
+    verb only composes, per DESIGN.md §2's "composition happens in the adapter, not the
+    runner" rule (same division `cmd_summary` already follows).
+
+    A PURE invariant, deliberately: there is no `expected/roundtrip.json` to regenerate,
+    so nothing here depends on `--regenerate`, and a KiCad version bump changes nothing
+    about what this compares.
+    """
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    input_path = Path(ins[0])
+    suffix = input_path.suffix
+
+    if suffix == ".kicad_pcb":
+        original_src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
+        original = _board_semantic_view(cli, original_src)
+
+        rt_src = _scratch_copy_board(ins[0], _fresh_scratch_dir())
+        rc = _run_step([cli, "pcb", "upgrade", "--force", str(rt_src)])
+        if rc != 0:
+            _relay_and_exit(rc)
+        roundtripped = _board_semantic_view(cli, rt_src)
+    elif suffix == ".kicad_sch":
+        original_root = _scratch_copy_all(ins, _fresh_scratch_dir(), root)
+        original = _sch_semantic_view(cli, original_root)
+
+        rt_root = _scratch_copy_all(ins, _fresh_scratch_dir(), root)
+        rc = _run_step([cli, "sch", "upgrade", "--force", str(rt_root)])
+        if rc != 0:
+            _relay_and_exit(rc)
+        roundtripped = _sch_semantic_view(cli, rt_root)
+    else:
+        print(
+            f"roundtrip: does not apply to {suffix or '(directory)'!r} input -- "
+            f"kicad-cli 10.0.5 has no structured symbol/footprint export to build a "
+            f"semantic view from (DESIGN.md §3b.4); board/schematic only for now (DL-0040)",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    (out_dir / "roundtrip.json").write_text(
+        json.dumps({"original": original, "roundtripped": roundtripped}, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    sys.exit(0)
+
+
 def main() -> int:
     verb, ins, out, root, fmt, extra = parse_argv(sys.argv[1:])
 
@@ -764,6 +912,8 @@ def main() -> int:
         cmd_ipcd356(cli, ins, out)
     elif verb == "render":
         cmd_render(cli, ins, out, extra, root)
+    elif verb == "roundtrip":
+        cmd_roundtrip(cli, ins, out, root)
     else:
         print(f"unsupported verb: {verb!r}", file=sys.stderr)
         return 127

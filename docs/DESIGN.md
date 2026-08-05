@@ -126,6 +126,7 @@ verbs cause the relevant cases to be **skipped and counted**, never failed. Core
 | `export-pdf` | any of board/sch | one PDF file, byte-compared after normalizing `/CreationDate` | `pcb export pdf --layers F.Cu --mode-single` / `sch export pdf` -o `<out>/pdf.pdf` ([DL-0037]) |
 | `export-dxf` | `.kicad_pcb` only | one DXF file, byte-compared, **no normalizer** (verified byte-identical run-to-run) | `pcb export dxf --layers F.Cu --mode-single -o <out>/dxf.dxf` ([DL-0037]) |
 | `export-step` | `.kicad_pcb` | reserved, unused | `pcb export step` (heavy, least deterministic; see [DL-0012](DECISIONS.md)) |
+| `roundtrip` | `.kicad_pcb` / `.kicad_sch` | `{"original": ..., "roundtripped": ...}` — a PURE INVARIANT, never compared against `expected/` (§3e) | `<kind> upgrade --force` a scratch copy, then rebuild the same semantic view (summary + `drc`/`erc`, plus a schematic's `bus_alias` census) from both the original and the re-serialized file ([DL-0040]) |
 
 Notes, load-bearing for correct mapping:
 
@@ -294,6 +295,7 @@ exist:
 | **summary** (§3b) | `summary.json`, and the JSON extras (`drc.json`, `pos.json`, …) | a normalized JSON document, compared for equality |
 | **render** (§3c) | `render*.svg`, `render/*.svg` | the drawn SVG geometry, byte-exact after normalizing `<title>`/`<desc>` |
 | **bytes** (§3d) | `gerbers/`, `drill/` | a directory of fabrication output: same filenames, every file byte-identical after normalization |
+| **invariant** (§3e) | `roundtrip.json` (`extra = ["roundtrip"]`) | two halves of ONE run compared to EACH OTHER — never to `expected/` |
 
 (An earlier revision of this doc numbered these L0–L3; that numbering is retired in
 favor of the four names above.)
@@ -620,6 +622,76 @@ reports these as `INFO`, never `FAIL`. There is no semantic (structural) compara
 RS-274X — building one was ruled out as a second plotter's worth of engineering
 ([DL-0020]) — so board copper *meaning* is instead covered by the composition of
 `stats`+`pos`+`ipcd356` (folded into the summary) and the render.
+
+### 3e. invariant — round-trip write-path testing, compared to itself ([DL-0040])
+
+Every other comparison kind checks the adapter's output against a *recorded* answer.
+`invariant` is the exception: `extra = ["roundtrip"]`'s answer, `roundtrip.json`, holds
+`{"original": ..., "roundtripped": ...}` — two semantic views built by the SAME run —
+and the check is simply that they're equal. Nothing is read from or written to
+`expected/`; `--regenerate` is a no-op for this answer.
+
+**Why this exists.** A coverage sweep found every overload of
+`PCB_IO_KICAD_SEXPR::format` at 0% — the suite reads KiCad's files and never writes
+them, which is half the file-format contract untested. [DL-0024] deleted the old L1
+layer (a byte comparison of KiCad's re-saved file) deliberately, because a byte golden
+over-fits KiCad's own formatting and asserts nothing a second implementation could be
+judged on. `invariant` restores write-path coverage without that mistake: it tests the
+writer **semantically**.
+
+**What the adapter builds, per kind (`adapters/kicad.py`'s `cmd_roundtrip`):**
+
+- **Board:** `<board> upgrade --force`s a scratch copy, then builds `{"summary": ...,
+  "drc": ...}` — the same `summary` composition (`stats`+`pos`+`ipcd356`) `cmd_summary`
+  already builds, plus a `pcb drc` run — from BOTH the original and the re-serialized
+  board. `drc` is not optional here: a dropped inline `(net_class ...)` block or a pad's
+  vanished `(drill 0)` change nothing in `stats`/`pos`/`ipcd356` (neither is a summary
+  field, §3b.1) but change what `pcb drc` reports, verified directly (DIV-0004/DIV-0005
+  below).
+- **Schematic:** `<sch> upgrade --force`s the root sheet, then builds `{"summary": ...,
+  "erc": ..., "bus_aliases": ...}` from both. `bus_aliases` is a narrow, targeted census
+  of `(bus_alias "NAME" (members ...))` blocks read directly from the schematic's own
+  text via `runner/reduce.py`'s existing minimal s-expression reader (the same idiom
+  `runner/summary.py` already uses to walk a netlist) — NOT a byte diff, and NOT a
+  general s-expression comparator, but specifically necessary: verified
+  (`docs/UNDOCUMENTED.md` UD-17, re-confirmed for this feature) that `sch export
+  netlist`/`sch erc` produce **byte-identical** output whether or not a `bus_alias` is
+  present at all, so no summary- or ERC-based comparison, however reduced, could ever
+  notice it silently disappearing on save (DIV-0006 below).
+- **Symbol/footprint libraries are out of scope for now.** `kicad-cli` 10.0.5 has no
+  structured export to build a semantic view from beyond `render` (§3b.4); a
+  render-before/after comparison is a plausible future extension, not implemented here.
+
+**Validated against three known writer defects, on purpose (the acceptance test for
+this mechanism).** Each is a confirmed, silent semantic loss through `... upgrade
+--force`, found and recorded in [`DIVERGENCES.md`](DIVERGENCES.md):
+
+| Divergence | What the writer drops | What the invariant sees move |
+|---|---|---|
+| DIV-0004 | an inline `(net_class ...)` block on a board (`pcb upgrade --force` only ever writes netclasses to `.kicad_pro` now) | `drc`: 3 violations → 2, the `clearance` finding disappears |
+| DIV-0005 | a thru-hole pad's `(drill 0)` | `drc`: `through_hole_pad_without_hole` → `{drill_out_of_range, padstack_invalid}` (two different findings), and `summary.counts.pads` |
+| DIV-0006 | a schematic's `(bus_alias ...)` block | `bus_aliases`: `{"MYBUS": ["A", "B"]}` → `{}` — nothing else moves at all |
+
+Each of these is exactly why `roundtrip` compares MULTIPLE projections per kind rather
+than summary alone: DIV-0004/DIV-0005 are invisible to `summary` (DIV-0005 partially, see
+table) and DIV-0006 is invisible to *everything but* the targeted census — a
+single-projection invariant would have missed at least one of the three.
+
+**Known-loss handling.** A case whose fixture is known to trip one of the above sets
+`known_divergence` with `answer = "roundtrip"` (§8 below extends `known_divergence` to
+name one happy-case answer instead of scoring the whole case) — the same strict-xfail
+discipline a rejection case's `control` gets: `XFAIL` while the loss is confirmed and
+tracked, a build-breaking `XPASS` the moment a KiCad release stops reproducing it.
+
+**Falsifiability, and why this needs no `perturb/` of its own.** A rejection case's
+falsifiability comes from its `control`, not from a `perturb/` directory (§7's
+`perturb/`-exemption). `roundtrip` is the same shape: it is ALREADY known to fail on
+three real, confirmed defects (the table above) — that is the falsifiability proof, not
+a hypothetical one — so `--verify-assertions` (§11) skips this answer's kind entirely
+rather than trying to fit it into a "did a committed answer move" check that has no
+committed answer to move. A `roundtrip` case's OTHER answers (`summary.json`, `drc.json`
+if `extra = ["drc"]` is also set, …) still need an ordinary `perturb/` under the usual
+[DL-0030] ratchet — only the invariant itself is exempt.
 
 ---
 
