@@ -156,6 +156,14 @@ def answer_for_extra(name: str) -> Answer:
         return Answer("drc", "drc", "drc.json", "file", lambda out, inp: out / "drc.json")
     if name == "erc":
         return Answer("erc", "erc", "erc.json", "file", lambda out, inp: out / "erc.json")
+    if name == "refill":
+        # Zone fills RECOMPUTED, not merely re-exported. The adapter hands back the whole
+        # board after the fill engine has run over it; `normalize.project_zone_fills`
+        # reduces that board to the fill geometry alone, and that projection is what
+        # `zone-fills.txt` records. Recording the board itself would pin the serializer
+        # and every unrelated block along with the geometry.
+        return Answer("refill", "refill", "zone-fills.txt", "file",
+                      lambda out, inp: out / "refilled.kicad_pcb")
     if name == "roundtrip":
         # Round-trip write-path testing: the adapter exports the fixture, re-serializes a
         # copy with `<kind> upgrade --force`, and exports that too, writing both sets side
@@ -165,7 +173,7 @@ def answer_for_extra(name: str) -> Answer:
     raise ValueError(f"unknown extra {name!r}")
 
 
-assert set() == EXTRA_NAMES - {"drc", "erc", "roundtrip"}, \
+assert set() == EXTRA_NAMES - {"drc", "erc", "refill", "roundtrip"}, \
     "answer_for_extra must handle every name in manifest.EXTRA_NAMES"
 
 

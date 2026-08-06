@@ -1,0 +1,11 @@
+concept = "Recomputing a zone's fill voids a foreign-net pad by the zone's own clearance, and expresses that void as a zero-width slit cut back to the outer contour rather than as a separate hole polygon."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The board ships NO (filled_polygon ...) at all, so every recorded answer except
+# `refill` is blind to the fill: the zone-fills.txt answer is the only thing here that
+# sees a fill, and the only thing a perturbation of the fill parameters can move.
+#
+# `connect_pads yes` (solid) keeps the same-net pad at (5,5) invisible -- it merges into
+# the pour without spokes -- so the only feature in the fill is the foreign-net pad's void.

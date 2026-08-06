@@ -38,7 +38,7 @@ from pathlib import Path
 IMPLEMENTED_VERBS = (
     "version", "parse-sch", "parse-pcb", "parse-sym", "parse-fp",
     "drc", "erc", "netlist", "pos", "stats", "ipcd356",
-    "render", "export-gerbers", "export-drill", "roundtrip",
+    "render", "export-gerbers", "export-drill", "refill", "roundtrip",
 )
 
 
@@ -276,6 +276,35 @@ def _export_sch(cli: str, sheet: Path, out_dir: Path) -> None:
             _relay_and_exit(rc)
 
 
+def cmd_refill(cli: str, ins: list[str], out: str) -> None:
+    """Zone fills RECOMPUTED by the tool, then handed back as a board.
+
+    `pcb drc --refill-zones --save-board` rewrites the board it is given, in place, with
+    every zone's fill recomputed from the zone outline and the surrounding copper -- so it
+    runs on the scratch copy and the result is copied out under a fixed name. The DRC
+    report itself is written beside the scratch board and discarded: `--refill-zones` is a
+    flag of `pcb drc`, so a report is produced whether or not anyone wants it, and the
+    `drc` extra already records that answer for cases that do.
+
+    The runner projects the returned board down to its zone-fill geometry; this verb does
+    no reduction of its own, so an implementation-under-test only ever has to produce a
+    refilled board in KiCad's board format."""
+    suffix = Path(ins[0]).suffix
+    if suffix != ".kicad_pcb":
+        print(f"refill: only applies to a board input, not {suffix or '(directory)'!r}",
+              file=sys.stderr)
+        sys.exit(2)
+    out_dir = Path(out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    src = _scratch(ins)
+    rc = _run_step([cli, "pcb", "drc", "--refill-zones", "--save-board", "--format", "json",
+                    "-o", str(src.parent / "refill-drc.json"), str(src)])
+    if rc != 0:
+        _relay_and_exit(rc)
+    shutil.copyfile(src, out_dir / "refilled.kicad_pcb")
+    sys.exit(0)
+
+
 def cmd_roundtrip(cli: str, ins: list[str], out: str) -> None:
     """Round-trip write-path testing. Exports the fixture into `<out>/original/`, then
     re-serializes a second scratch copy with `<kind> upgrade --force` and exports that
@@ -324,6 +353,7 @@ _DISPATCH = {
     "render": cmd_render,
     "export-gerbers": cmd_export_gerbers,
     "export-drill": cmd_export_drill,
+    "refill": cmd_refill,
     "roundtrip": cmd_roundtrip,
 }
 

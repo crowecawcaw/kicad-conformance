@@ -27,7 +27,7 @@ class PerturbationError(CaseError):
 
 # The answers a case may opt into on top of its input type's standard set. One name, one
 # answer -- except `roundtrip`, which records nothing and asserts an invariant.
-EXTRA_NAMES = frozenset({"drc", "erc", "roundtrip"})
+EXTRA_NAMES = frozenset({"drc", "erc", "refill", "roundtrip"})
 
 # Every key `case.toml` is allowed to declare.
 _KNOWN_KEYS = {

@@ -33,8 +33,20 @@ input   = "board.kicad_pcb"
 Answers are raw `kicad-cli` output with volatile content (timestamps, UUIDs,
 embedded scratch-dir paths) redacted — nothing is hand-written or synthesized. They
 are recorded once, under `expected/<kicad-version>/`, and re-recorded only when the
-oracle version bumps. Which answers a case has depends entirely on the input file's
-type; see [`docs/FORMAT.md`](docs/FORMAT.md) for the full table.
+oracle version bumps.
+
+Which answers a case has follows from the input file's type, plus whatever it opts into
+with `extra`:
+
+| `extra` | What it adds |
+|---|---|
+| `["drc"]` | the board's DRC report |
+| `["erc"]` | the schematic's ERC report |
+| `["refill"]` | KiCad **recomputes** the board's zone fills, and the computed geometry is recorded — the one answer that exercises a fill engine rather than replaying a fill the input already carries |
+| `["roundtrip"]` | an invariant with no recorded answer: re-serializing the fixture must not change what it exports |
+
+See [`docs/FORMAT.md`](docs/FORMAT.md) for the full table, and for why `refill` records a
+projection of the refilled board rather than the board itself.
 
 ## Quickstart
 

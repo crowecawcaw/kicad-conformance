@@ -173,6 +173,133 @@ def normalize_svg(data: bytes) -> bytes:
     return data
 
 
+# --- Recomputed zone fills (the `refill` answer) -----------------------------------
+# The `refill` answer's raw artifact is a whole board file: the fixture after KiCad has
+# recomputed every zone's fill and written it back (`pcb drc --refill-zones
+# --save-board`). Recording that board verbatim would pin the serializer -- indentation,
+# key order, every unrelated block -- alongside the one thing the answer is about, so a
+# board file is instead PROJECTED down to just the computed fill geometry.
+#
+# This is the only normalizer that reduces rather than redacts, and it is deliberate: the
+# projection is defined here, in the suite, so every implementation is judged by the same
+# reduction and an alternate adapter only has to hand back a refilled board in KiCad's
+# board format. See docs/FORMAT.md for the recorded shape.
+#
+# Coordinates are emitted as the exact tokens the board file carries -- never reparsed as
+# floats -- so the answer pins geometry to the last digit KiCad wrote.
+
+
+def _sexpr_tokens(text: str):
+    i, n = 0, len(text)
+    while i < n:
+        c = text[i]
+        if c in " \t\r\n":
+            i += 1
+        elif c in "()":
+            yield c
+            i += 1
+        elif c == '"':
+            j = i + 1
+            while j < n and text[j] != '"':
+                j += 2 if text[j] == "\\" else 1
+            yield text[i:min(j + 1, n)]  # quotes kept: tokens are re-emitted verbatim
+            i = j + 1
+        else:
+            j = i
+            while j < n and text[j] not in ' \t\r\n()"':
+                j += 1
+            yield text[i:j]
+            i = j
+
+
+def _sexpr_parse(text: str) -> list:
+    """A minimal reader: nested lists of raw tokens. Deliberately not a validator -- the
+    input here has already been accepted and rewritten by the tool under test."""
+    root: list = []
+    stack = [root]
+    for tok in _sexpr_tokens(text):
+        if tok == "(":
+            node: list = []
+            stack[-1].append(node)
+            stack.append(node)
+        elif tok == ")":
+            if len(stack) > 1:
+                stack.pop()
+        else:
+            stack[-1].append(tok)
+    return root
+
+
+def _kids(node: list, head: str) -> list:
+    return [c for c in node if isinstance(c, list) and c and c[0] == head]
+
+
+def _kid(node: list, head: str):
+    for c in _kids(node, head):
+        return c
+    return None
+
+
+def _tail(node) -> str:
+    """A node's arguments, re-emitted verbatim. `none` -- bare, so it can never collide
+    with a real value, which always keeps its quotes -- means the board carries no such
+    node at all: a rule-area zone has no `(net ...)`, for instance."""
+    return " ".join(node[1:]) if node and len(node) > 1 else "none"
+
+
+def _all_zones(node: list, found: list) -> list:
+    """Every `(zone ...)` anywhere in the document, in document order. Recursive rather
+    than top-level-only so a zone nested inside a footprint is never silently dropped from
+    the answer."""
+    for child in node:
+        if isinstance(child, list) and child:
+            if child[0] == "zone":
+                found.append(child)
+            else:
+                _all_zones(child, found)
+    return found
+
+
+def project_zone_fills(data: bytes) -> bytes:
+    """A board file -> the computed fill geometry of its zones, as stable text.
+
+    Zones are reported in document order (the order the writer emitted them, which is
+    itself part of the answer); each zone's identity line carries its net and its declared
+    layer(s), and each `(filled_polygon ...)` its layer, its vertex count, any flag it
+    carries (`island`, ...), and every vertex. Everything else in the board -- footprints,
+    tracks, setup, uuids, the zone's authored outline -- is dropped."""
+    doc = _sexpr_parse(normalize_crlf(data).decode("utf-8", errors="replace"))
+    zones = _all_zones(doc, [])
+
+    lines = [f"zones {len(zones)}"]
+    for index, zone in enumerate(zones):
+        layers = _kid(zone, "layers") or _kid(zone, "layer")
+        lines.append(
+            f"zone {index} net {_tail(_kid(zone, 'net'))} "
+            f"layers {_tail(layers)}"
+        )
+        fills = _kids(zone, "filled_polygon")
+        if not fills:
+            lines.append("  no fill")
+        for fill_index, fill in enumerate(fills):
+            pts = _kid(fill, "pts") or []
+            vertices = [c for c in pts[1:] if isinstance(c, list)]
+            flags = sorted(
+                c[0] for c in fill
+                if isinstance(c, list) and c and c[0] not in ("layer", "pts")
+            )
+            header = (
+                f"  fill {fill_index} layer {_tail(_kid(fill, 'layer'))} "
+                f"points {len(vertices)}"
+            )
+            if flags:
+                header += " flags " + " ".join(flags)
+            lines.append(header)
+            for vertex in vertices:
+                lines.append("    " + " ".join(t for t in vertex if isinstance(t, str)))
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
 # --- Dispatch by output kind -------------------------------------------------------
 # Protel-style per-layer gerber extensions where KiCad has one, else the generic `.gbr`.
 _GERBER_LAYER_SUFFIXES = (
@@ -185,6 +312,12 @@ _GERBER_LAYER_SUFFIXES = (
 _GERBER_INNER_COPPER_RE = re.compile(r"^\.g\d+$")
 
 _BY_SUFFIX = {
+    # The only artifact with a board suffix is the `refill` answer's refilled board; it is
+    # projected to its zone-fill geometry, which is what `expected/<version>/zone-fills.txt`
+    # holds. The two sides of that compare are normalized by their own suffixes -- the
+    # projection on the way in, plain CRLF folding on the committed `.txt` -- so nothing
+    # here has to be idempotent under re-application.
+    ".kicad_pcb": project_zone_fills,
     ".gbrjob": normalize_gbrjob,
     ".drl": normalize_drill,
     ".svg": normalize_svg,

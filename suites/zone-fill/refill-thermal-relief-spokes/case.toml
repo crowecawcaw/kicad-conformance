@@ -1,0 +1,11 @@
+concept = "Recomputing a zone's fill connects a same-net through-hole pad through four diagonal thermal spokes of thermal_bridge_width, holding the pour back from the pad by thermal_gap everywhere else."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The board ships NO (filled_polygon ...) at all, so every recorded answer except
+# `refill` is blind to the fill: the zone-fills.txt answer is the only thing here that
+# sees a fill, and the only thing a perturbation of the fill parameters can move.
+#
+# `connect_pads` with no mode is the default (thermal relief); the pad is the zone's only
+# connection, so the spokes are the whole of the fill's interior detail.
