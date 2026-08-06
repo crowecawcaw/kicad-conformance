@@ -59,12 +59,21 @@ def normalize_report(data: bytes) -> bytes:
 
 
 # --- DRC / ERC reports -------------------------------------------------------------
-# One more thing moves in these two, and only in these two: the ORDER of the `items[]`
-# inside a single violation. Observed on suites/drc/holes-co-located, where two pads sit
-# at the same point -- eight consecutive runs produced the same order seven times and the
-# swapped order once. Violation order itself never moved across those runs, and neither
-# did anything in stats.json/pos.csv/ipcd356.d356/netlist.net, so the sort is scoped to
-# exactly the list that was seen to wobble.
+# Two things move in these two, and only in these two: the ORDER of the `items[]` inside a
+# single violation, and the ORDER of the finding arrays themselves.
+#
+# The items[] wobble was observed first, on suites/drc/holes-co-located, where two pads sit
+# at the same point. That case was sampled eight times, seven of which agreed, and the
+# conclusion recorded here was that "violation order itself never moved". That was wrong --
+# eight runs was not enough. CI caught the same case emitting its two solder_mask_bridge
+# findings (Front and Rear, both always present) in swapped order; re-sampled twelve times
+# locally it produced Front-first eight times and Rear-first four. The geometry is
+# symmetric across both mask layers, so nothing breaks the tie.
+#
+# So the finding arrays are sorted too. Order carries no meaning in any of them -- they are
+# sets of findings that happen to be serialized as JSON lists. Note this cannot paper over
+# DIV-0003, which is a MEMBERSHIP difference in unconnected_items rather than an ordering
+# one; sorting is merely correct there, not a fix.
 #
 # Sorting needs structure, so these two files (and no others) are re-serialized. The
 # textual redactions run FIRST, so the sort key never contains a freshly-minted UUID.
@@ -73,14 +82,23 @@ def normalize_report(data: bytes) -> bytes:
 # nothing else does.
 _KICAD_SCHEMA_PREFIX = "https://schemas.kicad.org/"
 
+# The finding arrays of the DRC and ERC reports, sorted wherever they appear.
+_FINDING_ARRAYS = ("violations", "unconnected_items", "schematic_parity", "items")
+
 
 def _sort_violation_items(node) -> None:
     if isinstance(node, dict):
-        items = node.get("items")
-        if isinstance(items, list):
-            items.sort(key=lambda i: json.dumps(i, sort_keys=True))
-        for value in node.values():
-            _sort_violation_items(value)
+        for key in _FINDING_ARRAYS:
+            value = node.get(key)
+            if isinstance(value, list):
+                # Recurse FIRST: an inner items[] must already be sorted before it is used
+                # as part of an outer violation's sort key, or the key is unstable.
+                for entry in value:
+                    _sort_violation_items(entry)
+                value.sort(key=lambda i: json.dumps(i, sort_keys=True))
+        for key, value in node.items():
+            if key not in _FINDING_ARRAYS:
+                _sort_violation_items(value)
     elif isinstance(node, list):
         for value in node:
             _sort_violation_items(value)
