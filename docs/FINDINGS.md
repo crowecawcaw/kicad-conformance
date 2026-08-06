@@ -42,6 +42,12 @@ this repo's conformance corpus. Each entry is one finding with a reproduction co
 - **Observed vs expected:** exits 0, block gone (`grep -c bus_alias` → 0); `sch export netlist` and `sch erc --severity-all` are byte-identical with or without the alias — no compensating signal anywhere shows the loss.
 - **Case:** documented but no longer mechanically tested. `suites/schematic-parse/schematic-bus-alias` used to carry `extra = ["roundtrip"]` and `xfail = "DIV-0006"`, backed by a bespoke `(bus_alias ...)` census read out of the schematic's raw s-expression text; the round-trip invariant is now built from plain kicad-cli exports only, which never observe the alias, so the case dropped `roundtrip`/`xfail` rather than XPASS and fail the build. It still records `netlist.net` + `render.svg` and still carries its perturbation. (not yet filed upstream)
 
+## DIV-0007 — `pcb drc`'s `violations[]` order is nondeterministic across identical runs
+
+- **Repro:** `kicad-cli pcb drc --format json --units mm --severity-all -o d.json board.kicad_pcb`, repeated, on a board with two through-hole pads on different nets at the same coordinate
+- **Observed vs expected:** the two `solder_mask_bridge` findings — `Front solder mask aperture bridges items with different nets` and `Rear …` — are both always present, but which one is serialized first flips between runs: 12 identical runs gave Front-first 8 times and Rear-first 4. The pads' geometry is symmetric across both mask layers, so nothing breaks the tie. Expected: a stable serialization order for a stable input. Distinct from DIV-0003, which is a *membership* difference in `unconnected_items` and therefore not fixable by sorting; this one is pure ordering.
+- **Case:** `suites/drc/holes-co-located`. Absorbed by the runner rather than xfailed — `runner/normalize.py` now sorts the DRC/ERC finding arrays (`violations`, `unconnected_items`, `schematic_parity`, `items`) before comparison, so order carries no weight. An implementation under test likewise must not be judged on it. (not yet filed upstream)
+
 ---
 
 ## Doc gaps
