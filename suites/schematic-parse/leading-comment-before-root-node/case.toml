@@ -3,15 +3,18 @@ doc     = "sexpr-schematic"
 input   = "sheet.kicad_sch"
 extra   = ["roundtrip"]
 
-# The trap is that an S-expression reader written to parse *one* node will treat
-# the comment as trailing data and reject the file outright -- a real clean-room
-# engine shipped exactly that on three of its four S-expression formats, and each
-# returned a parse error on a file KiCad loads without complaint.
+# The trap is that an S-expression reader written to parse *one* node treats the
+# comment as trailing data and rejects the file outright, on input KiCad loads
+# without complaint.
 #
 # Per-format behaviour is deliberately not inferable from this case: KiCad
 # *preserves* a leading comment on a `.kicad_mod` (collapsed) while *dropping* it
 # on `.kicad_pcb` and `.kicad_sch`. Anyone matching this case should measure the
 # other formats rather than generalize from it.
+#
+# A leading comment is something a generator emits, not something the KiCad GUI
+# writes, so a corpus of hand-drawn projects can contain no instance of it at
+# all -- which is what a minimal case is for.
 #
 # `roundtrip` is opted in because the interesting half is the resave: the comment
 # must not survive into the canonical output in a way that changes any answer.

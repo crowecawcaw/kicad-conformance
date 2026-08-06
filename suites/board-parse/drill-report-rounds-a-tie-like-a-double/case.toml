@@ -2,12 +2,15 @@ concept = "The drill report's millimetre column is formatted from a double, so a
 doc     = "sexpr-pcb#vias"
 input   = "board.kicad_pcb"
 
-# The two drills are chosen so that the tie breaks in *opposite* directions, which
-# is what makes the case falsifying rather than merely illustrative. An exact
-# decimal implementation that rounds half away from zero -- the obvious choice, and
-# the one a real engine shipped before this was measured -- gets 0.213 and 0.318,
-# so it fails on the first via and passes on the second. Half-to-even on the
-# decimal digits gets 0.212 and 0.318 by luck here, but is still the wrong model:
-# neither value is exactly representable in binary, and 0.2125's double sits just
-# below the tie while 0.3175's sits just above. Only formatting the double
-# reproduces both.
+# The two drills are chosen so the tie breaks in *opposite* directions, which is
+# what makes the case falsifying rather than merely illustrative. An
+# implementation that formats an exact decimal and rounds half away from zero --
+# the obvious choice -- emits 0.213 and 0.318, so it fails the first via and
+# passes the second; a case carrying only one tie would let it through.
+# Half-to-even on the decimal digits happens to get both right here, but is still
+# the wrong model: neither value is exactly representable in binary, and 0.2125's
+# double sits just below the tie while 0.3175's sits just above. Only formatting
+# the double reproduces both.
+#
+# Diameters landing exactly on a tie are rare in real boards, so a sampled corpus
+# can easily contain none of them -- which is what a minimal case is for.
