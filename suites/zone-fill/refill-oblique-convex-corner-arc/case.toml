@@ -1,0 +1,28 @@
+concept = "Recomputing a zone's fill shrinks the outline by half its min_thickness and grows it back, which replaces every convex corner with a short inscribed arc. On an outline whose edges are oblique -- so the corner's offset geometry does not land on the nanometre grid by construction -- the arc is only three to five vertices wide at the default max_error, and each of those vertices is decided by a grid snap. That makes the corner, not the straight run, the whole content of the answer."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# A triangle, because a triangle is the smallest outline that is all corner and no
+# straight run worth speaking of, and because its three corners span a wide range of
+# turn angles at once (roughly 40, 65 and 75 degrees here).
+#
+# The edges are deliberately oblique. An axis-aligned rectangle is the degenerate case
+# for this behaviour: there the two inward-offset edges cross exactly on an integer
+# nanometre, so every rounding rule agrees and the answer cannot discriminate between
+# implementations. Rectangles are therefore useless as a spec case here, which is why
+# this one is not a rectangle.
+#
+# The board carries no pads, no tracks and no second zone, so nothing clears anything:
+# the only feature in the recomputed fill is the corner rounding itself. The board also
+# ships NO (filled_polygon ...), so `refill` is the only recorded answer that sees a
+# fill at all, and the only one a perturbation of the fill parameters can move.
+#
+# Failure modes this is expected to catch, all of which produce a fill that is correct
+# to within a nanometre or two and wrong at every vertex of a corner:
+#   - snapping the corner's offset-edge crossing to the nearest nanometre rather than
+#     downwards, which moves the arc's centre and re-rolls every vertex on it;
+#   - leaving the arc's two end vertices on the arc instead of where its end chord
+#     meets the edge that was drawn;
+#   - taking the arc's start angle from the drawn edge rather than from the shrunken
+#     outline's own edge, which differ by one grid rounding over the edge's length.
