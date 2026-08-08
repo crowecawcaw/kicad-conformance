@@ -1,0 +1,38 @@
+concept = "When two overlapping copper pours of different nets have the SAME (priority N), the tie is broken by the zones' (uuid ...): the lexically larger uuid wins the overlap and the other pour is clipped out of its copper by the usual clearance. The winner does not depend on which zone is declared first in the file, nor on net number or net name."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two overlapping B.Cu rectangles, both `(priority 1)`, on different nets:
+# GND at x 0..20 with uuid aaaa..., VCC at x 12..30 with uuid bbbb..., each
+# anchored by a thru-hole pad on its own net so island removal keeps the fill.
+# The board ships NO (filled_polygon ...), so `refill` is the only recorded
+# answer that sees a fill.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08):
+#   - VCC (uuid bbbb..., the LARGER) keeps its whole drawn region, x 12..30.
+#   - GND (uuid aaaa...) is clipped to x 0..11.7945, i.e. back to VCC's x=12
+#     edge less the clearance gap (0.2 netclass/connect_pads + 0.005 max_error
+#     + 0.0005).
+#
+# The uuids are the whole point of this case, so do not regenerate them. Four
+# runs pinned the rule: swapping ONLY the two uuids (leaving declaration order,
+# geometry and nets identical) swaps which pour is clipped, and repeating with a
+# distant pair (0011... vs ff00...) gives the same answer -- the larger uuid wins
+# whichever slot it occupies. KiCad's uuids are fixed-width lowercase hex, so a
+# string compare and a 128-bit compare agree.
+#
+# Failure modes this is expected to catch:
+#   - breaking the tie by declaration order (either direction). This is the
+#     natural guess and it is wrong; it reproduces the right answer only on
+#     boards whose uuids happen to be sorted, which is why it survives casual
+#     testing. An engine that gets this wrong empties zones on real boards that
+#     declare every pour at one priority.
+#   - breaking the tie by net number or net name (GND is net 1 here and loses;
+#     it wins when given the larger uuid).
+#   - refusing to arbitrate equal-priority zones at all, which leaves the two
+#     nets sharing copper -- a short.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see repo README); the numbers above are the local kicad-cli measurement the
+# runner should reproduce.

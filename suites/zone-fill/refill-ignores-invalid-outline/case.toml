@@ -1,0 +1,16 @@
+concept = "When the board's Edge.Cuts do not assemble into a valid outline (here an open, unclosed polyline), the outline is not used as a fill boundary: recomputing a zone's fill fills the whole zone polygon (held only off the Edge.Cuts segments by the edge clearance), rather than clipping the pour to the broken outline or leaving it empty."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Measured against kicad-cli 10.0.5 (2026-08-08): `pcb export stats` reports
+# has_outline=false for this board, and `pcb drc --refill-zones --save-board`
+# fills back_copper_area 254.463 mm^2 -- essentially the whole 16x16 = 256 mm^2
+# zone at (2,2)-(18,18), minus the min_thickness/clearance trim and the pad. An
+# engine that clipped the pour to the (invalid) outline would fill little or
+# nothing; KiCad fills the zone. The single thru-hole GND pad at (10,10) anchors
+# the fill so island removal does not delete it.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see repo README); the numbers above are the local kicad-cli measurement the
+# runner should reproduce.

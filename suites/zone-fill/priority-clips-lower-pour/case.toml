@@ -1,0 +1,36 @@
+concept = "When two copper pours of different nets overlap on one layer, the higher-priority pour is filled as if the lower did not exist, and the lower pour is clipped out of the higher one's filled copper by the copper clearance -- they cannot share copper, or the two nets would short. The clip is the higher pour's filled copper grown by max(netclass clearance, either pour's connect_pads clearance) + max_error + half the fill epsilon; within a single net the growth is zero and the pours abut."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two overlapping B.Cu rectangles on different nets: GND (priority 2) at
+# x 0..20 over VCC (priority 1) at x 12..30, each anchored by a thru-hole pad on
+# its own net so island removal keeps the fill. The board ships NO
+# (filled_polygon ...), so `refill` is the only recorded answer that sees a fill,
+# and the only one a perturbation of the priority or clearance can move. A single
+# rectangle would not discriminate: it takes two overlapping pours for priority
+# to have any effect at all.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08, target/clearance_probe*.sh):
+#   - GND (priority 2) fills its full drawn 0..20 -- the higher pour is untouched.
+#   - VCC (priority 1) is clipped to x >= 20.2055: it yields the whole 12..20
+#     overlap to GND and keeps a clearance gap past GND's x=20 edge. The gap is
+#     max(netclass, both connect_pads=0.2) + max_error(0.005) + 0.0005 = 0.2055.
+#     Sweeping the netclass clearance, each pour's connect_pads clearance and the
+#     board max_error moves that gap exactly as the formula predicts; the floor is
+#     the connect_pads clearance (not a hardcoded 0.2) and the additive term is
+#     max_error + 500 nm (not a bare 0.006).
+#
+# Failure modes this is expected to catch:
+#   - filling each pour `zone n board - foreign` in isolation, so VCC spills into
+#     GND's copper and the two nets short (the pre-M6-8 behaviour);
+#   - clipping VCC against GND's *drawn* polygon rather than its filled copper,
+#     which is inset by edge clearance, holes and min_thickness;
+#   - using only the clearance (no max_error term) or a fixed 0.2 floor, which
+#     puts VCC's edge a few thousand nanometres off;
+#   - letting the lower priority win, or breaking an equal-priority tie by net
+#     number rather than declaration order.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see repo README); the numbers above are the local kicad-cli measurement the
+# runner should reproduce.
