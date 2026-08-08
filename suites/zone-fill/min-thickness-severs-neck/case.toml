@@ -1,0 +1,65 @@
+concept = "A pour whose neck is thinner than min_thickness is severed into two filled areas, but the severed neck does not disappear. Each side keeps a stub reaching into it, and the drawn corners where the neck met the wider copper survive in the fill exactly, to the nanometre. min_thickness finishing behaves as a true morphological opening -- the union of every disc of radius (min_thickness/2 - 0.001 mm) that fits inside the drawn outline -- and such a disc still reaches through the mouth of a neck it cannot travel down."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One pour on F.Cu, no pads, no foreign copper: a dumbbell. Left box
+# [12,32] x [20,45], right box [48,68] x [20,45], joined by a neck
+# [32,48] x [32.4,32.6] that is 0.2 mm tall. min_thickness is 0.25 mm, so the
+# neck is thinner than the minimum and the fill severs it. Nothing else is on
+# the board, so every vertex in the answer comes from the outline and the
+# min_thickness finishing alone.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08, this exact file, `pcb drc
+# --refill-zones --save-board`): the refilled zone has **2 filled_polygon**
+# areas and **44 vertices** in total. Twelve of them are in the neck window
+# (28 < x < 52, 27 < y < 38) -- six on the left stub, six on the right, the set
+# invariant under the 180 degree rotation about the neck's centre (40, 32.5):
+#
+#     left stub                right stub
+#     (32,        32.4)        (48,        32.4)
+#     (32.012319, 32.412319)   (47.987681, 32.412319)
+#     (32.045804, 32.473642)   (47.954196, 32.526358)
+#     (32.04082,  32.543334)   (47.95918,  32.456666)
+#     (32.012319, 32.587681)   (47.987681, 32.587681)
+#     (32,        32.6)        (48,        32.6)
+#
+# Note the stub is NOT mirror-symmetric about y = 32.5 although the outline is:
+# its tip vertices sit 26.4 um below and 43.3 um above the centreline. That is
+# the phase of the arc tessellation, and an engine that forces symmetry here
+# will not match.
+#
+# So the copper does not stop at x = 32. It bulges about 46 um into the severed
+# neck, and it touches the two drawn corners (32, 32.4) and (32, 32.6) exactly.
+#
+# Why those two corners are exact, which is the part worth knowing: the opening
+# radius here is min_thickness/2 - 0.001 = 0.124 mm, and the neck is 0.2 mm
+# tall. A disc of that radius centred on the neck's centreline at distance
+# d = sqrt(0.124^2 - 0.1^2) = 0.0733212... mm to the LEFT of x = 32 cuts the
+# line x = 32 in a chord of half-height exactly 0.1 -- so it passes through both
+# drawn corners at once, and every part of it beyond x = 32 stays inside the
+# neck. It fits. A true opening therefore contains both corners, and it is the
+# last disc that can still see through the mouth. The widest reach into the neck
+# is 32 - 0.0733212 + 0.124 = 32.0506788, which the tessellated answer above
+# approaches from below: 32.045804, short by 4.9 um, inside the 0.005 mm
+# max_error an inscribed arc is allowed.
+#
+# Failure modes this is expected to catch:
+#   - treating the severing as removal, so the neck vanishes cleanly and each
+#     box comes back with a straight edge at x = 32 and x = 48. An erode-dilate
+#     implemented with MITRED joins on the erode half does exactly this: two
+#     mitre spikes, one from each drawn neck corner, are each
+#     radius/cos(sweep/2) long, they meet across a neck this thin, and between
+#     them they erase the stub. Such an engine emits ZERO vertices in the neck
+#     window against KiCad's twelve. This is the natural wrong answer, and it is
+#     wrong by a whole feature rather than by a rounding.
+#   - rounding the mouth instead of keeping it sharp. An erode-dilate with round
+#     joins on the erode half does keep a stub, but blends it smoothly into the
+#     box edge -- reaching (32, 32.386668) and (32, 32.61783) rather than the
+#     drawn (32, 32.4) and (32, 32.6), and overshooting the tip to 32.053891.
+#     Keeping the stub is not enough; the drawn corners have to come back exact.
+#   - refusing to sever at all, which leaves one filled area rather than two.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see repo README); the numbers above are the local kicad-cli measurement the
+# runner should reproduce.
