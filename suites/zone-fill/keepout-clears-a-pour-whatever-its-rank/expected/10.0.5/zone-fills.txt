@@ -1,0 +1,40 @@
+zones 5
+zone 0 net none layers "F.Cu"
+  no fill
+zone 1 net none layers "B.Cu"
+  no fill
+zone 2 net none layers "B.Cu"
+  no fill
+zone 3 net "GND" layers "B.Cu"
+  fill 0 layer "B.Cu" points 29
+    xy 49.943039 0.019685
+    xy 49.988794 0.072489
+    xy 50 0.124
+    xy 50 19.876
+    xy 49.980315 19.943039
+    xy 49.927511 19.988794
+    xy 49.876 20
+    xy 0.124 20
+    xy 0.056961 19.980315
+    xy 0.011206 19.927511
+    xy 0 19.876
+    xy 0 15
+    xy 5 15
+    xy 12 15
+    xy 18 15
+    xy 25 15
+    xy 25 5
+    xy 18 5
+    xy 18 15
+    xy 12 15
+    xy 12 5
+    xy 5 5
+    xy 5 15
+    xy 0 15
+    xy 0 0.124
+    xy 0.019685 0.056961
+    xy 0.072489 0.011206
+    xy 0.124 0
+    xy 49.876 0
+zone 4 net none layers "B.Cu"
+  no fill

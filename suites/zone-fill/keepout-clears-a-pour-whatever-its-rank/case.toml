@@ -1,0 +1,49 @@
+concept = "A (keepout (copperpour not_allowed)) rule area removes copper from an overlapping pour whatever its (priority ...) and whatever its (uuid ...) — a rule area is not a competitor in the pour-against-pour arbitration. A rule area that forbids everything EXCEPT copperpour removes nothing, and one on another layer removes nothing."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One 56x26 mm outline, one 50x20 mm B.Cu GND pour at (priority 5) with (connect_pads yes)
+# so its anchor pad floods solid and no thermal relief is in the picture, and four rule
+# areas laid across it. The board ships NO (filled_polygon ...), so `refill` is the only
+# recorded answer that sees a fill.
+#
+# THE NATURAL WRONG GUESS: "a rule area is a zone, so it takes part in the same
+# (priority desc, uuid desc) arbitration as any other overlapping zone, and one that the
+# pour outranks is ignored". Every ingredient of that guess is in the file, and each rule
+# area is built so the guess and the truth predict a DIFFERENT fill:
+#
+#   rule area              rank against the pour       arbitration says   copperpour says
+#   --------------------   -------------------------   ----------------   ---------------
+#   5..12  prio 0 uuid 0    LOSES on both counts        no void            A VOID
+#   18..25 prio 9 uuid f    WINS on both counts         a void             a void
+#   31..38 prio 0 uuid 2    loses, but allows           no void            no void
+#                           copperpour and forbids
+#                           everything else
+#   42..48 F.Cu             other layer                 no void            no void
+#
+# So the first area is the discriminator, the second is the control that keeps a green from
+# reading as "rule areas never matter", the third separates "any rule area clears a pour"
+# from "only (copperpour not_allowed) does", and the fourth is the layer control. Two
+# uuids at 0000… and ffff… bracket the pour's 8888… so neither reading of the tie-break can
+# accidentally agree with the answer.
+#
+# MEASURED — kicad-cli 10.0.5, 2026-08-09
+#
+# KiCad returns ONE filled area of 29 vertices: the pour's own rectangle plus exactly TWO
+# rectangular voids, at 5..12 and 18..25, bridged out to the boundary. The 31..38 area
+# (copperpour allowed) and the 42..48 F.Cu area leave no mark. Each void is the drawn
+# polygon at ZERO clearance with sharp corners — (5,5) (12,5) (12,15) (5,15) to the
+# nanometre — on a pour whose netclass and local clearance are both 0.2 mm. Nothing is
+# grown and no EPSILON/2 appears, which is what separates a rule area from every other
+# thing that clears copper on this board.
+#
+# RANK IS IRRELEVANT, and this is the measurement rather than the assertion: the 18..25
+# area was first authored at (priority 5) (uuid 1111...), which LOSES the tie-break to the
+# pour's 8888..., and KiCad returned 29 vertices and those same two voids. Re-authored at
+# (priority 9) (uuid ffff...), which WINS on both counts, KiCad returns 29 vertices and
+# those same two voids. Byte-identical across the flip. Both readings of the tie-break are
+# covered because 0000... and ffff... bracket the pour's 8888....
+#
+# expected/ is not yet generated — it needs the Dockerised conformance runner (see the
+# repo README), and the Docker daemon was not running on the authoring workstation.

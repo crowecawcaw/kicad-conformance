@@ -1,0 +1,86 @@
+concept = "Text on a copper layer is copper, and a pour on that layer is held off it. The void is a RECTANGLE — the bounding box of the text's stroked outline, in the TEXT's own frame, so it turns with the text — grown by clearance + max_error + half the fill epsilon. It is not the outline of the strokes, it is not a box of a size derived from the font alone, and it is scoped to the text's own layer."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One 66x46 mm outline, one 60x40 mm F.Cu GND pour at (min_thickness 0.25) with
+# (connect_pads yes ...) so the anchor pad floods solid and no thermal relief is in the
+# picture, and four `gr_text` — three on the pour's own layer, one on the other. The board
+# ships NO (filled_polygon ...), so `refill` is the only recorded answer that sees a fill.
+#
+# THE NATURAL WRONG GUESS: "text is an annotation, not copper, so a pour floods straight
+# over it". A board whose only copper text sits under a pour looks completely ordinary,
+# and a filler that ignores text returns a perfectly plausible answer — one rectangle, no
+# voids — that is wrong by tens of square millimetres.
+#
+# The four texts are chosen so that each candidate rule predicts a DIFFERENT fill:
+#
+#   text                       ignored     strokes cleared        a box cleared
+#   ------------------------   ---------   --------------------   -----------------------
+#   "I"      at (10,8)   0deg  no void     one narrow stadium     one small rectangle
+#   "MMMMMM" at (35,8)   0deg  no void     six ragged blobs,      one WIDE rectangle,
+#                                          scalloped, many pts     19x the "I" void
+#   "MMMMMM" at (35,28) 45deg  no void     the same, rotated      an AXIS-ALIGNED box, or
+#                                                                  a 45deg-ROTATED box —
+#                                                                  two further candidates
+#   "MMMMMM" at (10,28) B.Cu   no void     no void                no void   <- the control
+#
+# So: "I" against "MMMMMM" at one font size kills "a fixed box per text object"; the 45deg
+# copy separates "the box is axis-aligned in board space" from "the box turns with the
+# text"; the B.Cu copy is the control that keeps the case from reading as "any text
+# anywhere clears every pour"; and a stroke-outline rule is told from a box rule by whether
+# the void has four vertices or forty.
+#
+# ---------------------------------------------------------------------------------------
+# MEASURED — kicad-cli 10.0.5, 2026-08-09, `pcb drc --refill-zones --save-board`
+# ---------------------------------------------------------------------------------------
+# KiCad returns ONE filled area of 42 vertices. The pour's own rectangle accounts for 4 of
+# them; the other 38 are three voids, bridged to the boundary:
+#
+#   "I"      (10,8)   0deg : rectangle (9.644500,  6.554138) .. (10.355500, 9.265138)
+#   "MMMMMM" (35,8)   0deg : rectangle (28.262387, 6.552977) .. (41.737611, 9.265138)
+#   "MMMMMM" (35,28) 45deg : rotated rectangle, corners
+#                            (29.212588, 31.741010) (31.130377, 33.658799)
+#                            (40.658799, 24.130377) (38.741012, 22.212588)
+#   "MMMMMM" (10,28)  B.Cu : NO void anywhere near (10,28)
+#
+# Every one is four straight edges and sharp corners. Not one scallop, not one arc.
+#
+# What the numbers pin, exactly:
+#
+#   * THE GROWTH IS clearance + max_error + EPSILON/2 = 0.2 + 0.005 + 0.0005 = 0.2055 mm.
+#     The "I" void is 0.711000 x 2.711000 mm. The glyph is one vertical stroke of length
+#     `size` = 2 and width `thickness` = 0.3, so its stroked bounding box is exactly
+#     0.3 x 2.3, and 0.3 + 2(0.2055) = 0.711000 and 2.3 + 2(0.2055) = 2.711000 — both to
+#     the nanometre. Growing by clearance + EPSILON/2 alone (0.2005) predicts 0.701 and
+#     2.701, which is 10 um out on a void 711 um wide.
+#
+#   * THE BOX TURNS WITH THE TEXT. The 45deg void's two side lengths are 2.712161 and
+#     13.475224 mm — the same two numbers, to the nanometre, as the un-rotated "MMMMMM"
+#     void's height and width. An axis-aligned bounding box of the rotated text would be
+#     11.4 x 11.4 mm instead.
+#
+#   * THE BOX IS OFFSET FROM THE ANCHOR, AND THE OFFSET TURNS TOO. The un-rotated
+#     "MMMMMM" void's centre is (34.999999, 7.909058), i.e. 0.090943 mm above the anchor
+#     at (35,8). The 45deg void's centre is (34.935694, 27.935694) — offset
+#     (-0.064307, -0.064307) from (35,28), whose length is 0.090943 mm. The same offset,
+#     rotated. So it is the glyph box in the TEXT's frame, not a board-space box.
+#
+#   * THE WIDTH COMES FROM THE STRING, NOT THE FONT SIZE. "I" 0.711 mm against "MMMMMM"
+#     13.475224 mm at the same (size 2 2). A per-object box is dead.
+#
+#   * THE HEIGHTS DIFFER BY 1.161 um between "I" (2.711000) and "MMMMMM" (2.712161) at the
+#     same font size, so the box is the bounding box of the glyphs' own outline and not a
+#     function of `size` and `thickness`. That is recorded, not explained: it is the scale
+#     at which a diagonal stroke's polygonised round cap overshoots.
+#
+#   * IT IS LAYER-SCOPED. The B.Cu "MMMMMM" leaves the F.Cu pour untouched.
+#
+# NOT PINNED HERE, and the next thing to measure: the per-character advance of KiCad's
+# stroke font, which is proportional. "MMMMMM" gives a 13.064224 mm ink box for six of the
+# widest letter at size 2; two corpus boards give roughly 0.84 x size for mixed text. A
+# void cannot be reproduced without those metrics, and they must be measured from
+# kicad-cli output rather than read from anywhere.
+#
+# expected/ is not yet generated — it needs the Dockerised conformance runner (see the
+# repo README); the numbers above are the local kicad-cli measurement it should reproduce.
