@@ -1,0 +1,94 @@
+concept = "A through-hole pad's thermal spokes stop at the drill, and that stop is NOT part of the geometry min_thickness finishing operates on. The same fill rounds every drawn convex corner of the pour by min_thickness/2 - 0.001 mm, yet the sharp copper wedge where a spoke meets the drill comes back sharp, and the drill arc comes back where an un-finished refill puts it."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# A 20 x 20 mm board, one F.Cu pour on net GND drawn 2..18 mm, and the pour's
+# only connection: one through-hole pad at (10, 10), circle, 2 mm copper, 1 mm
+# drill, also on GND. connect_pads carries no mode, so the pad gets the default
+# thermal relief: (thermal_gap 0.5), (thermal_bridge_width 0.5). Four spokes on
+# the diagonals, because the pad is a circle.
+#
+# The one number that makes this case different from
+# `refill-thermal-relief-spokes` is (min_thickness 0.4). The finishing radius is
+# min_thickness/2 - 0.001 = 0.199 mm, which is large enough that rounding the
+# spoke root would be a 0.4 mm feature rather than a rounding error -- so the
+# two candidate orderings below are separated by something you can see, not by
+# nanometres.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08, this exact file, `pcb drc
+# --refill-zones --save-board`, and a fixed point: two consecutive refills agree
+# on every coordinate). One filled_polygon, 108 vertices.
+#
+# 1. The finishing IS running, and its radius is 0.199 mm. Each of the pour's
+#    four drawn corners comes back as a five-point arc of that radius. At
+#    (18, 2):
+#
+#        (17.801,    2       )
+#        (17.887343, 2.019707)
+#        (17.956584, 2.074926)
+#        (17.995011, 2.154718)
+#        (18,        2.199   )
+#
+# 2. The spoke root is SHARP. Taking the up-left spoke, the fill runs dead
+#    straight for 1.046 mm from the gap ring at (8.77734, 10.869104) to
+#    (9.517037, 10.129408) -- a point at exactly 0.5 mm from the pad centre,
+#    i.e. on the drill -- and then follows the drill:
+#
+#        (9.517037, 10.129408)
+#        (9.534075, 10.192993)
+#        (9.599901, 10.307007)
+#        (9.692993, 10.400099)
+#        (9.807007, 10.465925)
+#        (9.870591, 10.482962)
+#
+#    before running dead straight again to (9.130894, 11.222658) on the gap
+#    ring. The spoke is 0.5 mm wide and the drill 1 mm across, so each root sits
+#    30 degrees off the spoke's axis and the copper wedge there has an interior
+#    angle of 60 degrees. There is no arc of radius 0.199 anywhere near it, and
+#    the copper is not cut back: a morphological opening of radius 0.199 applied
+#    to that wedge would retreat its tip by 0.199/sin(30 deg) = 0.398 mm along
+#    the bisector, which is most of the way to the gap ring.
+#
+# 3. The drill arc is where an UN-finished fill puts it, and the gap ring is
+#    not. perturb/min-thickness-noop/ is this board with (min_thickness 0.001),
+#    where the finishing radius is negative and the finishing does nothing at
+#    all: 71 vertices, also a fixed point. Comparing the two answers vertex by
+#    vertex, by their distance from the pad centre:
+#
+#      | vertices at              | count | unchanged by the finishing |
+#      |--------------------------|-------|----------------------------|
+#      | 0.504314 mm, the drill   |    16 | 16 -- all of them, exactly |
+#      | ~0.5 mm, the spoke roots |     8 | 4; the other 4 move 1 nm   |
+#      | ~1.5 mm, the ring/spokes |     8 | 3; the other 5 move 1-2 nm |
+#      | 1.504638 mm, the ring    |    32 | 10; the other 22 move 1-5  |
+#
+#    (0.504314 and 1.504638 mm are the circumradii of the two tessellated
+#    circles; a vertex "at ~0.5 mm" or "~1.5 mm" is where a spoke's straight
+#    side cuts one of them.) So the gap ring is inside whatever the finishing
+#    operates on -- all 32 of its vertices are candidates and 22 move -- and the
+#    drill is not: 16 of 16 come through untouched. The four drawn pour corners
+#    move by 0.199 mm.
+#
+# Failure modes this is expected to catch:
+#   - the natural WRONG guess, which is also the straightforward reading of
+#     "the spokes stop at the drill": cut the drill out of the spoke cross
+#     first, so the drill disc becomes part of the shape held back from the pad,
+#     and then finish. The 60-degree copper wedge is then present while the
+#     finishing runs, and a finishing that rounds convex corners -- which it
+#     provably does, see (1) -- puts a 0.199 mm arc at all eight spoke roots.
+#     Each root gains roughly four extra vertices and the straight run in (2)
+#     stops about 0.25 mm short of the drill. This is wrong by a whole feature
+#     at every root, not by a rounding, and it is what an engine that subtracts
+#     one combined "relief" shape before finishing will produce.
+#   - dropping the spokes because thermal_bridge_width (0.5) is close to
+#     min_thickness (0.4). It is not below it, and they survive: an answer with
+#     no spokes at all is a full 1.5 mm disc held back from the pad.
+#   - rounding the drill arc itself. The drill boundary is a hole in the copper,
+#     so a finishing pass that touches it would leave it alone anyway -- it is
+#     the ROOT, where the drill meets the spoke's straight side, that separates
+#     the orderings.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see the repo README); the numbers above are the local kicad-cli measurement
+# the runner should reproduce.
