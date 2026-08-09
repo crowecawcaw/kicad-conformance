@@ -1,0 +1,62 @@
+concept = "The min_thickness opening cuts every CONVEX corner of a pour back to an inscribed arc, but a CONCAVE one it restores exactly: the drawn vertex comes back at its own nanometre, at every turn angle. That is not obvious from the convex behaviour -- the opening's erode replaces a concave corner with an arc of the erode radius, and only because the dilate collapses that arc back to a point does the drawn vertex survive. Four notches spanning 10, 40, 70 and 100 degrees of turn are here so that 'restored exactly' can be told apart from 'mitred', 'rounded like a convex corner' and 'rounded only past some angle'."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One pour on F.Cu. No pads, no vias, no tracks, no second zone; the pour sits
+# 2 mm clear of Edge.Cuts, so nothing is subtracted from it and every vertex in
+# the answer comes from the min_thickness opening alone. It is the concave
+# counterpart of `min-thickness-rounds-every-convex-corner`.
+#
+# The outline is a rectangle with four V-notches cut into its top edge. Each
+# notch's apex is a concave (reflex) corner of the pour, and the two edges of
+# each notch are deliberately at DIFFERENT angles to the horizontal, so the
+# corner's bisector is not axis-aligned and the offset geometry does not land on
+# the nanometre grid by construction. The four notches turn 10, 40, 70 and 100
+# degrees.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-09, this exact file, `pcb drc
+# --refill-zones --save-board`): one filled_polygon, 43 vertices, and each of
+# the four drawn apexes is present in the answer at exactly its drawn
+# coordinate:
+#
+#     (17.113,  10.3137)   turn  10 deg
+#     (30.207,  10.8219)   turn  40 deg
+#     (40.311,  11.2071)   turn  70 deg
+#     (50.409,  11.6053)   turn 100 deg
+#
+# The natural WRONG guess is that a concave corner is treated like a convex one
+# and comes back as an arc, or that it is mitred back by min_thickness/2 the way
+# the erode alone would leave it. Neither happens at any of the four angles: the
+# straight runs meet at the drawn vertex.
+#
+# # Two things this case records that are NOT rules, and must not be read as
+# # rules
+#
+# 1. **KiCad splits some straight runs with a geometrically empty vertex.** Two
+#    of the eight notch edges here come back carrying an extra vertex that sits
+#    on the run it splits to a small fraction of a nanometre:
+#
+#      (14.320046, 10.005355)  is 0.041 nm off the line through its neighbours
+#      (32.673602, 10.072489)  is 0.0023 nm off
+#
+#    Both are on straight drawn edges, both are collinear with their neighbours
+#    far below the nanometre the file is written in, and neither corresponds to
+#    any feature of the input. They are the residue of the opening's own
+#    arithmetic.
+#
+# 2. **The 100-degree apex additionally comes back as THREE vertices** --
+#    (50.408999, 11.6053), (50.408999, 11.605299), (50.409, 11.6053) -- two of
+#    which are one nanometre from the third. The obvious reading, that a concave
+#    corner past some turn angle acquires a cluster, is WRONG, and the
+#    perturbation is here to say so: `apex-moved-one-nanometre` moves that one
+#    apex from x = 50.409 to x = 50.409001, changing no angle by more than a
+#    millionth of a degree, and the cluster disappears -- the answer becomes a
+#    single vertex at (50.409001, 11.6053). A second board built the same way
+#    with turns of 95, 110, 130 and 150 degrees puts a cluster on the 150 degree
+#    apex and none on the other three, so the cluster does not track the angle
+#    either.
+#
+#    So: an implementation that reproduces the four apexes exactly and emits no
+#    cluster has the RULE right. Whether it also reproduces the cluster is a
+#    question about sub-nanometre arithmetic, not about where a vertex belongs.
