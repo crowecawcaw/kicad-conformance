@@ -1,0 +1,44 @@
+concept = "A drilled hole is cleared out of a copper pour by its own rule, board.design_settings.rules.min_hole_clearance, and not by the clearance that governs copper: neither the netclass clearance, nor the zone's own (connect_pads (clearance ...)), nor rules.min_clearance reaches it."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One 20x20 mm outline, one F.Cu pour, one unplated hole, one same-net anchor pad.
+# The board ships NO (filled_polygon ...), so `refill` is the only recorded answer that
+# sees a fill.
+#
+# The pad at (10,10) is `np_thru_hole` with (size 1.5 1.5) equal to its (drill 1.5), so it
+# has NO copper at all -- the void it leaves in the pour is the hole's clearance and
+# nothing else. Every input that could plausibly govern it is set to a DIFFERENT value in
+# board.kicad_pro, so each candidate rule predicts a different void radius:
+#
+#   netclass Default clearance   0.2   -> 0.9505 mm     <- the natural WRONG guess
+#   zone (connect_pads (clearance 0.3)) -> 1.0505 mm
+#   rules.min_clearance          0.35  -> 1.1005 mm
+#   rules.min_hole_clearance     0.4   -> 1.1505 mm     <- what KiCad does
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08): the void is a 1.1505 mm-radius disk
+# about (10,10) -- bounding box x 8.8495..11.1505, y 8.8495..11.1505 -- i.e.
+# drill/2 + rules.min_hole_clearance + 0.0005, where the trailing 0.0005 is the same
+# half-epsilon every clearance shape on a KiCad fill carries.
+#
+# THE NATURAL WRONG GUESS this case exists to catch: "an np_thru_hole pad is copper like
+# any other pad, so its hole takes the netclass clearance". That guess is wrong twice
+# over -- it uses the wrong clearance (0.2 instead of 0.4) AND it grows the pad's copper,
+# which for this pad does not exist. It survives casual testing because most drilled pads
+# are plated and have an annulus wide enough that the copper term is the larger of the
+# two, so the hole term is invisible; it shows up on mounting holes, edge slots and any
+# hole whose min_hole_clearance beats its netclass clearance.
+#
+# Two further wrong guesses the values above separate:
+#   - flooring the hole clearance at rules.min_clearance (1.1005), the way the copper
+#     clearance IS floored by it;
+#   - maxing in the zone's own local clearance (1.0505), the way the copper clearance
+#     does take it.
+#
+# When min_hole_clearance is absent from the project (or there is no project at all),
+# KiCad's built-in default is 0.25 mm.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner (see repo
+# README); the numbers above are the local kicad-cli measurement the runner should
+# reproduce.

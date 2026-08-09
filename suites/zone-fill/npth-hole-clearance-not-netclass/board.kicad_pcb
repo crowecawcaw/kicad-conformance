@@ -1,0 +1,82 @@
+(kicad_pcb
+	(version 20260206)
+	(generator "pcbnew")
+	(generator_version "10.0")
+	(general
+		(thickness 1.6)
+		(legacy_teardrops no)
+	)
+	(paper "A4")
+	(layers
+		(0 "F.Cu" signal)
+		(2 "B.Cu" signal)
+		(25 "Edge.Cuts" user)
+	)
+	(setup
+		(pad_to_mask_clearance 0)
+	)
+	(net 0 "")
+	(net 1 "GND")
+	(footprint "MountingHole:MountingHole"
+		(layer "F.Cu")
+		(uuid "5b0e0000-0000-4000-8000-000000000101")
+		(at 10 10)
+		(attr exclude_from_pos_files exclude_from_bom)
+		(duplicate_pad_numbers_are_jumpers no)
+		(pad "" np_thru_hole circle
+			(at 0 0)
+			(size 1.5 1.5)
+			(drill 1.5)
+			(layers "*.Cu" "*.Mask")
+			(uuid "5b0e0000-0000-4000-8000-000000000102")
+		)
+	)
+	(footprint "TestPoint:TestPad"
+		(layer "F.Cu")
+		(uuid "5b0e0000-0000-4000-8000-000000000201")
+		(at 17 17)
+		(attr through_hole)
+		(duplicate_pad_numbers_are_jumpers no)
+		(pad "1" thru_hole circle
+			(at 0 0)
+			(size 1.5 1.5)
+			(drill 0.8)
+			(layers "*.Cu" "*.Mask")
+			(net 1 "GND")
+			(uuid "5b0e0000-0000-4000-8000-000000000202")
+		)
+	)
+	(gr_rect
+		(start 0 0)
+		(end 20 20)
+		(stroke
+			(width 0.05)
+			(type default)
+		)
+		(fill no)
+		(layer "Edge.Cuts")
+		(uuid "5b0e0000-0000-4000-8000-0000000000aa")
+	)
+	(zone
+		(net 1)
+		(net_name "GND")
+		(layer "F.Cu")
+		(uuid "5b0e0000-0000-4000-8000-0000000000e1")
+		(hatch edge 0.5)
+		(connect_pads yes
+			(clearance 0.3)
+		)
+		(min_thickness 0.001)
+		(fill yes
+			(thermal_gap 0.5)
+			(thermal_bridge_width 0.5)
+			(island_removal_mode 0)
+		)
+		(polygon
+			(pts
+				(xy 2 2) (xy 18 2) (xy 18 18) (xy 2 18)
+			)
+		)
+	)
+	(embedded_fonts no)
+)

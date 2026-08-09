@@ -1,0 +1,40 @@
+concept = "An UNPLATED routed slot -- an np_thru_hole pad whose (drill oval X Y) sizes differ -- is cleared out of a copper pour like a milled board edge: its clearance is floored by board.design_settings.rules.min_copper_edge_clearance, not by rules.min_hole_clearance, and its void is a stadium swept from the slot's own skeleton rather than a circle."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One 24x16 mm outline, one F.Cu pour, one unplated 3.0 x 1.5 mm slot at (12,8), one
+# same-net anchor pad. The board ships NO (filled_polygon ...), so `refill` is the only
+# recorded answer that sees a fill. The pad's (size 3 1.5) equals its (drill oval 3 1.5),
+# so it has no copper at all and the void is the slot's clearance and nothing else.
+#
+# Every candidate rule predicts a different void, and board.kicad_pro gives each input a
+# different value so they cannot be confused:
+#
+#   rules.min_hole_clearance          0.1  -> stadium radius 0.8505 mm   <- WRONG guess 1
+#   netclass Default clearance        0.2  -> 0.9505 mm
+#   zone (connect_pads (clearance 0.3))    -> 1.0505 mm
+#   rules.min_copper_edge_clearance   0.6  -> 1.3505 mm                  <- what KiCad does
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08): the void's bounding box is
+# x 9.8995..14.1005, y 6.6495..9.3505 -- a stadium of radius 1.3505 mm swept along the
+# 1.5 mm skeleton between the slot's two cap centres, i.e.
+# min(X,Y)/2 + rules.min_copper_edge_clearance + 0.0005.
+#
+# THE NATURAL WRONG GUESSES this case exists to catch:
+#   1. "a slot is a hole, so it takes rules.min_hole_clearance" -- the same rule that DOES
+#      govern a round unplated hole (see npth-hole-clearance-not-netclass). It does not
+#      govern this one, and the difference is only visible when the two keys differ, which
+#      on a default project they do not (0.25 against 0.5).
+#   2. "a slot is a circle of min(X,Y)/2" -- which gets the y extent right and the x
+#      extent wrong by the skeleton's length (2.1005 mm here, not 1.3505), so it leaves
+#      copper standing inside a milled cut-out. Approximating it as a circle of max(X,Y)/2
+#      fails the other way.
+#
+# What this case does NOT say: a PLATED slot is a different rule again. On the same
+# geometry, a `thru_hole` pad's slot void did not move when min_copper_edge_clearance was
+# raised from 0.5 to 0.9 -- its walls are copper, so it goes through the copper stack.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner (see repo
+# README); the numbers above are the local kicad-cli measurement the runner should
+# reproduce.

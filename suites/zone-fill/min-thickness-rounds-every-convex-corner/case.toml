@@ -1,0 +1,48 @@
+concept = "Recomputing a zone's fill applies min_thickness as a morphological opening to the WHOLE pour, not only to the parts of it that are thin. A featureless axis-aligned rectangle of copper 20 mm x 14 mm therefore does not come back as its own four drawn corners: every convex corner is cut back by (min_thickness/2 - 0.001 mm) and replaced by an inscribed arc, so the four-vertex outline becomes sixteen vertices and the drawn corner vertex is absent from the answer."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One pour on F.Cu, no pads, no vias, no tracks, no second zone, and the pour
+# sits 8 mm clear of Edge.Cuts so no edge clearance touches it. min_thickness is
+# 0.25 mm. Every vertex in the answer therefore comes from the min_thickness
+# finishing alone -- this is the baseline the rest of the zone-fill suite is a
+# perturbation of.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08, this exact file, `pcb drc
+# --refill-zones --save-board`): one filled_polygon, 16 vertices. The drawn
+# rectangle is [10,30] x [8,22]; the fill's corner at the drawn (30, 22) is
+#
+#     (30,        21.876)
+#     (29.980315, 21.943039)
+#     (29.927511, 21.988794)
+#     (29.876,    22)
+#
+# and the other three corners are the same shape. Two things to read off it:
+#
+#   - The setback is exactly 0.124 = min_thickness/2 - 0.001 mm, and the DRAWN
+#     corner (30, 22) is not a vertex of the fill. The straight runs between
+#     corners are untouched, so the opening removes nothing but the corners.
+#   - The four vertices lie on a circle of radius 0.124 mm about (29.876,
+#     21.876) at 0 deg, 32.7272 deg, 65.4545 deg and 90 deg. The arc STARTS at
+#     its own tangent point and steps by a full-circle segment angle of
+#     360/11 deg until the next step would overshoot, then lands exactly on the
+#     far tangent point -- so the last segment is short (24.5454 deg) and the
+#     vertices are not evenly spaced across the 90 deg sweep.
+#
+# The natural wrong guesses this is meant to catch:
+#   - Believing min_thickness only deletes copper thinner than the minimum, and
+#     so returning the drawn rectangle's four vertices unchanged. It is an
+#     opening of the entire pour; wide copper is affected too, at its corners.
+#   - Dividing the 90 deg sweep into equal segments (30 deg / 30 deg / 30 deg,
+#     or 22.5 deg x 4). That produces four vertices on the right circle at the
+#     wrong angles, so the area is close and not one vertex matches.
+#   - Emitting the tangent points only, i.e. chamfering the corner with a single
+#     segment from (30, 21.876) to (29.876, 22). That is an 8-vertex answer, and
+#     the 0.005 mm max_error an inscribed arc is allowed does not permit it: the
+#     sagitta of a 90 deg chord at radius 0.124 mm is 0.0363 mm, seven times the
+#     budget.
+#
+# expected/ is not yet generated -- it needs the Dockerised runner (see repo
+# README); the numbers above are the local kicad-cli measurement the runner
+# should reproduce.

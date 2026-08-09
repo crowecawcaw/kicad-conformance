@@ -1,0 +1,25 @@
+{
+  "board": {
+    "design_settings": {
+      "rules": {
+        "max_error": 0.005,
+        "min_clearance": 0.35,
+        "min_copper_edge_clearance": 0.5,
+        "min_hole_clearance": 0.4
+      }
+    }
+  },
+  "meta": {
+    "filename": "board.kicad_pro",
+    "version": 3
+  },
+  "net_settings": {
+    "classes": [
+      {
+        "clearance": 0.2,
+        "name": "Default"
+      }
+    ],
+    "netclass_patterns": []
+  }
+}
