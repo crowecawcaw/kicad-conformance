@@ -1,0 +1,82 @@
+concept = "Two copper pours of the SAME net at EQUAL priority do not arbitrate. Each fills its whole drawn region, the two simply overlap, and they are not merged into one polygon -- no tie-break is applied, not by uuid and not by declaration order. This holds even where one pour's fill has a hole the other floods: the pours share that copper rather than partitioning it."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Three B.Cu pours, all on net GND, none carrying a `(priority ...)` token, so
+# all three are at the default priority 0 -- equal. They are laid out in a chain
+# so two of the three pairs overlap:
+#
+#   declared 1st  uuid 5555...  "MID"  8..28 x 0..12, plus a tab 20..26 x 12..18
+#   declared 2nd  uuid ffff...  "TOP" 24..44 x 0..12
+#   declared 3rd  uuid 0000...  "LOW"  0..12 x 0..12
+#
+#   LOW n MID = 8..12       MID n TOP = 24..28       LOW n TOP = empty
+#
+# The uuid order (ffff > 5555 > 0000) is deliberately NOT the declaration order,
+# so "larger uuid wins", "earlier declaration wins" and "later declaration wins"
+# would each pick a different pour to clip if any clipping happened at all.
+#
+# Two more things the board carries on purpose:
+#
+#   - TOP sets `(connect_pads no ...)`, so the GND through-hole pad at (25, 6) is
+#     CLEARED out of TOP rather than connected: TOP's fill has a semicircular
+#     bite of radius 1.4 mm (0.8 mm pad radius + 0.6 mm clearance) opening onto
+#     its left edge at x = 24. MID sets `(connect_pads yes ...)` and floods over
+#     the same pad. So MID's copper covers a place TOP's copper does not. If the
+#     pours partitioned, that hole is the one place the loser would still get
+#     copper, which is what tells "clipped against the winner's drawn outline"
+#     apart from "clipped against the winner's filled copper".
+#   - `(min_thickness 0.4)`, so the finishing radius is 0.199 mm -- large enough
+#     to see. Every drawn convex corner that is on the outside of the same-net
+#     union comes back as a 0.199 mm arc; every corner that is inside the union
+#     comes back SHARP.
+#
+# The VCC track at y = 14 and the pad at (23, 16.8) exist so that MID's tab is a
+# SECOND filled area of MID that is anchored by a pad of its own. Nothing on this
+# board is removed by island removal. That is the whole difference between this
+# case and `same-net-equal-priority-partition-after-island-removal`, whose board
+# is this board minus the (23, 16.8) pad, and which gets the opposite answer.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-09, this exact file, `pcb upgrade
+# --force` then `pcb drc --refill-zones --save-board`):
+#
+#   uuid 0000... (LOW): 1 filled area, 12 vertices, x 0..12, y 0..12.
+#                       Its corners at x = 0 are 0.199 mm arcs; its corners at
+#                       (12, 0) and (12, 12) are SHARP, because they are inside
+#                       the same-net union with MID.
+#   uuid 5555... (MID): 2 filled areas -- the tab, 20 vertices, x 20..26,
+#                       y 15.1005..18; and the body, 16 vertices, x 8..28,
+#                       y 0..12.8995. The body keeps ALL of 24..28, i.e. all of
+#                       its overlap with TOP, and has no trace of TOP's bite.
+#   uuid ffff... (TOP): 1 filled area, 56 vertices, x 24..44, y 0..12, with the
+#                       bite at (25, 6) reaching x = 26.4 and spanning
+#                       y 5.020099..6.9799 on its left edge. It keeps ALL of
+#                       24..28, i.e. all of its overlap with MID.
+#
+# So the three fills OVERLAP: 8..12 x 0..12 is filled by both LOW and MID, and
+# 24..28 x 0..12 is filled by both MID and TOP. They are three polygons, not one
+# merged 0..44.
+#
+# Failure modes this is expected to catch:
+#   - clipping equal-priority same-net pours at all. Any tie-break makes one of
+#     the two overlaps disappear from one of the pours, and the three candidate
+#     tie-breaks each pick a different victim: "larger uuid wins" would cut MID
+#     back to 8..24 and LOW to 0..8; "earlier declaration wins" would cut TOP
+#     back to 28..44 and LOW to 0..8; "later declaration wins" would cut MID
+#     back to 12..24 and leave LOW its full 0..12.
+#   - merging same-net pours into one polygon. That answer is one filled area
+#     spanning 0..44, not three overlapping ones, and it also rounds no corner
+#     at x = 12, 24 or 28.
+#   - applying the STRICTLY-higher-priority same-net rule here. A pour of the
+#     same net at a strictly higher priority does clip a lower one, at zero
+#     clearance -- but that needs a `(priority ...)` difference, and there is
+#     none on this board.
+#   - rounding the corners at (12, 0), (12, 12), (24, 0), (24, 12), (28, 0) and
+#     (28, 12). The min_thickness finishing runs on the same-net union, so a
+#     corner buried inside the union is not a convex corner and is not rounded,
+#     even though it is a drawn convex corner of the pour that owns it.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see the repo README); the numbers above are the local kicad-cli measurement
+# the runner should reproduce.

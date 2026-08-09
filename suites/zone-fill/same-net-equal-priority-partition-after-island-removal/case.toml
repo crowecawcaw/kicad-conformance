@@ -1,0 +1,99 @@
+concept = "Island removal turns same-net equal-priority pours from overlapping into a partition. Once island removal actually DELETES a filled area from a pour, that pour is re-filled as its own copper minus the filled copper of every same-net equal-priority pour with a lexically larger uuid, at ZERO clearance and AFTER the min_thickness finishing -- and the change cascades: a pour whose copper shrank in turn clips every smaller-uuid same-net pour it overlaps. A pour that loses nothing and outranks everything it touches is untouched."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# This board is `same-net-equal-priority-pours-overlap-untouched`'s board with
+# ONE pad removed -- the (23, 16.8) GND pad that anchored MID's tab. Everything
+# else is identical, and the answer changes on two of the three pours. Read the
+# two cases together: they are the same geometry with opposite answers, and the
+# only difference is whether island removal deletes anything.
+#
+# Three B.Cu pours, all on net GND, none carrying a `(priority ...)` token, so
+# all three sit at the default priority 0 -- equal:
+#
+#   declared 1st  uuid 5555...  "MID"  8..28 x 0..12, plus a tab 20..26 x 12..18
+#   declared 2nd  uuid ffff...  "TOP" 24..44 x 0..12
+#   declared 3rd  uuid 0000...  "LOW"  0..12 x 0..12
+#
+#   LOW n MID = 8..12       MID n TOP = 24..28       LOW n TOP = empty
+#
+# The uuid order (ffff > 5555 > 0000) is deliberately NOT the declaration order,
+# so "larger uuid wins", "earlier declaration wins" and "later declaration wins"
+# each predict a different answer -- see the failure modes below.
+#
+# The VCC track at y = 14 severs MID's tab from MID's body. The tab holds no pad
+# and touches nothing else, so island removal DELETES it, and that deletion is
+# the whole trigger. The board's only GND anchors are the pad at (3, 6), inside
+# LOW alone, and the pad at (25, 6), inside MID and TOP.
+#
+# TOP sets `(connect_pads no ...)`, so the pad at (25, 6) is cleared out of TOP
+# rather than connected: TOP's fill has a semicircular bite of radius 1.4 mm
+# (0.8 mm pad radius + 0.6 mm clearance) opening onto its left edge at x = 24.
+# MID sets `(connect_pads yes ...)` and floods over the same pad. That bite is
+# the discriminator between "clipped against the winner's DRAWN outline" and
+# "clipped against the winner's FILLED copper".
+#
+# `(min_thickness 0.4)` puts the finishing radius at 0.199 mm, so whether the
+# clip happens before or after the finishing is visible as a whole feature and
+# not as a rounding.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-09, this exact file, `pcb upgrade
+# --force` then `pcb drc --refill-zones --save-board`):
+#
+#   uuid 5555... (MID): 1 filled area, 60 vertices, x 8..26.4, y 0..12.8995.
+#                       Its tab is GONE. Its body stops at exactly x = 24 with
+#                       SHARP corners at (24, 0) and (24, 12) -- and then bulges
+#                       back out to x = 26.4, filling TOP's bite: the ring runs
+#                       (24, 5.020099) around the 1.4 mm arc at (25, 6) to
+#                       (24, 6.9799) and on to (24, 12).
+#   uuid ffff... (TOP): 1 filled area, 56 vertices, x 24..44, y 0..12 -- exactly
+#                       what it fills in the control case. It outranks
+#                       everything it overlaps and lost nothing, so it is
+#                       untouched.
+#   uuid 0000... (LOW): 1 filled area, 12 vertices, x 0..8, y 0..12. It was
+#                       0..12 in the control. It lost no island of its own; it
+#                       is clipped because MID's copper changed and LOW's uuid
+#                       is smaller. Its corners at (8, 0) and (8, 12) are SHARP
+#                       and its corners at x = 0 are 0.199 mm arcs.
+#
+# Nothing overlaps any more: the three fills partition 0..44 where the control's
+# three fills share 8..12 and 24..28.
+#
+# Failure modes this is expected to catch:
+#   - the natural WRONG guess, and the one that a correct reading of the control
+#     case leads to: same-net equal-priority pours never arbitrate. That answer
+#     is MID = 8..28 with no bulge, TOP = 24..44, LOW = 0..12, three overlapping
+#     fills. Both cases have to hold at once; neither rule alone explains them.
+#   - a tie-break on declaration order. "Earlier declaration wins" makes MID the
+#     winner: MID keeps 8..28 with no bulge, TOP is cut back to 28..44, LOW to
+#     0..8. "Later declaration wins" makes LOW the winner and MID the loser to
+#     both its neighbours: MID = 12..24, LOW keeps its full 0..12.
+#   - clipping MID against TOP's DRAWN outline instead of its filled copper.
+#     That answer runs MID's edge straight down x = 24 with no bulge at (25, 6)
+#     -- 2 fewer vertices where the arc is, and 1.4 mm of copper missing.
+#   - clipping with a clearance. The pours' `connect_pads` clearance is 0.6 mm,
+#     so the different-net rule (max clearance + max_error + EPSILON/2) would put
+#     MID's edge at x = 23.3945 and LOW's at x = 7.3945. Within a net the growth
+#     is zero and both edges land on the neighbour's edge exactly.
+#   - clipping before the min_thickness finishing. The finishing radius is
+#     0.199 mm and it rounds every convex corner it is given, so a clip applied
+#     first turns (24, 0), (24, 12), (8, 0) and (8, 12) into four arcs. They are
+#     sharp: the clip is applied to the finished copper.
+#   - applying the clip to every same-net overlap on the board rather than to
+#     the pours downstream of the deletion. TOP loses nothing here even though
+#     it overlaps MID, because it outranks MID.
+#   - scoping the trigger to the pour that lost the island. LOW lost nothing and
+#     is clipped anyway, because the pour it overlaps was re-filled.
+#
+# One thing this board does NOT decide, recorded so nobody reads it out of the
+# answer: how far the trigger reaches. Two boards outside this case measured it
+# and are not part of what the case asserts -- a deletion in a same-net pour that
+# overlaps neither of an overlapping pair leaves that pair overlapping, whether
+# the deleting pour is electrically isolated or joined to the pair by a track. So
+# the trigger appears to travel through zone-to-zone OVERLAP rather than through
+# the net's connectivity, but only the two overlaps drawn here are pinned.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see the repo README); the numbers above are the local kicad-cli measurement
+# the runner should reproduce.
