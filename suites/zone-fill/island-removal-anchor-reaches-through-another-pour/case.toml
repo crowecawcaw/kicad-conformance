@@ -1,0 +1,45 @@
+concept = "Another pour of the same net conducts the anchor. A pour with no pad of its own keeps only the filled area that touches a second same-net pour holding the net's pad; the pour's other area, which touches nothing, is removed. Anchoring therefore walks the whole same-net copper graph -- pads, tracks, vias AND other zones' filled areas -- and it is not confined to the pour being filled."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two GND pours on B.Cu:
+#   uuid cccc... : 0..30 x 0..10, split into a left and a right filled area by a
+#                  foreign VCC track at x=15 (1 mm wide, 0.2 mm clearance either
+#                  side -> a ~1.41 mm gap, far wider than the 0.25 mm
+#                  min_thickness, so the fill genuinely separates). It contains
+#                  no pad.
+#   uuid dddd... : 25..34 x 2..8, overlapping the RIGHT area of cccc.
+# The board's only GND pad is a thru-hole at (32,5), inside dddd and outside
+# cccc entirely.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08, this exact file, refilled on a
+# scratch copy with no project file):
+#   - cccc has **one** filled_polygon, x 15.7005..30 -- the right area only. Its
+#     LEFT area, which has no pad and touches no other same-net copper, is gone.
+#   - dddd has one filled_polygon, x 25..34.
+#
+# The control that proves the left area was deleted rather than never filled:
+# add (island_removal_mode 1) to cccc and nothing else, and cccc comes back with
+# two filled_polygons, x 0..14.2995 and x 15.7005..30 (measured the same day,
+# same way).
+#
+# Failure modes this is expected to catch:
+#   - anchoring scoped to the pour being filled ("this pour has no pad, so
+#     nothing in it is anchored, so keep everything"). That keeps the left area
+#     and is wrong.
+#   - anchoring by geometric containment ("is a pad inside this area?"), which
+#     also keeps the left area and, worse, deletes the right one -- the pad is
+#     not inside either.
+#   - not walking through other zones' fills when grouping the net's copper,
+#     which leaves the right area unanchored too and empties the pour.
+#
+# The near-miss worth reading beside this one is
+# `island-removal-scope-is-the-zone-not-the-net`: move the second pour away so
+# it touches nothing, and the padless pour keeps BOTH areas again. Two boards,
+# same nets, same pads, opposite answers, and the only difference is whether the
+# copper actually connects.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see repo README); the numbers above are the local kicad-cli measurement the
+# runner should reproduce.

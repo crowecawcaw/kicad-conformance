@@ -1,0 +1,36 @@
+concept = "The anchoring pad does not have to have copper on the filled area's layer. A B.Cu area with no pad of its own is kept alive by an SMD pad that exists only on F.Cu, reached through an F.Cu track and a via that lands in the area. Remove just the via and the same area is deleted."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour, 0..30 x 0..10 on B.Cu, split into a left and a right filled area
+# by a foreign VCC track at x=15 (1 mm wide, 0.2 mm clearance either side -> a
+# ~1.41 mm gap, far wider than the 0.25 mm min_thickness, so the fill genuinely
+# separates).
+#
+# The LEFT area holds a GND thru-hole pad. The RIGHT area holds no pad. It is
+# reached instead by: a GND via at (25,7) inside the area, an F.Cu GND track
+# from (25,7) to (25,3), and a GND SMD pad at (25,3) whose layers are F.Cu and
+# F.Mask only -- it has no copper on B.Cu at all.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08, this exact file, refilled on a
+# scratch copy with no project file): **two** filled_polygons,
+# x 0..14.2995 and x 15.7005..30. The right area survives.
+#
+# The control: delete the (25,7) via and nothing else, leaving the F.Cu pad and
+# the F.Cu track exactly where they were. The right area is then removed and the
+# zone has one filled_polygon, x 0..14.2995 (measured the same day, same way).
+# So it really is the layer-crossing path that anchors the area, not the mere
+# presence of the pad or of the track above it.
+#
+# Failure modes this is expected to catch:
+#   - restricting the anchor search to items with copper on the area's own
+#     layer, which deletes the right area. This looks like a safe optimisation
+#     -- an F.Cu pad plainly cannot touch B.Cu copper -- and it is wrong,
+#     because vias join the layers.
+#   - treating a via as an anchor in its own right, which keeps the right area
+#     in the control run too, where it must not.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see repo README); the numbers above are the local kicad-cli measurement the
+# runner should reproduce.

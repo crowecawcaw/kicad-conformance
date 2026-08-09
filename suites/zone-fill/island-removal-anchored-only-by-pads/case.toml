@@ -1,4 +1,4 @@
-concept = "A filled area of a zone that is separated from the rest of the pour survives only if a PAD of the zone's net lies in it. Same-net copper that is not a pad does not anchor an area: a track running through it and a via sitting in it are both ignored, and the area is deleted anyway. Recomputing the fill therefore drops the unanchored area entirely rather than keeping isolated copper."
+concept = "A filled area of a zone that is separated from the rest of the pour survives only if it is electrically anchored, and only a PAD anchors. Same-net copper that leads nowhere does not: a track lying in the area and a via sitting in it are both dangling here, so the area's connected group contains no pad and the area is deleted. Recomputing the fill therefore drops the unanchored area entirely rather than keeping isolated copper."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
@@ -12,15 +12,14 @@ extra   = ["refill"]
 #
 # The LEFT area holds a GND thru-hole pad. The RIGHT area deliberately holds the
 # two decoys: a GND track (22,5)-(28,5) and a GND via at (20,8). Both are the
-# zone's own net and both are inside the area; neither anchors it.
+# zone's own net and both lie inside the area, and **both are dangling** -- the
+# track runs from nothing to nothing and the via connects nothing to nothing.
+# Neither anchors the area.
 #
-# Measured against kicad-cli 10.0.5 (2026-08-08, target/island_probe.sh and this
-# exact file): the refilled zone has **one** filled_polygon, spanning
-# x 0..14.2995 -- the left, pad-anchored area. The right area is gone.
-#
-# Six sibling probes pinned the rule: with a GND pad in the right area (thru-hole
-# or SMD) it survives; with only a track, only a via, or nothing, it is removed;
-# with (island_removal_mode 1) it survives regardless.
+# Measured against kicad-cli 10.0.5 (2026-08-08, this exact file, refilled on a
+# scratch copy with no project file): the refilled zone has **one**
+# filled_polygon, spanning x 0..14.2995 -- the left, pad-anchored area. The right
+# area is gone.
 #
 # Failure modes this is expected to catch:
 #   - implementing island removal as "connected to any same-net copper", which
@@ -29,11 +28,14 @@ extra   = ["refill"]
 #   - not implementing island removal at all, which keeps both areas.
 #   - deleting the whole pour, or deleting the pad-anchored area instead.
 #
-# Not covered here, and unresolved upstream: what KiCad does when NO area of a
-# pour is pad-anchored. Measured in isolation it then removes nothing, which
-# cannot explain real boards where a whole zone is emptied -- so the anchoring
-# set is evidently wider than a single pour. This case deliberately fixes one
-# area as anchored so it tests only the per-area rule.
+# The trap this case sets, and the sibling that disarms it: it is tempting to
+# read the result above as "only a pad *lying inside the area* counts, and
+# tracks and vias are ignored". That is the wrong generalisation, and
+# `island-removal-reaching-track-anchors` shows why -- give the very same right
+# area a GND track that runs OUT of the pour to a real GND pad and the area
+# survives. What the two cases pin together is that the test is electrical
+# connectivity to a pad, not the presence of a pad in the area; a dangling
+# track or via simply adds nothing to a group that still has no pad.
 #
 # expected/ is not yet generated -- it needs the Dockerised conformance runner
 # (see repo README); the numbers above are the local kicad-cli measurement the

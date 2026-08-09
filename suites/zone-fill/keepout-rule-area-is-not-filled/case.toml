@@ -1,0 +1,36 @@
+concept = "A zone carrying a (keepout ...) block is a rule area, not a copper pour: it never gets copper of its own. It has no net, its (fill ...) block has no `yes`, and after a refill it still holds zero filled_polygon. Refilling also reorders the file so the rule area is written before the pour, so a reader must key zones by uuid rather than by position."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two zones on B.Cu, deliberately disjoint so this case is only about which
+# zones get copper and not about how a rule area carves one:
+#   uuid cccc... : a GND pour, 0..20 x 0..10, with a GND thru-hole pad at (5,5)
+#                  so it is anchored and survives island removal.
+#   uuid bbbb... : a rule area, 24..30 x 2..8, with (keepout ... (copperpour
+#                  not_allowed) ...), no net, and a (fill ...) block that does
+#                  NOT say `yes`.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08, this exact file, refilled on a
+# scratch copy with no project file): the pour has **one** filled_polygon,
+# x 0..20; the rule area has **zero**. The saved file lists bbbb... first and
+# cccc... second, the reverse of the input order.
+#
+# Failure modes this is expected to catch:
+#   - treating every (zone ...) as a pour, which fills the rule area with a
+#     6 x 6 mm slab of netless copper. Real boards carry several of these -- an
+#     eight-zone board can be four pours and four rule areas -- so an engine
+#     with this bug reports far more filled copper than exists, and the surplus
+#     looks exactly like a failure to delete islands.
+#   - honouring (keepout ...) but not the missing `yes` in (fill ...), or the
+#     other way round; either alone is enough here, and a board can have a
+#     plain pour with fill disabled that has no keepout block at all.
+#   - keying zones by declaration index when comparing against a refilled file,
+#     which pairs the pour with the rule area and reports both as wrong.
+#
+# Not covered here: what a rule area does to a pour it overlaps. That is a
+# separate behaviour and wants its own case.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see repo README); the numbers above are the local kicad-cli measurement the
+# runner should reproduce.

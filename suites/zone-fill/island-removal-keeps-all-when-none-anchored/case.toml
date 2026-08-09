@@ -1,0 +1,36 @@
+concept = "Island removal is all-or-nothing per zone: if NO filled area of a zone is anchored to a pad, none of them is removed. A pour cut into four separate areas with no pad of its net anywhere on the board keeps all four. It does not keep the largest one, and it does not empty itself."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour, 0..30 x 0..10 on B.Cu, cut into FOUR separate filled areas by
+# three foreign VCC tracks at x=10, x=15 and x=20 (each 1 mm wide with 0.2 mm
+# clearance either side -> ~1.41 mm gaps, far wider than the 0.25 mm
+# min_thickness, so the fill genuinely separates). There is no GND pad anywhere
+# on the board, so not one of the four areas is anchored.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08, this exact file, refilled on a
+# scratch copy with no project file): **four** filled_polygons, spanning
+# x 0..9.2995, x 10.7005..14.2995, x 15.7005..19.2995 and x 20.7005..30.
+#
+# Four is the load-bearing number. Two areas cannot distinguish "keep all when
+# nothing is anchored" from "never empty a zone completely, so keep one"; four
+# can, and the answer is four, not one.
+#
+# Failure modes this is expected to catch:
+#   - "an unanchored area is always removed", which empties the zone. This is
+#     the natural reading of the anchoring rule and it is wrong; it is also the
+#     expensive error, because it deletes real copper on any board that pours a
+#     net with no pads (shield fills, stitching planes, mounting-hole nets).
+#   - "keep the biggest island so the zone is never empty", which leaves one
+#     area, x 20.7005..30.
+#   - filling the pour as a single un-split region, which leaves one
+#     filled_polygon spanning the whole 0..30 and does not exercise the case.
+#
+# The complement is pinned by `island-removal-anchor-reaches-through-another-pour`:
+# once ONE area of the zone is anchored, the unanchored areas of that same zone
+# ARE removed. The fallback here is a property of the zone, not of the board.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see repo README); the numbers above are the local kicad-cli measurement the
+# runner should reproduce.

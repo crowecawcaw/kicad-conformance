@@ -1,0 +1,30 @@
+concept = "(island_removal_mode 1) means 'keep every island'. A pour split into two filled areas with a pad in only one of them keeps both, where the same board without the token keeps only the pad-anchored area."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour, 0..30 x 0..10 on B.Cu, split into a left and a right filled area
+# by a foreign VCC track at x=15 (1 mm wide, 0.2 mm clearance either side -> a
+# ~1.41 mm gap, far wider than the 0.25 mm min_thickness, so the fill genuinely
+# separates). A GND thru-hole pad sits in the LEFT area only; the RIGHT area has
+# nothing. The zone's fill block carries (island_removal_mode 1).
+#
+# Measured against kicad-cli 10.0.5 (2026-08-08, this exact file, refilled on a
+# scratch copy with no project file): **two** filled_polygons,
+# x 0..14.2995 and x 15.7005..30.
+#
+# `island-removal-anchored-only-by-pads` is the same geometry with the token
+# absent (i.e. mode 0) and answers one filled_polygon, x 0..14.2995. The pair is
+# the whole content of this case: mode 1 is an off switch, not a tweak.
+#
+# Failure modes this is expected to catch:
+#   - parsing the token and then ignoring it, which deletes the right area.
+#   - reading mode 1 as "remove islands below island_area_min" -- that is a
+#     different mode, and this board sets no island_area_min at all, so a
+#     engine that conflates them removes the right area with a zero threshold.
+#   - an engine that has not implemented island removal passes this case
+#     vacuously; it is only evidence when read against the sibling above.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see repo README); the numbers above are the local kicad-cli measurement the
+# runner should reproduce.
