@@ -1,0 +1,49 @@
+concept = "When one pour is clipped by a same-net neighbour, the seam carries the neighbour's HOLE CUT. A filled area with a hole is written as one self-touching ring that walks out to the hole down a zero-width cut; the cut encloses no area, but where it lands on the pour's own boundary it is a vertex, and the clipped pour's seam is split there. The split sits at a y that appears nowhere in the input -- it is the y of the neighbour's own clearance void."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two GND pours on B.Cu, equal priority (neither carries `(priority ...)`):
+#   uuid cccc... : 0..40 x 0..10. A foreign VCC track at x=15 (1 mm wide,
+#                  0.2 mm clearance) cuts it into a left and a right filled
+#                  area; the left one holds no pad and touches nothing, so
+#                  island removal deletes it. That deletion is what licenses
+#                  the same-net clip.
+#   uuid dddd... : 25..34 x 2..8, drawn strictly INSIDE cccc, and the lexically
+#                  larger uuid, so it wins the clip and keeps its full extent.
+# A foreign VCC SMD pad at (32,4) puts a 1.0005 mm clearance void inside dddd --
+# a genuine hole, 0.8 mm clear of dddd's own edge on every side. The GND thru-
+# hole pad at (32,7) is what anchors cccc's right area; `(connect_pads yes)`
+# floods it solid so it makes no void of its own. `min_thickness 0.001` keeps
+# the finishing a no-op, so every number below is the raw geometry.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-09, this exact file, refilled on a
+# scratch copy with no project file):
+#   - dddd is one ring of 39 points: the 25..34 x 2..8 rectangle, the 32-gon
+#     void around the VCC pad, and the cut that joins them -- horizontal, at
+#     y = 3.901459, running LEFT from the void's leftmost vertex (30.9995,
+#     3.901459) to dddd's own left edge at (25, 3.901459).
+#   - cccc is one ring of 12 points: 15.7005..40 x 0..10 with a rectangular hole
+#     where dddd is. The hole is NOT the plain 4-corner rectangle -- its left
+#     edge is split at (25, 3.901459), exactly where dddd's cut landed. cccc's
+#     own cut to that hole then leaves from that same split vertex, so the
+#     neighbour's hole cut also decides where THIS pour is cut: (25, 3.901459)
+#     -> (15.7005, 3.901459).
+#
+# The natural wrong guess, and it is the one an outer-ring-plus-holes clipper
+# reaches by construction: that the seam is dddd's 25..34 x 2..8 rectangle with
+# four corners and nothing else, because a zero-width cut removes no copper.
+# That answer is 11 points, not 12, and it cuts cccc's hole at (25,2) or (25,8)
+# instead. The board can tell the two apart twice over -- once in the seam and
+# once in cccc's own cut -- and 3.901459 is not a number anywhere in the input.
+#
+# Two near-misses worth reading beside this one:
+#   - `island-removal-anchor-reaches-through-another-pour` is the same behaviour
+#     where the neighbour's hole is a THERMAL relief at `min_thickness 0.25`.
+#   - drop the hole and the seam is whole again: give the neighbour no foreign
+#     pad, and its ring has no cut, and the seam runs (25,2) -> (25,8) with no
+#     split at all.
+#
+# expected/ is not yet generated -- it needs the Dockerised conformance runner
+# (see repo README); the numbers above are the local kicad-cli measurement the
+# runner should reproduce.

@@ -1,0 +1,4 @@
+Ref,Val,Package,PosX,PosY,Rot,Side
+"","","vcc",15.000000,1.000000,0.000000,bottom
+"","","gnd_far",32.000000,-7.000000,0.000000,bottom
+"","","vcc_pad",32.000000,-4.000000,0.000000,bottom
