@@ -1,0 +1,24 @@
+concept = "A copper GRAPHIC on a pour's layer is copper, and the pour is held off it exactly as off a via or track. A `gr_circle` clears a disc of radius `R + clearance + stroke_width/2` centred on the circle's centre -- regardless of its `(fill)` flag; nothing about it being 'graphics' makes the pour ignore it."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (2..18) and one netless, foreign `gr_circle`: centre
+# (11,11), a point on the rim at (14,11), so R = 3 mm, with a deliberately FAT
+# stroke, width 0.6. KiCad clears a disc centred at (11,11) of radius
+# R + clearance 0.5 + stroke/2 0.3 = 3.8 mm (x/y span [7.2, 14.8]).
+# `min_thickness 0.001` keeps finishing a no-op.
+#
+# A circle pad's clearance is a disc and tessellates onto KiCad's to the
+# nanometre (see `drill-offset-displaces-foreign-pad-copper`), so this isolates
+# the "graphics clear the pour" rule with no arc-tessellation residue -- unlike
+# a `gr_poly`/`gr_rect`, whose rounded corners do not yet match KiCad.
+#
+# Two wrong guesses this defeats:
+#   (1) "graphics on a copper layer are decorative; a pour ignores them" -- an
+#       implementation that skips graphics floods solid over the disc. RED on
+#       sight: KiCad cuts a ~7.6 mm-wide hole.
+#   (2) "clear it by net clearance only, ignore the stroke" -- predicts the disc
+#       0.5 out (radius 3.5); the fat 0.6 stroke puts KiCad's rim 0.8 out
+#       (radius 3.8), so the board tells "clearance only" from
+#       "clearance + stroke/2" by 0.3 mm all round.

@@ -1,0 +1,17 @@
+concept = "A copper `gr_line` on a pour's layer is copper, held off exactly as a track's centre-line is: the pour clears a stadium (the segment offset by `clearance + stroke_width/2`, with semicircular caps) around it. A stroked segment with no net is foreign and always cleared."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (2..18) and one netless, foreign `gr_line` from (6,10) to
+# (16,10), stroke width 0.8. KiCad clears a stadium around the segment: half-width
+# clearance 0.5 + stroke/2 0.4 = 0.9 mm, semicircular caps radius 0.9 about the two
+# endpoints. Void span x[5.1, 16.9], y[9.1, 10.9]. `min_thickness 0.001` keeps
+# finishing a no-op. A `gr_line`'s stadium tessellates onto KiCad's to the
+# nanometre, exactly as a foreign track's does.
+#
+# Two wrong guesses this defeats:
+#   (1) "graphics are decorative; a pour ignores them" -- an implementation that
+#       skips graphics floods solid. RED: KiCad cuts a 1.8 mm-wide slot.
+#   (2) "clear by net clearance only, ignore the stroke" -- predicts half-width
+#       0.5; the 0.8 stroke puts KiCad's wall 0.9 out, a measurable 0.4 mm.
