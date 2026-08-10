@@ -1,0 +1,30 @@
+concept = "A pad's `(drill (offset X Y))` moves the pad's COPPER, not its hole. A foreign pad's clearance void in a pour is therefore centred on `(at) + offset` (in the pad's own frame, rotated with the pad), not on `(at)`. The hole/skeleton stays at `(at)`; only the copper -- and so the antipad a neighbouring pour clears around it -- is displaced."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (2..18 square) and one FOREIGN-net (VCC) SMD pad:
+#   (pad "1" smd circle (at 0 0) (size 2 2) (drill (offset 1 0)))
+# on a footprint at (at 10 10), so the pad's nominal copper is a 1 mm-radius
+# disc centred at (10,10). The `(drill (offset 1 0))` moves that copper +1 mm
+# in the pad's frame, so the disc -- and the void a foreign pour clears around
+# it -- is centred at (11,10).
+#
+# Measured against kicad-cli 10.0.5 (2026-08-09, this exact file, refilled on a
+# scratch copy): the clearance void is a disc of radius 1.5 mm (copper 1.0 +
+# clearance 0.5) centred at (11, 10) -- its x-span is [9.5, 12.5], centred on
+# x=11, NOT [8.5, 11.5] centred on x=10. The +1 mm displacement is the point.
+#
+# A CIRCLE pad (not a rect) is used so the void is a single disc, whose
+# tessellation KiCad and an exact-integer engine agree on to the nanometre --
+# a rounded-rect void carries KiCad's own ~1 nm arc-tangent asymmetry that would
+# confound the offset with disc-rounding noise. `min_thickness 0.001` keeps the
+# finishing a no-op. The pad is SMD (no plated hole), so the single
+# copper-displacement rule is isolated from the drill-hole clearance stack; a
+# hole, were there one, stays at `(at)` and is a separate measured behaviour.
+#
+# The natural WRONG guess -- and exactly what an engine that reads the offset as
+# a hole offset, or ignores it, produces: the void centred on the pad's `(at)`
+# at x=10, x-span [8.5, 11.5]. Because the offset is on x only, the void's left
+# and right walls are asymmetric about `(at)`, so "offset moves the copper" and
+# "offset ignored" give different, measurable answers.
