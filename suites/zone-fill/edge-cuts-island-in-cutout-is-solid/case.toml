@@ -1,0 +1,37 @@
+concept = "The board region under Edge.Cuts nesting is even-odd: a point is board material iff an ODD number of closed Edge.Cuts loops enclose it. An outer boundary is solid, a cut-out inside it is a hole, and an ISLAND inside that cut-out is solid board again. A zone poured on such a depth-2 island therefore fills; it is not clipped away with the hole around it."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Three concentric closed Edge.Cuts rectangles: an outer boundary 0..50 (depth 0,
+# solid), a cut-out 10..40 inside it (depth 1, a hole), and an island 18..32
+# inside the cut-out (depth 2, solid board again). One F.Cu pour "ZN" 21..29 sits
+# wholly inside the island, 3 mm clear of its edges on every side -- far more than
+# the 0.25 mm min_thickness -- so nothing about the island's own edge binds the
+# fill and the answer is the pour's drawn rectangle with its four convex corners
+# rounded by min_thickness. island_removal_mode 0 with no pad keeps the single
+# unanchored area.
+#
+# Measured against kicad-cli 10.0.5 (this exact file, refilled on a scratch copy
+# with no project file): the zone fills -- a single filled_polygon inside the
+# 18..32 island. KiCad treats the depth-2 island as solid board.
+#
+# The load-bearing distinction this case draws, and the wrong guess it catches:
+# even-odd nesting is NOT the same as "union of every even-depth loop, minus the
+# union of every odd-depth loop". Under that flat reading the island (even depth)
+# is unioned into the solid, but so is the cut-out subtracted -- and because the
+# island lies wholly inside the cut-out, subtracting the cut-out deletes the
+# island too, leaving only the outer ring. A pour on the island then clips to
+# nothing and the zone comes back EMPTY. An engine that empties this zone has
+# made exactly that flat-difference error; the fix is to honour the parity
+# per-point (equivalently, to add a depth-2 island back after its enclosing hole
+# is cut).
+#
+# A single board with a cut-out and no island (depths 0,1 only) does not exercise
+# this: the flat difference and the true even-odd agree there. Depth 2 is the
+# smallest nesting that tells them apart, and it is the same shape a panel's board
+# copies take -- an outline drawn inside a frame's routed interior.
+#
+# expected/ is not generated here -- the Dockerised conformance runner is not
+# available on this workstation; the number above is the local kicad-cli
+# measurement the runner should reproduce.
