@@ -1,0 +1,15 @@
+concept = "A back-side footprint's copper graphic clears the pour on its own layer with NO mirror: the footprint frame is applied as translation and rotation only, the same as the front side, not flipped about the footprint origin."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# A GND pour on B.Cu (2..18) and a back-side footprint `(layer "B.Cu")` at
+# (11,11), no rotation, carrying an `fp_circle` whose LOCAL centre is (2,0),
+# radius 3, stroke 0.6. KiCad clears a disc of radius R + clearance 0.5 +
+# stroke/2 0.3 = 3.8 mm at the placed centre (13,11) = (11,11) + (2,0).
+# min_thickness 0.001 keeps finishing a no-op.
+#
+# The wrong guess this defeats: "a back-side footprint mirrors its children about
+# the origin" (as some export frames do) -- that predicts the disc at (9,11),
+# 4 mm from KiCad's. KiCad applies no such mirror to the stored child coords, so
+# the void sits at (13,11).

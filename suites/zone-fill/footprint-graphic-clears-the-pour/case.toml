@@ -1,0 +1,18 @@
+concept = "A copper graphic OWNED BY A FOOTPRINT (`fp_circle`/`fp_line`) clears a pour exactly as a board `gr_*` does, after its footprint-frame points are placed by the footprint's `(at x y angle)` -- translation AND rotation. The graphic carries no net, so it is always foreign."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# A GND pour on F.Cu (2..18) and a footprint at (11,11) rotated 90 deg, carrying
+# an `fp_circle` whose LOCAL centre is (3,0), radius 3 (rim point (6,0)), stroke
+# 0.6. The disc's placed centre is (11,11) + rotate((3,0), 90deg) -- so the void
+# is a disc of radius R + clearance 0.5 + stroke/2 0.3 = 3.8 mm at the ROTATED
+# placed centre, NOT at the footprint origin and NOT at the unrotated (14,11).
+# min_thickness 0.001 keeps finishing a no-op.
+#
+# Wrong guesses this defeats:
+#   (1) "footprint graphics are decorative" -- floods solid. RED on sight.
+#   (2) "clear at the footprint origin / ignore the local offset" -- void at
+#       (11,11), 3 mm from KiCad's.
+#   (3) "apply translation but not the footprint's rotation" -- void at (14,11),
+#       measurably wrong; the 90 deg rotation moves the centre off the x axis.
