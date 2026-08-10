@@ -73,6 +73,23 @@ To test another implementation, point the runner at its adapter instead:
 5. Optionally add `perturb/<slug>/` — a modified copy of the input proving the
    case can actually fail (see `docs/FORMAT.md`).
 
+### Geometry that decides a rounding rule spans both signs
+
+A case that pins how a computed coordinate lands on the integer grid has to be
+drawn on both sides of the origin. On positive coordinates `floor` and
+truncation toward zero are the **same function**, and so are `round` and `ceil`
+for any fraction above a half. A fixture drawn entirely in one quadrant
+therefore records an answer that two different rules reproduce exactly, and
+cannot say which one the oracle used — it is passed by an implementation that is
+wrong in a way the fixture cannot see. Mirroring the construction across the
+origin separates them, because the pair of rules that agree on `+N.f` disagree
+on `-N.f`. Pick fractions well clear of an exact half, too: a tie is a separate
+question with its own answer, and a case that lands on one is measuring both.
+
+The same warning applies to anything with a sign in it — a rounding mode, a
+half-open interval, an offset "toward the outside". Ask what *other* rule would
+also reproduce the geometry you drew.
+
 ## License
 
 Open source; license TBD by the owner.

@@ -1,0 +1,81 @@
+concept = "A fill vertex that is the crossing of two straight boundaries — a foreign copper line's clearance wall meeting the pour's oblique edge — is put on the nanometre grid by rounding to the NEAREST nanometre, and that rule is symmetric about zero rather than about the number line: an exact crossing at +N.75 nm comes back as +(N+1), and its mirror image at -N.75 nm comes back as -(N+1). It is not `floor`, not truncation toward zero, and not `ceil`."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu, an isosceles trapezoid (-16,-6) (16,-6) (15,10) (-15,10)
+# whose two OBLIQUE sides are mirror images across x=0: 1 mm of x per 16 mm of y.
+# One netless -- therefore foreign -- copper `gr_line` runs the full width at
+# y=2, stroke 0.8 mm, so its clearance walls are the two horizontal lines
+#
+#     y = 2 +/- (0.5 clearance + 0.4 half-stroke + 0.0005 half min_thickness)
+#       = 2.9005  and  1.0995
+#
+# and each wall crosses BOTH oblique sides. Four crossings, each the intersection
+# of two straight lines, each exactly computable from the input alone: the pour
+# side is the segment between two authored corners, and the wall of an
+# axis-parallel obstacle sits at an exact whole nanometre.
+#
+#     x = +/- ( 16 - (y + 6) / 16 )   mm
+#
+#     wall y = 2.9005   exact  +/-15.44371875 mm  =  +/-15 443 718.75 nm
+#     wall y = 1.0995   exact  +/-15.55628125 mm  =  +/-15 556 281.25 nm
+#
+# Measured against kicad-cli 10.0.5 (this exact file, refilled), all four:
+#
+#     +15.443719   -15.443719   +15.556281   -15.556281
+#
+# so a .75 fraction moves AWAY from zero on both sides and a .25 fraction moves
+# TOWARD zero on both sides. Written out, the four candidate snaps disagree on
+# this board at every crossing:
+#
+#     exact              +15443718.75  -15443718.75  +15556281.25  -15556281.25
+#     -----------------  ------------  ------------  ------------  ------------
+#     nearest  (KiCad)     ...3719       -...3719      ...6281       -...6281
+#     floor                ...3718       -...3719      ...6281       -...6282
+#     trunc toward zero    ...3718       -...3718      ...6281       -...6281
+#     ceil                 ...3719       -...3718      ...6282       -...6281
+#
+# BOTH SIGNS, and that is the whole reason for the trapezoid. On positive
+# coordinates `floor` and truncate-toward-zero are the SAME FUNCTION, and so are
+# `round` and `ceil` for a fraction above 0.5. A board drawn entirely in the
+# positive quadrant therefore reads the same under two rules whatever it
+# measures, and is reproduced exactly by an implementation that is wrong in a way
+# the board cannot see. Only the mirrored crossing at negative x separates them:
+# it is the sign flip, not a second fraction, that carries the information.
+#
+# Fractions are exactly .75 and .25 -- far from a half-nanometre tie, which is a
+# separate question this case deliberately does not ask. Every authored dimension
+# is a whole micrometre and the pour side has a whole-millimetre run and rise, so
+# the four crossings above are the only fractional quantities on the board: the
+# inputs carry no rounding question of their own.
+#
+# `min_thickness 0.001` keeps the morphological finishing a no-op, so every
+# vertex in the answer comes from the outline and its clearance offsets rather
+# than from an opening; it also makes the wall position exact, at
+# clearance + stroke/2 + 0.0005. The crossing angle is deliberately obtuse-ish
+# (a horizontal wall against a near-vertical side): at a very acute crossing the
+# finishing does perturb the vertex by a nanometre or two, which is a different
+# behaviour and would contaminate this measurement. `island_removal_mode 1` is
+# required because the full-width line severs the pour into two filled areas and
+# neither is anchored by any pad or track; the answer is those two quadrilaterals,
+# eight vertices, four of them the crossings above and four authored corners.
+#
+# The natural WRONG guesses this is built to catch:
+#   - `floor`. The obvious integer snap, and indistinguishable from truncation on
+#     any board that stays in the positive quadrant. It answers -...3719 where
+#     truncation answers -...3718; here KiCad agrees with floor on the negative
+#     .75 crossing and disagrees with it on the negative .25 one.
+#   - truncation toward zero. The behaviour of a C cast from a floating-point
+#     coordinate to an integer one, so it is what an implementation does by
+#     accident rather than on purpose. It answers +...3718 where KiCad answers
+#     +...3719.
+#   - `ceil`, or "round half up" applied to the magnitude -- it agrees with KiCad
+#     on the positive .75 crossing and disagrees on the other three.
+#   - measuring only one quadrant. Deleting the left half of this board leaves a
+#     case that four different implementations pass, two of them wrong; the
+#     negative-x crossings are not a duplicate of the positive ones.
+#   - carrying the crossing at sub-nanometre precision and never snapping at all,
+#     which cannot serialise +15.44371875 into a format with nanometre resolution
+#     and so takes whichever rounding the writer happens to apply -- a rule chosen
+#     by the output path instead of by the fill.
