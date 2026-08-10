@@ -1,0 +1,72 @@
+concept = "A thermal relief's spoke-edge crossings are put on the nanometre grid by a snap toward the FILE FRAME'S ORIGIN, not downward and not to nearest. Two identical same-net pads that differ only by a translation therefore do NOT get identical relief geometry: the one in the negative quadrant comes back one nanometre toward the origin, on both axes, at every crossing. A fill that is translation-invariant — the natural and otherwise correct-looking implementation — cannot reproduce both pads at once."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour, (-18,-18)..(18,18) on F.Cu, and TWO identical 2 mm circular
+# through-hole GND pads with 1 mm drills: one at (10, 10), one at (-10, -10).
+# Same footprint, same net, same drill, same `thermal_gap 0.5` and
+# `thermal_bridge_width 0.5`. The two pads differ by a pure translation of
+# (-20, -20) mm and by nothing else.
+#
+# `min_thickness 0.001` is load-bearing: it makes KiCad's morphological
+# finishing a no-op (the opening radius goes to zero), so every vertex in the
+# answer comes from the relief geometry and its crossings rather than from an
+# opening. This case is about the crossing and nothing else; a board at a
+# working `min_thickness` measures both at once and can attribute neither.
+#
+# A circular pad puts its four spokes on the DIAGONALS, so each spoke edge is a
+# line at perpendicular distance `thermal_bridge_width/2` = 250 um from a 45
+# degree ray — an offset of 250000*sqrt(2) = 353553.3906... nm, which is not a
+# whole nanometre. Every spoke edge therefore crosses both the gap ring
+# (r = 1.5 mm) and the drill (r = 0.5 mm) at a fractional point that has to be
+# snapped. That is 16 snapped crossings per pad, 32 on the board.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled). In coordinates
+# RELATIVE TO EACH PAD'S OWN CENTRE — so that a translation-invariant fill would
+# give two identical lists — the eight gap-ring crossings are:
+#
+#     pad at (10, 10)        pad at (-10, -10)      difference
+#     -------------------    -------------------    ----------
+#     (-1222660,  869106)    (-1222659,  869107)    (+1, +1)
+#     ( -869107, 1222659)    ( -869106, 1222660)    (+1, +1)
+#     (  869106, 1222659)    (  869107, 1222660)    (+1, +1)
+#     ( 1222659,  869106)    ( 1222660,  869107)    (+1, +1)
+#     ( 1222659, -869107)    ( 1222660, -869106)    (+1, +1)
+#     (  869106,-1222660)    (  869107,-1222659)    (+1, +1)
+#     ( -869107,-1222660)    ( -869106,-1222659)    (+1, +1)
+#     (-1222660, -869107)    (-1222659, -869106)    (+1, +1)
+#
+# and the eight drill crossings move the same way, by (+1,+2), (+2,+1), (+0,+1)
+# or (+1,+0) — never a negative component, on any of the 16.
+#
+# The second pad's absolute coordinates are all NEGATIVE, so "+1" there is one
+# step TOWARD ZERO. Read the other way round: the negative pad's answer is the
+# positive pad's answer translated by (-20,-20) mm and then moved back toward
+# the origin by a nanometre wherever the exact crossing was fractional.
+#
+# The natural WRONG guesses this is built to catch:
+#   - `floor`, i.e. snapping down on both axes. It agrees with KiCad on the
+#     pad at (10,10) — where every coordinate is positive and `floor` and
+#     truncate-toward-zero are THE SAME FUNCTION — and disagrees on the pad at
+#     (-10,-10), where it snaps away from the origin instead of toward it. A
+#     board carrying only the first pad is reproduced exactly by an
+#     implementation that is wrong in a way the board cannot see. This is the
+#     whole reason the second pad is here.
+#   - round to nearest. It misses on both pads.
+#   - **translation invariance itself**, which is the subtle one. An engine that
+#     computes the relief in the pad's own frame and translates the result into
+#     board coordinates produces two IDENTICAL relative lists, and is thereby
+#     guaranteed to be wrong on one of the two pads whichever snap it picks.
+#     That is not a bug a single-pad fixture can express, and it is a property
+#     an implementer is likely to think is obviously desirable. KiCad does not
+#     have it.
+#   - assuming the two pads must agree because the geometry does. The pads are
+#     identical to the nanometre; only their position in the file frame differs,
+#     and that is exactly what the snap reads.
+#
+# `island_removal_mode 0` with both pads anchoring the pour keeps the answer a
+# single filled area, so the comparison is one ring against one ring. Every
+# authored dimension is a whole millimetre or a whole micrometre, so the
+# 32 crossings are the only fractional quantities on the board: the inputs
+# carry no rounding question of their own.
