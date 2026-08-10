@@ -1,0 +1,56 @@
+concept = "Recomputing a zone's fill clears a void around a foreign-net `trapezoid` pad, whose outline `(rect_delta DX DY)` skews from the `(size W H)` rectangle: DY widens one X extent and narrows the other, DX widens one Y extent and narrows the other, each end moving by HALF the delta. In the board file's own frame the two senses are OPPOSITE: +DY widens the +y end, while +DX widens the -x end."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (the 2..18 square) and two FOREIGN-net (VCC) SMD
+# trapezoid pads, each isolating one component of `(rect_delta …)`:
+#
+#   at (6,10):  (size 2 1) (rect_delta 0 0.8)   -- DY only
+#   at (14,10): (size 1 2) (rect_delta 0.8 0)   -- DX only
+#
+# Each pad's edges are `W ± DY` (or `H ± DX`), i.e. 2.8 mm and 1.2 mm here, and
+# the pour clears each pad by 0.5 mm.
+#
+# Measured against kicad-cli 10.0.5 (this exact file, refilled), as the extreme
+# flat run of each void -- the pad edge offset outward by the clearance:
+#
+#   pad at (6,10)    y = 11.0005   x 4.561526 .. 7.438476   the WIDE end, at +y
+#                    y =  8.9995   x 5.336764 .. 6.663232   the NARROW end, at -y
+#   pad at (14,10)   x = 12.9995   y 8.561526 .. 11.438476  the TALL end, at -x
+#                    x = 15.0005   y 9.336764 .. 10.663232  the SHORT end, at +x
+#
+# So +DY puts the wide edge at +y and +DX puts the tall edge at -x: the two
+# components skew in opposite senses in the file's frame. Note that each flat
+# run measures ~0.077-0.126 mm longer than the pad edge it offsets, because it
+# continues past its own tangent point to meet the first facet of the corner
+# arc; the edge lengths above are the pad's, not the flats'.
+#
+# TWO pads, not one, because the rule is a pair of signs and a single pad
+# measures only one of them. A board carrying only the DY pad is reproduced
+# exactly by an implementation that has BOTH signs backwards, since negating an
+# unused DX changes nothing; the DX pad is what makes that reading fail.
+#
+# `min_thickness 0.001` keeps the finishing a no-op, so every vertex in the
+# answer comes from the pad outline and its clearance offset rather than from a
+# morphological opening. The pads are SMD, so no drilled hole contributes. Both
+# voids are wholly interior to the pour, so neither is clipped by the pour's
+# boundary, where the skew being tested could hide. `(size)` and both deltas are
+# whole micrometres, so every trapezoid corner lands on a whole nanometre and
+# the shape carries no rounding question of its own.
+#
+# The natural WRONG guesses this is built to catch:
+#   - Taking both components to skew the SAME way -- the obvious reading of a
+#     single "skew" parameter, and the reading a Y-DOWN export format invites,
+#     since a format whose Y axis points the other way reports the DY sense
+#     mirrored. Such an implementation reproduces the DX pad exactly and mirrors
+#     the DY pad, so only a board carrying both pads can tell.
+#   - Moving each end by the WHOLE delta instead of half. The wide edge then
+#     comes out 3.6 mm instead of 2.8 mm and the narrow one 0.4 mm instead of
+#     1.2 mm -- same trapezoid family, wrong dimensions.
+#   - Ignoring `(rect_delta …)` and clearing a plain `(size W H)` rectangle,
+#     which makes both voids symmetric -- the failure mode of an implementation
+#     that treats an unknown pad shape as its bounding rect.
+#   - Refusing the pad shape outright and leaving the pour solid where the void
+#     belongs, which is what an implementation that models only circle, rect and
+#     oval pads does.
