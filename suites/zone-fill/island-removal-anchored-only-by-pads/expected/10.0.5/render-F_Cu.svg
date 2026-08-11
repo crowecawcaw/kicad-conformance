@@ -1,0 +1,31 @@
+<?xml version="1.0" standalone="no"?>
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"> 
+<svg
+  xmlns:svg="http://www.w3.org/2000/svg"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+  version="1.1"
+  width="33.9852mm" height="13.9954mm" viewBox="0.0000 0.0000 33.9852 13.9954">
+<title>NORMALIZED</title>
+  <desc>NORMALIZED</desc>
+<g style="fill:#000000; fill-opacity:1.0000;stroke:#000000; stroke-opacity:1.0000;
+stroke-linecap:round; stroke-linejoin:round;"
+ transform="translate(0 0) scale(1 1)">
+</g>
+<g style="fill:#000000; fill-opacity:1.0000; stroke:none;">
+<circle cx="17.0000" cy="1.0000" r="0.8000" /> 
+<circle cx="7.0000" cy="7.0000" r="0.8000" /> 
+<circle cx="22.0000" cy="10.0000" r="0.4000" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.0000; stroke:none;">
+<circle cx="22.0000" cy="10.0000" r="0.2000" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.0000; stroke:none;">
+<circle cx="17.0000" cy="1.0000" r="0.4000" /> 
+</g>
+<g style="fill:#FFFFFF; fill-opacity:1.0000; stroke:none;">
+<circle cx="7.0000" cy="7.0000" r="0.4000" /> 
+</g> 
+</svg>

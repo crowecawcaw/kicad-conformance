@@ -1,0 +1,4 @@
+Ref,Val,Package,PosX,PosY,Rot,Side
+"","","vcc",15.000000,1.000000,0.000000,bottom
+"","","gnd_left",5.000000,-5.000000,0.000000,bottom
+"","","gnd_right_no_zone_connect",25.000000,-5.000000,0.000000,bottom

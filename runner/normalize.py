@@ -263,13 +263,24 @@ def _all_zones(node: list, found: list) -> list:
 def project_zone_fills(data: bytes) -> bytes:
     """A board file -> the computed fill geometry of its zones, as stable text.
 
-    Zones are reported in document order (the order the writer emitted them, which is
-    itself part of the answer); each zone's identity line carries its net and its declared
-    layer(s), and each `(filled_polygon ...)` its layer, its vertex count, any flag it
-    carries (`island`, ...), and every vertex. Everything else in the board -- footprints,
-    tracks, setup, uuids, the zone's authored outline -- is dropped."""
+    Zones are reported sorted by (net, layers, uuid) -- NOT raw document order. `--refill-
+    zones --save-board` recomputes fills through a completion-order-dependent path: when a
+    board has zones of differing priority on the same layer, which zone's block the writer
+    emits first is not a function of the input alone -- the oracle itself disagrees with
+    itself run to run on identical input (confirmed empirically, single-core included, so
+    it is not a thread-count artifact). Sorting for comparison keeps the answer pinned to
+    every zone's own geometry while dropping that non-signal; each zone's identity line
+    carries its net and its declared layer(s), and each `(filled_polygon ...)` its layer,
+    its vertex count, any flag it carries (`island`, ...), and every vertex. Everything else
+    in the board -- footprints, tracks, setup, uuids, the zone's authored outline -- is
+    dropped."""
     doc = _sexpr_parse(normalize_crlf(data).decode("utf-8", errors="replace"))
     zones = _all_zones(doc, [])
+    zones.sort(key=lambda z: (
+        _tail(_kid(z, "net")),
+        _tail(_kid(z, "layers") or _kid(z, "layer")),
+        _tail(_kid(z, "uuid")),
+    ))
 
     lines = [f"zones {len(zones)}"]
     for index, zone in enumerate(zones):

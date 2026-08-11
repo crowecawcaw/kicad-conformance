@@ -1,0 +1,5 @@
+Ref,Val,Package,PosX,PosY,Rot,Side
+"","","vcc",30.000000,-14.000000,0.000000,bottom
+"","","gnd_anchor",3.000000,-6.000000,0.000000,bottom
+"","","gnd_tab",23.000000,-16.800000,0.000000,bottom
+"","","gnd_shared",25.000000,-6.000000,0.000000,bottom
