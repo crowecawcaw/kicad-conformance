@@ -1,0 +1,59 @@
+concept = "A thermal spoke's nanometre geometry is not one rule for all pads. A 2 mm circle pad's spoke apexes are the truncation of the exact corner toward the FILE FRAME'S ORIGIN, and its ring crossings lie on a spoke line whose pad-frame offset is the rounded integer; a 1 mm pad's apexes come back SYMMETRIC about the pad centre instead, at an even integer — twice the rounded half-offset — whatever quadrant the pad sits in. An implementation that applies either construction to both pads reproduces exactly one of them."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour, (-18,-18)..(18,18) on F.Cu, `min_thickness 0.001` (the
+# morphological finishing is a no-op, so every vertex is relief geometry), and
+# two same-net SMD circle pads at `thermal_gap 0.5` / `thermal_bridge_width
+# 0.5`: 2 mm at (7, -7) and 1 mm at (-7, 7). Mixed-sign centres on purpose:
+# a snap toward the origin and a symmetric snap only disagree where the sign
+# can tell (the same trap as the sibling case
+# thermal-spoke-crossing-snaps-toward-the-origin).
+#
+# The exact apex offset for a 0.5 mm bridge is 250000*sqrt(2) =
+# 353553.3906... nm along the pad's axes. MEASURED against kicad-cli 10.0.5,
+# pad-relative:
+#
+#   2 mm pad:  apexes (+353553, 0) / (-353554, 0) / (0, +353553) /
+#              (0, -353554)-pattern — per-coordinate truncation of the exact
+#              BOARD coordinate toward the file origin (the pattern rotates
+#              with the pad's quadrant), and the eight gap-ring crossings lie
+#              on the spoke lines at pad-frame offset exactly 353553, snapped
+#              toward the origin.
+#   1 mm pad:  all four apexes at +-353554 exactly — symmetric about the pad
+#              centre, in every quadrant tried, so NOT a board-frame snap of
+#              the exact corner (that would give the 2 mm pattern), and the
+#              gap-ring crossings sit on the +-353554 lines.
+#
+# 353554 = 2 * round(353553.39.../2) — twice the rounded HALF-offset, i.e. the
+# apex behaves as a sum of two separately rounded equal terms. That reading is
+# measured across a bridge-width sweep on the 1 mm pad (all SMD, one pad per
+# board, mixed-sign centres):
+#
+#   width  exact offset   measured apexes      = 2*round(offset/2)?
+#   0.30   212132.03      +-212132  symmetric  yes (212132)
+#   0.321  226981.28      +-226982  symmetric  yes (226982)
+#   0.36   254558.44      +-254558  symmetric  yes (254558)
+#   0.50   353553.39      +-353554  symmetric  yes (353554)
+#   0.24   169705.63      +-169706  symmetric  yes (169706)
+#   0.18   127279.22      trunc-toward-origin  NO — the 2 mm pad's rule
+#   0.42   296984.85      trunc-toward-origin  NO
+#   0.46   325269.12      trunc-toward-origin  NO
+#
+# So on a 1 mm pad the construction flips between the two rules NON-MONOTONELY
+# in the bridge width, and no boundary in width, pad size or offset fraction
+# explains all eight rows. Pad size alone does select at width 0.5: a 1.1 mm
+# pad follows the 2 mm rule, a 0.8 mm pad the symmetric one. What KiCad
+# actually constructs for small pads is an open question; this case pins the
+# 0.5 mm-bridge instance of it beside the large-pad rule so an implementation
+# cannot satisfy the pour with one rule and silently miss the other.
+#
+# The natural WRONG guesses this board is built to catch:
+#   - one snap rule for every pad. Reproduces exactly one of the two pads.
+#   - reading the symmetric answer as "round to nearest": 353553.39 rounds to
+#     353553, not the measured 353554. The even integer is the fingerprint of
+#     rounding HALVES and doubling, not of rounding the offset.
+#   - measuring only in the positive quadrant, where truncation of the board
+#     coordinate and flooring agree (the sibling case's trap), or only one
+#     pad size, where the regime split is invisible.
