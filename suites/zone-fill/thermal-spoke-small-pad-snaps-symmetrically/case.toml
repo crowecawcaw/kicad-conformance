@@ -44,10 +44,27 @@ extra   = ["refill"]
 # So on a 1 mm pad the construction flips between the two rules NON-MONOTONELY
 # in the bridge width, and no boundary in width, pad size or offset fraction
 # explains all eight rows. Pad size alone does select at width 0.5: a 1.1 mm
-# pad follows the 2 mm rule, a 0.8 mm pad the symmetric one. What KiCad
-# actually constructs for small pads is an open question; this case pins the
-# 0.5 mm-bridge instance of it beside the large-pad rule so an implementation
-# cannot satisfy the pour with one rule and silently miss the other.
+# pad follows the 2 mm rule, a 0.8 mm pad the symmetric one. This case pins
+# the 0.5 mm-bridge instance of both regimes side by side so an
+# implementation cannot satisfy the pour with one rule and silently miss the
+# other.
+#
+# RESOLVED (measured 2026-08-12, kicad-cli 10.0.5, ~80 probe boards): the
+# two "rules" are one construction. The spoke behaves as a rotated rect
+# whose corners are rounded per coordinate: near corners at the pad centre
+# offset +-w/2 along the perpendicular diagonal (rounded, (+-p, -+p) with
+# p = round(w/(2*sqrt(2)))), far corners at the gap-ring radius R along the
+# spoke, plus a sub-nanometre shift that enters the rounding — measured
+# frac((R + shift*sqrt(2))/sqrt(2)) with shift/sqrt(2) bisected to
+# [0.0872932, 0.0873003], constant across R 0.75..2.8 mm and w 0.5/0.7.
+# Every apex and ring crossing is the truncation toward the file origin of
+# an exact crossing of the resulting edge LINES. When the far corner's
+# rounded x-y equals the near corner's (2p), both lines are exactly 45 deg
+# and the apex is the even integer 2p — the symmetric regime; otherwise the
+# lines tilt sub-microradian and the truncated rational crossings give the
+# board-frame-truncated pattern. Which regime a pad lands in follows from
+# frac(R/sqrt(2)) and frac(w/(2*sqrt(2))) alone, which is why the width
+# sweep is non-monotone and why pad size selects at fixed width.
 #
 # The natural WRONG guesses this board is built to catch:
 #   - one snap rule for every pad. Reproduces exactly one of the two pads.
