@@ -1,0 +1,25 @@
+concept = "The late thermal-drill cut has scanbeam-asymmetric snapping: an exactly horizontal drill chord rounds the crossing x with TopX, while the rotated vertical chord still truncates y toward the file origin. Four identical pads, one in each sign quadrant, pin both axes without conflating this cut with min_thickness opening."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Four identical 1.6 mm circular through-hole pads with 0.8 mm drills sit at
+# (+5,+5), (-5,+5), (-5,-5), and (+5,-5) in one GND pour.  `min_thickness
+# 0.001` makes the opening a no-op, and the hole-less SMD twin is edge-exact;
+# the only created vertices under test are therefore the late drill cut.
+#
+# For the (+5,+5) pad, one already-snapped spoke edge is
+#
+#     (4.274078, 6.079475) -> (5.000000, 5.353554) mm.
+#
+# It meets the drill's horizontal chord y=5.400000 at
+# x=4.953553936... mm. Truncation emits 4.953553; KiCad emits 4.953554.
+# The rotated construction meets the vertical chord x=5.400000 at
+# y=4.953553936...; there KiCad emits the truncation 4.953553, not nearest.
+# Reflecting the construction into all four sign quadrants preserves those
+# two outcomes, ruling out floor/ceil spellings that only agree at x,y > 0.
+#
+# The earlier `thermal-spoke-crossing-snaps-toward-the-origin` case uses a
+# 2.0/1.0 mm pad/drill pair whose relevant drill chords are oblique. It pins
+# truncation on that branch but cannot see the exactly-horizontal scanbeam
+# branch. This case is its deliberately non-equivalent companion.
