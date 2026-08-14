@@ -1,0 +1,37 @@
+concept = "A `gr_rect`/`gr_poly` with `(fill no)` is not an area of copper -- it is its own outline, drawn as line segments -- so a pour is held off the STROKE only and floods the middle. And where a FILLED rect and a filled poly grow by two different rules, an unfilled rect and an unfilled poly take the SAME one: with no polygon to offset, what is left is segments, and both come back as the union of one stroked segment per edge."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (2..18) carrying two netless, foreign, UNFILLED copper
+# graphics of the same 5x5 mm square geometry, written the two different ways:
+#   a `gr_rect` (4,4)-(9,9), and
+#   a `gr_poly` (11,11) (16,11) (16,16) (11,16).
+# Both at stroke width 0.6, zone clearance 0.5, so each segment clears
+# 0.5 + 0.3 + 0.0005 = 0.8005 mm from its centre-line. `min_thickness 0.001`
+# keeps the finishing pass a no-op.
+#
+# `island_removal_mode 1` is load-bearing, not decoration: the copper stranded
+# inside each outline is anchored by nothing, so the default mode would delete
+# it and the board could no longer tell "the middle floods" from "the whole
+# square is cleared". With it, KiCad returns THREE filled areas -- the pour
+# proper and one island inside each outline.
+#
+# Three wrong guesses this defeats:
+#   (1) "a rect/poly clears its whole area whatever `(fill)` says" -- predicts
+#       ONE filled area where KiCad has three, and 5x5 mm of copper missing
+#       twice over. This is the guess the `gr_circle` sibling case cannot
+#       catch, because a circle's `(fill)` flag genuinely does not change its
+#       clearance disc.
+#   (2) "carry the FILLED rules over" -- a filled rect and a filled poly of
+#       identical corners disagree by 5 um and sit on different angular grids
+#       (see `copper-rect-graphic-grows-unlike-a-poly`). Unfilled, the two
+#       shapes here are the same geometry 7 mm apart and KiCad's two answers
+#       are congruent, so carrying either filled rule over is visible.
+#   (3) "the middle is a hole in one filled area" -- it is a separate filled
+#       area; the pour does not reach it, so nothing bridges out to it.
+#
+# Expect this RED on an engine whose booleans are exact, for the same reason as
+# `copper-rect-graphic-grows-unlike-a-poly`: KiCad leaves three vertices per
+# outline that are exactly collinear with their own neighbours, where a corner
+# disc meets a straight run.
