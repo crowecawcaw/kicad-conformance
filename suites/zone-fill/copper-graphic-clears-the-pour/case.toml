@@ -11,8 +11,11 @@ extra   = ["refill"]
 #
 # A circle pad's clearance is a disc and tessellates onto KiCad's to the
 # nanometre (see `drill-offset-displaces-foreign-pad-copper`), so this isolates
-# the "graphics clear the pour" rule with no arc-tessellation residue -- unlike
-# a `gr_poly`/`gr_rect`, whose rounded corners do not yet match KiCad.
+# the "graphics clear the pour" rule with no arc-tessellation residue. The
+# rounded corners a `gr_poly` and a `gr_rect` bring with them are a separate
+# question, and a separate rule for each: see
+# `copper-poly-graphic-clears-the-pour` and
+# `copper-rect-graphic-grows-unlike-a-poly`.
 #
 # Two wrong guesses this defeats:
 #   (1) "graphics on a copper layer are decorative; a pour ignores them" -- an

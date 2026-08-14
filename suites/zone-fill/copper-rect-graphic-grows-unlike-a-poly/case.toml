@@ -1,0 +1,31 @@
+concept = "A `gr_rect` and a `gr_poly` of the SAME four corners are not two spellings of one shape: KiCad grows a pour's clearance around them by different rules. The rect's void is offset by `clearance + stroke_width/2 + fill_epsilon/2` with NO `max_error` term, its corner arcs are circumscribed at `offset/cos(pi/N)`, and `N` is the segment count rounded up to a multiple of 8 -- the grid a round pad's clearance lands on, not the one a `gr_poly` lands on."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The same board as `copper-poly-graphic-clears-the-pour` with the graphic
+# written as a `gr_rect` instead: one GND pour on F.Cu (2..18) and one netless,
+# foreign, FILLED `gr_rect` (8,7)-(13,12), stroke width 0.6, zone clearance 0.5,
+# `max_error` at its 0.005 default, `min_thickness 0.001` so the finishing pass
+# is a no-op.
+#
+# The pairing is the whole point. Write those four corners as a `gr_poly` and
+# KiCad offsets by 0.8055 mm on 28 segments with the vertices AT that distance;
+# write them as a `gr_rect` and it offsets by 0.8005 mm on 32 segments with the
+# vertices at 0.8005/cos(pi/32) = 0.804374 mm. The two answers differ by 5 um at
+# every edge and sit on different angular grids, so a reader who models one and
+# assumes the other transfers is told so immediately.
+#
+# Two wrong guesses this defeats:
+#   (1) "a gr_rect is a four-point gr_poly" -- predicts the poly's offset and
+#       the poly's grid, 5 um out all round.
+#   (2) "the corner arc is the pad rule" -- the pad rule's `N` here is 28 (the
+#       bare formula, unrounded); KiCad's rect uses 32, so the two disagree on
+#       every arc vertex. It is the DISC rule -- the same formula rounded up to
+#       a multiple of 8 -- that this shape shares with a round pad.
+#
+# Expect this one RED on an engine whose booleans are exact: KiCad's answer
+# carries three redundant vertices that are exactly collinear with their own
+# neighbours, left behind where the corner discs meet the straight slabs. They
+# are on the two horizontal edges only, and it keeps 3 of the 8 such seams, so
+# neither dropping every collinear vertex nor keeping every one reproduces it.

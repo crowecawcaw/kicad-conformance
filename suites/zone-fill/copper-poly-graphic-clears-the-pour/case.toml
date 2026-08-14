@@ -1,0 +1,33 @@
+concept = "A filled `gr_poly` on a pour's layer is copper, and the pour is held off it by a ROUND-JOIN offset: the drawn ring grown by `clearance + stroke_width/2 + fill_epsilon/2 + max_error`, with each corner's arc stepped uniformly by `360/N` from the INCOMING edge's normal and closed on the outgoing one. Every vertex sits at exactly that offset distance -- the polygon is not circumscribed about it -- and `N` is taken at the offset distance, not at the un-grown clearance."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (2..18) and one netless, foreign, FILLED `gr_poly`: the
+# oblique triangle (8,7) (13,8) (10,12), stroke width 0.6, zone clearance 0.5,
+# `max_error` at its 0.005 default. So the offset is
+#   0.5 + 0.3 + 0.0005 + 0.005 = 0.8055 mm
+# and KiCad's void is that triangle grown by 0.8055 with round joins.
+# `min_thickness 0.001` keeps the finishing pass a no-op, so nothing downstream
+# of the offset can move a vertex.
+#
+# The triangle is OBLIQUE on purpose: no edge is axis-aligned and no corner's
+# sweep is a whole number of steps (they are 8.99, 9.44 and 9.58 steps of
+# 360/28). A square would not do -- its 90 degree corner is exactly 7 steps, so
+# start-anchored, end-anchored and bisector-centred arcs all coincide there and
+# the board could not tell them apart. Here they predict different vertices at
+# all three corners.
+#
+# Four wrong guesses this defeats, each by more than the nanometre grid:
+#   (1) "graphics on a copper layer are decorative" -- floods solid over the
+#       triangle. RED on sight.
+#   (2) "grow it like a PAD's clearance shape" -- a pad's corner arc is
+#       circumscribed (vertices at `offset/cos(pi/N)`) and centred on the
+#       corner's BISECTOR. Both are wrong here: KiCad's vertices are at the
+#       offset distance exactly, and the uniform steps start at the incoming
+#       normal with the short remainder falling at the end.
+#   (3) "offset by clearance + stroke/2 only" -- drops the `max_error` term and
+#       puts every edge 5 um inside KiCad's.
+#   (4) "take N from the clearance radius" -- at this radius both readings give
+#       28, so this board cannot tell; its sibling
+#       `copper-rect-graphic-grows-unlike-a-poly` and a 0.641 stroke can.
