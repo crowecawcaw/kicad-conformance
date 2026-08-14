@@ -1,0 +1,36 @@
+concept = "The semicircular cap of a copper segment's clearance stadium is materialised on the integer lattice in the SEGMENT's own frame and only then rotated into board coordinates. The two roundings are both observable: evaluating one `centre + R*e^(i*(theta+phi))` per vertex in board coordinates instead lands up to a nanometre away. An axis-aligned segment cannot tell the two apart, because rotating an integer point by a multiple of 90 degrees is a signed axis swap; an oblique one can."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (2..18) and two netless, foreign copper `gr_line`s of the
+# same 0.6 stroke, so both are held off by the same 0.8005 mm half-width
+# (clearance 0.5 + stroke/2 0.3 + min_thickness/2 0.0005) and tessellated at the
+# same 32 segments. `min_thickness 0.001` keeps the finishing a no-op, so each
+# void is one bare stadium and nothing downstream can move a vertex.
+#
+#   (11,11)-(15,14)   a 3-4-5 triangle, so theta = 36.8699 deg   -- the witness
+#   (5,5)-(10,5)      horizontal, theta = 0                      -- the control
+#
+# The two heads are the whole point of the pair. On the horizontal segment every
+# candidate below agrees to the nanometre on all 32 cap vertices; on the oblique
+# one 24 of the 32 differ. A board carrying only the control cannot decide this,
+# which is how it stayed unmeasured while a horizontal `gr_line` case passed.
+#
+# The natural wrong guess, and it is the obvious spelling: place each cap vertex
+# directly in board coordinates as `centre + R*(cos(theta+phi), sin(theta+phi))`,
+# rounded once. RED on the oblique line -- 8 of 32 vertices right, the other 24
+# out by a nanometre in one coordinate. The intermediate rounding in the
+# segment's own frame is not a formality; it moves the answer.
+#
+# A second wrong guess this refutes: "the residue is a snap -- try floor, ceil or
+# truncate-toward-the-origin on the board coordinate". Enumerating every snap of
+# the one-shot operand reaches at best 8 of the oblique line's 32 cap vertices,
+# so what is wrong is the operand and not the rounding applied to it.
+#
+# 45 degrees is deliberately NOT the angle here. It is a degenerate choice twice
+# over: cos and sin are equal, so the rotation collapses to (qx-qy)*c, and the
+# residue there is a separate open defect that no integer canonical point can
+# reach. The 3-4-5 angle keeps the two coordinates independent and puts every
+# pre-rounded value on a .8/.6/.4 fraction, well clear of a .5 boundary, so this
+# case measures the construction and not a tie-break.

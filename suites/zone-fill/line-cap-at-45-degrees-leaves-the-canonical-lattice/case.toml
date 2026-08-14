@@ -1,0 +1,31 @@
+concept = "At exactly 45 degrees, two vertices of a copper segment's clearance cap sit one nanometre outside every point an integer lattice point rotated about the segment's endpoint can reach. Two segments of the same stroke are on this board: at 36.8699 degrees every one of the 32 cap vertices lands on that lattice, and at 45 degrees two of them do not. So the offending vertices are not a rounding of the same construction, and no choice of rounding recovers them."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (2..18) and two netless, foreign copper `gr_line`s, both
+# 0.6 stroke, so both take the same 0.8005 mm half-width (clearance 0.5 +
+# stroke/2 0.3 + min_thickness/2 0.0005) and the same 32-segment tessellation.
+# `min_thickness 0.001` keeps the finishing a no-op, so each void is one bare
+# stadium and nothing downstream can move a vertex.
+#
+#   (11,11)-(16,16)   45 degrees exactly              -- the witness
+#   (4,4)-(8,7)       a 3-4-5 triangle, 36.8699 deg   -- the control
+#
+# The control is what makes this a measurement of the 45-degree case rather than
+# of obliqueness in general: all 32 of its cap vertices are reproduced by placing
+# the cap on the integer lattice in the segment's own frame and rotating it, and
+# that same rule leaves exactly 2 of the 45-degree segment's 32 unreproduced --
+# KiCad's (16800500, 16078843) and (16078843, 16800500) against ...842 for both.
+#
+# Why no rounding rule can close those 2. At 45 degrees the rotation collapses to
+# x' = (qx - qy)*c and y' = (qx + qy)*c for the one shared c = cos 45, so the two
+# board coordinates are driven by the difference and the sum of the canonical
+# point. Landing x = 16800500 forces qx - qy = 1132078; landing y = 16078843
+# forces qx + qy = 111501. A sum and a difference of two integers always share a
+# parity and these are one even and one odd, so no integer canonical point
+# reaches the vertex at all -- the shortfall is upstream of the rounding, and an
+# implementation that goes looking for the right snap will not find one.
+#
+# The natural wrong guess: "45 degrees is the easy case -- cos equals sin, so it
+# must be exact". It is the hardest one on this board, and the only one red.
