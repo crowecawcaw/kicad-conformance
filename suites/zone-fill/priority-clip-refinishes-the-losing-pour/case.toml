@@ -1,0 +1,82 @@
+concept = "A lower-priority pour that loses territory to a higher-priority one is not simply clipped: it is finished with the min_thickness opening, the winner's copper is subtracted, and then it is finished AGAIN. The signature is a corner rounded TWICE — the losing pour's own drawn corners come back as an arc-of-arcs that is not symmetric about the corner's bisector and sets back further than one rounding does, while the corner the clip itself creates is rounded exactly once and the winning pour's corners are rounded exactly once. Two identical right-angle corners on one board therefore come back differently, and which rounding a corner gets is decided by WHEN in the pipeline that corner came into existence."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two overlapping pours on F.Cu, different nets, different priorities, and
+# nothing else on the board: no pads, no vias, no tracks, no graphics. Every
+# vertex in either answer therefore comes from the min_thickness finishing and
+# the priority arbitration, and from nothing else.
+#
+#   GND, priority 2 (the WINNER)   -20,-10 .. -2,10
+#   VCC, priority 1 (the LOSER)     -8, -8 .. 20, 8
+#
+# They overlap on -8 <= x <= -2. `min_thickness` is 1 mm on both, so a single
+# rounding of a convex corner is an arc of radius `min_thickness/2 - 0.001` =
+# 0.499 mm, which sets the answer back 499000 nm along each of the corner's two
+# edges. That radius is large on purpose: it makes the difference between one
+# rounding and two visible at the micrometre rather than the nanometre.
+#
+# The board straddles the origin so that no rule can be read off one quadrant.
+# On positive coordinates several distinct snaps of a fractional coordinate are
+# the same function; the loser carries one double-rounded corner at negative y
+# and one at positive y, and its clip corners are at negative x.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-15, this exact file, refilled):
+#
+#   GND, the winner, 28 vertices. All four drawn corners rounded ONCE:
+#     6 chords, set back 499000 nm on both edges, symmetric about the bisector.
+#     e.g. the (-2, 10) corner runs (-2000000, 9501000) ... (-2499000, 10000000).
+#
+#   VCC, the loser, 32 vertices, and its corners are of two kinds:
+#
+#     the two corners the CLIP made, at x = -1.7945 -- rounded ONCE, 6 chords,
+#     set back 499000 nm on both edges, exactly like the winner's:
+#       (-1794500, 7501000) ... (-1295500, 8000000)
+#
+#     the two corners it DREW, at (20, +/-8), 6.8 mm away from the clip and
+#     touched by nothing -- rounded TWICE, 8 chords each, and NOT symmetric:
+#       (19465310, -8000000) ... (20000000, -7482995)
+#       set back 534690 nm along the horizontal edge and 517005 nm along the
+#       vertical one, and the (20, 8) corner carries the same two numbers the
+#       other way round.
+#
+# The asymmetry is the load-bearing measurement. One rounding of a right angle
+# by any radius whatsoever sets the answer back by that radius on both edges,
+# so 534690 against 517005 cannot be a single rounding of any size: the corner
+# has been through the finishing twice, and the second pass rounds the FACETS
+# the first pass left rather than a right angle.
+#
+# The natural WRONG guesses this is built to catch:
+#
+#   - "the clip runs before the finishing, and the pour is finished once."
+#     Then every corner on the board is a single rounding set back 499000, the
+#     loser's drawn corners included, and it comes back with 28 vertices like
+#     the winner. It comes back with 32.
+#
+#   - "the clip runs after the finishing, and that is all." Then the corner the
+#     clip creates has never been through the finishing and comes back SHARP, a
+#     bare right angle at (-1.7945, +/-8). It is rounded, and at exactly the
+#     same 499000 setback as a drawn corner -- which is the half of the rule
+#     that says a second finishing runs after the clip.
+#
+#   - "every pour is finished twice." Then the winner's corners are
+#     double-rounded too. They are not: 28 vertices, 499000 both ways, the same
+#     answer a lone pour with no neighbour gives. Only the pour the clip
+#     touched is finished again.
+#
+#   - "a lower-priority pour is finished with a LARGER min_thickness."
+#     A single rounding is always symmetric about the corner bisector, whatever
+#     its radius; no value of min_thickness produces 534690 on one edge and
+#     517005 on the other.
+#
+#   - measuring only the pour that wins, or only the corner the clip makes.
+#     Either one alone is reproduced exactly by an implementation that never
+#     finishes anything twice.
+#
+# `island_removal_mode 0` with no pads, vias or tracks anywhere: neither pour is
+# anchored by any item and both are nevertheless filled in full, which is the
+# baseline behaviour a pour with no connectable copper has. It is not what this
+# case is about, but it is why the answer is two plain rectangles.
+#
+# Both pours sit 4 mm clear of Edge.Cuts, so no edge clearance reaches either.
