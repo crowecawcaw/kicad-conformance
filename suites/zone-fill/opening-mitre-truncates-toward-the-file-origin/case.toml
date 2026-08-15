@@ -1,0 +1,82 @@
+concept = "The min_thickness opening rounds the coordinates it computes by truncating TOWARD THE FILE FRAME'S ORIGIN, not downward. Four congruent pours, one per quadrant, each the 180-degree rotation of the one diagonally opposite, therefore come back as exact point reflections of one another -- and an implementation that floors reproduces the first-quadrant pour exactly while getting EVERY vertex of the other three wrong by one nanometre, on the negative axis only."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Four GND pours on F.Cu, all identical apart from where they sit. Each is the
+# same convex quadrilateral -- an oblique one, no edge parallel to an axis --
+# and the four are the four sign variants of the same vertex list:
+#
+#     zone @19,12    (19, 12) (12, 25) (25, 38) (38, 23)
+#     zone @19,-12   (19,-12) (12,-25) (25,-38) (38,-23)
+#     zone @-19,12   (-19,12) (-12,25) (-25,38) (-38,23)
+#     zone @-19,-12  (-19,-12)(-12,-25)(-25,-38)(-38,-23)
+#
+# The first and last are the same shape rotated 180 degrees about the file
+# origin, as are the middle two. Nothing else is on the board: no pads, no
+# tracks, `(clearance 0)`, and every authored coordinate is a whole millimetre,
+# so the only fractional quantities in the whole answer are the ones the
+# opening computes for itself.
+#
+# `min_thickness 0.25` is what puts them there. The finishing opening cuts each
+# convex corner back by (min_thickness/2 - 0.001 mm) and replaces it with an
+# inscribed arc, so each four-vertex outline comes back as seventeen vertices,
+# none of them a drawn one. On an OBLIQUE corner the cut-back point and the
+# arc's end chords land on fractional coordinates that have to be snapped; on an
+# axis-parallel corner they do not, which is why every edge of this quadrilateral
+# is oblique.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled). The pour at
+# (19,12) and the pour at (-19,-12) come back as EXACT negations of each other,
+# all seventeen vertices, zero residue:
+#
+#     @19,12                    @-19,-12
+#     ----------------------    ----------------------
+#     ( 19110675,  12064075)    (-19110675, -12064075)
+#     ( 18988484,  12062906)    (-18988484, -12062906)
+#     ( 12043740,  24918768)    (-12043740, -24918768)
+#     ( 37870175,  22924838)    (-37870175, -22924838)
+#     ( 25087218,  37899362)    (-25087218, -37899362)
+#            ... and so for all seventeen ...
+#
+# and the pours at (19,-12) and (-19,12) are likewise exact negations of each
+# other.
+#
+# The natural WRONG guesses this is built to catch:
+#
+#   - `floor`, i.e. snapping down on both axes. It is THE SAME FUNCTION as
+#     truncation toward the origin wherever the coordinate is positive, so it
+#     reproduces the pour at (19,12) exactly -- all seventeen vertices, zero
+#     residue -- and then misses every vertex of the other three. The pattern is
+#     the tell: the pour at (19,-12) comes back (0,-1) from KiCad at all
+#     seventeen vertices, the pour at (-19,12) (-1,0) at all seventeen, and the
+#     pour at (-19,-12) (-1,-1) at all seventeen. Only the negative axis moves,
+#     and it moves at every vertex, because a floor on a negative coordinate
+#     steps AWAY from the origin where truncation steps toward it. A fixture
+#     drawn only in the first quadrant is passed by this implementation and
+#     cannot see any of it.
+#
+#   - round to nearest. Measured on this board it misses ten of the seventeen
+#     edges of EVERY pour, the first-quadrant one included and by the same
+#     amount, so a single-quadrant fixture already separates it from the oracle.
+#     It is listed here because it is the other rule that is an ODD function,
+#     and so it too reproduces the point-reflection relation between diagonally
+#     opposite pours -- an equal residue on all four is what an odd snap looks
+#     like. The relation alone therefore does not identify the snap; only the
+#     vertices do. `floor` is the one rule this construction has to be drawn in
+#     four quadrants to catch.
+#
+#   - translation invariance itself. An engine that computes the opening in the
+#     pour's own frame, or that assumes the answer commutes with an integer
+#     translation, produces four vertex lists that are congruent under the
+#     translations relating the four pours, and is thereby guaranteed to be
+#     wrong on at least three of them whichever snap it picks. `floor` HAS that
+#     invariance; truncation toward the origin does not, and the oracle does
+#     not. This is not a property a one-quadrant fixture can express, and it is
+#     one an implementer is likely to think obviously desirable.
+#
+# The perturbation shifts the whole board into the first quadrant, which makes
+# floor and truncation the same function everywhere on it: the four answers
+# become plain translates of the ones recorded here, and the case's whole
+# assertion evaporates. An answer that had not recorded the origin dependence
+# would be unmoved by the shift.
