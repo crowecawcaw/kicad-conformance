@@ -1,0 +1,33 @@
+concept = "A copper segment's clearance stadium is ONE polygon materialised in a single local frame: the frame is anchored at the lexicographically smaller endpoint whichever way the segment is drawn, and the far cap is the shared canonical cap polygon translated by the segment length rounded to a whole nanometre ON ITS OWN -- round(L) + round(R*cos(phi)), two independent roundings, not round(L + R*cos(phi)). Only then is the whole thing rotated into board coordinates and rounded again."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (2..18) and two netless, foreign copper `gr_line`s of
+# stroke 0.6, both at slope 1:5 so L = sqrt(26) mm, whose fractional part
+# (.5136 um -> frac(L) = 0.5136 nm at the nanometre grid) is what separates the
+# candidate rules. `min_thickness 0.001` keeps the finishing a no-op, so each
+# void is one bare stadium and nothing downstream can move a vertex.
+#
+#   (11,11)->(16,12)   drawn left-to-right, theta = 11.3099 deg
+#   (16,4)->(11,3)     the SAME ratio drawn right-to-left
+#
+# Three wrong guesses this board defeats, each of which passes the boards that
+# pinned the cap's own-frame rule (`oblique-line-cap-is-built-in-the-segments-
+# frame` -- its 3:4 witness has every relevant fraction far from .5, so it
+# cannot tell any of these apart):
+#
+#   (1) "each cap is rounded about its own endpoint" -- the far cap's vertices
+#       couple to frac(L), which a per-endpoint construction never sees. RED:
+#       7 of 32 cap vertices on each line, 1 nm out along the segment.
+#   (2) "the far cap is round(L + R*cos(phi)), one rounding" -- RED on the six
+#       vertices whose two fractions straddle .5 (frac(L*..) within 0.15 of
+#       .5 here), which is exactly where the two spellings differ.
+#   (3) "the frame is anchored at the segment's START" -- the right-to-left
+#       twin then anchors at (16,4) and every prediction shifts; measured, its
+#       fill is identical in form to the left-to-right one. The anchor is the
+#       lexicographically smaller endpoint, not the drawn direction.
+#
+# Measured against kicad-cli 10.0.5, 2026-08-14 (`target/capprobe`, boards
+# p51/q2_p51..q4_p51 for (1)-(2) across all four quadrants, rev51/rev34 for
+# (3)). The rule lives in `pcb_fill::raw::disk_points`.
