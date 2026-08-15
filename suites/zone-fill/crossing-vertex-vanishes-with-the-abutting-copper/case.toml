@@ -1,0 +1,43 @@
+concept = "The extra vertex KiCad leaves where two same-net pours' drawn edges cross is a property of the FILLED copper, not of the drawn outlines: it appears on the higher-priority pour's boundary only while the lower pour's copper still reaches the crossing. Remove that copper -- here a no-net hole's clearance severs it and the fill machinery deletes the leftover sliver -- and the vertex disappears, with every drawn outline byte-for-byte unchanged in the region."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two congruent pairs of same-net pours on B.Cu, each pair a wide low-priority
+# rectangle (priority 10) whose right edge at x=105.537 is straddled by a
+# small higher-priority one (priority 35, spanning x 105.156..114.3). The
+# higher pour keeps its full drawn rectangle; the lower one is clipped around
+# it. Where the lower pour's right edge meets the higher pour's own drawn
+# edge, KiCad inserts a vertex into the higher pour's boundary at the exact
+# integer crossing:
+#
+#   pair 2 (the control, y 69.74..85, no other items): the higher pour's
+#   y=70.4 edge carries the vertex (105.537, 70.4), and the lower pour's
+#   clipped outline turns a sharp corner at that same point -- its copper
+#   abuts the crossing from below.
+#
+#   pair 1 (y 24.74..40, plus one no-net oval mounting hole at
+#   (104.286, 24.96575)): the hole's clearance carves the region between the
+#   two pours' edges near the crossing; the strip of low-priority copper that
+#   used to reach (105.537, 25.4) is severed and deleted by the fill
+#   machinery, and the higher pour's y=25.4 edge comes back with NO vertex
+#   there -- an 8.6 mm straight run -- even though the drawn zone outlines of
+#   pair 1 and pair 2 are exact translations of each other.
+#
+# The wrong guess this defeats: computing the crossing vertex from the drawn
+# outlines' arithmetic alone. Every quantity available there -- the two
+# rectangles, their overlap, the exact crossing coordinate -- is identical in
+# both pairs, and the hole is 150 um short of ever covering the crossing
+# point itself (its grown clearance reaches x=105.386 against the crossing's
+# x=105.537; the higher pour's edge run at the crossing is genuinely straight
+# and untouched either way). What differs is only whether the neighbouring
+# pour's FILLED copper still forms a T against the edge at that point.
+#
+# A second behaviour rides on the control pair: the lower pour's clipped
+# outline meets the higher pour at a SHARP right-angle corner, both at the
+# crossing (105.537, 70.4) and at the pours' shared boundary -- the
+# re-finished clipped fill is not rounded where its corner abuts same-net
+# copper. An implementation that re-runs its min-thickness finishing on the
+# clipped pour in isolation rounds those corners off (radius = half the
+# minimum thickness) and loses the abutment, where KiCad's finishing
+# evidently still sees the neighbouring copper.
