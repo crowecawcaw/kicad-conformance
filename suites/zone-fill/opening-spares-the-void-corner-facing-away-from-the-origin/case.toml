@@ -1,0 +1,34 @@
+concept = "The min_thickness opening of a zone fill answers the four congruent corner arcs of one convex clearance void four different ways, ordered by where the corner faces relative to the FILE ORIGIN: the arc facing away from the origin comes back with every drawn vertex intact, the arc facing toward it is rewritten entirely, and the two mixed arcs sit in between."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The void is a 2 mm square pad on a foreign net at (12, 12) held off by the zone's own
+# 1.0 mm clearance, so it is a rounded square centred on the pad with four corner arcs
+# that are exact reflections of each other -- same radius, same tessellation, same
+# facet count. Any construction that works in the void's own frame, or in any frame
+# fixed to the pad, must answer all four the same way. KiCad does not:
+#
+#   corner arc              (13,13)   (13,11)   (11,13)   (11,11)
+#   drawn vertices             9         9         9        10
+#   drawn vertices KEPT        9         8         6         2
+#
+# so the arc at (13,13) -- the one furthest from the file origin -- is returned
+# untouched and the arc at (11,11) keeps two of ten. An implementation that rounds
+# symmetrically about the void's centre reproduces at most one of the four.
+#
+# The dependence is on the origin, not on the sign of the coordinates the board
+# happens to use: translating the whole board by (-24 mm, -24 mm) puts the pad at
+# (-12, -12), and it is then the MOST NEGATIVE corner, (-13,-13), that comes back
+# untouched while the other three lose 5, 5 and 6 vertices. So a probe drawn in one
+# quadrant cannot see this rule at all -- both signs are needed, and a board built
+# around the origin would put the four arcs in four different quadrants and confound
+# the two readings.
+#
+# `connect_pads yes` keeps the same-net pad at (5, 5) invisible: it merges into the
+# pour without spokes, so the only feature in the fill is this one void, and the pour's
+# own drawn corners are the only other thing the opening touches.
+#
+# The perturbation drops min_thickness to 0.001, which makes the opening a no-op: all
+# four arcs then come back as drawn, and any answer that had not recorded the opening's
+# asymmetry would be unmoved by it.
