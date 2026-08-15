@@ -1,0 +1,45 @@
+concept = "Where two same-net pours on one layer overlap, KiCad inserts a vertex into the merged boundary at the EXACT crossing of their two drawn edges -- an integer coordinate taken from the un-offset input, with no rounding involved. It does not insert one at every crossing: on this board one overlapping pair gets the extra vertex and the other, drawn as its mirror image, does not."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Four GND pours on F.Cu, no pads and no tracks, `island_removal_mode 1` so
+# nothing is deleted for want of an anchor, `min_thickness 0.001` so the
+# finishing is a no-op. Two overlapping PAIRS, drawn as mirror images of each
+# other so the board can tell a geometric rule from a directional one:
+#
+#   pair 1   (0,0)-(20,10) and (15,3)-(30,7)    the small pour overhangs to the
+#                                               RIGHT, past x=20
+#   pair 2   (10,20)-(30,30) and (0,23)-(15,27) the small pour overhangs to the
+#                                               LEFT, past x=10
+#
+# The two pairs are congruent under a reflection: same rectangle sizes, same
+# overlap depth, same edge crossings. KiCad treats them differently. Pair 1's
+# boundary carries a vertex at the crossing of the large pour's right edge with
+# the small pour's edges; pair 2's carries none, and comes back as the plain
+# union of two rectangles.
+#
+# The crossing coordinates are exact. The large pour's edge x=20 meets the small
+# pour's edges y=3 and y=7 at (20,3) and (20,7), and those are the vertices
+# KiCad emits -- integers, straight off the drawn input, with no offset
+# arithmetic anywhere near them.
+#
+# Three wrong guesses this defeats:
+#   (1) "the merged outline is just the union of the two rectangles, so a vertex
+#       in the middle of a straight edge is noise." RED on pair 1: the vertex is
+#       there, at an exact integer, on every refill.
+#   (2) "if it happens at one crossing it happens at all of them." Pair 2 is
+#       pair 1 mirrored and gets nothing, so whatever selects the crossing is
+#       directional. A rule phrased in the geometry alone -- overlap depth, edge
+#       length, which pour is larger, distance from a corner -- is mirror-
+#       symmetric and predicts the same answer for both pairs, so it is refuted
+#       by this board rather than merely unsupported by it.
+#   (3) "the two pours are ranked, so it is the priority or uuid tie-break
+#       choosing." Both pours of each pair have equal priority, and the
+#       lexical uuid order runs the same way in both pairs (…000a before …000b,
+#       …000c before …000d) while the answers differ. The tie-break vocabulary
+#       does not reach this.
+#
+# The mirrored pair is the load-bearing half of the case. Without it a reader
+# sees one extra vertex and reaches for a rounding rule; with it, the same
+# geometry answered two ways rules that whole family out.
