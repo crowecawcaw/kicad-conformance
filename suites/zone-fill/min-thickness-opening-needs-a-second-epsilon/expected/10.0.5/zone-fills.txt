@@ -1,0 +1,33 @@
+zones 4
+zone 0 net "ZN" layers "F.Cu"
+  fill 0 layer "F.Cu" points 4
+    xy 70 22
+    xy 50 22
+    xy 50 8
+    xy 70 8
+zone 1 net "ZN" layers "F.Cu"
+  fill 0 layer "F.Cu" points 4
+    xy 30 22
+    xy 10 22
+    xy 10 8
+    xy 30 8
+zone 2 net "ZN" layers "F.Cu"
+  fill 0 layer "F.Cu" points 12
+    xy 149.999707 8.000293
+    xy 150 8.001001
+    xy 150 21.998999
+    xy 149.999707 21.999707
+    xy 149.998999 22
+    xy 130.001001 22
+    xy 130.000293 21.999707
+    xy 130 21.998999
+    xy 130 8.001001
+    xy 130.000293 8.000293
+    xy 130.001001 8
+    xy 149.998999 8
+zone 3 net "ZN" layers "F.Cu"
+  fill 0 layer "F.Cu" points 4
+    xy 110 22
+    xy 90 22
+    xy 90 8
+    xy 110 8

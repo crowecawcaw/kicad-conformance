@@ -1,0 +1,67 @@
+concept = "The min_thickness finishing opening is not merely scaled by min_thickness, it is GATED by it: the opening radius is min_thickness/2 - 0.001 mm, and the opening is skipped entirely -- the drawn outline comes back untouched -- unless that radius exceeds 0.001 mm as well. The same 1 um epsilon appears twice, once as an offset and once as a threshold, and between them lies a band of min_thickness values that scale a fill's corners in every implementation that only subtracts it once."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Four pours on one net, one drawn rectangle each, 20 x 14 mm, 40 mm apart so
+# that nothing on this board interacts with anything else: no pads, no tracks,
+# no foreign copper, `(clearance 0)`, and every authored coordinate a whole
+# millimetre. The four differ in `min_thickness` and in nothing else.
+#
+#     pour        min_thickness    KiCad's answer
+#     ---------   -------------    ---------------------------------
+#     @10,8       0.003            the 4 drawn corners, untouched
+#     @50,8       0.004            the 4 drawn corners, untouched
+#     @90,8       0.004001         the 4 drawn corners, untouched
+#     @130,8      0.004002         12 vertices -- the opening has run
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled). The step is
+# between 0.004001 and 0.004002 mm, and it is a step, not a taper: below it the
+# answer is the drawn rectangle to the nanometre, above it every corner is cut
+# back and replaced by an arc.
+#
+# The fourth pour also says what the radius is once the opening does run. Its
+# corner at (150, 8) comes back as three vertices,
+#
+#     (149.998999, 8.000000)   (149.999707, 8.000293)   (150.000000, 8.001001)
+#
+# so each edge is cut back by exactly 1001 nm and the arc between them has
+# radius 1001 nm with one vertex at 45 degrees (1001 - 1001*cos45 = 293 nm in
+# from the corner on each axis). 1001 = 4002/2 - 1000: the radius is
+# `min_thickness/2 - 0.001 mm`, unchanged across the step, which is the same
+# rule the 0.25 mm sibling case measures at radius 124000 nm. The step is a
+# GATE on whether the opening runs, not a different radius.
+#
+# The natural WRONG guesses this is built to catch:
+#
+#   - "the opening runs whenever its radius is positive", i.e. subtracting the
+#     1 um epsilon once and clamping at zero. That opens from min_thickness
+#     0.002001 mm upward and so answers the first THREE pours with twelve
+#     vertices apiece where KiCad answers four. It is the reading a fixture at
+#     an ordinary min_thickness cannot distinguish, because both readings agree
+#     everywhere above the step -- and it is the reading a fixture at
+#     `min_thickness 0.001` cannot distinguish either, because both agree that
+#     far below it. The band 0.002001 .. 0.004001 is the only place they differ,
+#     and nothing else needs to be drawn there.
+#
+#   - halving min_thickness as a real number. The pour at 0.004001 is the
+#     witness and the only reason it is on the board: a true halving gives
+#     2000.5 nm, a radius of 1000.5 nm, which is greater than the 1000 nm
+#     threshold and would open. KiCad returns the drawn corners, so the halving
+#     TRUNCATES -- 4001/2 is 2000 and the radius is 1000, exactly the value that
+#     does not open. Only an ODD min_thickness can see this, and an author
+#     reaching for a value in this band will reach for a whole micrometre.
+#
+#   - treating min_thickness 0.001 as "the opening off" and generalising from
+#     it. It is off there, and it stays off for four times that, which is not
+#     what "off because the radius went negative" predicts.
+#
+# The four pours share a net and are far enough apart that none of them touches
+# another, so each is one filled area and the comparison is one ring against one
+# ring, four times. `island_removal_mode 0` is immaterial here -- every pour is
+# a single area anchored by nothing, and the mode is carried only to match the
+# sibling cases.
+#
+# The perturbation raises the third pour's min_thickness by one nanometre, from
+# 0.004001 to 0.004002, which takes it across the step: its four drawn corners
+# become twelve vertices.
