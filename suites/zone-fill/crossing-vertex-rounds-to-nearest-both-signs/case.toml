@@ -8,8 +8,15 @@ extra   = ["refill"]
 # One netless -- therefore foreign -- copper `gr_line` runs the full width at
 # y=2, stroke 0.8 mm, so its clearance walls are the two horizontal lines
 #
-#     y = 2 +/- (0.5 clearance + 0.4 half-stroke + 0.0005 half min_thickness)
+#     y = 2 +/- (0.5 clearance + 0.4 half-stroke + 0.0005)
 #       = 2.9005  and  1.0995
+#
+# where the trailing 0.0005 mm is a CONSTANT. This line used to read
+# "0.0005 half min_thickness" and that is measurably wrong: refilled at
+# `min_thickness` 0.0001, 0.0005, 0.001, 0.002, 0.003 and 0.004 the walls do not
+# move by a nanometre (at 0.005 the morphological finishing becomes active and
+# the whole answer changes, which is a different behaviour). Where the 500 nm
+# comes from is not identified; that it is not min_thickness/2 is.
 #
 # and each wall crosses BOTH oblique sides. Four crossings, each the intersection
 # of two straight lines, each exactly computable from the input alone: the pour
@@ -52,8 +59,9 @@ extra   = ["refill"]
 #
 # `min_thickness 0.001` keeps the morphological finishing a no-op, so every
 # vertex in the answer comes from the outline and its clearance offsets rather
-# than from an opening; it also makes the wall position exact, at
-# clearance + stroke/2 + 0.0005. The crossing angle is deliberately obtuse-ish
+# than from an opening. It is not what fixes the wall position: the walls sit at
+# clearance + stroke/2 + 0.0005 for every min_thickness that leaves the
+# finishing a no-op, as measured above. The crossing angle is deliberately obtuse-ish
 # (a horizontal wall against a near-vertical side): at a very acute crossing the
 # finishing does perturb the vertex by a nanometre or two, which is a different
 # behaviour and would contaminate this measurement. `island_removal_mode 1` is

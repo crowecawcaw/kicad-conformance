@@ -1,0 +1,113 @@
+concept = "A fill vertex whose exact crossing lands on an EXACT HALF nanometre does not break the tie by sign: it breaks to EVEN, and to even about the crossing's anchor -- an endpoint of the segment being crossed -- rather than about the coordinate. The same pour translated by an ODD number of nanometres therefore comes back as the exact translate of the first, which rounding the coordinate half-to-even cannot do."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two GND pours on F.Cu and one netless -- therefore foreign -- copper `gr_line`
+# crossing both. Each pour is the isosceles trapezoid
+# (-16,-6) (16,-6) (15,10) (-15,10), whose two oblique sides are mirror images
+# across x=0 at 1 mm of x per 16 mm of y, so
+#
+#     x = +/- ( 16 - (y + 6) / 16 )   mm
+#
+# The second pour is that trapezoid translated by +50.000001 mm in x -- fifty
+# whole millimetres and ONE NANOMETRE. That one nanometre is the whole point of
+# the second pour and is the only thing that distinguishes it from the first.
+#
+# The line runs the full width at y=2, stroke 0.8 mm, and `(clearance 0.500004)`
+# is chosen so that its two clearance walls land the four crossings on an exact
+# half nanometre. MEASURED, the walls sit at
+#
+#     y = 2 +/- (0.500004 clearance + 0.4 half-stroke + 0.0005)
+#       = 2.900504  and  1.099496
+#
+# and the trailing 0.0005 mm is a CONSTANT, not half of anything on this board:
+# refilled at `min_thickness` 0.0001, 0.0005, 0.001, 0.002, 0.003 and 0.004 the
+# walls do not move at all (at 0.005 the morphological finishing becomes active
+# and the whole answer changes, which is a different behaviour). Where the
+# 500 nm comes from is not identified here; that it is not `min_thickness/2` is.
+#
+# The crossings are then exactly
+#
+#     wall y = 2.900504   exact  +/-15 443 718.5 nm
+#     wall y = 1.099496   exact  +/-15 556 281.5 nm
+#
+# four exact halves, two of each sign, and their translates on the second pour.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled):
+#
+#     pour                        upper wall      lower wall
+#     -------------------------   ------------    ------------
+#     @-16..16   right side        15 443 718      15 556 282
+#                left  side       -15 443 718     -15 556 282
+#     @34..66    right side        65 443 719      65 556 283
+#                left  side        34 556 283      34 443 719
+#
+# Read the first pour alone and the answer is "ties to even": 718 and -718 are
+# even, 282 and -282 are even, and the four sign-based rules each get exactly
+# TWO of the four right --
+#
+#     exact              +15443718.5   -15443718.5   +15556281.5   -15556281.5
+#     -----------------  ------------  ------------  ------------  ------------
+#     to even  (KiCad)     ...3718       -...3718      ...6282       -...6282
+#     ties up              ...3719       -...3718      ...6282       -...6281
+#     ties away from 0     ...3719       -...3719      ...6282       -...6282
+#     ties toward 0        ...3718       -...3718      ...6281       -...6281
+#     floor                ...3718       -...3719      ...6281       -...6282
+#
+# The second pour is what says WHAT the parity is read on. Its four exact
+# crossings are +65443719.5, +34556282.5, +65556282.5 and +34443719.5 -- every
+# one of them the first pour's crossing plus 50 000 001 nm, and every one of
+# them of the OPPOSITE parity to it. Rounding the coordinate half-to-even
+# therefore answers 65443720, 34556282, 65556282 and 34443720, and KiCad answers
+# 65443719, 34556283, 65556283 and 34443719: the first pour's four answers plus
+# 50 000 001, exactly. So the tie is broken on the OFFSET from an anchor that
+# moved with the pour, not on the coordinate -- and the rule still commutes with
+# an integer translation of the board, which coordinate-level to-even does not.
+#
+# The anchor is an endpoint of the oblique segment. On this board it cannot be
+# narrowed further: the two endpoints of each pour side differ by a whole
+# millimetre, an EVEN number of nanometres, so both give the same parity and
+# both reproduce every crossing here. What the second pour does exclude is an
+# anchor on the horizontal WALL segment, and it excludes it whatever that
+# segment's own coordinates are: the wall is shared by both pours, so a
+# wall-anchored offset differs between them by the pours' separation of
+# 50 000 001 nm -- an odd number, hence opposite parity -- and to-even would
+# then round the two pours in opposite directions. The recorded answers are
+# exact translates instead, so the anchor moved with the pour.
+#
+# The natural WRONG guesses this is built to catch:
+#
+#   - any tie rule keyed on the SIGN of the coordinate -- up, away from zero,
+#     toward zero, down. The first pour alone refutes all four, and refutes them
+#     symmetrically: each gets two of four, so a fixture with a single crossing
+#     on it cannot distinguish them from the oracle or from each other.
+#
+#   - "ties to even", applied where it is natural to apply it -- to the emitted
+#     coordinate. It reproduces the first pour perfectly and misses ALL FOUR
+#     crossings of the second, which is the same shape of mistake as measuring a
+#     rounding rule in one quadrant: right for a reason that does not survive
+#     moving the geometry.
+#
+#   - assuming the two pours must agree because they are congruent. They are
+#     congruent and one nanometre apart, and an engine that reads parity off the
+#     coordinate answers them inconsistently -- the second pour is not a
+#     duplicate of the first, it is the control that says which quantity the
+#     parity belongs to.
+#
+#   - never reaching a tie at all. Fractions of a quarter or three quarters --
+#     what an author picks when avoiding this question -- are reproduced by
+#     round-to-nearest under every tie rule, so a fixture that avoids halves
+#     leaves this unmeasured. Getting a crossing onto an exact half took a
+#     clearance authored to the nanometre; it is not something ordinary
+#     geometry hands you.
+#
+# `min_thickness 0.001` keeps the morphological finishing a no-op, so every
+# vertex in the answer comes from the outline and its clearance offsets rather
+# than from an opening. `island_removal_mode 1` is required because the
+# full-width line severs each pour into two filled areas and neither is anchored
+# by any pad or track; each zone's answer is two quadrilaterals, eight vertices,
+# four of them the crossings above and four authored corners.
+#
+# The perturbation moves the second pour by one more nanometre, which flips the
+# parity of every one of its crossings back and moves four recorded vertices.
