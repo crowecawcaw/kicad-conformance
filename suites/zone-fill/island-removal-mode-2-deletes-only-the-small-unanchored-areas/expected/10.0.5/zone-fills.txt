@@ -1,0 +1,96 @@
+zones 5
+zone 0 net "ZN" layers "F.Cu"
+  fill 0 layer "F.Cu" points 4
+    xy 32 36
+    xy 30 36
+    xy 30 28.3005
+    xy 32 28.3005
+  fill 1 layer "F.Cu" points 4 flags island
+    xy 32 27.6995
+    xy 30 27.6995
+    xy 30 19.3005
+    xy 32 19.3005
+  fill 2 layer "F.Cu" points 4 flags island
+    xy 32 18.6995
+    xy 30 18.6995
+    xy 30 12.3005
+    xy 32 12.3005
+zone 1 net "ZN" layers "F.Cu"
+  fill 0 layer "F.Cu" points 4
+    xy 42 36
+    xy 40 36
+    xy 40 28.3005
+    xy 42 28.3005
+  fill 1 layer "F.Cu" points 4 flags island
+    xy 42 27.6995
+    xy 40 27.6995
+    xy 40 19.3005
+    xy 42 19.3005
+  fill 2 layer "F.Cu" points 4 flags island
+    xy 42 18.6995
+    xy 40 18.6995
+    xy 40 12.3005
+    xy 42 12.3005
+zone 2 net "ZN" layers "F.Cu"
+  fill 0 layer "F.Cu" points 4
+    xy 52 36
+    xy 50 36
+    xy 50 28.3005
+    xy 52 28.3005
+  fill 1 layer "F.Cu" points 4
+    xy 52 27.6995
+    xy 50 27.6995
+    xy 50 19.3005
+    xy 52 19.3005
+  fill 2 layer "F.Cu" points 4
+    xy 52 18.6995
+    xy 50 18.6995
+    xy 50 12.3005
+    xy 52 12.3005
+  fill 3 layer "F.Cu" points 4
+    xy 52 11.6995
+    xy 50 11.6995
+    xy 50 7.3005
+    xy 52 7.3005
+  fill 4 layer "F.Cu" points 4
+    xy 52 6.6995
+    xy 50 6.6995
+    xy 50 4
+    xy 52 4
+zone 3 net "ZN" layers "F.Cu"
+  fill 0 layer "F.Cu" points 4 flags island
+    xy 22 36
+    xy 20 36
+    xy 20 28.3005
+    xy 22 28.3005
+  fill 1 layer "F.Cu" points 4 flags island
+    xy 22 27.6995
+    xy 20 27.6995
+    xy 20 19.3005
+    xy 22 19.3005
+  fill 2 layer "F.Cu" points 4 flags island
+    xy 22 18.6995
+    xy 20 18.6995
+    xy 20 12.3005
+    xy 22 12.3005
+  fill 3 layer "F.Cu" points 4
+    xy 22 6.6995
+    xy 20 6.6995
+    xy 20 4
+    xy 22 4
+zone 4 net "ZN" layers "F.Cu"
+  fill 0 layer "F.Cu" points 4
+    xy 12 36
+    xy 10 36
+    xy 10 28.3005
+    xy 12 28.3005
+  fill 1 layer "F.Cu" points 4 flags island
+    xy 12 27.6995
+    xy 10 27.6995
+    xy 10 19.3005
+    xy 12 19.3005
+  fill 2 layer "F.Cu" points 4 flags island
+    xy 12 18.6995
+    xy 10 18.6995
+    xy 10 12.3005
+    xy 12 12.3005

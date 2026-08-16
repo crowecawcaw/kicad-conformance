@@ -1,0 +1,78 @@
+concept = "`island_removal_mode 2` is mode 0 narrowed by area, not a separate pass: it deletes a filled area only when that area is UNANCHORED and its area is strictly less than `island_area_min` mm². An anchored area is exempt however small it is, a zone with nothing anchored keeps everything however small, an area exactly equal to the threshold is kept, and the threshold defaults to 10 mm² when the token is absent."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Five pours on one net, one per column, each a 2 mm wide bar from y=4 to y=36.
+# Four netless copper lines run across all five at y = 7, 12, 19 and 28, so
+# every pour is severed into the SAME five filled areas, whose areas are
+#
+#     y  4      .. 6.6995     5.399 mm2
+#     y  7.3005 .. 11.6995    8.798 mm2
+#     y 12.3005 .. 18.6995   12.798 mm2
+#     y 19.3005 .. 27.6995   16.798 mm2
+#     y 28.3005 .. 36        15.399 mm2      total 59.192 mm2
+#
+# `min_thickness 0.001` keeps the finishing opening a no-op, so those areas are
+# exactly the drawn bar minus the four clearance gaps and nothing else. The five
+# pours differ only in `island_area_min` and in which area carries a pad.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled):
+#
+#   pour    island_area_min   pad in the area of   KiCad keeps
+#   -----   ---------------   ------------------   -------------------------
+#   @10,4   10                15.399               3 -- 12.798 16.798 15.399
+#   @20,4   10                 5.399               4 --  5.399 12.798 16.798 15.399
+#   @30,4   12.798            15.399               3 -- 12.798 16.798 15.399
+#   @40,4   absent            15.399               3 -- 12.798 16.798 15.399
+#   @50,4   10                none                 5 -- all of them
+#
+# Each row is one clause:
+#
+#   - @10,4 is the rule itself. The two areas below 10 mm2 go and the three
+#     above it stay.
+#
+#   - @20,4 moves the pad to the SMALLEST area and that area survives, while the
+#     8.798 next to it -- larger, and still under the threshold -- does not. So
+#     an anchored area is exempt from the area test rather than merely likely to
+#     be large, and this is not "keep the biggest so the zone is never empty":
+#     the biggest is kept here for its area, and the smallest for its pad.
+#
+#   - @30,4 sets the threshold to 12.798, exactly the third area's own area, and
+#     that area is KEPT. The comparison is STRICTLY less than. A board whose
+#     threshold does not coincide with an area cannot ask this.
+#
+#   - @40,4 carries `island_removal_mode 2` with no `island_area_min` at all and
+#     answers identically to @10,4, so the default is 10 mm2.
+#
+#   - @50,4 has no pad anywhere on it, so no area of it is anchored, and it
+#     keeps ALL FIVE -- including the 5.399 one, less than a tenth of the
+#     threshold. Mode 2 inherits mode 0's fallback exactly: area alone deletes
+#     nothing, and the deletion is gated on the zone having at least one
+#     anchored area first. This is the clause an implementation is most likely
+#     to miss, because "remove islands smaller than N" reads as a pure area
+#     filter and nothing about the mode's name suggests a pad is involved.
+#
+# The natural WRONG guesses this is built to catch:
+#
+#   - "mode 2 replaces the anchoring rule with an area rule". @50,4 keeps five
+#     areas that an area rule deletes, and @20,4 keeps one.
+#   - "the comparison is <=". @30,4 answers three areas, not two.
+#   - "an absent island_area_min means no threshold, or zero". @40,4 deletes two
+#     areas, so the default is a real number, and it is 10.
+#   - "island_area_min is in nanometres squared, or in the file's own units".
+#     The thresholds here are read directly against mm2 areas and the 12.798 row
+#     lands on one exactly.
+#   - refusing mode 2 and leaving the zone alone. That answers @10,4, @20,4,
+#     @30,4 and @40,4 with five areas apiece and only @50,4 correctly -- which
+#     is the safe reading, and it is wrong on four pours out of five.
+#
+# The five pours share a net. They are 8 mm apart and none touches another, so
+# no pour conducts an anchor to any other and each is decided on its own copper;
+# `island-removal-scope-is-the-zone-not-the-net` is the case that pins that
+# separately. Every authored dimension is a whole millimetre or, for the
+# threshold on @30,4, a whole nanometre of area.
+#
+# The perturbation raises @10,4's `island_area_min` from 10 to 16, which takes
+# the 12.798 and 15.399 areas below the threshold: the 15.399 one is anchored
+# and stays, the 12.798 one goes, and the pour drops from three areas to two.
