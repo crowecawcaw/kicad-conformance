@@ -1,0 +1,67 @@
+concept = "A thermal spoke width one nanometre under a round figure defeats the truncate-toward-the-origin reading of the crossing snap: six drill-side crossings per relief come back one nanometre FARTHER from the file origin than truncation gives, on a positive-quadrant pad and a negative-quadrant pad identically. An implementation that reproduces the width-0.5 sibling board exactly by truncating every fractional crossing toward the origin is one nanometre toward the origin at all twelve of these crossings; one that rounds them with any fixed numeric direction (floor, ceiling, half-up) gets one pad right and the other wrong."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The same board as `thermal-spoke-crossing-snaps-toward-the-origin` — one GND
+# pour (-18,-18)..(18,18) on F.Cu, TWO identical 2 mm circular through-hole GND
+# pads with 1 mm drills at (10, 10) and (-10, -10), `thermal_gap 0.5`,
+# `min_thickness 0.001` so the morphological finishing is a no-op and every
+# vertex comes from the relief geometry — with exactly ONE change:
+# `thermal_bridge_width 0.499983` instead of `0.5`. The half-width, the offset
+# a spoke edge is built at, is 249991.5 nm: the one authored quantity on the
+# board that is not on the nanometre lattice.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled). Relative to
+# the width-0.5 sibling, the eight gap-ring crossings of each relief and two of
+# the eight drill-side crossings answer exactly as truncation toward the file
+# origin predicts for the shifted spoke edges. The other SIX drill-side
+# crossings of each relief do not. At each of them KiCad's answer is one
+# nanometre farther from the file origin, in one coordinate, than the
+# truncation rule gives:
+#
+#     pad at (10, 10):        KiCad emits           truncation-rule reading
+#     ------------------      -------------------   -----------------------
+#     bore west, upper        ( 9517040, 10129418)  ( 9517039, 10129418)
+#     bore west, lower        ( 9517040,  9870581)  ( 9517039,  9870581)
+#     bore south, left        ( 9870581,  9517040)  ( 9870581,  9517039)
+#     bore south, right       (10129418,  9517040)  (10129418,  9517039)
+#     bore east, upper        (10482959, 10129419)  (10482959, 10129418)
+#     bore north, right       (10129419, 10482959)  (10129418, 10482959)
+#
+#     The bore-east LOWER and bore-north LEFT crossings — the mirror images of
+#     the last two rows about the pad's own axes — are the two drill-side
+#     crossings that STAY on the truncation rule, so the six sites are not
+#     symmetric about the pad. They are symmetric between the pads:
+#
+#     pad at (-10, -10): the SAME six sites, point-mirrored, with every
+#     coordinate negated — e.g. (-9517040, -10129418) where truncation gives
+#     (-9517039, -10129418). Farther from the origin on both pads.
+#
+# The natural wrong guesses this board is built to catch:
+#   - **truncation toward the origin, applied to every fraction alike.** That
+#     rule is REAL — the sibling case pins it, and it still answers the other
+#     ten crossings of every relief on this very board — but it is not the
+#     whole snap. An implementation of it passes the sibling and misses all
+#     twelve sites here, every one by a single nanometre toward the origin.
+#   - **any fixed numeric direction.** Rounding these crossings up (ceiling,
+#     or half-up) matches KiCad on the positive pad and misses all six sites
+#     on the negative pad, where farther-from-the-origin is numerically DOWN;
+#     rounding down mirrors that. The two pads move in opposite numeric
+#     directions and the same origin-relative one.
+#   - **"toward or away from the pad" as the anchor.** On the positive pad the
+#     west-spoke sites move toward the pad's own centre and the east/north
+#     sites move away from it; the file origin is the only anchor consistent
+#     with all twelve.
+#   - **absorbing the width into a rounder figure up front.** Treating
+#     0.499983 mm as 0.499984 (or 0.5) moves the gap-ring crossings too;
+#     KiCad's gap-ring crossings on this board are the shifted-edge truncation
+#     answers, so the odd half-width is read exactly, not pre-rounded. The
+#     `bridge-one-nanometre-wider` perturbation (0.499984, an on-lattice
+#     half-width) returns every crossing to the truncation lattice, which is
+#     what makes this case falsifiable.
+#
+# Every other authored dimension is a whole millimetre or micrometre, as in the
+# sibling case, so the spoke half-width is the only quantity that carries the
+# half nanometre and the six sites per pad are the only places the answer
+# leaves the truncation rule.
