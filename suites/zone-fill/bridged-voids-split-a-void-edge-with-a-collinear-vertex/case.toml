@@ -1,0 +1,67 @@
+concept = "A filled area whose voids are bridged out to the pour boundary can carry a vertex that lies in the INTERIOR of one of its own edges. Three voids on one pour, all rectangles, all axis-parallel: KiCad returns 38 vertices where 37 describe the identical region, the 38th sitting on the straight run down one void's right-hand side at a coordinate that is not a corner of anything on the board. The extra vertex encloses no copper -- the area is the same to the square micrometre -- so it is invisible to every comparison except one that matches vertices or edges."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One 66x46 mm outline and one 60x40 mm F.Cu GND pour at (min_thickness 0.25),
+# (connect_pads yes (clearance 0.2)), the net's anchor pad in a far corner, and three
+# `gr_text` on the pour's own layer -- each the single glyph "I", so each clears one
+# plain rectangle. Nothing on this board is oblique and nothing is curved except the
+# four corner chamfers the min_thickness finish puts on the pour itself. The board
+# ships NO (filled_polygon ...), so `refill` is the only recorded answer that sees a
+# fill.
+#
+# The three voids, measured (kicad-cli 10.0.5, `pcb drc --refill-zones --save-board`):
+#
+#   text at    void x                      void y
+#   ---------  --------------------------  --------------------------
+#   (13, 20)   12.597625 .. 13.402375      18.469125 .. 21.373875    <- the HOST
+#   (20, 20)   19.663250 .. 20.336750      18.534750 .. 21.308250    <- bridged from it
+#   (27, 20)   26.584500 .. 27.415500      18.456000 .. 21.387000    <- the third
+#
+# KiCad returns ONE filled area of 38 vertices. The three voids are joined to the pour
+# outline by zero-width bridges, and each bridge leaves at the y of the void it is
+# going to: the run down the host's right-hand side leaves at y = 21.308250, which is
+# the second void's top edge, crosses to it, comes back, and then continues down to the
+# host's own bottom-right corner at (13.402375, 18.469125).
+#
+# IT DOES NOT CONTINUE STRAIGHT. It stops at
+#
+#     (13.402375, 18.493651)
+#
+# and starts again. That point is on the segment -- same x, and 18.493651 is between
+# 21.308250 and 18.469125 -- so the two edges it replaces describe exactly the run they
+# came from. Its y is not a corner of any void, not an edge of the pour, and not the y
+# of any bridge. It is 0.024526 mm above the host's bottom-right corner.
+#
+# THE NATURAL WRONG GUESS: that a filled area is determined by the region it covers, so
+# a vertex that lies on a straight edge is free to add or drop. It is not free here.
+# Emitting that run as one edge gives 37 vertices, the identical region, and an area
+# equal to KiCad's to the square micrometre -- and it disagrees with the oracle on two
+# directed edges out of 38. Any comparison at vertex or edge granularity has to
+# reproduce this, and no comparison at area or coverage granularity can even see it.
+# An implementation that normalises its output by dropping collinear vertices, which is
+# an ordinary and otherwise harmless thing to do, can never match this board.
+#
+# WHAT THE BOARD PINS ABOUT WHEN IT HAPPENS, all measured on this exact geometry by
+# changing one thing at a time:
+#
+#   * IT NEEDS THE THIRD VOID. Move the (27,20) text to the other copper layer and
+#     KiCad returns 30 vertices with the host's right-hand side whole, straight from
+#     21.308250 to 18.469125. The third void is not bridged from the host and does not
+#     touch it -- it is 13.18 mm away -- but without it the split does not happen.
+#
+#   * IT DOES NOT DEPEND ON WHERE THE BRIDGED VOID IS. Move the (20,20) text to
+#     (24,20) and the split stays at 18.493651, to the nanometre.
+#
+#   * IT IS FRAGILE IN THE HOST. Move the (13,20) text to (13,21) -- the whole host
+#     void up by exactly 1 mm, the same size, the same pen, the same bridge, the same
+#     enclosed area -- and KiCad returns 37 vertices with the edge whole. That is the
+#     perturbation, and it is the sharpest statement of the case: the answer changes by
+#     one vertex under a translation that changes nothing else about the board.
+#
+# NOT PINNED HERE, and stated so rather than guessed: what 18.493651 IS. It is not any
+# drawn coordinate, and no line between two vertices of this fill passes through it.
+# The case records the behaviour and the three levers above; it does not claim a rule
+# for the split point, and an implementation is not expected to derive one from this
+# board alone.
