@@ -1,0 +1,133 @@
+concept = "A copper `gr_text` with no `(thickness ...)` still has a stroke width, and it is derived from the SECOND number of `(size A B)` -- the width -- and not the first. It is that width over 8, or over 5 when the font is `(bold yes)`, rounded to the nearest nanometre and then subject to the same `min(A,B)/4` ceiling a stated thickness obeys. Separately, and visibly on the same board: the pen that SIZES the void a pour clears is that effective pen, while the pen that PLACES the void is the stated `(thickness ...)`, which for a defaulted text is zero."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One 66x46 mm outline and one 60x40 mm F.Cu GND pour at (min_thickness 0.25),
+# (connect_pads yes (clearance 0.2)), with the net's anchor pad tucked in a corner
+# well away from everything. Eight `gr_text` on the pour's own layer, each the
+# single glyph "I" -- one vertical stroke and nothing else, so its void's WIDTH is
+# the stroke width plus twice the growth and can be read straight off the fill.
+# They sit in a 4x2 grid, each void well clear of its neighbours. The board ships
+# NO (filled_polygon ...), so `refill` is the only recorded answer that sees a fill.
+#
+# THE NATURAL WRONG GUESS: `(size A B)` looks like `(size width height)` -- it is
+# spelled that way for a pad -- so an implementation reaches for A. On the square
+# sizes that every ordinary board uses, A and B are equal and the mistake is
+# invisible. It stays invisible on a non-square size too unless the default is
+# exercised, because a text that states its own thickness never consults either.
+#
+# The eight texts, and what each one is for:
+#
+#   at        size              extra              pen KiCad uses
+#   --------  ----------------  -----------------  --------------
+#   (15, 8)   (4.2   2.1)                          0.2625   <- B/8, and A/8 is 4x that
+#   (45, 8)   (2.1   3.15)                         0.39375  <- B/8, and A/8 is 2/3 of it
+#   (15,18)   (2.1   2.1)                          0.2625   <- the plain square control
+#   (45,18)   (2.1   2.1)       (bold yes)         0.42     <- B/5
+#   (15,28)   (2.1   8.4)                          0.525    <- B/8 = 1.05 hits the ceiling
+#   (45,28)   (2.1   2.099996)                     0.2625   <- B/8 = 0.2624995, ROUNDED
+#   (15,35)   (2.1   2.1)       (thickness 0.3)    0.3      <- a stated pen wins
+#   (45,35)   (2.1   2.1)       (thickness 0.3)    0.3      <- ... and bold does not scale it
+#                               (bold yes)
+#
+# ---------------------------------------------------------------------------------------
+# MEASURED -- kicad-cli 10.0.5, `pcb drc --refill-zones --save-board` on this exact file
+# ---------------------------------------------------------------------------------------
+# KiCad returns ONE filled area of 71 vertices: the pour's own outline (chamfered at each
+# corner by the min_thickness finish) plus eight four-cornered voids bridged to it. Every
+# void is a rectangle -- four straight edges, sharp corners, not one arc:
+#
+#   at        void x                        void y                        width      height
+#   --------  ----------------------------  ----------------------------  ---------  ---------
+#   (15, 8)   14.663250 .. 15.336750        5.406250  .. 10.279750        0.673500   4.873500
+#   (45, 8)   44.597625 .. 45.402375        6.469125  ..  9.373875        0.804750   2.904750
+#   (15,18)   14.663250 .. 15.336750        16.534750 .. 19.308250        0.673500   2.773500
+#   (45,18)   44.584500 .. 45.415500        16.456000 .. 19.387000        0.831000   2.931000
+#   (15,28)   14.532000 .. 15.468000        26.403500 .. 29.439500        0.936000   3.036000
+#   (45,28)   44.663250 .. 45.336750        26.534750 .. 29.308250        0.673500   2.773500
+#   (15,35)   14.644500 .. 15.355500        33.500400 .. 36.311400        0.711000   2.811000
+#   (45,35)   44.644500 .. 45.355500        33.500400 .. 36.311400        0.711000   2.811000
+#
+# The growth on every side is clearance + max_error + half the fill epsilon =
+# 0.2 + 0.005 + 0.0005 = 0.2055 mm, so a void's WIDTH IS THE PEN PLUS 0.411 exactly. Every
+# number below is that subtraction, to the nanometre.
+#
+# WHAT THE WIDTHS PIN
+#
+#   * IT IS `B`, NOT `A`. The text at (15,8) is (size 4.2 2.1) and clears 0.673500, i.e. a
+#     0.2625 mm pen -- 2.1/8. Its height A = 4.2 would give 0.525. The text at (45,8) is
+#     (size 2.1 3.15) and clears 0.804750, i.e. 0.39375 = 3.15/8, where A/8 would be
+#     0.2625. The two are transposes of the same pair of numbers and they disagree in
+#     OPPOSITE directions, which is what kills three rules at once:
+#
+#         rule            (4.2 2.1) predicts   (2.1 3.15) predicts   measured
+#         -------------   ------------------   -------------------   -----------------
+#         B/8             0.2625               0.39375               0.2625 / 0.39375
+#         A/8             0.525                0.2625                both wrong
+#         min(A,B)/8      0.2625               0.2625                second one wrong
+#         max(A,B)/8      0.525                0.39375               first one wrong
+#
+#     Only B/8 survives both. A fixture whose sizes are all square separates none of them,
+#     and a fixture with only ONE non-square size separates at most two.
+#
+#   * BOLD IS B/5, NOT B/8. (15,18) and (45,18) are the same `(size 2.1 2.1)`; the second
+#     adds `(bold yes)` and nothing else. They clear 0.673500 and 0.831000 -- pens of
+#     0.2625 and 0.42. 2.1/5 = 0.42 exactly. B/6 would be 0.35, 3B/16 would be 0.39375,
+#     B/4 would be 0.525, and "bold changes nothing" would be 0.2625.
+#
+#   * THE CEILING STILL APPLIES TO A DEFAULT. (15,28) is (size 2.1 8.4): B/8 = 1.05, and
+#     it clears 0.936000, a pen of 0.525 = min(A,B)/4. So the default is a nominal value
+#     that the same ceiling clamps, not a value that bypasses it. (Note this board cannot
+#     say whether that ceiling is min(A,B)/4 or A/4: B/8 can never exceed B/4, so the two
+#     agree on every defaulted text. A text that STATES a thickness above the ceiling is
+#     what separates them, and this case does not carry one.)
+#
+#   * THE DIVISION ROUNDS, IT DOES NOT TRUNCATE. (45,28) is (size 2.1 2.099996). B/8 is
+#     0.2624995 -- 262499.5 nm. It clears 0.673500, a pen of 262500 nm. Truncation gives
+#     262499, and a 262499 nm pen cannot produce a 0.673500 void under any reading of its
+#     half-width: 673499 if the half is exact, 673498 if the half truncates. Both are
+#     narrower than what KiCad drew. (What this board CANNOT see is which way an exact tie
+#     goes, because a pen and that pen plus one give the same half-width. 262499.5 is a tie
+#     whose two candidates are 262499 and 262500, and round-half-away and round-half-to-even
+#     both pick 262500, so they are not separated here either.)
+#
+#   * A STATED THICKNESS WINS, AND BOLD DOES NOT SCALE IT. (15,35) and (45,35) both state
+#     `(thickness 0.3)` and both clear 0.711000 -- a 0.3 mm pen -- although only the second
+#     is bold. "Bold multiplies the pen by 8/5" would make the second one 0.48 and clear
+#     0.891000. Bold supplies a DEFAULT; it does not modify a value the file gives.
+#
+# WHAT THE VERTICAL PLACEMENT PINS, AND IT IS A DIFFERENT PEN
+#
+# Take each void's centre and subtract the text's anchor:
+#
+#   at        pen used    void centre y   centre - anchor
+#   --------  ----------  --------------  ----------------
+#   (15,18)   0.2625      17.921500       -0.078500
+#   (45,18)   0.42        17.921500       -0.078500
+#   (15,28)   0.525       27.921500       -0.078500
+#   (45,28)   0.2625      27.921500       -0.078500
+#   (45, 8)   0.39375     7.921500        -0.078500
+#   (15,35)   0.3         34.905900       -0.094100
+#   (45,35)   0.3         34.905900       -0.094100
+#
+# FIVE VOIDS WITH FIVE DIFFERENT PENS SHARE ONE OFFSET, and the two texts that state a
+# thickness sit 0.015600 mm lower. 0.0156 = 0.052 x 0.3. So the vertical placement carries
+# a `-0.052 x thickness` term that reads the STATED attribute -- zero when it is absent --
+# while the very same void's HEIGHT reads the effective pen (0.2625 gives 2.773500 and 0.42
+# gives 2.931000, a difference of exactly 0.1575 = 0.42 - 0.2625). One box, two different
+# pens in it.
+#
+# The natural wrong guess here is the tidy one: resolve the default first, then lay the
+# text out with the pen you resolved. That is off by 0.052 x the default -- 13.65 um at
+# 0.2625, 27.3 um at 0.525 -- on every defaulted text, downward, which is a micrometre-scale
+# error that looks like a rounding residue until the five-pens-one-offset table above is
+# laid out. The eighth text is the control that makes it legible: (15,35) states the pen it
+# is placed by, so it is the one void in the grid where the tidy rule is right.
+#
+# The perturbation transposes every `(size A B)` to `(size B A)`. It is aimed straight at
+# the first finding: for each of the three non-square texts, an implementation that used A
+# reproduces on the perturbed board exactly the pen the oracle used on this one, and vice
+# versa -- the two rules swap answers rather than merely disagreeing. The four square texts
+# are unmoved by construction, which is the point of having them: they are the controls,
+# and a transposition cannot touch a control.
