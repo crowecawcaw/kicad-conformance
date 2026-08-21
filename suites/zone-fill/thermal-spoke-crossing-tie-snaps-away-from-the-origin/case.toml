@@ -1,4 +1,4 @@
-concept = "A thermal spoke width one nanometre under a round figure defeats the truncate-toward-the-origin reading of the crossing snap: six drill-side crossings per relief come back one nanometre FARTHER from the file origin than truncation gives, on a positive-quadrant pad and a negative-quadrant pad identically. An implementation that reproduces the width-0.5 sibling board exactly by truncating every fractional crossing toward the origin is one nanometre toward the origin at all twelve of these crossings; one that rounds them with any fixed numeric direction (floor, ceiling, half-up) gets one pad right and the other wrong."
+concept = "An odd `thermal_bridge_width` moves a thru-hole pad's drill-side relief crossings by one nanometre, in the same direction relative to the file origin on a positive-quadrant pad and a negative-quadrant pad. The half nanometre is lost when the width is halved, before the spoke's corners are rounded: an implementation that reproduces the width-0.5 sibling board exactly, but carries w/2 as a rational half here, is one nanometre off at twelve crossings. See `thermal-bridge-width-is-halved-in-integer-nanometres`, which isolates the same behaviour on SMD pads with no hole at all."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
@@ -65,3 +65,36 @@ extra   = ["refill"]
 # sibling case, so the spoke half-width is the only quantity that carries the
 # half nanometre and the six sites per pad are the only places the answer
 # leaves the truncation rule.
+#
+# RESOLVED (measured 2026-08-20, kicad-cli 10.0.5). The four "natural wrong
+# guesses" above are all still wrong, and so was this case's own first reading
+# of WHY. It attributed the twelve sites to the crossing snap -- to how the
+# boolean that cuts the drill puts a segment-segment crossing on the lattice --
+# and asked whether they are exact-half ties. They are not ties: their exact
+# rationals have fractional parts running 0.0359 ... 0.9641 with no half among
+# them. The snap is not the operand.
+#
+# The spoke is a rotated rect whose corners are rounded to the nanometre, and
+# on this board the concave corner where two adjacent spokes meet lies 353541
+# nm from the pad centre -- INSIDE the 504314 nm bore, so the drill cut removes
+# it and it appears in no answer. Solving for it instead (hold the emitted
+# far endpoint fixed, sweep the corner over a lattice neighbourhood, keep the
+# positions that reproduce every one of the eight bore crossings under
+# truncation toward the file origin) leaves exactly ONE position per spoke, on
+# both pads, and brackets the corner's exact offset in the open interval
+# (353540, 353541) nm. w/2 = 249991.5 puts it at 353541.83; floor(w/2) =
+# 249991 puts it at 353540.17. So the half nanometre is lost at the halving.
+#
+# Two things that solve falls out of, worth keeping because each cost a
+# session's search:
+#
+#   - **the snap is truncation toward the file origin, and this board confirms
+#     it rather than refuting it.** Of floor, ceiling, round-half-away and
+#     truncation, truncation is the only one that admits a consistent concave
+#     corner on BOTH pads; floor and round admit none at all on the negative
+#     one. The two-pad construction is what decides that, which is the same
+#     reason it is here.
+#
+#   - **an amputated construction cannot be read off the answer.** Every vertex
+#     this case grades is 500 um from the corner that explains it. A rule fitted
+#     to the visible crossings alone will be fitted to the wrong quantity.

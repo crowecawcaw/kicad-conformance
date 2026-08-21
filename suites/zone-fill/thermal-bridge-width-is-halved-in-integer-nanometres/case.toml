@@ -1,0 +1,93 @@
+concept = "A thermal spoke is built from HALF the bridge width, and that halving is integer: an odd `thermal_bridge_width` loses its half nanometre before any of the spoke's corners is rounded, never after. Three same-net SMD circle pads in different quadrants share one pour at an odd width, so an implementation that carries w/2 as a rational half nanometre -- or that rounds it up rather than down -- misses eight gap-ring crossings on every pad."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour (-18,-18)..(18,18) on F.Cu, `min_thickness 0.001` so the
+# morphological finishing is a no-op and every vertex in the answer comes from
+# the thermal relief, and three same-net SMD circle pads: 2 mm at (7,-7), 2 mm
+# at (-9,5) and 2.4 mm at (6,11). `thermal_gap 0.5`, and
+#
+#     thermal_bridge_width 0.480011 mm  =  480011 nm, an ODD number
+#
+# so w/2 is 240005.5 nm -- the only authored quantity on the board that is not
+# on the nanometre lattice. Everything else is a whole micrometre.
+#
+# SMD pads on purpose: there is no drill, no bore and no late hole cut, so the
+# behaviour cannot be confused with anything a hole does. Three pads on purpose:
+# mixed-sign centres, since a spoke construction that rounds toward the file
+# origin and one that rounds symmetrically about the pad agree everywhere in a
+# single positive quadrant.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled). Reading the
+# spoke as a rotated rect whose corners are rounded to the nanometre, with
+# c = 1/sqrt(2), R the gap-ring radius, hw the half bridge width and shift a
+# small measured constant the far corners carry (about 0.0873 nm, and not the
+# subject of this case):
+#
+#     p = round(hw*c)                     the near corner, (+-p, -+p)
+#     q = round(R*c + hw*c + shift)       the far corners, at the gap ring
+#     r = round(R*c - hw*c + shift)
+#
+# the three candidate spellings of hw give three different integer triples on
+# the 2 mm pads:
+#
+#     hw                     p        q         r
+#     ---------------------  -------  --------  -------
+#     240005  = floor(w/2)   169709   1230369   890951     <- KiCad
+#     240005.5 = w/2         169710   1230370   890951
+#     240006  = ceil(w/2)    169710   1230370   890950
+#
+# and the answer separates them. Taking the pad at (7,-7), its relief has 40
+# vertices and KiCad places all 40 where floor(w/2) predicts. Eight of them --
+# the gap-ring crossings -- move under the other two spellings, by one
+# nanometre and by two:
+#
+#     KiCad                    from w/2              from ceil(w/2)
+#     ----------------------   -------------------   -------------------
+#     ( 5783288, -6122706)     ( 5783288, -6122707)  ( 5783288, -6122708)
+#     ( 5783288, -7877293)     ( 5783288, -7877292)  ( 5783288, -7877291)
+#     ( 6122706, -5783288)     ( 6122707, -5783288)  ( 6122708, -5783288)
+#     ( 6122706, -8216711)     ( 6122707, -8216711)  ( 6122708, -8216711)
+#     ( 7877293, -5783288)     ( 7877292, -5783288)  ( 7877291, -5783288)
+#     ( 7877293, -8216711)     ( 7877292, -8216711)  ( 7877291, -8216711)
+#     ( 8216711, -6122706)     ( 8216711, -6122707)  ( 8216711, -6122708)
+#     ( 8216711, -7877293)     ( 8216711, -7877292)  ( 8216711, -7877291)
+#
+# The other two pads move the same eight sites, and the 2.4 mm pad is here
+# because pad size reaches the corner rounding through frac(R*c): a width that
+# separates the spellings on one pad radius need not separate them on another,
+# so a single-pad fixture can be green for a reason that does not survive
+# changing the pad.
+#
+# The natural WRONG guesses this board is built to catch:
+#
+#   - **halving exactly.** w/2 = 240005.5 is the arithmetically obvious reading
+#     and it is the one that fails: it moves the near corner AND the outer far
+#     corner by one, which is one nanometre at every gap-ring crossing of every
+#     pad. This is the whole point of the case.
+#
+#   - **rounding the half to nearest instead of down.** ceil(w/2) = 240006
+#     agrees with the exact half on the near corner and disagrees on the inner
+#     far corner, so it is wrong in a DIFFERENT place -- two nanometres at the
+#     crossings above rather than one. A fixture whose width happens to make
+#     floor and ceil agree cannot tell these apart; this one cannot be satisfied
+#     by either.
+#
+#   - **an even width, which hides the question completely.** At any even
+#     `thermal_bridge_width` all three spellings are the same integer and every
+#     implementation agrees. The default in most files is 0.5 mm, an even number
+#     of nanometres, so the behaviour is invisible on ordinary boards and needs
+#     an authored odd width to reach at all.
+#
+#   - **blaming the crossing snap.** The eight sites are crossings, so the
+#     obvious reading is that the boolean rounds them differently. It does not:
+#     their exact rationals are not ties and are nowhere near halves, and the
+#     same snap that answers them wrongly from a rational half-width answers all
+#     forty vertices exactly from the integer one. The defect is in the operand,
+#     not in the rounding applied to it.
+#
+# The perturbation raises the width by one nanometre to 0.480012 -- an EVEN
+# width, one nanometre away -- which puts hw back on the lattice and moves the
+# recorded vertices. That is what makes the odd half nanometre, rather than this
+# particular width, the thing under test.
