@@ -1,0 +1,39 @@
+concept = "A stroke text's pen radius is HALF the stated thickness, and that halving is integer truncation at derivation: at an odd thickness the void a pour clears sits exactly floor(t/2) plus the growth from the stroke on BOTH sides -- symmetric, one nanometre narrower than rounding the half, and not the half-integer edge a rational carry would produce. The 0.052*t baseline term is NOT quantized: it stays rational in the cap-top sum and the truncation of that sum eats its fraction."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One F.Cu GND pour, `min_thickness 0.001` so the morphological finishing is
+# a no-op, and a single justify-left `gr_text "I"` at (10, 10),
+# `(size 2.1 2.1) (thickness 0.300001)`. The size is deliberately EXACT (one
+# glyph unit = 0.1 mm) so the only quantity off the nanometre lattice is the
+# ODD thickness: t/2 = 150000.5 nm, and 0.052*t = 15600.052 nm. An even
+# thickness -- every t in 0.05 mm steps -- hides both questions entirely.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled, a fixed
+# point). The stroke sits at x = 10.697369 (margin trunc(25t/38) = 197369),
+# top of cap at y = 8.855899, and the void spans
+#
+#     x = [10.341869, 11.052869],  y = [8.500399, 11.311399]
+#
+# i.e. exactly 355500 nm = floor(t/2) + 0.2055 mm growth from the stroke on
+# all four sides. The numbers to read:
+#
+#   - **the half is floor(t/2) = 150000, symmetric.** Rounding the half puts
+#     every edge at 355501. Carrying the rational 150000.5 into the edge
+#     puts the void's edges on half-integers, and NO uniform snap of those
+#     agrees with the answer: truncation toward the void gives [.341868,
+#     .052869], round-half-away gives [.341869, .052870], round-half-even
+#     gives [.341868, .052870] -- each wrong on at least one side.
+#   - **the baseline pen term stays rational.** The cap top is the
+#     truncation toward zero of anchor + h*ratio - 0.052*t - h =
+#     8855899.948; quantizing 0.052*t to 15600 at derivation gives
+#     8855900.0 exactly, one nanometre low on the void's whole top edge
+#     (the gerber skeleton pins the same nanometre independently of the
+#     growth).
+#
+# The perturbation perturb/pen-one-nanometre-wider/ takes the thickness to
+# its even neighbour 0.300002: t/2 = 150001 is back on the lattice and every
+# void edge moves out one nanometre -- x = [10.341868, 11.052870],
+# y = [8.500398, 11.311400] -- while the stroke itself does not move (the
+# margin's trunc(25t/38) = 197369 either way).
