@@ -1,0 +1,69 @@
+concept = "min_thickness finishing snaps a thermal wedge's sharp corners about the PAD CENTRE, not the file origin: each spoke mouth moves toward the centre on its minor coordinate, and each wedge apex lands at its exact magnitude rounded away from the centre -- where the unfinished fill truncates both toward the file origin."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# A 40 x 40 mm board drawn -20..20, one F.Cu pour on net GND drawn -18..18, and
+# two SMD circle pads on GND, 2 mm copper, at (10, 10) and (-10, -10). No
+# drills, so every part of the thermal relief survives to the fill -- including
+# the four wedge apexes per pad, which a through-hole pad's bore would cut
+# away. connect_pads carries no mode, so each pad gets the default thermal
+# relief: (thermal_gap 0.5), (thermal_bridge_width 0.5), four spokes on the
+# diagonals. (min_thickness 0.4) makes the finishing radius
+# min_thickness/2 - 0.001 = 0.199 mm.
+#
+# Measured against kicad-cli 10.0.5 (2026-08-21, this exact file, refill, a
+# fixed point): one filled_polygon, 180 vertices. The same board at
+# (min_thickness 0.001) -- perturb/min-thickness-noop/, where the finishing
+# radius is negative and the finishing does nothing -- is 114 vertices, also a
+# fixed point, and is the control that isolates what the finishing itself does
+# to the relief's sharp corners.
+#
+# 1. APEXES snap AWAY from the pad centre, and pair. A wedge apex sits where
+#    the two spoke edges cross, at exactly bridge/sqrt(2) = 0.35355339 mm from
+#    the pad centre on a pad axis. Unfinished (the perturbation), each apex is
+#    a single vertex whose off-axis coordinate truncates toward the FILE
+#    ORIGIN: the (10, 10) pad's north apex is (10, 10.353553) and the
+#    (-10, -10) pad's south apex is (-10, -10.353553). Finished, every apex
+#    comes back as a 1 nm pair whose shared off-axis coordinate is the exact
+#    magnitude rounded AWAY FROM THE PAD CENTRE -- 0.353554 -- even though its
+#    fraction (.39) rounds down:
+#
+#        north apex, (10, 10) pad:   (10.000001, 10.353554) (10.000000, 10.353554)
+#        south apex, (-10, -10) pad: (-10.000001, -10.353554) (-10.000000, -10.353554)
+#        south apex, (10, 10) pad:   (10.000000, 9.646446) (10.000001, 9.646446)
+#        north apex, (-10, -10) pad: (-10.000000, -9.646446) (-10.000001, -9.646446)
+#
+#    The last two rows are why the case carries two pads and both signs (see
+#    the README's rounding-rule rule): 9.646446 and -9.646446 are away from
+#    each pad's own centre but TOWARD the file origin, so an implementation
+#    that rounds apexes away from the origin -- which reproduces the first two
+#    rows exactly -- is contradicted by the second two, and one that keeps the
+#    truncated apex misses all four by 1 nm and half the pairs entirely.
+#
+# 2. MOUTHS move TOWARD the pad centre on the minor coordinate. A spoke mouth
+#    is where a spoke edge crosses the tessellated gap ring (radius 1.5 mm
+#    here, circumradius 1.504638). Unfinished, the crossing truncates toward
+#    the file origin in both coordinates: the (10, 10) pad's west mouth is the
+#    single vertex (8.777340, 10.869106) and its east mouth
+#    (11.222659, 10.869106). Finished, the same mouths come back with the
+#    minor coordinate (the one of smaller magnitude in the pad's own frame)
+#    moved toward the pad centre -- west (8.777340, 10.869104), east the 1 nm
+#    pair (11.222658, 10.869104) (11.222659, 10.869104). On a mouth whose
+#    minor coordinate lies BETWEEN the origin and the pad centre the same rule
+#    points the other way in file coordinates: the north-west mouth's minor
+#    goes 9.130893 unfinished to 9.130894 finished, AWAY from the origin,
+#    which is what an origin-frame reading cannot reproduce. Which mouths come
+#    back as 1 nm pairs and which as single vertices varies per mouth and is
+#    part of the recorded answer.
+#
+# Failure modes this is expected to catch:
+#   - keeping the unfinished crossings: every mouth minor coordinate is out by
+#     a couple of nanometres and every apex by 1 nm plus its missing pair
+#     member -- 84 of the 180 recorded edges move.
+#   - snapping about the file origin instead of the pad centre: exact on the
+#     apexes and mouths of whichever half of each pad faces away from the
+#     origin, wrong on the facing half; the two-pad, both-signs layout makes
+#     the wrong half non-empty on every axis.
+#   - rounding the apex to nearest (fraction .39 rounds down): 1 nm short on
+#     all eight apexes.
