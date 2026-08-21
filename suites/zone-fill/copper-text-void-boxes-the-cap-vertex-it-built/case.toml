@@ -1,0 +1,42 @@
+concept = "The void a pour clears around a copper text is the box of the stroke polygon KiCad actually BUILT -- the local-frame, thrice-rounded stadium vertices -- pulled in by max_error*(1 - cos(alpha - delta)) at each vertex's own facet phase, and the resulting edge is ROUNDED to the nanometre. Measuring the reach at the analytic cap positions instead of the built vertices is 1 nm out wherever the local-frame roundings moved the winning vertex."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One F.Cu GND pour, `min_thickness 0.001` so the morphological finishing is
+# a no-op, and one centred `gr_text "MMMMMM"` at (10, 10),
+# `(size 2 2) (thickness 0.3)`. "M"'s outer strokes are vertical -- flat cap
+# faces, exact -- but its DIAGONALS end at the top corners, and the round
+# cap polygonised onto a diagonal pokes past both the vertical strokes'
+# x +- r and the cap row's y: all four box edges except the bottom are set
+# by a diagonal-cap VERTEX, at radius r/cos(pi/16) with a facet phase that
+# depends on the diagonal's own integer endpoints.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled, a fixed
+# point): the void spans x = [3.262387, 16.737611], y = [8.552977,
+# 11.265138], with growth clearance + max_error + epsilon/2 = 0.2055 mm.
+# The numbers to read, all on the x edges (the glyph unit here is an exact
+# lattice fraction only at the micron level; 2/21 mm carries the .095
+# fraction every stroke inherits):
+#
+#   - **the winning vertex is the one KiCad built.** The stadium is
+#     materialised on the integer lattice in the segment's own frame (three
+#     roundings: canonical cap vertex, separately-rounded segment length,
+#     rotation) and the box follows THOSE integers: computing the same
+#     vertex analytically as centre + R*(cos, sin) of the rounded endpoint
+#     lands 1 nm right of this board's right edge -- 16.737612 -- because
+#     the local-frame construction rounds that vertex down where the
+#     analytic value does not.
+#   - **the pull is real and per-vertex**: the winning right-edge vertex
+#     sits at delta = 0.152 rad from the +x axis, pull = 4.8 nm; without it
+#     the right edge is 16.737616.
+#   - **the edge rounds**: the left ink edge's exact value is ...886.82 nm;
+#     the void edge lands on ...887 (x = 3.262387). Truncation toward the
+#     text -- the shrink a "pull" suggests -- gives 3.262386, one nanometre
+#     low. (A width sweep of the single-stroke "/" pins round against every
+#     truncation on thirteen boards; this board carries the .82 case.)
+#
+# The perturbation perturb/width-six-nanometres-narrower/ takes only the
+# WIDTH to 1.999994 mm: every stroke fraction moves, and the void follows
+# to x = [3.262407, 16.737593] with the y edges unchanged (the height still
+# 2 mm exactly).
