@@ -1,0 +1,50 @@
+concept = "A rect pad's thermal spokes are built from HALF the bridge width, and that halving is integer truncation on this construction too: at an odd `thermal_bridge_width` both spoke edges sit exactly floor(w/2) nanometres from the pad centre, symmetric, on a positive-quadrant and a negative-quadrant pad alike -- where carrying w/2 as a rational half nanometre puts each pad's origin-facing edge one nanometre closer to the file origin."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour (-18,-18)..(18,18) on F.Cu, `min_thickness 0.001` so the
+# morphological finishing is a no-op, and two same-net SMD rect pads, 2 x 2 mm,
+# at (10, 10) and (-10, -10). `thermal_gap 0.5` and
+#
+#     thermal_bridge_width 0.480011 mm  =  480011 nm, ODD
+#
+# so w/2 = 240005.5 nm is the only authored quantity off the nanometre
+# lattice. A rect pad's four spokes run on the pad axes (not the diagonals),
+# so each spoke's two straight edges lie at x or y = centre +- (half the
+# bridge width) -- the halving is read directly off the answer's coordinates,
+# with no corner rounding in the way.
+#
+# `thermal-bridge-width-is-halved-in-integer-nanometres` pins the same
+# halving on CIRCLE pads, whose diagonal-spoke construction reaches w/2 only
+# through rounded corner formulas. This case exists because that is a
+# different construction: a rule measured on one spoke geometry says nothing
+# about another, and an implementation can share the circle path's integer
+# halving while carrying the rational half in its rectangular one -- which is
+# invisible at every even width.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled, a fixed
+# point): one filled_polygon, 104 vertices. Every spoke-edge coordinate sits
+# exactly 240005 nm = floor(w/2) from its own pad's centre, on both sides of
+# every spoke of both pads -- e.g. the (10, 10) pad's west spoke corner at
+# (9.759995, 10.240005) and the (-10, -10) pad's east spoke corner at
+# (-9.759995, -10.240005). The perturbation
+# perturb/bridge-one-nanometre-wider/ raises the width to its even neighbour
+# 0.480012, putting w/2 = 240006 back on the lattice: the same corner moves
+# to (9.759994, 10.240006), i.e. both offsets become 240006 exactly.
+#
+# The natural WRONG guesses this board is built to catch:
+#
+#   - **halving exactly.** w/2 = 240005.5 puts the spoke edges on half-integer
+#     lines; snapping the resulting vertices toward the file origin gives the
+#     (10, 10) pad's west edge x = 9.759994 and the (-10, -10) pad's east
+#     edge x = -9.759994 -- each pad's origin-facing edge one nanometre off,
+#     in opposite directions on the two pads. The mixed-sign layout is what
+#     separates "symmetric at floor(w/2)" from "rational half, truncated":
+#     on a single positive-quadrant pad the away-facing edges agree and only
+#     one edge per spoke can tell, while here the wrong reading misses edges
+#     on both pads.
+#
+#   - **rounding the half up.** ceil(w/2) = 240006 lands every edge one
+#     nanometre too far from the centre on every spoke of both pads, and
+#     agrees with the perturbation's answer instead of the case's.
