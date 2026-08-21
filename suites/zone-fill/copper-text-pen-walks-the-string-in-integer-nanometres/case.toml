@@ -1,0 +1,41 @@
+concept = "A stroke text's layout is INTEGER arithmetic in nanometres: each glyph's advance is rounded to the nanometre as it is derived, glyph origins accumulate those integers, the centring span is their sum halved by truncation, and a stroke coordinate is the whole rational sum truncated TOWARD ZERO -- so two identical centred texts at mirrored anchors leave voids that are not mirror images of each other."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One 40x8 mm F.Cu GND pour, `min_thickness 0.001` so the morphological
+# finishing is a no-op, and two identical centred `gr_text "IIIII"` at
+# (10, 10) and (-10, 10), `(size 2.000002 2.000002) (thickness 0.3)`. The
+# glyph unit w/21 = 95238.190476... nm is deliberately OFF the nanometre
+# lattice: at any size whose unit is exact (2.1 mm makes it exactly 0.1 mm),
+# every rule this case pins is the same function as full-rational layout,
+# and no such board can see any of it. "I" is one vertical stroke, so the
+# void box reads the layout directly -- box = outermost strokes +- half the
+# pen, grown by clearance + max_error + epsilon/2 = 0.2055 mm, with no
+# polygonised-cap term in the way.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled, a fixed
+# point). The (10, 10) text's void spans x = [7.739735, 12.260263]; the
+# (-10, 10) text's spans x = [-12.260264, -7.739736]. The numbers to read:
+#
+#   - **advance = round(10 * w/21) = 952382**, not trunc's 952381: with five
+#     accumulated advances, truncation would pull the box edges 4-5 nm
+#     toward each string's own start.
+#   - **the two voids are NOT mirror images**: |12.260263| on the right of
+#     the board against |12.260264| on the left, and |7.739735| against
+#     |7.739736|. Both texts' stroke sums carry the same fraction 0.952...;
+#     truncation toward zero drops it on positive X and lifts it on negative
+#     X. `floor` -- the natural wrong guess, and translation-invariant --
+#     makes the two voids exact mirrors, one nanometre out on both left-text
+#     edges.
+#   - **the centring half truncates**: span S = 5*952382 = 4761910, pen
+#     origin = anchor - trunc(S/2). (S is even here; the odd case is pinned
+#     by the advance rule plus this composition.)
+#
+# The perturbation perturb/width-six-nanometres-narrower/ takes only the
+# WIDTH to 1.999996 mm (unit 95237.904762 nm, stroke fraction .476): the
+# voids move to x = [7.739742, 12.260258] and [-12.260257, -7.739741] --
+# and the one-nanometre asymmetry CHANGES SIDES, because truncation toward
+# zero now rounds the positive sums down and the negative sums up from the
+# other side of the half. A rational-layout model, whatever its final snap,
+# moves both texts together and cannot produce either asymmetry.

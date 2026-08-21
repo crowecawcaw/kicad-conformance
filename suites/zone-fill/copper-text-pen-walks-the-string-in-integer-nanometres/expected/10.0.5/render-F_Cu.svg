@@ -1,0 +1,65 @@
+<?xml version="1.0" standalone="no"?>
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"> 
+<svg
+  xmlns:svg="http://www.w3.org/2000/svg"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+  version="1.1"
+  width="45.9994mm" height="13.9954mm" viewBox="0.0000 0.0000 45.9994 13.9954">
+<title>NORMALIZED</title>
+  <desc>NORMALIZED</desc>
+<g style="fill:#000000; fill-opacity:1.0000;stroke:#000000; stroke-opacity:1.0000;
+stroke-linecap:round; stroke-linejoin:round;"
+ transform="translate(0 0) scale(1 1)">
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.3000; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<text x="33.0000" y="8.0000"
+textLength="5.2619" font-size="2.6667" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">IIIII</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M31.0952 7.9096
+L31.0952 5.9096
+" />
+<path d="M32.0476 7.9096
+L32.0476 5.9096
+" />
+<path d="M33.0000 7.9096
+L33.0000 5.9096
+" />
+<path d="M33.9524 7.9096
+L33.9524 5.9096
+" />
+<path d="M34.9048 7.9096
+L34.9048 5.9096
+" />
+</g><text x="13.0000" y="8.0000"
+textLength="5.2619" font-size="2.6667" lengthAdjust="spacingAndGlyphs"
+text-anchor="middle" opacity="0" stroke-opacity="0">IIIII</text>
+<g class="stroked-text"><desc>NORMALIZED</desc>
+<path d="M11.0952 7.9096
+L11.0952 5.9096
+" />
+<path d="M12.0476 7.9096
+L12.0476 5.9096
+" />
+<path d="M13.0000 7.9096
+L13.0000 5.9096
+" />
+<path d="M13.9524 7.9096
+L13.9524 5.9096
+" />
+<path d="M14.9048 7.9096
+L14.9048 5.9096
+" />
+</g><path style="fill:#000000; fill-opacity:1.0000; stroke:none;fill-rule:evenodd;"
+d="M 39.2000,7.8000
+39.2000,6.2000
+40.8000,6.2000
+40.8000,7.8000
+Z" /> 
+</g> 
+</svg>
