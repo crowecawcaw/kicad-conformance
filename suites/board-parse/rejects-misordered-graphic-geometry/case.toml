@@ -1,0 +1,22 @@
+concept = "A gr_line whose (start)/(end) children appear in non-canonical order is rejected: a graphic's geometry children are positional, not keyword-matched."
+doc     = "sexpr-intro"
+input   = "board.kicad_pcb"
+control = "control.kicad_pcb"           # same board, (start) restored before (end) -> must exit 0
+error_contains = "Expecting ''start''"
+
+# The two fixtures differ only in the order of the gr_line's two geometry children;
+# both files are well-formed and balanced. Canonical order is (start) [, (mid)] , (end),
+# and every other order of those children is refused with the name of the child the
+# parser wanted at that position.
+#
+# The same node's FLAG children are not positional: a (locked yes) moved between (end)
+# and (stroke ...) loads (exit 0) and is written back in its canonical slot between
+# (stroke ...) and (layer ...). Nor is this a property of the format at large -- a pad's
+# (at)/(size) may be swapped and both load, exit 0, and are restored to canonical order.
+#
+# Recorded here as a rejection because a well-formed file whose only defect is child
+# order should be either accepted or cleanly refused. This case is scored on the board
+# loader probe, `pcb export stats`, which refuses it gracefully with exit 3. The SAME
+# bytes terminate `pcb upgrade --force` with SIGSEGV -- see DIV-0008 in docs/FINDINGS.md,
+# which no case can score, because that verb crashes on every board it fails to load and
+# so is not the loader probe.

@@ -48,6 +48,27 @@ this repo's conformance corpus. Each entry is one finding with a reproduction co
 - **Observed vs expected:** the two `solder_mask_bridge` findings — `Front solder mask aperture bridges items with different nets` and `Rear …` — are both always present, but which one is serialized first flips between runs: 12 identical runs gave Front-first 8 times and Rear-first 4. The pads' geometry is symmetric across both mask layers, so nothing breaks the tie. Expected: a stable serialization order for a stable input. Distinct from DIV-0003, which is a *membership* difference in `unconnected_items` and therefore not fixable by sorting; this one is pure ordering.
 - **Case:** `suites/drc/holes-co-located`. Absorbed by the runner rather than xfailed — `runner/normalize.py` now sorts the DRC/ERC finding arrays (`violations`, `unconnected_items`, `schematic_parity`, `items`) before comparison, so order carries no weight. An implementation under test likewise must not be judged on it. (not yet filed upstream)
 
+## DIV-0008 — `pcb upgrade --force` segfaults on a well-formed board whose graphic geometry children are out of order
+
+- **Repro:** `kicad-cli pcb upgrade --force <board.kicad_pcb with a gr_line whose (end) precedes its (start)>` — e.g. `suites/board-parse/rejects-misordered-graphic-geometry/board.kicad_pcb`
+- **Observed vs expected:** prints `Failed to load board: Expecting ''start'' in '…', line 36, offset 4.` then SIGSEGV (exit 139, core dumped); expected a clean bounded reject exit. Deterministic — 6 of 6 identical runs on each of two fixtures, on both a Windows 10.0.5 install and the `kicad/kicad:10.0.5` image. The crash happens before any write: the input file is byte-identical afterwards.
+- **Scope measured** on a one-graphic board, canonical order being `(start)` [, `(mid)`] , `(end)`:
+
+  | children | `pcb upgrade --force` | `pcb export stats` |
+  |---|---|---|
+  | `gr_line` `(start)(end)` | 0 | 0 |
+  | `gr_line` `(end)(start)` | **139** | 3 |
+  | `gr_arc` `(start)(mid)(end)` | 0 | 0 |
+  | `gr_arc` `(start)(end)(mid)` | **139** | 3 |
+  | `gr_arc` `(mid)(start)(end)` | **139** | 3 |
+  | `gr_arc` `(end)(start)(mid)` | **139** | 3 |
+  | `gr_arc` `(end)(mid)(start)` | **139** | 3 |
+  | `gr_arc` `(mid)(end)(start)` | **139** | 3 |
+
+  Every non-canonical order crashes `upgrade` and is refused gracefully by `export stats`. It is specific to these geometry children: the same node's `(locked yes)` may be displaced and the board loads (exit 0, the flag rewritten into its canonical slot between `(stroke …)` and `(layer …)`), and a pad's `(at)`/`(size)` may be swapped with the same result — so this is not a general property of the format.
+- **Distinct from DIV-0001,** which is the same signal on a *truncated* board whose outer s-expression never closes. There the input is not a valid s-expression at all, and the parser had already emitted a correct diagnostic about that. Here the file is balanced and well-formed, and its only defect is the order of two children — a strictly worse failure mode, and one an implementation could plausibly produce by accident, since parsing these children positionally is the obvious reading of the format.
+- **Case:** `suites/board-parse/rejects-misordered-graphic-geometry`, which PASSes rather than XFAILs. The board loader probe is `pcb export stats` (see `engine.LOADER_VERB`), which refuses the same bytes gracefully with exit 3; `pcb upgrade --force` crashes on *every* board it fails to load and so cannot serve as a probe, which leaves no verb through which a case can score this crash. The case pins the rejection; this entry is the only record of the crash. (not yet filed upstream)
+
 ---
 
 ## Doc gaps
