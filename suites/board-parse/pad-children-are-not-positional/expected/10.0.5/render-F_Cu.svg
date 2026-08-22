@@ -1,0 +1,35 @@
+<?xml version="1.0" standalone="no"?>
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"> 
+<svg
+  xmlns:svg="http://www.w3.org/2000/svg"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+  version="1.1"
+  width="23.9776mm" height="11.9888mm" viewBox="0.0000 0.0000 23.9776 11.9888">
+<title>NORMALIZED</title>
+  <desc>NORMALIZED</desc>
+<g style="fill:#000000; fill-opacity:1.0000;stroke:#000000; stroke-opacity:1.0000;
+stroke-linecap:round; stroke-linejoin:round;"
+ transform="translate(0 0) scale(1 1)">
+<path style="fill:#000000; fill-opacity:1.0000; stroke:none;fill-rule:evenodd;"
+d="M 5.5000,6.5000
+5.5000,5.5000
+6.5000,5.5000
+6.5000,6.5000
+Z" /> 
+<path style="fill:#000000; fill-opacity:1.0000; stroke:none;fill-rule:evenodd;"
+d="M 9.0000,6.4000
+9.0000,5.6000
+11.0000,5.6000
+11.0000,6.4000
+Z" /> 
+<path style="fill:#000000; fill-opacity:1.0000; stroke:none;fill-rule:evenodd;"
+d="M 13.7000,6.7000
+13.7000,5.3000
+14.3000,5.3000
+14.3000,6.7000
+Z" /> 
+</g> 
+</svg>

@@ -1,0 +1,29 @@
+concept = "A pad's children are matched by keyword, not by position: (at), (size), (net) and (uuid) load and resolve identically in any order."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+
+# Three pads on one footprint, each writing the same four children in a
+# different order:
+#
+#   pad 1   (at) (size) (layers) (net) (uuid)        canonical -- the in-file control
+#   pad 2   (size) (at) (layers) (uuid) (net)        geometry swapped, net trailing the uuid
+#   pad 3   (layers) (net) (uuid) (size) (at)        geometry last of all
+#
+# All three load (exit 0) and every projection places each pad where its own
+# (at ...) says, at the size its own (size ...) says, on the net its own
+# (net ...) names -- ipcd356.d356 carries all three facts per pad, so a reader
+# that took any of these children positionally reports a different board rather
+# than failing to parse. The sizes and positions are deliberately distinct so a
+# positional misread cannot coincide with the recorded answer.
+#
+# The complement is `rejects-misordered-graphic-geometry`, where a gr_line's
+# (start)/(end) ARE positional and a non-canonical order is refused with the
+# name of the child the parser wanted. So this is not a property of the format:
+# it is per node kind, and the two cases together say which is which. That
+# matters to anyone probing the writer's own ordering by displacing a node and
+# re-reading it -- on a pad the probe is available, on a graphic it is not.
+#
+# What this case does NOT record is where KiCad *writes* these children back.
+# Every answer here is an export, and an export cannot see child order: the
+# same copper is plotted whatever order the file listed it in. Only the bytes
+# of a re-serialized file can say that, and no answer in this corpus is bytes.
