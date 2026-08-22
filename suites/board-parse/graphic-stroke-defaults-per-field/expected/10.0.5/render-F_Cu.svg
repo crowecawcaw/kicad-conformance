@@ -1,0 +1,108 @@
+<?xml version="1.0" standalone="no"?>
+ <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" 
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"> 
+<svg
+  xmlns:svg="http://www.w3.org/2000/svg"
+  xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+  version="1.1"
+  width="30.3784mm" height="20.0914mm" viewBox="0.0000 0.0000 30.3784 20.0914">
+<title>NORMALIZED</title>
+  <desc>NORMALIZED</desc>
+<g style="fill:#000000; fill-opacity:1.0000;stroke:#000000; stroke-opacity:1.0000;
+stroke-linecap:round; stroke-linejoin:round;"
+ transform="translate(0 0) scale(1 1)">
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.1000; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M0.2000 0.0500
+L30.2000 0.0500
+" />
+<path d="M0.2000 5.0500
+L30.2000 5.0500
+" />
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.4000; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M0.2000 10.0500
+L30.2000 10.0500
+" />
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.1000; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M0.2000 15.0500
+L1.3000 15.0500
+" />
+<path d="M1.7000 15.0500
+L2.8000 15.0500
+" />
+<path d="M3.2000 15.0500
+L4.3000 15.0500
+" />
+<path d="M4.7000 15.0500
+L5.8000 15.0500
+" />
+<path d="M6.2000 15.0500
+L7.3000 15.0500
+" />
+<path d="M7.7000 15.0500
+L8.8000 15.0500
+" />
+<path d="M9.2000 15.0500
+L10.3000 15.0500
+" />
+<path d="M10.7000 15.0500
+L11.8000 15.0500
+" />
+<path d="M12.2000 15.0500
+L13.3000 15.0500
+" />
+<path d="M13.7000 15.0500
+L14.8000 15.0500
+" />
+<path d="M15.2000 15.0500
+L16.3000 15.0500
+" />
+<path d="M16.7000 15.0500
+L17.8000 15.0500
+" />
+<path d="M18.2000 15.0500
+L19.3000 15.0500
+" />
+<path d="M19.7000 15.0500
+L20.8000 15.0500
+" />
+<path d="M21.2000 15.0500
+L22.3000 15.0500
+" />
+<path d="M22.7000 15.0500
+L23.8000 15.0500
+" />
+<path d="M24.2000 15.0500
+L25.3000 15.0500
+" />
+<path d="M25.7000 15.0500
+L26.8000 15.0500
+" />
+<path d="M27.2000 15.0500
+L28.3000 15.0500
+" />
+<path d="M28.7000 15.0500
+L29.8000 15.0500
+" />
+</g>
+<g style="fill:#000000; fill-opacity:1.0000; stroke:none;">
+<circle cx="30.2000" cy="15.0500" r="0.0500" /> 
+</g>
+<g style="fill:none; 
+stroke:#000000; stroke-width:0.1000; stroke-opacity:1; 
+stroke-linecap:round; stroke-linejoin:round;">
+<path d="M0.2000 20.0500
+L30.2000 20.0500
+" />
+</g> 
+</svg>

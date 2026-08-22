@@ -1,0 +1,23 @@
+concept = "A graphic's (stroke ...) fields are defaulted one at a time -- an absent or zero width becomes 0.1 mm and an absent type becomes solid, while any field the file does supply is kept."
+doc     = "sexpr-intro"
+input   = "board.kicad_pcb"
+
+# Five gr_lines on F.Cu, each supplying a different subset of the stroke:
+#
+#   y=10  no (stroke ...) node at all   -> plotted 0.1 mm, solid
+#   y=15  (stroke) with no children     -> plotted 0.1 mm, solid
+#   y=20  (stroke (width 0.4))          -> plotted 0.4 mm, solid   (width kept, type filled in)
+#   y=25  (stroke (type dash))          -> plotted 0.1 mm, dashed  (type kept, width filled in)
+#   y=30  (stroke (width 0) (type default)) -> plotted 0.1 mm      (zero width REPLACED, not kept)
+#
+# The two fields are independent: neither one being present suppresses the other's
+# default, and the y=30 line separates "fill in when absent" from "fill in when absent
+# or zero" -- KiCad does the latter. Whether it does so on the write path only is not
+# what is recorded here: the plot is produced straight from the fixture, so the widths in
+# gerbers/ and render-F_Cu.svg are what the reader resolved.
+#
+# board.kicad_pro is a control, not scenery. It declares copper_line_width 0.45 (and
+# board_outline_line_width 0.15), the project defaults that would apply to exactly these
+# graphics; the recorded aperture is 0.1 mm regardless, so the fill-in is a fixed
+# constant on this path and not a lookup into project settings. An implementation that
+# resolves a missing width from the project file diverges here.
