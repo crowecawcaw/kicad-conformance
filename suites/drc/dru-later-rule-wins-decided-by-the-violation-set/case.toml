@@ -1,0 +1,38 @@
+concept = "When two custom rules of the same constraint kind both match a pair, the LAST one in the file governs — and here that is decided by which violations exist, not by the number printed in a description. Two pad pairs sit at 4 mm and 2 mm; against `wide` 5 mm stated first and `narrow` 3 mm second, only the 2 mm pair is reported."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
+
+# The sibling case `dru-later-rule-of-the-same-kind-wins` states the same rule
+# and cannot, on its own, establish it. Its two pads are 0.05 mm apart, which
+# is inside `wide` (5 mm), inside `narrow` (3 mm) AND inside the 0.2 mm default
+# netclass clearance. So last-match-wins, first-match-wins,
+# most-restrictive-wins and an implementation that ignores custom rules
+# altogether all emit exactly one violation, on the same pair, at the same
+# severity. The rule name and minimum appear only in the violation's
+# `description` -- and a consumer that compares reports by content has good
+# reason to drop that field, because it is the part most likely to be reworded
+# between versions. Its perturbation changes nothing else.
+#
+# This board moves the disagreement into the violation set itself:
+#
+#   A1/A2  gap 4 mm  -> inside `wide` (5 mm), CLEAR of `narrow` (3 mm)
+#   B1/B2  gap 2 mm  -> inside both
+#
+# With `narrow` last, A1/A2 is silent and only B1/B2 is reported. An
+# implementation that took the FIRST match, or the most restrictive, or that
+# unioned the two, reports A1/A2 as well -- and it does so whatever it prints in
+# the description. So the expected file discriminates on its own.
+#
+# B1/B2 is not decoration either. It is what proves the custom rule is being
+# applied at all: a 2 mm gap clears the 0.2 mm netclass default comfortably, so
+# an implementation that never read the `.kicad_dru` reports nothing here, and
+# a golden that was empty would have been consistent with that. One pair shows
+# the rule firing, the other shows which of the two rules it was.
+#
+# perturb/rules-in-the-other-order swaps the two rules so `wide` is last. That
+# takes the report from one violation to two.
+#
+# Each pad is on a net of its own so no ratsnest reaches `unconnected_items`,
+# and every Reference field sits clear of its pad so no `silk_over_copper`
+# finding reaches the report.
