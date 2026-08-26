@@ -4,9 +4,8 @@ input   = "board.kicad_pcb"
 extra   = ["drc"]
 
 # All four are 1x1 mm SMD pads on F.Cu, each on a net of its own, so both
-# pairs take the
-# 0.2 mm default netclass clearance -- the board ships no project file and no
-# custom rules, and nothing else on it differs between the two pairs. Four
+# pairs take the 0.2 mm default netclass clearance -- the board ships no
+# project file and no custom rules, and nothing else on it differs between the two pairs. Four
 # distinct nets rather than two shared ones is deliberate: a net with two pads
 # on it puts a ratsnest line in `unconnected_items`, which this case is not
 # about. Every Reference field sits at (at 0 -2 0) for the same reason -- at
