@@ -1,0 +1,14 @@
+concept = "A custom-rule file containing one constraint kind the tool does not support is discarded IN FULL and SILENTLY: the exit status is 0, nothing is written to stderr, and the report is indistinguishable from one produced with no custom-rule file at all. A valid rule stated alongside the unsupported one does not survive."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
+
+# The two pads sit 0.05 mm apart. `canary` alone would report a 4 mm minimum
+# and carry its own name into the finding; with `unsupported` present the
+# finding reports the board's default 0.2 mm netclass clearance and names no
+# rule -- the whole file is gone, including the rule that parses.
+#
+# The failure is invisible by design of the observation, not just of the tool:
+# there is no error to assert on, so the ONLY way to detect it is that a rule
+# which should have fired did not. perturb/only-the-supported-rule deletes the
+# unsupported rule and the canary comes back.

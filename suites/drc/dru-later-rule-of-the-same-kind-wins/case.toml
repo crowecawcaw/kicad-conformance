@@ -1,0 +1,11 @@
+concept = "Two custom rules of the same constraint kind whose conditions both match the same pair: the LAST one in the file governs, even when it is the less restrictive of the two. Only the order of the two rules differs between this case and its perturbation, and the reported clearance changes with it."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
+
+# The two pads sit 0.05 mm apart, so every candidate rule is violated and the
+# finding reports whichever minimum won. `wide` (5 mm) is stated first and
+# `narrow` (3 mm) second; the report names `narrow`. That is what makes the
+# case decisive: a most-restrictive-wins implementation would report `wide`,
+# and a first-match implementation would too. Swapping the two rules -- the
+# only edit in perturb/rules-in-the-other-order -- reports `wide` instead.

@@ -1,0 +1,9 @@
+(version 1)
+
+(rule "wide"
+	(constraint clearance (min 5mm))
+	(condition "A.Type == 'pad' && B.Type == 'pad'"))
+
+(rule "narrow"
+	(constraint clearance (min 3mm))
+	(condition "A.Type == 'pad' && B.Type == 'pad'"))
