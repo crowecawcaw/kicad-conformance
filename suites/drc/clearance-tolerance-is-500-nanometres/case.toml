@@ -1,0 +1,28 @@
+concept = "A copper clearance violation needs the gap to be more than 500 nm inside the applicable clearance, not merely inside it. Two pad pairs on one board sit at 0.1995 mm and 0.199499 mm against a 0.2 mm clearance; only the second is reported."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
+
+# Both pairs are 1x1 mm SMD pads on F.Cu on different nets, so both take the
+# 0.2 mm default netclass clearance -- the board ships no project file and no
+# custom rules, and nothing else on it differs between the two pairs. The only
+# variable is the gap:
+#
+#   A1/A2  gap 0.199500 mm  = clearance - 500 nm  -> silent
+#   B1/B2  gap 0.199499 mm  = clearance - 501 nm  -> reported
+#
+# So the boundary is exact and it is an absolute quantity in nanometres, not a
+# fraction of the clearance: the same 500 nm break was observed at clearances
+# of 0.05 mm and 1.0 mm as well as the 0.2 mm this board uses.
+#
+# The A1/A2 pair is what makes the case decisive rather than decorative. An
+# implementation that tests `gap < clearance` -- the obvious reading, and the
+# one a report's own "clearance 0.2000 mm; actual 0.1995 mm" wording invites --
+# reports BOTH pairs and fails on the first. An implementation that rounds the
+# gap to the 4-decimal millimetre the report prints also reports both, because
+# 0.199500 and 0.199499 both display as 0.1995. Only a nanometre-exact
+# comparison against `clearance - 500 nm` reproduces this file.
+#
+# perturb/the-clean-pair-one-nanometre-closer moves A2 by a single nanometre,
+# from 11.1995 to 11.199499, which is the whole distance between the two rows
+# above. That takes the report from one violation to two.
