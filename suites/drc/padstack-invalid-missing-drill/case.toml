@@ -1,0 +1,4 @@
+concept = "A thru_hole pad with no (drill ...) node reports padstack_invalid (plus drill_out_of_range), not through_hole_pad_without_hole."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
