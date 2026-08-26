@@ -3,10 +3,15 @@ doc     = "cli:pcb-drc"
 input   = "board.kicad_pcb"
 extra   = ["drc"]
 
-# Both pairs are 1x1 mm SMD pads on F.Cu on different nets, so both take the
+# All four are 1x1 mm SMD pads on F.Cu, each on a net of its own, so both
+# pairs take the
 # 0.2 mm default netclass clearance -- the board ships no project file and no
-# custom rules, and nothing else on it differs between the two pairs. The only
-# variable is the gap:
+# custom rules, and nothing else on it differs between the two pairs. Four
+# distinct nets rather than two shared ones is deliberate: a net with two pads
+# on it puts a ratsnest line in `unconnected_items`, which this case is not
+# about. Every Reference field sits at (at 0 -2 0) for the same reason -- at
+# the origin each one clips its own pad's mask aperture and the report carries
+# seven `silk_over_copper` findings. The only variable is the gap:
 #
 #   A1/A2  gap 0.199500 mm  = clearance - 500 nm  -> silent
 #   B1/B2  gap 0.199499 mm  = clearance - 501 nm  -> reported

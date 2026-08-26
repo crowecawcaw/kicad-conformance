@@ -32,70 +32,23 @@
     "kicad_version": "10.0.5",
     "schematic_parity": [],
     "source": "board.kicad_pcb",
-    "unconnected_items": [
-        {
-            "description": "Missing connection between items",
-            "items": [
-                {
-                    "description": "Pad 1 [GND] of A2 on F.Cu",
-                    "pos": {
-                        "x": 11.1995,
-                        "y": 10.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                },
-                {
-                    "description": "Pad 1 [GND] of B2 on F.Cu",
-                    "pos": {
-                        "x": 11.199499,
-                        "y": 20.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "error",
-            "type": "unconnected_items"
-        },
-        {
-            "description": "Missing connection between items",
-            "items": [
-                {
-                    "description": "Pad 1 [Net-1] of A1 on F.Cu",
-                    "pos": {
-                        "x": 10.0,
-                        "y": 10.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                },
-                {
-                    "description": "Pad 1 [Net-1] of B1 on F.Cu",
-                    "pos": {
-                        "x": 10.0,
-                        "y": 20.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "error",
-            "type": "unconnected_items"
-        }
-    ],
+    "unconnected_items": [],
     "violations": [
         {
             "description": "Clearance violation ( clearance 0.2000 mm; actual 0.1995 mm)",
             "items": [
                 {
-                    "description": "Pad 1 [GND] of B2 on F.Cu",
+                    "description": "Pad 1 [Net-2] of B1 on F.Cu",
                     "pos": {
-                        "x": 11.199499,
+                        "x": 10.0,
                         "y": 20.0
                     },
                     "uuid": "NORMALIZED-UUID"
                 },
                 {
-                    "description": "Pad 1 [Net-1] of B1 on F.Cu",
+                    "description": "Pad 1 [Net-3] of B2 on F.Cu",
                     "pos": {
-                        "x": 10.0,
+                        "x": 11.199499,
                         "y": 20.0
                     },
                     "uuid": "NORMALIZED-UUID"
