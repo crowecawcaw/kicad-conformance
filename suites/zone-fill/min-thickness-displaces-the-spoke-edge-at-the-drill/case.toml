@@ -49,3 +49,13 @@ extra   = ["refill"]
 #
 # 0.25 in particular is DEGENERATE for this board and is deliberately not used: every
 # length on it is then a multiple of 0.25 and rules that differ elsewhere agree there.
+#
+# A third wrong answer, and the sharpest: any rule that is EQUIVARIANT under reflection
+# in the line y = x through the pad centre. The board's input is exactly symmetric under
+# that reflection -- a circle, a concentric drill, four spokes at 45/135/225/315 and a
+# square pour, all about (10, 10) -- and at min_thickness 0.18 KiCad's eight drill
+# crossings are NOT. Its left sector reports (9.517037, 10.129407) where its bottom
+# sector reports (10.129407, 9.517036); reflect one into the other and they differ by a
+# nanometre. The symmetric answer is the wrong one here. Note this is a property of the
+# opening and not of the board: on the same geometry at 0.20, 0.22, 0.24 and 0.26 the
+# crossing set IS mirror-symmetric, and at 0.001 it is symmetric and exact.
