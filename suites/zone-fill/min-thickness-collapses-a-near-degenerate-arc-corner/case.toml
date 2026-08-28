@@ -1,0 +1,30 @@
+concept = "A min_thickness opening emits ONE vertex where a tessellated void corner's bind test is near-degenerate, not the two that corner's own chamfer would make."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The board ships NO (filled_polygon ...) at all, so every recorded answer except
+# `refill` is blind to the fill: the zone-fills.txt answer is the only thing here that
+# sees a fill, and the only thing a perturbation of the fill parameters can move.
+#
+# Geometry: one same-net thru-hole pad on thermal relief, so the opening's input is an
+# annular void tessellated as a 40-gon -- 9.000 degrees per facet -- cut by four spokes.
+#
+# What KiCad does here: over the relief ring it emits 90 vertices, and at the facet
+# corner at 328.500 degrees from the pad centre it emits ONE, collapsing the vertex at
+# (11.282914, 9.213830) that the corner's chamfer would otherwise leave as a
+# near-duplicate pair. An engine that decides such a corner by the geometric test alone
+# emits 91: the chamfer line clears the crossing of its two neighbours by 0.0223 nm, so
+# it looks like it bounds something, and the corner doubles. "Near-degenerate" is that
+# margin.
+#
+# Why min_thickness 0.254, which is the point of the case. The same board is byte-exact
+# against KiCad at many other openings -- swept over min_thickness 0.02 .. 0.50 in 40
+# steps, nine of them agree vertex for vertex -- so a case drawn at a round value would
+# assert nothing. 0.254 is the value at which the doubled corner is the WHOLE residue,
+# one vertex and two directed edges, which is what makes this case isolate the behaviour
+# rather than bundle it with the spoke-mouth family.
+#
+# 0.25 in particular is DEGENERATE for this board and is deliberately not used: every
+# length on it is then a multiple of 0.25, eight of the ring's bind margins collapse to
+# +0.0063 nm at once, and rules that differ elsewhere agree there.
