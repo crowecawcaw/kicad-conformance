@@ -1,0 +1,56 @@
+concept = "A copper-pour keepout that the min_thickness opening merges with a thermal void comes back at its exact drawn outline, and the thermal void's tip is cut back to a chord at min_thickness minus twice the fill epsilon from the keepout's facing edge."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: one same-net 2 mm SMD circle pad on thermal relief (gap 0.5 mm,
+# bridges 0.5 mm) inside a 16 mm square pour at min_thickness 0.24, plus one
+# 0.12 x 0.10 mm copper-pour keepout rectangle sitting on the spoke cross
+# between the pad centre and the relief's north sector void. Without the
+# keepout this exact board refills byte-identically on a faithful engine, so
+# every differing vertex on this one is the keepout interaction and nothing
+# else.
+#
+# The distances are the point. The opening's radius here is d = min_thickness/2
+# minus the fill epsilon (119 000 nm), and the copper strip between the
+# keepout's apex-facing edge (y = 10.165) and the sector void's drawn tip
+# (y = 10.353553) is 0.1886 mm — thinner than 2d = 0.238 mm, so the opening's
+# erosion merges the keepout's void with the sector void. What KiCad emits
+# after that merge is the behaviour this case pins:
+#
+#   1. The keepout rectangle survives at its exact drawn coordinates — all four
+#      sides, sharp, with only the kernel's usual 1 nm corner doubles. Nothing
+#      about the merge leaves a mark on it.
+#   2. The sector void's tip is gone. In its place is a horizontal chord at
+#      exactly y = 10.403000 mm — the keepout's facing edge plus 2d, i.e. plus
+#      (min_thickness - 2 * epsilon) — whose endpoints (10.049446, 10.403000)
+#      and (9.950554, 10.403000) lie within a nanometre of the drawn wedge
+#      sides.
+#   3. Everything else on the board is the no-keepout answer, vertex for
+#      vertex, except one fingerprint of HOW the keepout comes back: the
+#      upper-left spoke edge — 0.46 mm away and untouched by any copper
+#      change — carries a doubled collinear vertex at (9.481444, 10.165000),
+#      exactly the keepout facing edge's y row. A subtraction re-run over the
+#      opened fill splits unrelated edges on its operand's scan rows; an
+#      opening that had simply kept the keepout exempt would have no reason to
+#      touch that edge at that y.
+#
+# Two natural wrong answers, both measured on this exact board:
+#
+#   - "Keepouts are cut after the opening and do not participate in it" (the
+#     late-drill pipeline shape). That predicts the sector tip comes back as
+#     the no-keepout board's drawn apex vertex. It does not: the tip is cut at
+#     the chord of (2), so the keepout's void DOES take part in the opening —
+#     it is re-imposed on the result afterwards, not exempted from the process.
+#   - Opening the fill with the keepout hole as an ordinary void and letting
+#     the dilation's joins stand. An engine that does that hangs a rounded
+#     ~24 um pendant of extra void below the keepout's facing edge, caps the
+#     wedge tip with a rounded bulge up to 61 um past KiCad's chord, and keeps
+#     the middle of the sub-min_thickness strip as copper. All three are wrong;
+#     KiCad's keepout edge is straight, its chord is straight, and the strip
+#     between them is entirely copper.
+#
+# The keepout zone's own min_thickness (0.25) is deliberately different from
+# the pour's (0.24): a keepout has no fill of its own, and an engine that
+# reads the opening radius off the wrong zone moves the chord of (2) by a
+# visible 10 um.
