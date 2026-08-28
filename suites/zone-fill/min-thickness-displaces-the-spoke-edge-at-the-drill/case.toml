@@ -1,0 +1,51 @@
+concept = "A min_thickness opening returns a thermal spoke's straight edge to a line one nanometre from the one it was drawn on, and the crossing into the drill is the only place that shows."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The board ships NO (filled_polygon ...) at all, so every recorded answer except
+# `refill` is blind to the fill: the zone-fills.txt answer is the only thing here that
+# sees a fill, and the only thing a perturbation of the fill parameters can move.
+#
+# Geometry: one same-net 2 mm thru-hole pad with a 1 mm drill, on thermal relief with a
+# 0.5 mm gap and 0.5 mm bridges, inside a 16 mm square pour. The relief void is the
+# whole 1.5 mm disc minus four diagonal spokes, so each of the four void sectors is a
+# wedge whose two straight sides are spoke edges and whose tip lies INSIDE the drill.
+# The drill is a 24-gon; the fill's boundary follows it from one spoke edge to the next,
+# so each spoke edge contributes exactly one vertex where it runs into the drill --
+# eight such crossings, and they are the subject of this case.
+#
+# What KiCad does here. At min_thickness 0.18 its fill has 85 vertices and agrees with a
+# faithful engine at 83 of them; the two it does not are both on the LEFT void sector:
+#
+#     (9.517037, 10.129407)  and  (9.517037, 9.870590)
+#
+# Both are drill crossings, and they are the two ends of one sector -- they move
+# together, which is the shape of the behaviour. Everything else on the board is exact,
+# including the two spoke MOUTHS a millimetre further out, (8.777340, 10.869104) and
+# (8.777340, 9.130893), which are the far endpoints of the very same two spoke edges.
+# So the opening returns each edge to the drawn line at its outer end and to a line one
+# nanometre away at its inner end; only the near-tangential meeting with the drill
+# amplifies that into a whole nanometre of vertex.
+#
+# The two wrong answers this case exists to kill, both natural:
+#
+#   1. Cross the drill with the spoke edge as DRAWN, i.e. skip the opening for this
+#      question. That predicts (9.517037, 10.129408) and (9.517037, 9.870591) -- the
+#      values the same board returns at min_thickness 0.001, where the opening is a
+#      no-op and every vertex including these two is exact. Both are wrong here.
+#   2. Cross the drill with the opened edge and truncate the crossing toward the file
+#      origin, which is the rule the other seven crossings on this board obey. That
+#      predicts (9.517036, 10.129407) and (9.517037, 9.870591). Also both wrong, and
+#      wrong in DIFFERENT directions -- +1 in x at one end, -1 in y at the other -- so
+#      no change of snap repairs the pair. What is off is the line, not the rounding.
+#
+# Why min_thickness 0.18. The same board is byte-exact against KiCad at many openings
+# (swept over 0.02 .. 0.50 in 40 steps, eleven agree vertex for vertex), so a case drawn
+# at a round value would assert nothing. 0.18 is a value at which these two crossings
+# are the WHOLE residue -- two vertices, four directed edges, nothing else on the board
+# -- which is what makes the case isolate this behaviour instead of bundling it with the
+# arc-corner and spoke-mouth families that dominate the residue at other openings.
+#
+# 0.25 in particular is DEGENERATE for this board and is deliberately not used: every
+# length on it is then a multiple of 0.25 and rules that differ elsewhere agree there.
