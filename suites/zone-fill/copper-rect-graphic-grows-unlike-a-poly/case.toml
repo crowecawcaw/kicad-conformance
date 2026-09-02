@@ -26,6 +26,16 @@ extra   = ["refill"]
 #
 # Expect this one RED on an engine whose booleans are exact: KiCad's answer
 # carries three redundant vertices that are exactly collinear with their own
-# neighbours, left behind where the corner discs meet the straight slabs. They
-# are on the two horizontal edges only, and it keeps 3 of the 8 such seams, so
-# neither dropping every collinear vertex nor keeping every one reproduces it.
+# neighbours, left behind where the corner discs meet the straight slabs. It
+# keeps 3 of the 8 such seams, so neither dropping every collinear vertex nor
+# keeping every one reproduces it.
+#
+# The seam is per CORNER, not per edge. Each right-angle corner offers two
+# candidates -- the disc vertex one facet past the tangent on each of its two
+# walls -- and which one survives is fixed by the corner's outward direction:
+# with `sx` pointing away from the corner's horizontal wall and `sy` away from
+# its vertical one, `(-1,-1)` and `(+1,+1)` keep the horizontal wall's,
+# `(+1,-1)` keeps NEITHER, and `(-1,+1)` keeps whichever wall belongs to the
+# earlier of its two segments in the outline's own stroke order. Here that is
+# (8.078842, 6.199500) at (8,7), (12.921158, 12.800500) at (13,12), nothing at
+# (13,7), and (8.078842, 12.800500) at (8,12).

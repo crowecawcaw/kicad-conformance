@@ -32,6 +32,11 @@ extra   = ["refill"]
 #       area; the pour does not reach it, so nothing bridges out to it.
 #
 # Expect this RED on an engine whose booleans are exact, for the same reason as
-# `copper-rect-graphic-grows-unlike-a-poly`: KiCad leaves three vertices per
-# outline that are exactly collinear with their own neighbours, where a corner
-# disc meets a straight run.
+# `copper-rect-graphic-grows-unlike-a-poly`, which carries the corner rule:
+# KiCad leaves three vertices per outline that are exactly collinear with their
+# own neighbours, where a corner disc meets a straight run. The two outlines
+# get the SAME three because a `gr_rect` is stroked from a corner of KiCad's
+# choosing and this `gr_poly`'s `pts` happen to start where that agrees --
+# rotate them to start at (11,16) instead and the min-x/max-y corner's vertex
+# moves from (11.078842, 16.800500) onto the other wall at
+# (10.199500, 15.921158), with the drawn shape byte-for-byte unchanged.

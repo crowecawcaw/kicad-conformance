@@ -1,0 +1,37 @@
+concept = "Where a pour's clearance walls meet at a right angle, KiCad's boolean leaves ONE redundant vertex, exactly collinear with its own neighbours, at three of the four corner orientations and none at the fourth. Which of a corner's two candidates survives is decided at the corner and nowhere else -- but a closed outline and the same segments drawn loose do not agree at one of the four, so the answer also depends on whether the two walls came from ONE graphic or from two."
+
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (2..18) carrying two netless, foreign, unfilled copper
+# outlines of the same 5x5 mm square geometry, written the two different ways:
+#   a `gr_rect` (4,4)-(9,9)  -- one graphic, four strokes,
+#   four `gr_line`s (11,11) (16,11) (16,16) (11,16) -- four graphics.
+# Both at stroke width 0.6, zone clearance 0.5, so each segment clears
+# 0.5 + 0.3 + 0.0005 = 0.8005 mm from its centre-line. `min_thickness 0.001`
+# keeps the finishing pass a no-op and `island_removal_mode 1` keeps the copper
+# stranded inside each outline, exactly as in
+# `unfilled-copper-graphic-is-a-stroked-outline`, whose rect arm this shares.
+#
+# The pairing is the whole point, and it is a NEGATIVE result about locality.
+# The two answers are congruent everywhere except at ONE corner: the
+# minimum-x, maximum-y one. There the `gr_rect` keeps the vertex on its
+# HORIZONTAL wall, at (4.078842, 9.800500); the four `gr_line`s keep the one on
+# the VERTICAL wall instead, at (10.199500, 15.921158). The two constructions
+# offer the same eight candidates -- the piece sets are congruent, one rounded
+# rectangle per segment -- so nothing about the geometry can tell them apart.
+# The other three corners agree: both keep the horizontal-wall vertex at the
+# min-x/min-y and max-x/max-y corners and neither keeps anything at the
+# max-x/min-y one.
+#
+# Three wrong guesses this defeats:
+#   (1) "a redundant collinear vertex is noise; drop them all" -- predicts a
+#       6-vertex-lighter answer, three per outline.
+#   (2) "keep them all" -- predicts eight per outline where KiCad keeps three.
+#   (3) "the survivor is a function of the corner alone" -- the natural reading
+#       once the per-corner table is measured, and this board is the witness
+#       that it is not: same corner, same candidates, two answers.
+#
+# Expect this RED on an engine that models only the closed-outline arm: the
+# rect comes back exact and the four segments differ by exactly one vertex.
