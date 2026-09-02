@@ -1,0 +1,24 @@
+concept = "When the Edge.Cuts do not close, the pour is not clipped to them, but every drawn edge still holds copper off by the copper-to-edge clearance: three sides of an open U set the pour back from each line by the clearance, and the fourth, undrawn side leaves it at the zone polygon."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: a 16 mm square pour at (2,2)-(18,18) with one thru-hole GND pad at
+# its centre to anchor it, and three Edge.Cuts lines forming an open U along
+# the bottom, right and top of the pour, each 0.3 mm outside the zone polygon
+# (y = 1.7, x = 18.3, y = 18.3). The left side is not drawn, so the outline
+# never closes: `pcb export stats` reports has_outline=false and DRC reports
+# invalid_outline. The board carries no design settings, so the copper-to-edge
+# clearance is the 0.5 mm default.
+#
+# Measured against kicad-cli 10.0.5 (2026-09-01) with
+# `pcb drc --refill-zones --save-board`: the refilled pour spans
+# x 2.0000..17.7995 and y 2.2005..17.7995. Three sides are set back exactly
+# 0.5005 mm (the clearance plus the fill's half-epsilon) from the three drawn
+# lines, and the undrawn left side stays at the zone polygon's x = 2.
+#
+# The two natural wrong answers, both distinguishable on this board:
+#   - clipping the pour to the broken outline, which fills nothing (or fills
+#     the U's interior only if the engine closes it by guesswork);
+#   - treating an invalid outline as no outline at all, which leaves the pour
+#     at the zone polygon on every side (x and y both 2.0..18.0).

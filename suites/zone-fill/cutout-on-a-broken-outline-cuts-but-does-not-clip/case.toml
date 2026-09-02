@@ -1,0 +1,21 @@
+concept = "A closed Edge.Cuts loop on a board whose outline is invalid is not a boundary the pour is clipped to; it is an obstacle the pour floods around, held off by the copper-to-edge clearance."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: a 16 mm square pour at (2,2)-(18,18) with one thru-hole GND pad at
+# its centre to anchor it, a closed 2 x 2 mm Edge.Cuts rectangle at (6,6)-(8,8)
+# inside the pour, and one stray Edge.Cuts line at y = 25 that touches nothing.
+# The stray line leaves the outline invalid (has_outline=false, DRC
+# invalid_outline) even though the rectangle is a perfectly good closed loop.
+# No design settings, so the copper-to-edge clearance is the 0.5 mm default.
+#
+# Measured against kicad-cli 10.0.5 (2026-09-01) with
+# `pcb drc --refill-zones --save-board`: the pour still spans the whole zone,
+# x 2..18 and y 2..18, and carries a hole around the rectangle -- the loop's
+# four edges grown by 0.5005 mm (the clearance plus the fill's half-epsilon).
+#
+# The natural wrong answer is to clip the pour to the one closed loop the
+# board does have, which fills a 2 x 2 mm square at (6,6)-(8,8), or nothing
+# once the clearance is applied. KiCad does not: an invalid outline is no
+# boundary at all, but every drawn edge still keeps copper away.

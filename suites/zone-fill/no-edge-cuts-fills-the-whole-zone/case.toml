@@ -1,0 +1,15 @@
+concept = "A board with no Edge.Cuts at all fills the whole zone polygon: there is no outline to clip the pour to and no edge to hold copper off."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: a 16 mm square pour at (2,2)-(18,18) with one thru-hole GND pad at
+# its centre to anchor it, and nothing on Edge.Cuts. `pcb export stats`
+# reports has_outline=false and DRC reports invalid_outline.
+#
+# Measured against kicad-cli 10.0.5 (2026-09-01) with
+# `pcb drc --refill-zones --save-board`: the refilled pour spans the full
+# x 2..18 and y 2..18 of the zone polygon, its corners rounded by the
+# min_thickness opening and its centre relieved around the pad. An engine that
+# refuses to pour without an outline, or that clips to an empty one, fills
+# nothing here.

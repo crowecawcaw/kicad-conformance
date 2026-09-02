@@ -11,6 +11,9 @@ extra   = ["refill"]
 # nothing; KiCad fills the zone. The single thru-hole GND pad at (10,10) anchors
 # the fill so island removal does not delete it.
 #
-# expected/ is not yet generated -- it needs the Dockerised conformance runner
-# (see repo README); the numbers above are the local kicad-cli measurement the
-# runner should reproduce.
+# The three Edge.Cuts lines here sit 2 mm outside the pour, beyond the default
+# 0.5 mm copper-to-edge clearance, so this case says nothing about whether a
+# broken outline's edges still hold copper off. That question has its own
+# cases: unclosed-edge-cuts-still-take-edge-clearance (they do, by exactly the
+# clearance), cutout-on-a-broken-outline-cuts-but-does-not-clip (a closed loop
+# is a grown hole, not a boundary) and no-edge-cuts-fills-the-whole-zone.
