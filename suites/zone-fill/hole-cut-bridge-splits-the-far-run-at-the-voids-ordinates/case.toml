@@ -1,0 +1,26 @@
+concept = "When a pad's thermal-relief void is bridged to the pour's boundary, the boundary run on the far side of the pour is split at the ordinates of the void's vertices, so two vertices appear in the middle of a straight run that carry no geometry of their own."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: an L-shaped Edge.Cuts outline of six lines -- (10,4)-(20,4)-
+# (20,16)-(16,16)-(16,10)-(10,10) and back to (10,4) -- with one thru-hole
+# GND pad at (18,6) and a GND pour at (2,2)-(24,24) that the outline clips.
+# The pad has a thermal relief (gap 0.5, bridge 0.5, connect clearance 0.2)
+# and min_thickness is 0.001 mm, so the fill's opening is a no-op and every
+# other vertex is exact. No design settings, so the copper-to-edge clearance
+# is the 0.5 mm default and the pour's left run sits at x = 10.5005.
+#
+# Measured against kicad-cli 10.0.5 (2026-09-02) with
+# `pcb drc --refill-zones --save-board`, twice with independently assigned
+# uuids: 88 vertices, and 86 of them are the outline's band and the relief
+# void exactly. The other two lie on the straight left run x = 10.5005, at
+# y = 4.920524 and y = 7.079475 -- the ordinates of the void's vertices at
+# x = 17.274078 and 18.725921, seven millimetres away. The area is
+# identical with and without them (59.551659 mm2) and no boundary moves;
+# they split one directed edge into three.
+#
+# This is the min_thickness 0.001 sibling of the register's
+# bridged-voids-split-a-void-edge-with-a-collinear-vertex, whose split
+# vanishes when the opening is a no-op; this one survives there, so the
+# hole-cut bridge alone does it. The natural wrong answer is the run whole.
