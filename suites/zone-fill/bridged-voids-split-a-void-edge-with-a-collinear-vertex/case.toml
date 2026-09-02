@@ -1,4 +1,4 @@
-concept = "A pour with three voids can carry a vertex that lies in the INTERIOR of one of its own edges. Three voids on one pour, all rectangles, all axis-parallel: KiCad returns 38 vertices where 37 describe the identical region, the 38th sitting on the straight run down one void's right-hand side at a coordinate that is not a corner of anything on the board. The extra vertex encloses no copper -- the area is the same to the square micrometre -- so it is invisible to every comparison except one that matches vertices or edges. It is the min_thickness finish that puts it there, and the operand is now known: sort the voids by x, take three x-consecutive ones, and the finish reads their three BOTTOM edges and nothing else about them."
+concept = "A pour with three voids can carry a vertex that lies in the INTERIOR of one of its own edges. Three voids on one pour, all rectangles, all axis-parallel: KiCad returns 38 vertices where 37 describe the identical region, the 38th sitting on the straight run down one void's right-hand side at a coordinate that is not a corner of anything on the board. The extra vertex encloses no copper -- the area is the same to the square micrometre -- so it is invisible to every comparison except one that matches vertices or edges. It is the min_thickness finish that puts it there, and the operand is now known: sort the voids by x, take three x-consecutive ones, and the finish reads their three BOTTOM edges and nothing else about them. So is the position: the setback below the middle void's bottom edge is a difference of two chamfer lengths, r*tan(22.5 deg) - r*tan(beta/2), where beta is the angle whose tangent is the ratio of the two gaps."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
@@ -56,6 +56,45 @@ extra   = ["refill"]
 # voids, rho = 13125/78750 = 1/6, r = 0.124 and s(1/6) = 0.33144689, which is
 # 18.534750 - 0.041099 = 18.493651.
 #
+# THE CLOSED FORM OF s, SOLVED 2026-09-02. Write P = b - t and Q = h - t, both in
+# nanometres, so rho = Q/P. Then
+#
+#     b - y  =  r * [ (sqrt2 - 1)  -  (sqrt(P*P + Q*Q) - P) / Q ]
+#            =  r * [ tan(45/2 deg) - tan(beta/2) ],     tan(beta) = Q/P
+#
+# It is a DIFFERENCE OF TWO CHAMFER LENGTHS: r*tan(theta/2) is exactly how far a
+# miter join runs past a corner that turns by theta when the boundary is offset by
+# r, so the vertex sits where the 45-degree corner's chamfer would end, pulled back
+# by the chamfer of a corner that turns by beta = atan((h-t)/(b-t)). The two limits
+# fall out and both were measured before the form was found: s(0) = sqrt2 - 1 =
+# tan(22.5 deg), the same 45-degree tangent whose lattice rounding is this residue's
+# on/off switch below; s(1) = 0 exactly; s'(0) = -1/2; s'(1) = -1/(2+sqrt2). The two
+# "tantalising" extrapolations the paragraph at the foot of this file used to record
+# as leads, (1-rho)/s -> 1+sqrt2 at rho = 0 and -> 2+sqrt2 at rho = 1, are now
+# consequences of it: the first is 1/s(0) = 1/(sqrt2-1), the second is 1/|s'(1)| =
+# 2+sqrt2. The power law s = 0.4146*(1-rho)^1.228 stays dead.
+#
+# IT IS A STAIRCASE ABOUT THAT LINE, NOT THE ROUNDED LINE. At a fixed r the setback
+# does not track the closed form continuously: it is a staircase whose step is
+# EXACTLY P/Q = (b-t)/(h-t) nanometres, indexed by the integer
+#
+#     n = round( r * (P*P + Q*Q - P*sqrt(P*P + Q*Q)) / (P*P) )
+#
+# with  b - y  =  r*(sqrt2-1) - r*Q/P + n*P/Q  between two steps. Measured over 7999
+# CONSECUTIVE 1-NANOMETRE values of h (P = 315000, r = 499000): 161 steps, and every
+# one of the 161 breaks falls where n crosses a half-integer, to better than 0.12 of
+# a step. So the closed form above is the staircase's midline and is exact to within
+# half a step -- 3 nm on this board's own geometry, where P/Q = 6 -- and WHAT IS
+# STILL OPEN IS THE PHASE, not the shape. Over 8291 measured setbacks spanning
+# rho = 3e-6 .. 0.93, |b - y - closed form| <= P/2Q + 0.5 on 8090; of the 201
+# exceptions 101 are the plateau below and the rest sit just outside the bound.
+#
+# THE ONE PLACE THE LINE IS NOT EVEN THE MIDLINE. On the very first step (n = 1)
+# there is a plateau: at P = 315000, r = 499000 the setback is pinned at exactly
+# 206693 = round(r*(sqrt2-1)) -- the rho = 0 value -- for every Q in 446..546, and
+# picks the staircase up again at 547. Doubling P doubles that window (891..1092),
+# so it is a window in rho, not in nanometres. Unexplained.
+#
 # The prediction that confirms it: a five-void board, voids at x = 13, 20, 27, 34, 41
 # with bottom edges 18.469125, 18.534750, 18.456000, 18.521625 and 18.442875 (tops
 # 21.0, 21.1, 21.2, 21.3, 21.4 so that every void bridges straight to the pour's LEFT
@@ -106,8 +145,12 @@ extra   = ["refill"]
 #     returns 37 vertices with the edge whole. Under the rule above that is rho leaving
 #     its range, not a change of construction.
 #
-#   * ITS SETBACK IS LINEAR IN r, TO ABOUT FOUR NANOMETRES. Holding this geometry and
-#     changing only min_thickness, the setback b - y against r:
+#   * ITS SETBACK IS LINEAR IN r, TO ABOUT FOUR NANOMETRES -- the +-4 nm is the
+#     staircase above, whose step here is P/Q = 6 nm. Regressed against r at eleven
+#     rho = k/12 over 33..143 radii spanning r = 158000..536000 each, the slope is
+#     s(rho) to about 1e-6 and the INTERCEPT IS ZERO to a nanometre, so the setback
+#     is exactly homogeneous of degree 1 in r with no constant term. Holding this
+#     geometry and changing only min_thickness, the setback b - y against r:
 #
 #         r        setback      r        setback      r        setback
 #         39000    12928        69000    22871        104000   34471
@@ -132,7 +175,10 @@ extra   = ["refill"]
 #     0.27 splits the run except at 0.09, 0.115, 0.135, 0.155, 0.175, 0.18, 0.20,
 #     0.22, 0.24 and 0.265, which are exactly that case's on-radii; below 0.08 and
 #     above 0.27 the run comes back whole for a different reason. Note this is the
-#     switch only -- WHERE the vertex lands is s(rho), and s is still open.
+#     switch only; WHERE the vertex lands is s(rho), whose closed form is above.
+#     The switch was re-confirmed while testing that closed form: of ten predictions
+#     on boards this case never saw, the three that returned no vertex at all are
+#     exactly the three with q = +1.
 #
 #   * THE FRACTION OF r IS SCALE-FREE IN THE TWO y-GAPS. s depends only on
 #     rho = (h-t)/(b-t): doubling and tripling both gaps
@@ -150,11 +196,36 @@ extra   = ["refill"]
 #                                                   4/5     0.06343287
 #                                                   9/10    0.03047896
 #
-# NOT PINNED HERE, and stated so rather than guessed: the closed form of s(rho), and
-# why only some radii are on. s -> 0 as rho -> 1. (1-rho)/s runs from 2.4229 at
-# rho = 1/60 to 3.2810 at rho = 9/10 and extrapolates to 2.41414 at rho = 0 and about
-# 3.409 at rho = 1, which are 0.00007 and 0.005 away from 1+sqrt(2) and 2+sqrt(2); at
-# r = 0.499 the first of those is a 38 nm discrepancy, far outside the nanometre the
-# rows are measured to, so it is recorded as a lead and not as the rule. The power law
-# s = 0.4146 * (1-rho)^1.228, which reproduces the small-rho rows to within 0.05 %, is
-# 8 % out at rho = 9/10 and is dead.
+#     Every one of those nineteen rows agrees with the closed form above; the
+#     residuals run -8.6 .. +17.5 nm, and fifteen of the nineteen are inside that
+#     row's own half-step P/2Q -- 30 nm at rho = 1/60, 0.56 nm at rho = 9/10. The
+#     four that are not (3/5, 2/3, 3/4, 9/10) miss it by at most 0.72 nm, which is
+#     the same unexplained drift the phase note below records.
+#
+# THE CLOSED FORM WAS TESTED BY PREDICTION, ON BOARDS NOTHING ABOVE WAS FITTED TO:
+# seven predictions across five fresh rho drawn from Pythagorean triples so the
+# square root is exact -- 7/24, 9/40, 12/35, 5/12, 28/45 -- at five non-round radii
+# (213457, 288719, 337891, 419003, 466667 nm), four of the seven with the whole
+# board translated to (-40, -30) mm so every coordinate is negative. All seven
+# landed inside their predicted windows. Three further predictions returned no
+# vertex at all, and those three are exactly the three at q = +1. Translating the
+# board moves the vertex with it and changes the setback by at most 1 nm, which is
+# the file-origin sign dependence the offset module already records, not a change
+# of construction.
+#
+# NOT PINNED HERE, and stated so rather than guessed:
+#
+#   * THE STAIRCASE'S PHASE. The midline is solved; which of the two steps either
+#     side of it KiCad emits is not, and it is worth exactly P/Q nanometres --
+#     6 nm on this board. `n = round(...)` above is right on 7846 of 7999
+#     consecutive probes and one step out on the rest, and the residual that pushes
+#     it out drifts smoothly (about +4 nm at Q = 8000 and -2 nm at Q = 52500,
+#     P = 315000, r = 499000), so there is one more small term to find.
+#
+#   * THE EXISTENCE BAND IN r. At P = 315000 the vertex appears only for r in
+#     roughly [540000*rho, 537000]; outside that the run comes back whole. The
+#     upper bound does not move with rho and is not explained.
+#
+#   * WHICH CORNER CARRIES IT. That is the sibling
+#     `min-thickness-residue-is-not-the-voids-top-edge`'s open question, not this
+#     board's.
