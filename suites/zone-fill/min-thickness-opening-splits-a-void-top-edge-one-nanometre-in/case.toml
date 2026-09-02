@@ -1,0 +1,87 @@
+concept = "The min_thickness finish can split the TOP edge of a rectangular void one nanometre in from each of its two corners, leaving two extra vertices that are exactly collinear with the edge they sit on and enclose nothing. Whether it does depends on ONE number -- the finishing radius -- and on nothing else about the board: not the void's width, height or position, not the arc tolerance, not which layer or how many voids there are. One pour and one rectangular keepout on round millimetres is enough to see it, and the same board one min_thickness step coarser returns the edge whole."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# A 22x22 mm outline, one 20x20 mm F.Cu GND pour at (min_thickness 0.09), one
+# keepout rule area covering the exact rectangle 6,12 .. 8,15, and the net's
+# anchor pad in a corner. Nothing on this board is oblique, nothing is curved,
+# and every drawn coordinate is a whole millimetre except the pad. The board
+# ships NO (filled_polygon ...), so `refill` is the only recorded answer that
+# sees a fill.
+#
+# KiCad returns ONE filled area of 21 vertices (kicad-cli 10.0.5, `pcb drc
+# --refill-zones --save-board`). Four of them are the pour's own corner
+# chamfers, which the finish rounds. Fourteen are the pour outline, the void
+# rectangle and the zero-width bridge that joins the void to the outline. The
+# remaining THREE are the void's top edge, which comes back as
+#
+#     (6.000000, 15.000000)   <- the void's own top-left corner
+#     (6.000001, 15.000000)
+#     (7.999999, 15.000000)
+#     (8.000000, 15.000000)   <- the void's own top-right corner
+#
+# The two middle points lie exactly ON the segment between the corners -- same
+# y to the nanometre -- so the three edges they make describe exactly the one
+# edge they replace. They are one nanometre in from each corner, and the
+# nanometre is the file's own resolution: this is the smallest displacement the
+# format can express, and it is a displacement of a vertex, not of a boundary.
+#
+# THE NATURAL WRONG GUESS: that this is the tessellation of the corner arcs the
+# finish rounds with, so a finer or coarser arc tolerance would move or remove
+# it. It is not. See the max_error row below.
+#
+# THE SECOND NATURAL WRONG GUESS: that a vertex which lies on a straight edge
+# and encloses no copper is free to add or drop. It is not free here. Emitting
+# the edge whole gives 19 vertices, the identical region and the identical area,
+# and disagrees with the oracle on two directed edges out of 21. An
+# implementation that normalises its output by dropping collinear vertices --
+# an ordinary and otherwise harmless thing to do -- can never match this board.
+#
+# WHAT THE BOARD PINS, all measured by changing one thing at a time on this
+# geometry and on a text-void version of it:
+#
+#   * IT IS THE TOP EDGE AND ONLY THE TOP EDGE. The bottom edge and the two
+#     vertical edges come back as single segments, at every radius tried. The
+#     answer is not symmetric in y even though the void is.
+#
+#   * IT IS ALWAYS EXACTLY ONE NANOMETRE. No radius produces 2 nm, and no
+#     radius produces one point rather than two.
+#
+#   * IT DEPENDS ONLY ON THE FINISHING RADIUS r = min_thickness/2 - 0.001.
+#     Holding r and changing the void's width (0.461 .. 0.911 mm), its height
+#     (2.211 .. 5.711 mm), its x position (7 .. 45 mm) or its y position (by
+#     1 nm, by 1 um, by 1 mm and by -5 mm) never changes the answer -- the split
+#     is there in all of them or in none of them. Adding two more voids to the
+#     board leaves each void's own top edge deciding on the same r.
+#
+#   * IT IS NOT AN ARC FACET. (max_error 0.001), (0.005) and (0.02) -- a
+#     twentyfold change in the segment count of every arc on the board,
+#     including the pour's own corner chamfers -- give the IDENTICAL on/off
+#     pattern over min_thickness 0.050 .. 0.063 in 0.0004 steps.
+#
+#   * IT IS ON FOR ABOUT A QUARTER OF ALL RADII, in a pattern that is
+#     quasi-periodic in r rather than periodic. Sampling r from 19000 to 79000
+#     nm in 100 nm steps gives 150 hits in 601 samples, and the gaps between
+#     consecutive hits are only ever 300, 400 or 700 nm (70, 55 and 24 of them).
+#     A 700 is a 300+400 with one member missing, so the set reads as two
+#     interleaved families of period about 691.3 nm in r that occasionally drop
+#     a member -- the fingerprint of an integer rounding tipping over, not of a
+#     tessellation. `perturb/min-thickness-one-step-coarser/` is the negative
+#     control: min_thickness 0.1 (r = 49000) on the same board returns 19
+#     vertices with the top edge whole.
+#
+#     The first few on-radii, with the min_thickness that produces each:
+#
+#         mt      r        mt      r        mt      r
+#         0.050   24000    0.077   37500    0.106   52000
+#         0.052   25000    0.079   38500    0.108   53000
+#         0.059   28500    0.081   39500    0.115   56500
+#         0.061   29500    0.088   43000    0.117   57500
+#         0.068   33000    0.090   44000    0.119   58500
+#         0.070   34000    0.097   47500    0.124   61000
+#         0.072   35000    0.099   48500    0.126   62000
+#
+# NOT PINNED HERE, and stated so rather than guessed: the closed form of which
+# radii are on. 691.3 nm is a fit to 150 hits over 60 um of r, not a rule, and
+# no meaning has been found for it.

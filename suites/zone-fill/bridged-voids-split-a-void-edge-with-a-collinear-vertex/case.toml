@@ -1,8 +1,12 @@
-concept = "A filled area whose voids are bridged out to the pour boundary can carry a vertex that lies in the INTERIOR of one of its own edges. Three voids on one pour, all rectangles, all axis-parallel: KiCad returns 38 vertices where 37 describe the identical region, the 38th sitting on the straight run down one void's right-hand side at a coordinate that is not a corner of anything on the board. The extra vertex encloses no copper -- the area is the same to the square micrometre -- so it is invisible to every comparison except one that matches vertices or edges. It is the min_thickness finish that puts it there, not the bridging: the coordinate is a neighbouring void's own edge set back by a fixed fraction of the finishing radius, and the fraction is fixed by the ratio of two y-gaps between the three voids."
+concept = "A pour with three voids can carry a vertex that lies in the INTERIOR of one of its own edges. Three voids on one pour, all rectangles, all axis-parallel: KiCad returns 38 vertices where 37 describe the identical region, the 38th sitting on the straight run down one void's right-hand side at a coordinate that is not a corner of anything on the board. The extra vertex encloses no copper -- the area is the same to the square micrometre -- so it is invisible to every comparison except one that matches vertices or edges. It is the min_thickness finish that puts it there, and the operand is now known: sort the voids by x, take three x-consecutive ones, and the finish reads their three BOTTOM edges and nothing else about them."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
 
+# THE CASE NAME IS A MISNOMER AND IS KEPT ONLY BECAUSE IT IS THE RECORDED SLUG.
+# The bridging is not part of this behaviour; see "WHAT IS NOT INVOLVED" below.
+# The board is unchanged, and so is every number it pins.
+#
 # One 66x46 mm outline and one 60x40 mm F.Cu GND pour at (min_thickness 0.25),
 # (connect_pads yes (clearance 0.2)), the net's anchor pad in a far corner, and three
 # `gr_text` on the pour's own layer -- each the single glyph "I", so each clears one
@@ -15,15 +19,14 @@ extra   = ["refill"]
 #
 #   text at    void x                      void y
 #   ---------  --------------------------  --------------------------
-#   (13, 20)   12.597625 .. 13.402375      18.469125 .. 21.373875    <- the HOST
-#   (20, 20)   19.663250 .. 20.336750      18.534750 .. 21.308250    <- bridged from it
-#   (27, 20)   26.584500 .. 27.415500      18.456000 .. 21.387000    <- the third
+#   (13, 20)   12.597625 .. 13.402375      18.469125 .. 21.373875    <- L
+#   (20, 20)   19.663250 .. 20.336750      18.534750 .. 21.308250    <- M
+#   (27, 20)   26.584500 .. 27.415500      18.456000 .. 21.387000    <- R
 #
 # KiCad returns ONE filled area of 38 vertices. The three voids are joined to the pour
-# outline by zero-width bridges, and each bridge leaves at the y of the void it is
-# going to: the run down the host's right-hand side leaves at y = 21.308250, which is
-# the second void's top edge, crosses to it, comes back, and then continues down to the
-# host's own bottom-right corner at (13.402375, 18.469125).
+# outline by zero-width bridges. The run down L's right-hand side leaves at
+# y = 21.308250 to reach M, comes back, and then continues down to L's own
+# bottom-right corner at (13.402375, 18.469125).
 #
 # IT DOES NOT CONTINUE STRAIGHT. It stops at
 #
@@ -32,7 +35,7 @@ extra   = ["refill"]
 # and starts again. That point is on the segment -- same x, and 18.493651 is between
 # 21.308250 and 18.469125 -- so the two edges it replaces describe exactly the run they
 # came from. Its y is not a corner of any void, not an edge of the pour, and not the y
-# of any bridge. It is 0.024526 mm above the host's bottom-right corner.
+# of any bridge. It is 0.024526 mm above L's bottom-right corner.
 #
 # THE NATURAL WRONG GUESS: that a filled area is determined by the region it covers, so
 # a vertex that lies on a straight edge is free to add or drop. It is not free here.
@@ -43,80 +46,109 @@ extra   = ["refill"]
 # An implementation that normalises its output by dropping collinear vertices, which is
 # an ordinary and otherwise harmless thing to do, can never match this board.
 #
+# THE OPERAND RULE, measured 2026-09-01 and then used to PREDICT a board before running
+# it. Write h, b, t for the BOTTOM edges of three x-consecutive voids L, M, R, and
+# r = min_thickness/2 - 0.001 for the finishing radius. Then a vertex appears on
+#
+#     L's RIGHT edge, at   y = b - s(rho) * r,   rho = (h - t) / (b - t)
+#
+# and on nothing else. On this board L, M, R are the (13,20), (20,20) and (27,20)
+# voids, rho = 13125/78750 = 1/6, r = 0.124 and s(1/6) = 0.33144689, which is
+# 18.534750 - 0.041099 = 18.493651.
+#
+# The prediction that confirms it: a five-void board, voids at x = 13, 20, 27, 34, 41
+# with bottom edges 18.469125, 18.534750, 18.456000, 18.521625 and 18.442875 (tops
+# 21.0, 21.1, 21.2, 21.3, 21.4 so that every void bridges straight to the pour's LEFT
+# edge and none is bridged to another). Triples (v1,v2,v3) and (v3,v4,v5) both have
+# rho = 1/6; triple (v2,v3,v4) has rho = -0.2 and should give nothing. Predicted
+# (13.355500, 18.493651) and (27.355500, 18.480526), one vertex on each of v1's and
+# v3's right edges, and KiCad returns exactly those two and no others.
+#
+# WHAT IS NOT INVOLVED -- each of these was believed and is measured false:
+#
+#   * THE BRIDGING IS NOT INVOLVED. Push L's top edge from 21.373875 down to 21.000000
+#     so that M's cut flies OVER L at y = 21.308250 and lands on the pour's left edge
+#     instead of on L, and the vertex is still at 18.493651, to the nanometre. On the
+#     five-void board above no void is bridged to another at all and there are two of
+#     them. A cut landing on the edge is a coincidence of this board's geometry.
+#
+#   * b AND t ARE NOT THE NEAREST HORIZONTAL EDGES ABOVE AND BELOW h. Adding a fourth
+#     void whose bottom edge sits strictly between t and h (18.458, 18.462, 18.466,
+#     18.468), or strictly between h and b (18.500, 18.510, 18.520, 18.530), or below t
+#     (18.400, 17.000), leaves the vertex at 18.493651 in all ten. Only the two
+#     x-neighbours of L are read.
+#
+#   * IT IS NOT THE ORDER THE VOIDS APPEAR IN THE FILE. With two extra voids carrying
+#     different bottom edges, swapping their order in the file changes nothing;
+#     swapping their x positions swaps which of them supplies t. Tested at
+#     x = (24,27), (27,24), (34,50), (50,34), (27,40) and (40,27).
+#
+#   * IT IS NOT AN ARC FACET, and max_error is now decomposed rather than merely
+#     dismissed: (max_error 0.001) through (max_error 0.1) moves EVERY void edge on the
+#     board by 0.005 - max_error, because a text void is grown by clearance + max_error,
+#     and the vertex follows that translation exactly -- 18.497651 at 0.001, 18.488651
+#     at 0.01, 18.398651 at 0.1. Relative to the voids it does not move at all, through
+#     a hundredfold change in the segment count of every arc on the board.
+#
 # WHAT THE BOARD PINS ABOUT WHEN IT HAPPENS, all measured on this exact geometry by
 # changing one thing at a time:
 #
-#   * IT NEEDS THE THIRD VOID -- specifically its 18.456000 EDGE, and nothing else
-#     about it. Move the (27,20) text to the other copper layer and KiCad returns 30
-#     vertices with the host's right-hand side whole, straight from 21.308250 to
-#     18.469125. The third void is not bridged from the host and does not touch it --
-#     it is 13.18 mm away -- but without it the split does not happen. Only that one
-#     edge participates: raising the glyph's height so the void's OTHER edge moves from
-#     21.387000 to 23.287000, with 18.456000 held, leaves the split at 18.493651 to the
-#     nanometre; holding 21.387000 and moving 18.456000 instead destroys it.
+#   * IT NEEDS THE THIRD VOID -- specifically its 18.456000 EDGE, and nothing else about
+#     it. Move the (27,20) text to the other copper layer and KiCad returns 30 vertices
+#     with L's right-hand side whole. Raising that glyph so the void's OTHER edge moves
+#     from 21.387000 to 23.287000, or 25.000000, or lowering it to 21.000000, with
+#     18.456000 held, leaves the split at 18.493651 to the nanometre; moving 18.456000
+#     instead moves it. Its x does not enter: 24, 30, 40 and 50 all give 18.493651, and
+#     so does moving the (20,20) void to 17 or 24.
 #
-#   * IT DOES NOT DEPEND ON WHERE THE BRIDGED VOID IS. Move the (20,20) text to
-#     (24,20) -- or to (17,20) -- and the split stays at 18.493651, to the nanometre.
-#     Neither does the third void's x: 24, 30, 40 and 50 all give 18.493651. The only
-#     thing x decides is whether the bridged void's cut lands on the host's run at all;
-#     at (40,20) that void's cut reaches the third void instead and the run comes back
-#     whole.
+#   * IT IS FRAGILE IN THE HOST. Move the (13,20) text to (13,21) -- the whole void up by
+#     exactly 1 mm, the same size, the same pen, the same enclosed area -- and KiCad
+#     returns 37 vertices with the edge whole. Under the rule above that is rho leaving
+#     its range, not a change of construction.
 #
-#   * IT IS FRAGILE IN THE HOST. Move the (13,20) text to (13,21) -- the whole host
-#     void up by exactly 1 mm, the same size, the same pen, the same bridge, the same
-#     enclosed area -- and KiCad returns 37 vertices with the edge whole. That is the
-#     perturbation, and it is the sharpest statement of the case: the answer changes by
-#     one vertex under a translation that changes nothing else about the board.
+#   * ITS SETBACK IS LINEAR IN r, TO ABOUT FOUR NANOMETRES. Holding this geometry and
+#     changing only min_thickness, the setback b - y against r:
 #
-# WHERE 18.493651 COMES FROM. It is not a drawn coordinate and no line between two
-# vertices of this fill passes through it, but it is not arbitrary either. It is the
-# BRIDGED void's 18.534750 edge, set back by a multiple of the min_thickness finishing
-# radius -- and that makes the split an artefact of the FINISH, not of the bridging.
+#         r        setback      r        setback      r        setback
+#         39000    12928        69000    22871        104000   34471
+#         46500    15414        74000    24528        124000   41099
+#         49000    16242        84000    27842        134000   44414
+#         59000    19557        94000    31156
 #
-#   * IT IS THE min_thickness FINISH. At (min_thickness 0.001), where the opening is a
-#     no-op, KiCad returns 25 vertices with the run whole. The bridging is unchanged
-#     there: the cut still leaves the host at 21.308250 and still comes back.
+#     A least-squares line
+#     through r = 39000..134000 has slope 0.3314316 and intercept +2.2 nm; individual
+#     rows sit within 4 nm of it, in a small staircase rather than at random, so the
+#     construction is a straight-line crossing and not an arc.
 #
-#   * ITS SETBACK IS LINEAR IN THE OPENING RADIUS r = min_thickness/2 - 0.001. Holding
-#     this board's geometry and changing only min_thickness:
+#   * IT IS ON ONLY FOR SOME RADII, and the radii where it is OFF are exactly the radii
+#     where the finish instead puts a one-nanometre pair on every void's TOP edge --
+#     the behaviour `min-thickness-opening-splits-a-void-top-edge-one-nanometre-in`
+#     pins on a single void. On this geometry, min_thickness 0.08 through 0.27 splits
+#     the run except at 0.09, 0.115, 0.135, 0.155, 0.175, 0.18, 0.20, 0.22, 0.24 and
+#     0.265, which are exactly that case's on-radii; below 0.08 and above 0.27 the run
+#     comes back whole for a different reason. The two residues are never both present.
 #
-#         min_thickness   r          split y      18.534750 - split
-#         0.10            0.049      18.518508    0.016242
-#         0.15            0.074      18.510222    0.024528
-#         0.25            0.124      18.493651    0.041099
+#   * THE FRACTION OF r IS SCALE-FREE IN THE TWO y-GAPS. s depends only on
+#     rho = (h-t)/(b-t): doubling and tripling both gaps
+#     (`perturb/both-y-gaps-doubled/`) leaves the split at exactly 18.493651, and so
+#     does scaling them by 4 and by 8 with r scaled to match. Measured at r = 0.499 and
+#     b - t = 0.315, over rational rho:
 #
-#     The three setbacks are 0.331469, 0.331459 and 0.331444 of r. Extrapolating the
-#     line to r = 0 gives 18.534749 -- the bridged void's own edge, to the nanometre.
+#         rho     s            rho     s            rho     s
+#         1/60    0.40584569   1/8     0.35195190   1/3     0.25193587
+#         1/30    0.39755311   1/7     0.34314429   2/5     0.22163126
+#         1/20    0.38924649   1/6     0.33144689   1/2     0.17814629
+#         1/15    0.38091182   1/5     0.31519238   3/5     0.13723246
+#         1/12    0.37262725   1/4     0.29111022   2/3     0.11144088
+#         1/10    0.36433066                        3/4     0.08088176
+#                                                   4/5     0.06343287
+#                                                   9/10    0.03047896
 #
-#   * THE FRACTION OF r IS SCALE-FREE IN THE TWO y-GAPS. Write h for the host's
-#     18.469125 edge, b for the bridged void's 18.534750 edge and t for the third
-#     void's 18.456000 edge. The setback divided by r depends only on the ratio
-#     (h - t)/(b - t), which is 1/6 here. Doubling both gaps (h -> 18.403500,
-#     t -> 18.377250, b unmoved) and tripling them (h -> 18.337875, t -> 18.298500)
-#     each leave the split at exactly 18.493651, which is the sharpest single statement
-#     of this and is `perturb/both-y-gaps-doubled/`. Measured at r = 0.124, moving h
-#     and moving t independently:
-#
-#         (h-t)/(b-t)   setback/r        (h-t)/(b-t)   setback/r
-#         0.039683      0.394476         0.216418      0.307250
-#         0.103175      0.362782         0.230159      0.300605
-#         0.110169      0.359315         0.260563      0.286056
-#         0.166667      0.331444         0.293651      0.270435
-#                                        0.300000      0.267460
-#
-#     The two sweeps interleave and agree: the 0.293651 row comes from moving h and the
-#     rows either side of it from moving t, and interpolating the t sweep to 0.293651
-#     gives 0.270454 against the measured 0.270435.
-#
-#   * IT IS NOT AN ARC FACET. (max_error 0.001) through (max_error 0.02) -- a fourfold
-#     change in the segment count of every arc on the board, including the pour's own
-#     corner chamfers -- all give 18.493651 unchanged.
-#
-# NOT PINNED HERE, and stated so rather than guessed: the closed form of setback/r as a
-# function of that ratio, and why the split appears for some radii and not others. On
-# this geometry r = 0.049, 0.074 and 0.124 split the run, while r = 0.024, 0.099,
-# 0.149, 0.174, 0.199 and 0.224 return it whole -- at some of those the finish instead
-# doubles a vertex on the host void's 21.373875 edge. A power law
-# setback/r = 0.4146 * ((b - h)/(b - t))^1.228 reproduces every row of the table above
-# to within 0.05 %, which is far outside the nanometre the rows are measured to, so it
-# is recorded as a fit and not as the rule.
+# NOT PINNED HERE, and stated so rather than guessed: the closed form of s(rho), and
+# why only some radii are on. s -> 0 as rho -> 1. (1-rho)/s runs from 2.4229 at
+# rho = 1/60 to 3.2810 at rho = 9/10 and extrapolates to 2.41414 at rho = 0 and about
+# 3.409 at rho = 1, which are 0.00007 and 0.005 away from 1+sqrt(2) and 2+sqrt(2); at
+# r = 0.499 the first of those is a 38 nm discrepancy, far outside the nanometre the
+# rows are measured to, so it is recorded as a lead and not as the rule. The power law
+# s = 0.4146 * (1-rho)^1.228, which reproduces the small-rho rows to within 0.05 %, is
+# 8 % out at rho = 9/10 and is dead.
