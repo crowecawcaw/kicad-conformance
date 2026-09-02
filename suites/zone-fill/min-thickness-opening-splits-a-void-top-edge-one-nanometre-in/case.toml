@@ -1,4 +1,4 @@
-concept = "The min_thickness finish can split the TOP edge of a rectangular void one nanometre in from each of its two corners, leaving two extra vertices that are exactly collinear with the edge they sit on and enclose nothing. Whether it does depends on ONE number -- the finishing radius -- and on nothing else about the board: not the void's width, height or position, not the arc tolerance, not which layer or how many voids there are. One pour and one rectangular keepout on round millimetres is enough to see it, and the same board one min_thickness step coarser returns the edge whole."
+concept = "The min_thickness finish can split a straight edge of a void one nanometre in from a corner, leaving an extra vertex exactly collinear with the edge it sits on and enclosing nothing. Whether it does depends on ONE number -- the finishing radius r -- and on nothing else about the board: not the void's width, height or position, not the arc tolerance, not which layer or how many voids there are. It fires exactly when frac(r / sqrt 2) is in [1/2, 3/4). One pour and one rectangular keepout on round millimetres is enough to see it; the same board one min_thickness step coarser returns the edge whole."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
@@ -41,9 +41,19 @@ extra   = ["refill"]
 # WHAT THE BOARD PINS, all measured by changing one thing at a time on this
 # geometry and on a text-void version of it:
 #
-#   * IT IS THE TOP EDGE AND ONLY THE TOP EDGE. The bottom edge and the two
-#     vertical edges come back as single segments, at every radius tried. The
-#     answer is not symmetric in y even though the void is.
+#   * ON THIS VOID IT IS THE TOP EDGE AND ONLY THE TOP EDGE. The bottom edge and
+#     the two vertical edges come back as single segments, at every radius
+#     tried. The answer is not symmetric in y even though the void is.
+#
+#     THIS IS A FACT ABOUT THE RECTANGLE, NOT A RULE, and an earlier version of
+#     this file stated it as one. A rectangle cannot separate "the void's top
+#     edge" from "the edge whose two ends are both convex corners of the void",
+#     from "the edge the fill's bridging cut leaves from", or from "the global
+#     maximum in y" -- they are all the same edge here.
+#     `zone-fill/min-thickness-residue-is-not-the-voids-top-edge` is the same
+#     board with an L-shaped void, and it splits an edge that is NOT the void's
+#     top edge, at one of its two ends only. The selection is open there; what
+#     this board pins is the trigger.
 #
 #   * IT IS ALWAYS EXACTLY ONE NANOMETRE. No radius produces 2 nm, and no
 #     radius produces one point rather than two.
@@ -60,16 +70,22 @@ extra   = ["refill"]
 #     including the pour's own corner chamfers -- give the IDENTICAL on/off
 #     pattern over min_thickness 0.050 .. 0.063 in 0.0004 steps.
 #
-#   * IT IS ON FOR ABOUT A QUARTER OF ALL RADII, in a pattern that is
-#     quasi-periodic in r rather than periodic. Sampling r from 19000 to 79000
-#     nm in 100 nm steps gives 150 hits in 601 samples, and the gaps between
-#     consecutive hits are only ever 300, 400 or 700 nm (70, 55 and 24 of them).
-#     A 700 is a 300+400 with one member missing, so the set reads as two
-#     interleaved families of period about 691.3 nm in r that occasionally drop
-#     a member -- the fingerprint of an integer rounding tipping over, not of a
-#     tessellation. `perturb/min-thickness-one-step-coarser/` is the negative
-#     control: min_thickness 0.1 (r = 49000) on the same board returns 19
-#     vertices with the top edge whole.
+#   * IT IS ON EXACTLY WHEN frac(r / sqrt 2) IS IN [1/2, 3/4), a quarter of all
+#     radii. Zero mismatches over 7004 refills at 1 NANOMETRE steps in r, in
+#     four windows spanning r = 5000 .. 300500 nm (5000..6500, 24000..26500,
+#     150000..151500, 299000..300500). Every one of those 7004 answers is
+#     either both points or neither -- no radius gives one point, and none
+#     gives 2 nm. `perturb/min-thickness-one-step-coarser/` is the negative
+#     control: min_thickness 0.1 (r = 49000, frac(r/sqrt 2) = 0.245) on the
+#     same board returns 19 vertices with the top edge whole.
+#
+#     AN EARLIER "QUASI-PERIOD OF ABOUT 691.3 nm" WAS AN ALIAS AND IS STRUCK.
+#     It came from sampling r at 100 nm steps, which is 30 times coarser than
+#     the structure: at 1 nm the gaps between consecutive on-radii are only
+#     ever 3, 4 or 7 nm -- the three-distance signature of a rotation by
+#     sqrt 2 -- and the 300/400/700 the coarse sweep reported is that same word
+#     multiplied by the sampling step. The lesson is the general one: a sweep
+#     step is a hypothesis about the scale of the answer.
 #
 #     The first few on-radii, with the min_thickness that produces each:
 #
@@ -82,6 +98,24 @@ extra   = ["refill"]
 #         0.070   34000    0.097   47500    0.124   61000
 #         0.072   35000    0.099   48500    0.126   62000
 #
-# NOT PINNED HERE, and stated so rather than guessed: the closed form of which
-# radii are on. 691.3 nm is a fit to 150 hits over 60 um of r, not a rule, and
-# no meaning has been found for it.
+#   * IT IS THE SAME SWITCH AS THE OTHER COLLINEAR RESIDUE.
+#     `zone-fill/bridged-voids-split-a-void-edge-with-a-collinear-vertex` puts a
+#     collinear vertex on a void's right-hand run, and that vertex is present
+#     exactly when frac(r / sqrt 2) is NOT in [1/2, 3/4) -- zero mismatches over
+#     2203 refills at 1 nm in three windows (r = 123500..124500, 60000..60600,
+#     45000..45600). The two boards are complementary halves of one quantity.
+#
+# WHY sqrt 2, AND WHY EXACTLY ONE NANOMETRE. r/sqrt 2 is where the 45 degree
+# facet of a 90 degree corner's join touches the circle of radius r, and
+# r*sqrt 2 is that corner's mitre. Rounding each to a nanometre and asking
+# whether they still agree gives
+#
+#     q = 2*round(r / sqrt 2) - round(r * sqrt 2),   which is -1, 0 or +1
+#
+# and the residue is present exactly when q = +1, which is the same set as
+# frac(r / sqrt 2) in [1/2, 3/4). One nanometre is the whole of q. This is an
+# arithmetic identity about the corner, not a fit to the on/off word, and it is
+# what a second implementation of the same construction computes as well.
+#
+# NOT PINNED HERE, and stated so rather than guessed: WHICH corners of a void
+# get the residue once the radius has switched it on. See the L-shaped sibling.

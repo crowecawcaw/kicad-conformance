@@ -120,13 +120,19 @@ extra   = ["refill"]
 #     rows sit within 4 nm of it, in a small staircase rather than at random, so the
 #     construction is a straight-line crossing and not an arc.
 #
-#   * IT IS ON ONLY FOR SOME RADII, and the radii where it is OFF are exactly the radii
-#     where the finish instead puts a one-nanometre pair on every void's TOP edge --
-#     the behaviour `min-thickness-opening-splits-a-void-top-edge-one-nanometre-in`
-#     pins on a single void. On this geometry, min_thickness 0.08 through 0.27 splits
-#     the run except at 0.09, 0.115, 0.135, 0.155, 0.175, 0.18, 0.20, 0.22, 0.24 and
-#     0.265, which are exactly that case's on-radii; below 0.08 and above 0.27 the run
-#     comes back whole for a different reason. The two residues are never both present.
+#   * IT IS ON EXACTLY WHEN frac(r / sqrt 2) IS NOT IN [1/2, 3/4), r =
+#     min_thickness/2 - 0.001. Zero mismatches over 2203 refills at 1 NANOMETRE steps
+#     in r, in three windows (123500..124500, 60000..60600, 45000..45600). That is the
+#     exact complement of the switch
+#     `min-thickness-opening-splits-a-void-top-edge-one-nanometre-in` measures on a
+#     single rectangular void, over 7004 refills of its own, so the two residues are
+#     never both present and are the SAME quantity rather than two correlated ones:
+#     q = 2*round(r / sqrt 2) - round(r * sqrt 2) is -1, 0 or +1, that case is the
+#     q = +1 arm and this one is the rest. On this geometry min_thickness 0.08 through
+#     0.27 splits the run except at 0.09, 0.115, 0.135, 0.155, 0.175, 0.18, 0.20,
+#     0.22, 0.24 and 0.265, which are exactly that case's on-radii; below 0.08 and
+#     above 0.27 the run comes back whole for a different reason. Note this is the
+#     switch only -- WHERE the vertex lands is s(rho), and s is still open.
 #
 #   * THE FRACTION OF r IS SCALE-FREE IN THE TWO y-GAPS. s depends only on
 #     rho = (h-t)/(b-t): doubling and tripling both gaps

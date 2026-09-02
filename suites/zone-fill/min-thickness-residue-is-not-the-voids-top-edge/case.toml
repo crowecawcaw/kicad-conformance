@@ -1,0 +1,66 @@
+concept = "The one-nanometre collinear residue a min_thickness finish leaves on a void's straight edge is not a property of that edge. On an L-shaped void at one radius KiCad splits one upward-facing edge at BOTH of its ends, a second upward-facing edge at ONE end only, and the downward-facing edge at neither -- and the two upward-facing edges differ only in which of their ends is the void's convex corner. Any rule of the form 'the void's top edge' or 'every convex corner of the void' is refuted by this one board."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The same 22x22 mm outline, 20x20 mm F.Cu GND pour at (min_thickness 0.09) and
+# corner pad as
+# `zone-fill/min-thickness-opening-splits-a-void-top-edge-one-nanometre-in`. The
+# only change is the keepout rule area, which is an L rather than a rectangle:
+#
+#     (6,12) (8,12) (8,14) (7,14) (7,15) (6,15)
+#
+# so the void has a tall left half reaching y = 15 and a short right half
+# stopping at y = 14, and one reflex corner at (7,14). Every drawn coordinate is
+# a whole millimetre except the pad, nothing is oblique and nothing is curved.
+# The board ships NO (filled_polygon ...), so `refill` is the only recorded
+# answer that sees a fill.
+#
+# KiCad returns ONE filled area of 30 vertices (kicad-cli 10.0.5, `pcb drc
+# --refill-zones --save-board`). Around the void it is
+#
+#     (6.000000, 15.000000)   <- convex corner
+#     (6.000001, 15.000000)   <- residue
+#     (6.999999, 15.000000)   <- residue
+#     (7.000000, 15.000000)   <- convex corner
+#     (7.000000, 14.044000)   |
+#     (7.012887, 14.012887)   |  the reflex corner at (7,14), rounded by the
+#     (7.044000, 14.000000)   |  finish -- this part is NOT residue, it is the
+#     (7.999999, 14.000000)   <- residue                          opening's arc
+#     (8.000000, 14.000000)   <- convex corner
+#     (8.000000, 12.000000)   <- convex corner
+#     (6.000000, 12.000000)   <- convex corner
+#
+# WHAT THE BOARD PINS. Read the three straight edges of the void that a residue
+# could land on, at ONE radius, on ONE board:
+#
+#   * THE y = 15 EDGE (x 6..7) IS SPLIT AT BOTH ENDS. Both of its ends are
+#     convex corners of the void.
+#
+#   * THE y = 14 EDGE (x 7..8) IS SPLIT AT ITS RIGHT END ONLY. Its right end
+#     (8,14) is a convex corner and its left end (7,14) is the reflex one, so a
+#     residue can only be asked for at the right -- and there it appears. THIS
+#     IS THE ROW THAT REFUTES "the void's TOP edge": y = 14 is not the void's
+#     top edge, and it carries a residue anyway.
+#
+#   * THE y = 12 EDGE (x 6..8) IS SPLIT AT NEITHER END, though both of its ends
+#     are convex corners of the void, exactly like the y = 15 edge's.
+#
+#   * SO IT IS NOT "EVERY CONVEX CORNER" EITHER. Five convex corners here;
+#     three carry a residue and two do not, and the two that do not -- (6,12)
+#     and (8,12) -- are locally indistinguishable from (6,15) and (8,14): same
+#     90 degree turn, same axis-aligned edges, same radius.
+#
+#   * IT IS THE SAME MECHANISM AS THE RECTANGLE CASE, not a second one. Every
+#     residue here is EXACTLY one nanometre, exactly collinear with the edge it
+#     sits on, and encloses nothing -- and it is present at exactly the radii
+#     the rectangle case is. Both are switched by
+#
+#         frac(r / sqrt 2) in [1/2, 3/4),   r = min_thickness/2 - 1 um
+#
+#     which is that case's own measured trigger.
+#
+# THE NATURAL WRONG GUESS this board is built against: that a rectangular void
+# tells you the rule. It does not -- on a rectangle "the top edge", "the edge
+# whose two corners are convex", "the edge the fill's bridging cut leaves from"
+# and "the global maximum in y" are the same edge, and the L separates them.
