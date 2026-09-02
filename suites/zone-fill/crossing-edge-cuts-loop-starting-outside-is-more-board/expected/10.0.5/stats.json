@@ -12,19 +12,19 @@
     "area": null,
     "front_component_density": null,
     "back_component_density": null,
-    "front_copper_area": "5.878 mm²",
-    "back_copper_area": "5.878 mm²",
+    "front_copper_area": "0.00 mm²",
+    "back_copper_area": "0.00 mm²",
     "min_track_clearance": "2147.4836 mm",
     "min_track_width": "2147.4836 mm",
-    "min_drill_diameter": "0.8000 mm",
+    "min_drill_diameter": "2147.4836 mm",
     "board_thickness": "1.6000 mm",
-    "front_footprint_area": "9.184 mm²",
-    "back_footprint_area": "9.184 mm²",
+    "front_footprint_area": "0.00 mm²",
+    "back_footprint_area": "0.00 mm²",
     "front_footprint_density": null,
     "back_footprint_density": null
   },
   "pads": {
-    "through_hole": 3,
+    "through_hole": 0,
     "smd": 0,
     "connector": 0,
     "npth": 0,
@@ -50,25 +50,14 @@
     },
     "unspecified": {
       "front": 0,
-      "back": 3,
-      "total": 3
+      "back": 0,
+      "total": 0
     },
     "total": {
       "front": 0,
-      "back": 3,
-      "total": 3
+      "back": 0,
+      "total": 0
     }
   },
-  "drill_holes": [
-    {
-      "count": 3,
-      "shape": "Round",
-      "x_size": "0.8000 mm",
-      "y_size": "0.8000 mm",
-      "plated": true,
-      "source": "Pad",
-      "start_layer": "F.Cu",
-      "stop_layer": "B.Cu"
-    }
-  ]
+  "drill_holes": []
 }

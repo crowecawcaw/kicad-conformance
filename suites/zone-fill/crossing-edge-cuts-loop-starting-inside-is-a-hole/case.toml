@@ -8,7 +8,11 @@ extra   = ["refill"]
 # B's minimum corner (10,10) lies inside A and A's minimum corner (4,4) does
 # not lie inside B. Three thru-hole GND pads anchor the three regions the two
 # loops make: (6,6) in A only, (13,13) in the overlap, (18,18) in B only. No
-# design settings, so the copper-to-edge clearance is the 0.5 mm default.
+# design settings, so the copper-to-edge clearance is the 0.5 mm default. The
+# zone's min_thickness is 0.001 mm so that the fill's own opening is a no-op
+# and what is compared is the outline rule alone; at 0.25 the same board adds
+# the opening's nanometre residue at the notch's re-entrant corner and nothing
+# else.
 #
 # Measured against kicad-cli 10.0.5 (2026-09-02) with
 # `pcb drc --refill-zones --save-board`: DRC reports invalid_outline
@@ -16,7 +20,9 @@ extra   = ["refill"]
 # x 4.5005..15.4995, y 4.5005..15.4995 with the (10,10)-(16,16) corner notched
 # out, plus the (6,6) pad's relief. Nothing is poured in the overlap or in the
 # part of B outside A, though both carry a GND pad: B is A's cut-out and its
-# outside part is not board.
+# outside part is not board. The same answer, translated, mirrored about
+# x = 30 (which swaps the roles, as the rule says it must) and moved into the
+# negative quadrant.
 #
 # The rule is decided by one point. A loop whose first vertex lies inside
 # another loop is that loop's hole; a rectangle's first vertex is its minimum

@@ -13,19 +13,5 @@
 <g style="fill:#000000; fill-opacity:1.0000;stroke:#000000; stroke-opacity:1.0000;
 stroke-linecap:round; stroke-linejoin:round;"
  transform="translate(0 0) scale(1 1)">
-</g>
-<g style="fill:#000000; fill-opacity:1.0000; stroke:none;">
-<circle cx="4.0000" cy="18.0000" r="0.8000" /> 
-<circle cx="16.0000" cy="4.0000" r="0.8000" /> 
-<circle cx="11.0000" cy="11.0000" r="0.8000" /> 
-</g>
-<g style="fill:#FFFFFF; fill-opacity:1.0000; stroke:none;">
-<circle cx="4.0000" cy="18.0000" r="0.4000" /> 
-</g>
-<g style="fill:#FFFFFF; fill-opacity:1.0000; stroke:none;">
-<circle cx="16.0000" cy="4.0000" r="0.4000" /> 
-</g>
-<g style="fill:#FFFFFF; fill-opacity:1.0000; stroke:none;">
-<circle cx="11.0000" cy="11.0000" r="0.4000" /> 
 </g> 
 </svg>

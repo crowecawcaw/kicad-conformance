@@ -3,13 +3,18 @@ doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
 
-# Geometry: a 22 mm square pour at (2,2)-(24,24) over two Edge.Cuts
+# Geometry: a 22 mm square GND pour at (2,2)-(24,24) over two Edge.Cuts
 # rectangles that cross -- A at (4,10)-(16,22) and B at (10,4)-(20,16). A's
 # minimum corner (4,10) lies outside B and B's minimum corner (10,4) lies
 # outside A, which is what makes this the other arm of
-# crossing-edge-cuts-loop-starting-inside-is-a-hole. Three thru-hole GND pads
-# anchor the regions: (6,20) in A only, (18,6) in B only, (13,13) in the
-# overlap. No design settings, so the copper-to-edge clearance is 0.5 mm.
+# crossing-edge-cuts-loop-starting-inside-is-a-hole. The board carries no
+# pads, so no area is anchored and island removal keeps all of them (the
+# rule island-removal-keeps-all-when-none-anchored pins); min_thickness is
+# 0.001 mm so the fill's own opening is a no-op and what is compared is the
+# outline rule alone. No design settings, so the copper-to-edge clearance is
+# the 0.5 mm default. (The same board with the zone on no net comes back
+# from KiCad with only two of the three areas, both flagged island and the
+# A-only area gone; that is unexplained and is not what this case pins.)
 #
 # Measured against kicad-cli 10.0.5 (2026-09-02) with
 # `pcb drc --refill-zones --save-board`: DRC reports invalid_outline
@@ -17,7 +22,9 @@ extra   = ["refill"]
 # poured as three areas -- A outside B (x 4.5005..15.4995, y 10.5005..21.4995
 # less the overlap), the overlap (10.5005..15.4995 square) and B outside A --
 # because the edges of each rectangle that run through the other still take
-# the 0.5005 mm clearance. Nothing is clipped away.
+# the 0.5005 mm clearance. Nothing is clipped away. With a thru-hole pad in
+# each area at min_thickness 0.25 the same three areas come back, carrying
+# the opening's nanometre residue at A's inside corner.
 #
 # The natural wrong answers this board separates: pouring the union as one
 # area (the edges inside the union forgotten once the outline is assembled),
