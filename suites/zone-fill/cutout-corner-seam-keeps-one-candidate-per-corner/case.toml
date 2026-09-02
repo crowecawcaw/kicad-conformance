@@ -1,0 +1,54 @@
+concept = "Where two of a cut-out's edge-clearance stadiums meet at a right angle, each one's cap drops a vertex exactly on the other's straight run, and KiCad's union keeps exactly one of the two -- at three of the four corners, by a table that depends only on which way the corner faces, and at the fourth on which of its two segments the file declares first."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: an Edge.Cuts outline 0..20 mm with two rectangular cut-outs, and one
+# F.Cu pour drawn 2..18 mm over both. The cut-outs are the same shape spelled two
+# ways: (4,4)-(7,7) as a single `gr_rect`, and (12,12)-(16,16) as four `gr_line`s
+# declared bottom, right, top, left. No design settings, so the copper-to-edge
+# clearance is the 0.5 mm default; `min_thickness 0.001` keeps the fill's own
+# min-width opening a no-op, so what the fill shows is the clearance shape alone.
+#
+# Measured against kicad-cli 10.0.5 (2026-09-02) with
+# `pcb drc --refill-zones --save-board`. Each cut-out becomes a hole inset
+# 0.5005 mm with 24-gon corner arcs, and each hole carries THREE extra vertices
+# that are exactly collinear with their neighbours on a straight side. They are
+# not noise: at a right-angle corner the two neighbouring stadiums each run a
+# half-disk cap, and the cap vertex adjacent to the cardinal tangent lands
+# exactly on the neighbour's straight run -- so every corner offers two
+# redundant candidates, one per run, and the union keeps at most one.
+#
+# Name a corner by the direction it faces away from the cut-out, and write PH
+# for the candidate on its horizontal run and PV for the one on its vertical
+# run. Then, on both cut-outs:
+#
+#   (-1,-1)  keeps PH        (+1,-1)  keeps NEITHER
+#   (+1,+1)  keeps PH        (-1,+1)  keeps PH or PV -- see below
+#
+# The `(+1,-1)` corner really does keep neither, which is what breaks the
+# otherwise quarter-turn-symmetric table. The `(-1,+1)` corner is the one that
+# reads the order the segments arrive in: the earlier of its two adjacent
+# segments keeps its own run's candidate. That is why the two cut-outs answer it
+# differently, and it is the whole reason this board carries both spellings.
+#
+#   * The `gr_rect` expands bottom, right, top, left. At (4,7) the earlier of
+#     the two adjacent segments is the top one, so the HORIZONTAL run's
+#     candidate is kept: PH, at (4.065892, 7.500500).
+#   * The four `gr_line`s reach KiCad as separate items, and `pcb upgrade`
+#     sorts them to bottom, left, right, top. At (12,16) the earlier of the two
+#     adjacent segments is now the left one, so the VERTICAL run's candidate is
+#     kept: PV, at (11.499500, 15.934108). Declaring them in the order this file
+#     does -- bottom, right, top, left -- does NOT decide it; the sort does.
+#
+# So a reader must not conclude "a closed shape keeps PH and loose segments keep
+# PV". It is one rule about segment order, and the two cut-outs here differ only
+# in what order their segments end up in.
+#
+# Two wrong answers this defeats:
+#   (1) "the extra vertices are collinear, so they are noise a simplify pass may
+#       drop" -- an implementation that drops both candidates misses three
+#       vertices per cut-out and can never be edge-exact along one.
+#   (2) "keep both, they are on the boundary either way" -- KiCad keeps exactly
+#       one at three corners and none at the fourth, so keeping both is four
+#       vertices too many per cut-out.
