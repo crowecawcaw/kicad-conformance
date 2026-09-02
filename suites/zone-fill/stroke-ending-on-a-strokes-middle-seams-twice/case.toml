@@ -1,0 +1,31 @@
+concept = "A round-capped copper stroke that ENDS on another stroke's middle is not a corner: its cap is tangent to the neighbour's straight wall from inside, and KiCad's union keeps BOTH of the cap's vertices either side of the tangency, exactly collinear with the wall. Where two strokes meet end-to-end at a right angle it keeps ONE, and which one can depend on the order the two items are accumulated in -- here it keeps two, and neither order nor which stroke is written first changes it."
+
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu (2..18) with a T of two netless copper `gr_line`s:
+# a crossbar (6,10)-(14,10) and a stem (10,10)-(10,6), both 0.6 wide, zone
+# clearance 0.5, so each wall runs 0.8005 mm from its centre-line. The stem's
+# cap is a half disk at (10,10) whose lowest point (10, 10.800500) is EXACTLY
+# on the crossbar's lower wall.
+#
+# KiCad keeps the two cap vertices adjacent to that tangency,
+# (9.921158, 10.800500) and (10.078842, 10.800500), both exactly collinear
+# with the run they sit on. Writing the stem before the crossbar gives the
+# identical answer, which is what separates this from the end-to-end corner:
+# there, the same 0.078842 mm offset appears ONCE and its side is decided by
+# which item is accumulated first.
+#
+# Three wrong guesses this defeats:
+#   (1) "a redundant collinear vertex is noise; drop them all" -- predicts a
+#       2-vertex-lighter answer.
+#   (2) "the corner rule generalises: one vertex per meeting point" -- the
+#       natural move once the end-to-end rule is written, and it predicts one
+#       vertex on a side that depends on the file order. Both are wrong here.
+#   (3) "a T is just three arms" -- spelling the crossbar as two separate
+#       `gr_line`s meeting at (10,10) instead makes the answer order-sensitive
+#       again, so the piece set decides it and not the drawn shape.
+#
+# Expect this RED on an engine that models only the end-to-end corner: the
+# fill is otherwise vertex-exact and differs by exactly these two vertices.
