@@ -1,0 +1,27 @@
+concept = "Two Edge.Cuts loops that cross each other with neither one's first vertex inside the other are both board: the pour covers their union, but every drawn edge of both loops still holds copper off by the copper-to-edge clearance, so the union pours as separate areas split along the edges that run through it."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: a 22 mm square pour at (2,2)-(24,24) over two Edge.Cuts
+# rectangles that cross -- A at (4,10)-(16,22) and B at (10,4)-(20,16). A's
+# minimum corner (4,10) lies outside B and B's minimum corner (10,4) lies
+# outside A, which is what makes this the other arm of
+# crossing-edge-cuts-loop-starting-inside-is-a-hole. Three thru-hole GND pads
+# anchor the regions: (6,20) in A only, (18,6) in B only, (13,13) in the
+# overlap. No design settings, so the copper-to-edge clearance is 0.5 mm.
+#
+# Measured against kicad-cli 10.0.5 (2026-09-02) with
+# `pcb drc --refill-zones --save-board`: DRC reports invalid_outline
+# (self-intersecting), and the pour covers the union of the two rectangles,
+# poured as three areas -- A outside B (x 4.5005..15.4995, y 10.5005..21.4995
+# less the overlap), the overlap (10.5005..15.4995 square) and B outside A --
+# because the edges of each rectangle that run through the other still take
+# the 0.5005 mm clearance. Nothing is clipped away.
+#
+# The natural wrong answers this board separates: pouring the union as one
+# area (the edges inside the union forgotten once the outline is assembled),
+# making one rectangle the other's cut-out, or refusing the outline and
+# flooding the zone polygon. Two loops that merely share a vertex or an edge
+# are a different matter and are not pinned here: KiCad's answer there
+# depends on the order it chains the segments in.

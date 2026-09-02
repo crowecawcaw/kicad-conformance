@@ -1,0 +1,30 @@
+concept = "Two Edge.Cuts loops that cross each other are still an outline, and the one whose first vertex lies inside the other is its cut-out: the pour is the first rectangle with the second notched out of it, and the part of the second rectangle hanging outside the first is not board at all."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: a 20 mm square pour at (2,2)-(22,22) over two Edge.Cuts
+# rectangles that cross -- A at (4,4)-(16,16) and B at (10,10)-(20,20), so
+# B's minimum corner (10,10) lies inside A and A's minimum corner (4,4) does
+# not lie inside B. Three thru-hole GND pads anchor the three regions the two
+# loops make: (6,6) in A only, (13,13) in the overlap, (18,18) in B only. No
+# design settings, so the copper-to-edge clearance is the 0.5 mm default.
+#
+# Measured against kicad-cli 10.0.5 (2026-09-02) with
+# `pcb drc --refill-zones --save-board`: DRC reports invalid_outline
+# (self-intersecting), and the pour is A minus B -- one filled area spanning
+# x 4.5005..15.4995, y 4.5005..15.4995 with the (10,10)-(16,16) corner notched
+# out, plus the (6,6) pad's relief. Nothing is poured in the overlap or in the
+# part of B outside A, though both carry a GND pad: B is A's cut-out and its
+# outside part is not board.
+#
+# The rule is decided by one point. A loop whose first vertex lies inside
+# another loop is that loop's hole; a rectangle's first vertex is its minimum
+# corner whichever way it was drawn, a gr_poly's is its first (xy), a
+# circle's is the point at angle 0. Swapping the two rectangles' order in the
+# file, drawing either from its far corner, giving them equal areas, or making
+# the containing loop the smaller one all give this same answer. The natural
+# wrong answers this board separates: unioning the two loops (copper in all
+# three regions, no notch), refusing the outline as invalid and flooding the
+# zone, or reading nesting from any vertex but the first. The sibling case
+# crossing-edge-cuts-loop-starting-outside-is-more-board is the other arm.

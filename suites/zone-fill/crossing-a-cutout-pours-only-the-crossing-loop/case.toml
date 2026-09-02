@@ -1,0 +1,28 @@
+concept = "A loop that crosses a cut-out's boundary, starting inside the cut-out, is not an island in it and not a notch out of it: the pour becomes that loop alone, and the outer boundary it was drawn inside stops pouring at all."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: a 24 mm square pour at (2,2)-(26,26) over three Edge.Cuts
+# rectangles -- an outer O at (2,2)-(24,24), a cut-out A at (4,4)-(16,16)
+# inside it, and B at (10,10)-(20,20), which starts inside A and crosses A's
+# boundary into O's material. Four thru-hole GND pads anchor every region:
+# (3,3) in O outside A, (6,6) in A outside B, (13,13) in A and B, (18,18) in
+# B outside A. No design settings, so the copper-to-edge clearance is 0.5 mm.
+#
+# Measured against kicad-cli 10.0.5 (2026-09-02) with
+# `pcb drc --refill-zones --save-board`, twice with independently assigned
+# uuids: DRC reports invalid_outline (self-intersecting), and the pour is B
+# and nothing else -- the (10.5005..15.4995) square that is B inside A, the
+# L-shaped part of B outside A up to (19.4995,19.4995), each held off B's and
+# A's edges by the clearance, and the (18,18) pad's relief. The (3,3) pad's
+# region -- O's material outside A -- and the (6,6) pad's region are not
+# poured though the outline O encloses both.
+#
+# The rule the two sibling cases pin (a loop whose first vertex lies inside
+# another is its hole) predicts something else here: B inside A's cut-out
+# would be an island, so the pour would be O minus A plus B. That is the
+# natural wrong answer, and it is what an even-odd nesting rule gives. What
+# KiCad does when the crossed loop is itself a cut-out is measured on this
+# board only and is not explained; the case exists so the behaviour is pinned
+# rather than assumed.
