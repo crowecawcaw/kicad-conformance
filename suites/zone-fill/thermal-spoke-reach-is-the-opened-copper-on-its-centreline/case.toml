@@ -1,0 +1,38 @@
+concept = "A thermal-relief spoke is kept only when the pour's opened copper -- the fill with every same-net pad as a plain hole, eroded and dilated by half min_thickness -- crosses the spoke's centreline within min_thickness/2 + max_error of the relief ring; a void at the ring narrower than that keeps the spoke, and copper beside the centreline does not."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: a 24 mm square GND pour at (3,3)-(27,27) on a 2..28 board, four
+# 1.6 mm thru-hole GND pads (0.8 mm drill) relieved with thermal_gap 0.5 and
+# thermal_bridge_width 0.5 at min_thickness 0.25 and the default max_error
+# 0.005, so each relief ring is at R = 1.3 mm from its pad centre and the
+# spokes run at 45, 135, 225 and 315 degrees. Every foreign-net track is on
+# net 0 and clears the pour by the zone's 0.2 mm clearance. Only the
+# 135-degree spoke of each pad is exercised.
+#
+# Pad (8,8) and pad (20,8): a 0.05 mm track runs across the 135-degree spoke,
+# so its clearance void covers the ring and ends 0.10 mm past it at (8,8)
+# and 0.15 mm past it at (20,8); the plane continues beyond either void.
+# Pad (8,20) and pad (20,20): two 0.1 mm tracks run along the 135-degree
+# spoke from 1 mm to 4 mm out, 1.101 mm apart, leaving a 0.6 mm-wide copper
+# strip along the spoke whose centre is 0.28 mm off the spoke's axis at
+# (8,20) and 0.32 mm off it at (20,20).
+#
+# Measured against kicad-cli 10.0.5 (2026-09-03) with
+# `pcb drc --refill-zones --save-board`: the 135-degree spokes of (8,8) and
+# (8,20) are present and the 135-degree spokes of (20,8) and (20,20) are
+# gone entirely -- no stub inside the relief ring -- with every other spoke
+# untouched. Swept in finer steps on single-pad boards, the void-width
+# switch sits between 0.1294 and 0.1295 mm at min_thickness 0.25, between
+# 0.203 and 0.205 at 0.40 and between 0.053 and 0.055 at 0.10, the same on
+# rings of radius 1.1 and 1.7 mm and on a rect pad; the strip switch sits
+# between an offset of 0.2995 and 0.3000 mm, i.e. exactly where the strip's
+# edge reaches the axis.
+#
+# The natural wrong answers: testing the eroded copper (which would delete
+# the (8,8) spoke, since a 0.10 mm void plus the 0.124 mm erosion exceeds any
+# reach short of min_thickness); testing the whole 0.5 mm-wide bar or its
+# eroded core rather than the centreline (either keeps the (20,20) spoke,
+# whose strip still overlaps the bar); and keeping a spoke that merely
+# touches the strip's edge.
