@@ -1,0 +1,32 @@
+concept = "A pour with NO net and island removal on keeps every filled area but ONE: the area whose bottom-most vertex is the lowest on the board, ties broken by the left-most, is deleted whatever its size, and a pour left with a single area keeps it. Copper with no net anchors nothing and clears such a pour like any foreign copper."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two netless pours on F.Cu, each cut in two by one foreign (net X) track of
+# width 0.3 at clearance 0.5, island_removal_mode 0, min_thickness 0.254.
+#
+#   - Pour 1 is an L: (2,2) (9,2) (9,18) (6,18) (6,10) (2,10), cut by a
+#     vertical track at x = 4 from y = 2 to 10 into a small area A
+#     (x 2..3.65, y 2..10, bottom-most vertex at y = 10) and the large rest B
+#     (x 4.35..9, reaching y = 18). KiCad deletes B and keeps A.
+#   - Pour 2 is the mirror L: (11,2) (15,2) (15,10) (18,10) (18,18) (11,18),
+#     cut by a horizontal track at y = 14 from x = 11 to 15 into a strip
+#     (x 11..15, y 14.35..18) and the rest (x 11..18, also reaching y = 18).
+#     Both reach y = 18 and both reach x = 11; the strip's bottom-most vertex
+#     is (11, 18) and the rest's is (15.35, 18). KiCad deletes the strip.
+#
+# Wrong answers this separates:
+#   (1) "a netless pour keeps everything, nothing can anchor it" -- both pours
+#       come back whole. RED on sight (a corpus board pours 3.3 mm² KiCad
+#       deletes and keeps the 0.14 mm² corner KiCad keeps).
+#   (2) "a netless pour is all islands and loses everything" -- both empty.
+#   (3) "the deleted area is the largest, or the left-most by bounding box" --
+#       pour 1 says it is not the smallest that goes, and its rule-by-bbox
+#       twin (min x first) would delete A; pour 2 ties on both bbox edges and
+#       is decided by the bottom-most VERTEX.
+#
+# Measured beside this case (kicad-cli 10.0.5): a lone area is kept; with
+# island_removal_mode 1 every area is kept; a netless track touching an area
+# cuts it back by its clearance instead of anchoring it; and a pour that HAS
+# a net but not one item of it on the board keeps every area.
