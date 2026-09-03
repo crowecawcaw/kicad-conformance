@@ -1,4 +1,4 @@
-concept = "A copper-pour keepout that the min_thickness opening merges with a thermal void comes back at its exact drawn outline, and the thermal void's tip is cut back to a chord at min_thickness minus twice the fill epsilon from the keepout's facing edge."
+concept = "A copper-pour keepout sitting on a thermal relief's spoke cross, under a sector void's apex, comes back at its exact drawn outline, and that sector's tip is cut back to a chord at min_thickness minus twice the fill epsilon from the keepout's facing edge. This is the spoke cross only: a keepout that the opening merges with a plain void, a thermal ring, or a sector edge further out along a bar takes the ordinary opening and nothing is restored."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
