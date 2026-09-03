@@ -1,0 +1,33 @@
+concept = "Two same-net pours of EQUAL priority that overlap normally both fill whole -- unless either of them also overlaps a same-net pour of a DIFFERENT priority. Then the pair is partitioned: the lexically smaller uuid loses its overlap to the larger one's fill, at zero clearance, with nothing lost to island removal anywhere."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two independent pairs of GND pours on F.Cu, priority 1, each pour with its
+# own solid-connected pad, min_thickness 0.001 so finishing is a no-op:
+#
+#   - Upper pair: A (uuid 1111...) x 2..8 and B (uuid ffff...) x 6..12, both
+#     y 11..18. A priority-0 GND pour P0 (x 2..5, y 11..18) overlaps only A --
+#     the LOSER of the tie-break. KiCad: A = A minus B's fill (x 2..6), B whole,
+#     P0 = P0 minus A (empty, it is inside A).
+#   - Lower pair: C (uuid 1111...) x 2..8 and D (uuid ffff...) x 6..12, both
+#     y 2..9. A priority-0 GND pour Q0 (x 9..12, y 2..9) overlaps only D --
+#     the WINNER. KiCad: C = C minus D's fill (x 2..6), D whole, Q0 empty.
+#
+# The control is `same-net-equal-priority-pours-overlap-untouched`: the same
+# kind of pair with no other pour overlapping either member fills whole on
+# both sides. `same-net-equal-priority-partition-after-island-removal` is the
+# first trigger, island removal; this is the second.
+#
+# Wrong answers this separates:
+#   (1) "equal-priority same-net pours never partition" -- A and C whole.
+#       RED on sight; on the Olimex esp32 boards this is every teardrop zone
+#       over the ground pour, 60 zones two to ten times KiCad's copper.
+#   (2) "the trigger is the loser being clipped by the lower pour" -- a
+#       lower-priority pour is clipped BY the higher one, never the reverse;
+#       the lower pair shows the lower pour need not even touch the loser.
+#   (3) "any same-net pour losing copper anywhere triggers" -- measured
+#       beside this case (kicad-cli 10.0.5): a lower-priority pour that
+#       overlaps neither member does nothing, even when it is itself clipped
+#       by a fourth pour or loses an island; a FOREIGN pour under the winner
+#       does nothing either.
