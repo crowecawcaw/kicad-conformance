@@ -1,0 +1,69 @@
+concept = "A thermal spoke is never wider than its pad: the spoke width is the smaller of `thermal_bridge_width` and the pad's SMALLER size dimension, for every spoke of the pad -- a 0.23 x 0.66 mm rect pad under a 0.5 mm bridge gets four 0.23 mm spokes, the two along its long axis included, and a 0.3 mm circle pad gets 0.3 mm spokes. An implementation that builds every spoke at the bridge width leaves a 0.5 mm bar through a 0.23 mm pad; one that clamps each spoke to the pad's extent ACROSS that spoke leaves the long-axis spokes at 0.5."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour (-18,-18)..(18,18) on F.Cu, `min_thickness 0.001` so the
+# morphological finishing is a no-op and every vertex in the answer comes from
+# the thermal relief, `thermal_gap 0.5`, `thermal_bridge_width 0.5`, and three
+# same-net SMD pads, every one narrower than the bridge:
+#
+#     rect   0.23 x 0.66  at ( 7, -7)     tall: the bridge exceeds its width only
+#     rect   0.66 x 0.23  at (-9,  5)     wide: the same pad turned a quarter
+#     circle 0.3          at (-6, -9)     round: the bridge exceeds its diameter
+#
+# Mixed-sign centres on purpose (the suite's README: a snap that only shows
+# on one side of the origin is invisible in a single quadrant).
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled). Pad-relative,
+# the spoke edges of the tall pad lie on x = +-0.115 AND y = +-0.115: every
+# spoke is 0.23 wide, the pad's smaller dimension, so its cross has its four
+# apexes at (+-0.115, +-0.115) and the vertical spokes are exactly as wide as
+# the pad. The wide pad's spokes lie on the same four lines. The circle's
+# apexes sit 0.15*sqrt(2) = 0.212132 mm out along its axes: 0.3 mm spokes.
+# The gap ring is unchanged -- it is still the pad grown by 0.5, so the tall
+# pad's ring runs 0.615 either side of its centre and 0.83 above and below.
+#
+# The rule, from `target/outlineprobe/kp14.py` and `kp15.py` (2026-09-03,
+# single-pad boards at `min_thickness 0.15`, every one refilled by kicad-cli
+# 10.0.5): spoke width = min(thermal_bridge_width, min(size.x, size.y)).
+#
+#   - 0.23 x 0.66 rect, bridge 0.5:  all four spokes 0.23 (edges at +-0.115)
+#   - 0.66 x 0.23 rect, bridge 0.5:  0.23, and the same at (at 0 0 90)
+#   - 0.23 x 0.66 rect, bridge 0.2:  0.2 -- a bridge narrower than the pad is
+#                                    not widened
+#   - 0.5 x 0.66 rect, bridge 0.23:  0.23 -- the pad's size is a ceiling only
+#   - 0.3 x 0.3 rect / 0.3 circle / 0.3 x 0.8 oval / 0.3 x 0.8 roundrect: 0.3
+#   - 0.4 circle thru-hole, 0.2 drill, bridge 0.5: 0.4 -- the pad's size, not
+#                                    its annulus
+#   - 0.230001 x 0.66 and 0.230003 x 0.66 rect: edges at +-0.115000 and
+#                                    +-0.115001 -- the clamped width is halved
+#                                    in integer nanometres, floor, exactly as
+#                                    the bridge is (the sibling case
+#                                    thermal-bridge-width-is-halved-in-integer-nanometres)
+#   - 0.23 x 0.66 rect at (at 0 0 30): apexes 0.115*sqrt(2) from the centre --
+#                                    the clamp is applied in the pad's frame
+#                                    before the turn
+#
+# The natural WRONG guesses this board is built to catch:
+#
+#   - **the bridge width, unclamped.** The direct reading of the zone setting:
+#     a 0.5 mm band through a 0.23 mm pad. On a fine-pitch connector row
+#     (0.4 mm pitch, foreign pads between the same-net ones) the extra 0.135 mm
+#     on each side of every spoke pours copper into the neighbouring foreign
+#     pads' voids, which is where this was first seen.
+#
+#   - **clamping across the spoke only.** The plausible refinement -- a spoke
+#     can hardly be wider than the pad edge it leaves, so clamp the vertical
+#     spokes to the pad's width and the horizontal ones to its height. The
+#     tall pad refutes it: its horizontal spokes leave a 0.66 mm edge and come
+#     back 0.23 wide all the same. That is why the tall and wide pads are both
+#     here: an implementation that clamps per axis is wrong on two spokes of
+#     each and could not be told from the right one by a square pad.
+#
+#   - **a circle is different.** Its spokes run along the diagonals, not the
+#     axes, and one might expect the clamp to read something else off a round
+#     pad. It reads the diameter.
+#
+# The perturbation widens every pad's smaller dimension to 0.6, past the
+# bridge, which puts the clamp out of reach and every spoke back at 0.5.
