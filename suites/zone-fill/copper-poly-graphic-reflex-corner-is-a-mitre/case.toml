@@ -1,0 +1,24 @@
+concept = "A filled copper `gr_poly` with a REFLEX corner is grown with a MITRE there: the pour's void boundary runs along the two offset edges to their intersection, with no arc, while every convex corner keeps the round join of `copper-poly-graphic-clears-the-pour`."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The board of `copper-poly-graphic-clears-the-pour` with its triangle replaced
+# by an arrowhead (7,9) (13,6) (10,9) (13,12): three convex corners and one
+# reflex corner at (10,9), stroke 0.6, zone clearance 0.5, max_error 0.005,
+# min_thickness 0.001 so finishing is a no-op. The offset is 0.8055 mm.
+#
+# Behaviour pinned: at (10,9) KiCad's void has ONE vertex, the intersection of
+# the offset images of the edges (13,6)->(10,9) and (10,9)->(13,12) at
+# (11.139149, 9.000000), and the three convex corners carry the sibling's
+# start-anchored 360/N arcs.
+#
+# Wrong guesses this defeats:
+#   (1) "refuse a reflex polygon" -- the zone is never graded; a corpus USB-C
+#       connector footprint carries sixteen reflex fp_polys on copper.
+#   (2) "round the reflex corner too" -- puts an arc where KiCad has a point;
+#       any arc vertex is hundreds of micrometres off the mitre.
+#   (3) "limit the mitre" -- the edges turn by 90 deg at the reflex corner,
+#       so the mitre point sits 1.139 mm from it (offset / cos(turn/2), 1.41x
+#       the offset), and KiCad keeps the whole of it; beside this case a
+#       117 deg turn (1.9x) and a 19 deg dent (1.01x) were measured whole too.
