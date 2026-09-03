@@ -7,9 +7,10 @@ extra   = ["refill"]
 # own solid-connected pad, min_thickness 0.001 so finishing is a no-op:
 #
 #   - Upper pair: A (uuid 1111...) x 2..8 and B (uuid ffff...) x 6..12, both
-#     y 11..18. A priority-0 GND pour P0 (x 2..5, y 11..18) overlaps only A --
+#     y 11..18. A priority-0 GND pour P0 (x 2..5, y 11.5..18) overlaps only A --
 #     the LOSER of the tie-break. KiCad: A = A minus B's fill (x 2..6), B whole,
-#     P0 = P0 minus A (empty, it is inside A).
+#     P0 = P0 minus A (empty, it is inside A). P0 starts at y 11.5 so no two
+#     pours share a lowest drawn point.
 #   - Lower pair: C (uuid 1111...) x 2..8 and D (uuid ffff...) x 6..12, both
 #     y 2..9. A priority-0 GND pour Q0 (x 9..12, y 2..9) overlaps only D --
 #     the WINNER. KiCad: C = C minus D's fill (x 2..6), D whole, Q0 empty.

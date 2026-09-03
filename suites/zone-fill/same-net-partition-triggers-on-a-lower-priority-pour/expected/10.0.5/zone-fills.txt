@@ -4,12 +4,11 @@ zone 0 net "GND" layers "F.Cu"
 zone 1 net "GND" layers "F.Cu"
   no fill
 zone 2 net "GND" layers "F.Cu"
-  fill 0 layer "F.Cu" points 6
+  fill 0 layer "F.Cu" points 5
     xy 6 18
     xy 5 18
     xy 2 18
     xy 2 11
-    xy 5 11
     xy 6 11
 zone 3 net "GND" layers "F.Cu"
   fill 0 layer "F.Cu" points 4

@@ -1,4 +1,4 @@
-concept = "Island removal turns same-net equal-priority pours from overlapping into a partition. Once island removal actually DELETES a filled area from a pour, that pour is re-filled as its own copper minus the filled copper of every same-net equal-priority pour with a lexically larger uuid, at ZERO clearance and AFTER the min_thickness finishing -- and the change cascades: a pour whose copper shrank in turn clips every smaller-uuid same-net pour it overlaps. A pour that loses nothing and outranks everything it touches is untouched."
+concept = "Island removal is one of two things that turn same-net equal-priority pours from overlapping into a partition (the other is a same-net pour of another priority under either of them, pinned by same-net-partition-triggers-on-a-lower-priority-pour). Once island removal actually DELETES a filled area from a pour, that pour is re-filled as its own copper minus the filled copper of every same-net equal-priority pour with a lexically larger uuid, at ZERO clearance and AFTER the min_thickness finishing -- and the change cascades: a pour whose copper shrank in turn clips every smaller-uuid same-net pour it overlaps. A pour that loses nothing and outranks everything it touches is untouched."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
@@ -24,7 +24,7 @@ extra   = ["refill"]
 #
 # The VCC track at y = 14 severs MID's tab from MID's body. The tab holds no pad
 # and touches nothing else, so island removal DELETES it, and that deletion is
-# the whole trigger. The board's only GND anchors are the pad at (3, 6), inside
+# the whole trigger on this board (nothing here has another priority). The board's only GND anchors are the pad at (3, 6), inside
 # LOW alone, and the pad at (25, 6), inside MID and TOP.
 #
 # TOP sets `(connect_pads no ...)`, so the pad at (25, 6) is cleared out of TOP

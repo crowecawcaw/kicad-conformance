@@ -1,4 +1,4 @@
-concept = "Two copper pours of the SAME net at EQUAL priority do not arbitrate. Each fills its whole drawn region, the two simply overlap, and they are not merged into one polygon -- no tie-break is applied, not by uuid and not by declaration order. This holds even where one pour's fill has a hole the other floods: the pours share that copper rather than partitioning it."
+concept = "Two copper pours of the SAME net at EQUAL priority do not arbitrate while island removal deletes nothing from them and neither overlaps a same-net pour of another priority. Each fills its whole drawn region, the two simply overlap, and they are not merged into one polygon -- no tie-break is applied, not by uuid and not by declaration order. This holds even where one pour's fill has a hole the other floods: the pours share that copper rather than partitioning it."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
