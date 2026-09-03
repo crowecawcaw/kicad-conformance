@@ -1,0 +1,21 @@
+concept = "A FILLED `fp_poly` on a copper layer, owned by a footprint, is copper the pour clears exactly as a board `gr_poly` is: its footprint-frame points are placed by the footprint's `(at x y angle)` -- translation AND rotation -- and the placed ring is grown by `clearance + stroke_width/2 + fill_epsilon/2 + max_error` with round joins."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The board of `footprint-graphic-clears-the-pour` with the `fp_circle` swapped
+# for the oblique triangle of `copper-poly-graphic-clears-the-pour`, drawn in
+# the FOOTPRINT frame: (-3,-4) (2,-3) (-1,1), stroke 0.6, filled, on F.Cu, in a
+# footprint at (11,11) rotated 90 deg. One GND pour on F.Cu (2..18), clearance
+# 0.5, min_thickness 0.001 so finishing is a no-op. The offset is
+#   0.5 + 0.3 + 0.0005 + 0.005 = 0.8055 mm
+# around the PLACED triangle.
+#
+# Wrong guesses this defeats:
+#   (1) "footprint polygons on copper are decorative" -- floods solid. RED on
+#       sight; a corpus USB-C connector footprint carries sixteen of them.
+#   (2) "place by translation only" -- the triangle lands unrotated about
+#       (11,11); every void vertex is millimetres off.
+#   (3) "grow it like a pad's clearance shape" -- circumscribed, bisector-
+#       centred corner arcs; the sibling `copper-poly-graphic-clears-the-pour`
+#       says why the oblique triangle can tell.
