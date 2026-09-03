@@ -1,0 +1,33 @@
+concept = "Two same-net pads whose thermal gap rings overlap keep the spokes that face each other, fused into one bar between the pads, even where no pour copper reaches either spoke -- and each bar runs whole through the OTHER pad's gap ring: a spoke is cut by its own ring's voids, never by a neighbour's."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The geometry of a corpus board (plant133 z0, whose pour is only as tall as
+# its pads and comes back EMPTY from an engine that needs pour copper at a
+# spoke's end): a 1.65 mm-wide GND pour (x 9.2..10.85, y 2..18) over two
+# same-net SMD pads, 0.9 x 0.95 at (9.94, 8.6) and 1.175 x 1.45 at
+# (10.06, 10.63), thermal gap 0.5, bridge 0.5, min_thickness 0.25. The gap
+# rings span the pour's whole width, so every east and west spoke ends in
+# the pour's edge clearance and is deleted (the rule pinned by
+# thermal-spoke-into-copper-thinner-than-min-thickness-is-deleted); the
+# outward north and south spokes reach the pour above and below the pads and
+# stay. The two spokes facing each other, the upper pad's south and the lower
+# pad's north, end in each other's ring with no pour copper anywhere near --
+# and they stay too, fused into one 0.5 mm-wide bar from pad to pad, jogged
+# by the pads' 0.12 mm x offset, each running whole through the other pad's
+# ring.
+#
+# Behaviour pinned, and the wrong answers it separates:
+#   (1) "a spoke needs pour copper to survive" -- deletes the facing pair and
+#       leaves two stubs; on plant133 it deletes everything.
+#   (2) "each relief's void is its ring minus its own spokes" -- the upper
+#       pad's bar is cut where it crosses the lower pad's ring and vice versa,
+#       leaving concave ring arcs 0.12 mm deep at the jog's two outer corners
+#       where KiCad has the bars' union.
+#
+# What the bars' ENDS look like where they poke into the other ring is also
+# in this answer: a flat max_error + fill_epsilon/2 + min_thickness/2 past
+# the bar's own ring extent, with fillets of radius min_thickness/2 minus the
+# fill epsilon at the two far corners -- the opening's dilate of a bar it
+# never deflated.
