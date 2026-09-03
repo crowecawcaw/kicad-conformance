@@ -1,0 +1,27 @@
+concept = "The copper a copper-pour keepout restores after the min_thickness opening lies inside the pour's own outline: a pour drawn entirely inside a keepout is empty, and a keepout that sticks out past a pour's edge adds no copper beyond that edge."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: two same-net pours on F.Cu, each with one solid-connected 1 mm
+# square pad and one copper-pour keepout, at min_thickness 0.24.
+#
+#   - Pour A (2..6 square) is drawn ENTIRELY inside keepout KA (1..7). Its pad
+#     at (1, 4) straddles KA's left edge, so any copper an engine hangs on the
+#     outside of KA is anchored and survives island removal.
+#   - Pour B (10..18 x 2..10) has keepout KB (16..19 x 6..12) over its
+#     bottom-right corner; KB reaches 1 mm past B's right edge and 2 mm past
+#     its top edge. B's pad at (12, 4) anchors it.
+#
+# Behaviour pinned: A is empty. B is its outline with KB's overlap cut out and
+# nothing else -- no copper on the far side of x = 18 or y = 10 along KB's
+# outside, which is where an engine that restores the keepout's sharp boundary
+# by re-adding a band of width min_thickness around it, without bounding that
+# band to the pour, leaves a 0.238 mm strip.
+#
+# Why this board can tell: the band's width is min_thickness minus twice the
+# fill epsilon, and on both pours it falls entirely (A) or partly (B) outside
+# the pour's drawn outline, so the restored copper and the pour's own copper
+# are separable by a mm, not a nanometre. The natural wrong answer is the
+# esp32-c3-devkit-lipo z29 shape: a teardrop pour inside a keepout coming back
+# as a 23.4 um frame around the keepout.

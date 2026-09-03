@@ -1,0 +1,31 @@
+zones 4
+zone 0 net "GND" layers "F.Cu"
+  no fill
+zone 1 net "GND" layers "F.Cu"
+  fill 0 layer "F.Cu" points 22
+    xy 17.945336 2.018891
+    xy 17.989246 2.069566
+    xy 18 2.119
+    xy 18 5.881
+    xy 17.981109 5.945336
+    xy 17.930434 5.989246
+    xy 17.881 6
+    xy 16 6
+    xy 16 6.000001
+    xy 16 9.881
+    xy 15.981109 9.945336
+    xy 15.930434 9.989246
+    xy 15.881 10
+    xy 10.119 10
+    xy 10.054664 9.981109
+    xy 10.010754 9.930434
+    xy 10 9.881
+    xy 10 2.119
+    xy 10.018891 2.054664
+    xy 10.069566 2.010754
+    xy 10.119 2
+    xy 17.881 2
+zone 2 net none layers "F.Cu"
+  no fill
+zone 3 net none layers "F.Cu"
+  no fill
