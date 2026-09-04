@@ -1,0 +1,59 @@
+concept = "A step in a pour's edge shorter than the min_thickness opening radius is neither a convex corner the opening rounds nor a concave one it restores on its own: from the tangency on the upper edge the boundary runs as one chord down onto the lower edge's line, meets it a couple of microns before the drawn foot of the wall, and follows that line through the foot. The same wall taller than the radius comes back with its foot at the drawn nanometre."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two pours, one per outer layer, with no pads, vias, tracks or second zone on
+# their layer and 2 mm clear of Edge.Cuts, so every vertex in each answer comes
+# from the min_thickness opening alone (min_thickness 0.15 -> radius 74 um).
+#
+# Each pour is a quadrilateral whose top edge runs at slope 1/10 from (10, 12)
+# to (30, 14), then steps INTO the copper along the perpendicular (-1, 10) and
+# continues parallel to itself. The step makes a convex corner at (30, 14) and a
+# reflex corner at the foot of the wall. Oblique on purpose: an axis-aligned
+# step cannot tell a construction in the board frame from one in the edge's.
+#
+#   F.Cu  wall 20.1 um  (foot at 29.998, 14.02)   shorter than the radius
+#   B.Cu  wall 301.5 um (foot at 29.97,  14.3)    taller than the radius: control
+#
+# Measured against kicad-cli 10.0.5 (2026-09-04, this file, `pcb drc
+# --refill-zones --save-board`):
+#
+# F.Cu, the short wall. From the tangency point on the upper edge
+#
+#     (29.9495, 13.99495)        50.7 um before the convex corner
+#
+# the boundary is ONE chord to
+#
+#     (29.995785, 14.019778)     on the lower edge's line, 2.2 um before the foot
+#
+# then the drawn foot itself, (29.998, 14.02), written as two vertices one
+# nanometre apart -- (29.998, 14.019999) and (29.998, 14.020000) -- and then the
+# lower edge. The tangency is where a disk of the opening radius that also
+# passes through the foot touches the upper edge, so the chord is the inscribed
+# facet of that disk's arc; nothing between the tangency and the foot is a
+# vertex of the input.
+#
+# B.Cu, the tall wall. The convex corner is rounded by a full arc ending on the
+# wall at (29.992636, 14.073632) and the foot is restored at its drawn
+# nanometre, as a cluster of three -- (29.969999, 14.299999),
+# (29.970000, 14.299999), (29.970000, 14.300000). The cluster is the same
+# sub-nanometre residue `min-thickness-restores-a-concave-corner-exactly`
+# records on its 100-degree apex, and is NOT a rule (that case's
+# `apex-moved-one-nanometre` perturbation deletes it).
+#
+# The natural WRONG guesses, both of which this board separates from the
+# answer:
+#
+# 1. The foot is a concave corner, so it is restored by its own construction
+#    (the erode's tangent cap collapsing back onto the drawn vertex). Applied
+#    when the wall is shorter than the radius, that construction is only half
+#    present -- the slab of the upper edge swallows the far half of the cap --
+#    and finishing it anyway puts the vertex before the foot at
+#    (29.997597, 14.020751), 0.75 um INSIDE the copper, off the lower edge's
+#    line; on the board this case was cut from (a 3.8 um step) the same error
+#    is 7 um. The foot comes back because the lower edge's line runs through
+#    it, not because the corner was rebuilt.
+# 2. The convex corner is rounded by an arc of the radius tangent to both of
+#    its edges. There is no room on a 20 um wall; the arc that exists is the
+#    one through the foot, and only its first facet is drawn.
