@@ -1,0 +1,56 @@
+concept = "Two pours of different nets on one layer, at the same priority and sharing one `(uuid ...)`, that come within 1 mm of each other are both filled with NOTHING -- and so is every lower-ranked pour of another net within 1 mm of either, while a pour farther away, of the same net as one of them, or that outranks them is filled as usual. An implementation that arbitrates the pair by declaration order fills both; one that treats the uuid as a mere label fills all five."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Five pours on F.Cu inside a (0,0)..(20,20) outline, every one
+# `connect_pads (clearance 0.2)`, `min_thickness 0.15`, `island_removal_mode
+# 0`, each with a pad of its own net inside it:
+#
+#     A  GND  priority 2  (2,6)..(9,14)       uuid 1111...1111
+#     B  VCC  priority 2  (9.5,6)..(18,14)    uuid 1111...1111   0.5 mm east of A
+#     C  GND  priority 1  (11,2)..(18,5.2)    unique            0.8 mm below B
+#     D  VCC  priority 1  (2,2)..(8,5.2)      unique            0.8 mm below A
+#     E  GND  priority 1  (2,15.5)..(18,18)   unique            1.5 mm above both
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled): A, B, C and
+# D come back with no filled polygon at all; E is filled.
+#
+# The rule, from `target/outlineprobe/kp16.py`..`kp26.py` (2026-09-03, some
+# fifty two- and three-zone boards refilled by kicad-cli 10.0.5, the first
+# witness a KiCad-4 board whose every zone carries the all-zero uuid): a
+# pour waits for every pour of ANOTHER net on its layer that outranks it --
+# higher priority, or equal priority and a uuid that is not smaller -- and
+# whose outline comes within 1 mm of its own; two pours sharing a uuid at
+# equal priority therefore wait for each other, neither is ever filled, and
+# a pour waiting on one that is never filled is not filled either.
+#
+#   - the gap: 0.99 mm apart both empty, 1.00 mm apart both filled, at zone
+#     clearance 0.2 and 0.5, min_thickness 0.15 and 0.5, hatch 0.5 and 0.3
+#     -- a fixed millimetre, measured between outlines (bounding boxes 0.5
+#     apart with outlines 6 mm apart: filled);
+#   - same net: filled, whatever the uuid or the gap;
+#   - different priorities: filled, the lower one clipped as usual;
+#   - the pair on two different layers, overlapping: filled;
+#   - a third pour within 1 mm of one member: empty when the member outranks
+#     it (lower priority, or equal priority with a smaller uuid, whatever its
+#     net as long as it differs from the member's), filled when it outranks
+#     the member (higher priority, or equal priority with a larger uuid) or
+#     shares the member's net; and a pour within 1 mm of THAT one, of another
+#     net and outranked by it, is empty in turn;
+#   - uuids absent: KiCad assigns fresh ones and fills everything.
+#
+# The natural WRONG guesses:
+#
+#   - **declaration order breaks the tie.** The obvious fallback for an equal
+#     uuid, and what a partition by index would do: both pours fill, one
+#     clipped by the other. KiCad fills neither.
+#   - **only the pair is affected.** C and D touch no pour of their own net's
+#     rival and overlap nothing; they are empty only because the pour that
+#     outranks them within 1 mm never fills. E is here to show the reach ends:
+#     1.5 mm away it fills.
+#   - **the pair merely lose the overlap.** A and B do not overlap at all --
+#     0.5 mm apart -- and still lose everything.
+#
+# The perturbation changes the last digit of A's uuid, making the two
+# distinct: every pour fills.
