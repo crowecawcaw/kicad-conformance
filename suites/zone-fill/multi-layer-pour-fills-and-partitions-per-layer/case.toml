@@ -1,0 +1,40 @@
+concept = "A pour drawn on more than one copper layer is filled once per layer, each layer against that layer's own copper, and on each layer it is a full member of the same-net equal-priority partition: it wins or loses its overlap by the uuid tie-break exactly as a single-layer pour does, and only on the layers it shares with the other member."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two independent pairs of GND pours, priority 1, min_thickness 0.001 so
+# finishing is a no-op, every pour solid-connected to its own pad(s) on every
+# layer it covers. In each pair one member is drawn on BOTH copper layers
+# (`(layers "F.Cu" "B.Cu")`) and the other on B.Cu only, so the two share
+# only B.Cu:
+#
+#   - Upper pair, y 11..18: M1 (uuid ffff..., F.Cu + B.Cu) x 6..12 and
+#     S1 (uuid 1111..., B.Cu) x 2..8. M1 has the larger uuid, so it WINS:
+#     S1 = S1 minus M1's B.Cu fill (x 2..6), M1 whole on both layers. A
+#     priority-0 GND pour P0 (x 9..12, y 11.5..18, B.Cu) overlaps only M1 --
+#     the trigger, read through the multi-layer member -- and is itself
+#     clipped empty by it.
+#   - Lower pair, y 2..9: M2 (uuid 1111..., F.Cu + B.Cu) x 2..8 and
+#     S2 (uuid ffff..., B.Cu) x 6..12. M2 has the smaller uuid, so it LOSES,
+#     but only where the two meet: M2 on B.Cu = M2 minus S2's fill (x 2..6);
+#     M2 on F.Cu, where S2 does not exist, is whole. S2 whole. A priority-0
+#     GND pour Q0 (x 2..5, y 2.5..9, B.Cu) overlaps only M2 and is clipped
+#     empty.
+#
+# A foreign-net SMD pad ("SIG", F.Cu only) sits inside M1 at (9, 13), so M1's
+# F.Cu fill carries a clearance void its B.Cu fill does not. P0 and Q0 start
+# 0.5 mm above their pair so no two pours share a lowest drawn point.
+#
+# Wrong answers this separates:
+#   (1) "a multi-layer pour is not a competitor on any layer" -- S1 whole and
+#       M2's B.Cu whole. Measured on a real four-layer GNDREF plane at
+#       priority 0 whose B.Cu covered a B.Cu-only GNDREF pour of the same
+#       priority entirely: KiCad filled the single-layer twin with nothing.
+#   (2) "a multi-layer pour is one polygon copied to every layer" -- M1's
+#       F.Cu fill has the SIG void and its B.Cu fill does not; M2's B.Cu is
+#       clipped and its F.Cu is not.
+#   (3) "the multi-layer member always wins (or always loses) the tie" -- the
+#       two pairs answer opposite ways on the uuid alone.
+#   (4) "the partition applies on every layer of the multi-layer member" --
+#       M2 on F.Cu would lose x 6..8 too; it keeps it.

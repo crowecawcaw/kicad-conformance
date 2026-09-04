@@ -1,0 +1,73 @@
+zones 6
+zone 0 net "GND" layers "B.Cu"
+  no fill
+zone 1 net "GND" layers "B.Cu"
+  no fill
+zone 2 net "GND" layers "B.Cu"
+  fill 0 layer "B.Cu" points 4
+    xy 6 18
+    xy 2 18
+    xy 2 11
+    xy 6 11
+zone 3 net "GND" layers "B.Cu"
+  fill 0 layer "B.Cu" points 4
+    xy 12 9
+    xy 6 9
+    xy 6 2
+    xy 12 2
+zone 4 net "GND" layers "F.Cu" "B.Cu"
+  fill 0 layer "F.Cu" points 4
+    xy 8 9
+    xy 2 9
+    xy 2 2
+    xy 8 2
+  fill 1 layer "B.Cu" points 5
+    xy 6 9
+    xy 5 9
+    xy 2 9
+    xy 2 2
+    xy 6 2
+zone 5 net "GND" layers "F.Cu" "B.Cu"
+  fill 0 layer "F.Cu" points 35
+    xy 12 18
+    xy 6 18
+    xy 6 12.452127
+    xy 7.9995 12.452127
+    xy 7.999501 13.547872
+    xy 8.005909 13.607483
+    xy 8.056204 13.742331
+    xy 8.142454 13.857546
+    xy 8.257669 13.943796
+    xy 8.392517 13.994091
+    xy 8.452127 14.0005
+    xy 9.547872 14.000499
+    xy 9.607483 13.994091
+    xy 9.742331 13.943796
+    xy 9.857546 13.857546
+    xy 9.943796 13.742331
+    xy 9.994091 13.607483
+    xy 10.0005 13.547873
+    xy 10.000499 12.452128
+    xy 9.994091 12.392517
+    xy 9.943796 12.257669
+    xy 9.857546 12.142454
+    xy 9.742331 12.056204
+    xy 9.607483 12.005909
+    xy 9.547873 11.9995
+    xy 8.452128 11.999501
+    xy 8.392517 12.005909
+    xy 8.257669 12.056204
+    xy 8.142454 12.142454
+    xy 8.056204 12.257669
+    xy 8.005909 12.392517
+    xy 7.9995 12.452127
+    xy 6 12.452127
+    xy 6 11
+    xy 12 11
+  fill 1 layer "B.Cu" points 6
+    xy 12 11.5
+    xy 12 18
+    xy 9 18
+    xy 6 18
+    xy 6 11
+    xy 12 11
