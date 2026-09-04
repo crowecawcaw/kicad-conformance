@@ -1,0 +1,17 @@
+zones 2
+zone 0 net "GND" layers "F.Cu" "B.Cu"
+  fill 0 layer "F.Cu" points 12
+    xy 8.978326 6.021674
+    xy 9 6.074
+    xy 9 13.926
+    xy 8.978326 13.978326
+    xy 8.926 14
+    xy 2.074 14
+    xy 2.021674 13.978326
+    xy 2 13.926
+    xy 2 6.074
+    xy 2.021674 6.021674
+    xy 2.074 6
+    xy 8.926 6
+zone 1 net "VCC" layers "B.Cu"
+  no fill

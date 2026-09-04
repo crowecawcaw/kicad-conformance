@@ -1,0 +1,59 @@
+concept = "The mutual wait two equal-priority pours of different nets enter when they share one `(uuid ...)` is a PER-LAYER thing. A pour drawn on `(layers \"F.Cu\" \"B.Cu\")` whose uuid twin exists only on B.Cu is filled with nothing on B.Cu -- and on F.Cu, where the twin does not exist, it is filled exactly as it would be with distinct uuids. An implementation that keys the starvation on the zone gives it no filled polygon at all; one that keys it on the zone-layer, but tests the wait against any layer the two pours share, does the same."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two pours inside a (0,0)..(20,20) outline, both priority 2, both
+# `connect_pads yes`, `min_thickness 0.15`, `island_removal_mode 0`, both
+# carrying the SAME uuid 1111...1111, and 0.5 mm apart:
+#
+#     A  GND  (layers "F.Cu" "B.Cu")  (2,6)..(9,14)
+#     B  VCC  (layer  "B.Cu")         (9.5,6)..(18,14)
+#
+# They share B.Cu and nothing else. A has an anchor pad of its own net on
+# each of its layers -- GND SMD pads at (5,10) on F.Cu and on B.Cu -- and B
+# has a VCC SMD pad at (15,10) on B.Cu, so `island_removal_mode 0` cannot be
+# what empties anything here. The pads are SOLID-connected (`connect_pads
+# yes`) on purpose: a thermal relief would put a ring-shaped void in each
+# fill, and the seam KiCad runs from a void to the pour's edge is a separate
+# behaviour with a case of its own
+# (`zone-fill/hole-cut-bridge-splits-the-far-run-at-the-voids-ordinates`) --
+# it has no bearing on which layers fill, and leaving it out keeps this case
+# about one thing.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled, 2026-09-04):
+#
+#     A  (filled_polygon (layer "F.Cu"))  one ring, 12 vertices
+#        (filled_polygon (layer "B.Cu"))  ABSENT
+#     B  no filled polygon at all
+#
+# and that F.Cu ring is vertex-for-vertex the ring the same board produces
+# when B's uuid is changed by one digit -- the control run, in which A fills
+# on both of its layers and B fills too. So the shared uuid costs A exactly
+# the layer it shares with B, and costs it nothing on the layer it does not.
+#
+# The rule this refines is the one
+# `zone-fill/zones-sharing-a-uuid-at-equal-priority-fill-nothing` pins: a pour
+# waits for every pour of another net ON ITS LAYER that outranks it (higher
+# priority, or equal priority and a uuid that is not smaller) and whose
+# outline comes within the board's widest clearance, floored at 1 mm; two
+# pours sharing a uuid at equal priority each outrank the other, so neither
+# ever fills. That case pinned the pair on ONE layer and, separately, the
+# pair on two layers that do not meet (both fill). This one is the case
+# between: one pour on two layers, its twin on one of them.
+#
+# The natural WRONG guesses:
+#
+#   - **the starvation is a property of the zone.** The reading the pinned
+#     case's board cannot separate, because every pour on it is single-layer:
+#     A would come back with no filled polygon on either layer. It keeps
+#     F.Cu.
+#   - **the wait is per zone-layer but the RIVAL is any pour sharing any
+#     layer with the zone.** A's F.Cu would wait on B (they do share B.Cu, as
+#     zones) and empty. It does not: the rival must be drawn on the very
+#     layer being filled.
+#   - **the starvation propagates between a pour's own layers.** A is starved
+#     on B.Cu; if that made A "a pour that never fills", its F.Cu would go
+#     too.
+#   - **a multi-layer pour is one polygon copied to every layer.** Then A's
+#     two layers could not disagree at all.
