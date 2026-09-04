@@ -1,0 +1,109 @@
+concept = "The second min_thickness finishing a lower-priority pour receives after it is clipped does not return its clearance voids as it found them, and what it rewrites is the ARC. One board carries the same 4 mm round pad twice, held off by the same 1 mm clearance: inside the once-finished winning pour every vertex of its void lies on the 56-gon KiCad built it as, to 2.5 nm; inside the twice-finished losing pour the same polygon is departed from at ten spans, two of them by 28 micrometres, and the void GROWS -- two of its 56 vertices are gone, replaced by a chord that cuts further into the copper. The same board carries the same 4 mm SQUARE pad twice, and its void keeps its four straight walls at the same nanometre in both pours."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two overlapping pours on F.Cu, different nets, different priorities -- the
+# arrangement `zone-fill/priority-clip-refinishes-the-losing-pour` measures --
+# plus four foreign-net pads, one pair of shapes per pour:
+#
+#   GND, priority 2 (the WINNER)  -26,-26 .. -2,26   round pad @(-14, 6)
+#                                                    square pad @(-14,-12)
+#   VCC, priority 1 (the LOSER)    -8,-20 .. 26,20   round pad @( 14, 6)
+#                                                    square pad @(  4,-12)
+#
+# They overlap on -8 <= x <= -2. Every pad is `SIG`, a net no zone belongs to,
+# so each is a plain clearance void in whichever pour it sits in and nothing
+# connects to it. min_thickness is 1 mm on both pours and the zone clearance is
+# 1 mm on both, so the two round voids are congruent by construction and the two
+# square voids are congruent by construction -- same radius, same tessellation,
+# same facet count, built by the same code from the same numbers.
+#
+# THE PADS ARE 12 mm FROM THE CLIP. The nearest pad edge to the overlap band is
+# 3 mm from it and the voids are further; the loser's own drawn corners, which
+# `priority-clip-refinishes-the-losing-pour` shows come back double-rounded, are
+# 12 mm and more away. Nothing here touches the pads except the finishing.
+#
+# The board straddles the origin, because the finishing's own snapping is
+# origin-relative (`zone-fill/opening-mitre-truncates-toward-the-file-origin`)
+# and a one-quadrant board cannot tell a translation-invariant answer from
+# KiCad's.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, `pcb drc --refill-zones
+# --save-board`).
+#
+# The round pad is 4 mm across and the clearance is 1 mm, so KiCad builds the
+# void as a regular 56-gon about the pad centre: EDGE normals at multiples of
+# 360/56 deg, inradius 3.000500 mm, circumradius 3.005228 mm.
+#
+#   * IN THE WINNER, FINISHED ONCE, IT IS THAT POLYGON. All 98 recorded
+#     vertices of the void lie on it; the largest departure of any of them from
+#     its own supporting edge is 2.5 nm, at two vertices. Nothing else moves.
+#
+#   * IN THE LOSER, FINISHED TWICE, IT IS NOT. Its 129 recorded vertices depart
+#     from the same polygon at TEN spans:
+#
+#         span (deg)            max departure   vertices
+#         -112.706 .. -112.701      +1681 nm       2
+#          -75.657                 +27845 nm       1
+#          -35.336 ..  -35.239       +196 nm       2
+#           28.731 ..   28.823       +227 nm       2
+#           29.217                   +225 nm       1
+#           60.783                   +225 nm       1
+#           61.177 ..   61.269       +227 nm       2
+#          104.479 ..  105.291     +28662 nm       3
+#          125.239 ..  125.336       +196 nm       2
+#          163.851                   +152 nm       1
+#
+#     Every departure is POSITIVE: the twice-finished void is bigger than the
+#     polygon everywhere it differs from it, never smaller. At the 104 deg span
+#     the two polygon vertices at 106.0714 deg and 99.6429 deg are ABSENT and
+#     the boundary runs instead
+#
+#         (12.849951, 8.776470)   <- the 112.5 deg polygon vertex, kept
+#         (12.998070, 8.828299)
+#         (13.128342, 8.873883)
+#         (13.204900, 8.908140)
+#         (13.216370, 8.914479)
+#         (13.242328, 8.934117)   <- 3.030365 mm from the pad centre
+#         (13.831366, 9.000486)
+#
+#     reaching 25.1 um beyond the polygon's own circumradius. The polygon is not
+#     re-tessellated at a different phase or a different facet count -- most of
+#     its 56 vertices are still there at their own nanometre. It is torn open at
+#     ten places.
+#
+#   * THE SQUARE PAD'S VOID KEEPS ITS WALLS IN BOTH POURS. 4 mm square, 1 mm
+#     clearance: the four straight walls sit 3.000500 mm from the pad centre in
+#     the winner and 3.000500 mm from the pad centre in the loser, to the
+#     nanometre -- x = -17.000500 and -10.999500 about the pad at (-14,-12),
+#     x = 0.999500 and 7.000500 about the pad at (4,-12). Only its rounded
+#     corners move, and by under a micrometre. So the second finishing does not
+#     displace a void; it rewrites the ARC FACETS of one, which is why the round
+#     pad -- whose void is nothing but arc -- carries the whole effect.
+#
+# THE NATURAL WRONG GUESSES this board is built against:
+#
+#   - That the second finishing is idempotent, i.e. that opening an
+#     already-opened boundary returns it. In exact arithmetic it does, and an
+#     implementation that opens twice gets the WINNER right (its void is the
+#     polygon, and one opening leaves it alone) and the loser wrong. That is the
+#     answer this board exists to separate, and it is separated by the PAIR, not
+#     by either pour alone: a case with only a clipped pour cannot distinguish
+#     "our opening is wrong" from "our second opening is wrong".
+#
+#   - That the double finishing only shows up on a pour's DRAWN corners. It is
+#     what `priority-clip-refinishes-the-losing-pour` records, and it is 12 mm
+#     from anything on this board that moves. A void of foreign copper is
+#     rewritten too, and by 28 um -- comparable to the 36 um of extra setback
+#     that case measures on a 0.5 mm corner rounding, on geometry an order of
+#     magnitude smaller.
+#
+#   - That it is a re-tessellation, i.e. that the second opening rebuilds the
+#     arc at a new phase or a new facet count. Most of the fifty-six vertices
+#     survive unmoved; an answer that re-tessellates misses all fifty-six.
+#
+#   - That it is proportional to the arc's radius, or to the clearance. The
+#     square pad's void has corner arcs of exactly the 1 mm clearance radius and
+#     they move by under a micrometre, while the round pad's 3.0005 mm arc moves
+#     by 28.

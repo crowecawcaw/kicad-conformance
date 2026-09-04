@@ -1,0 +1,50 @@
+concept = "A thermal-relief spoke is kept only when the pour's opened copper reaches the spoke's centreline just past the relief ring, and the copper a HIGHER-PRIORITY FOREIGN POUR takes away counts as missing for that test: where the winning pour's clearance clip leaves nothing past the ring, the spoke is deleted whole rather than truncated at the clip."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Geometry: a 40 x 28 mm GND pour at (0,0)-(40,28) on a 44 x 32 board, priority
+# 1, min_thickness 0.25, connect_pads clearance 0.2, thermal_gap 0.5 and
+# thermal_bridge_width 0.5, holding three identical 1.6 x 1.6 mm SMD GND pads at
+# x = 22 and y = 6, 14 and 22. Each relief ring is the pad grown by the gap, so
+# it spans x 20.7..23.3, and the four spokes are 0.5 mm bars on the pad's axes.
+#
+# A VCC pour at priority 2 overlaps the GND pour's right-hand side. Its left
+# edge is a staircase, one tread facing each pad: x = 23.35 opposite the pad at
+# y = 6, x = 23.6 opposite y = 14 and x = 24.5 opposite y = 22. The VCC pour
+# runs from y = -1 to 29 and out to x = 41, past the GND pour on all three
+# sides, so the clip inside the GND pour is a bare vertical seam with no corner
+# in it. The GND pour is the loser and is clipped by the VCC pour's filled
+# copper grown by max(clearance) + max_error + half the fill epsilon = 0.2055,
+# which puts the seam at x = 23.1445, 23.3945 and 24.2945 respectively -- 0.155
+# INSIDE the first pad's ring, 0.0945 past the second's, and 0.9945 past the
+# third's.
+#
+# Measured against kicad-cli 10.0.5 (2026-09-04) with
+# `pcb drc --refill-zones --save-board`:
+#   - pad (22,6):  the +x spoke is gone entirely. No stub survives inside the
+#     ring; the ring simply opens into the clip seam.
+#   - pad (22,14): the +x spoke is gone entirely, even though the clip never
+#     touches its ring -- 0.0945 mm of GND copper stands between the ring and
+#     the seam, and it is thinner than the min_thickness opening, so nothing
+#     the spoke could reach survives.
+#   - pad (22,22): all four spokes are present. The clip is 0.9945 mm past the
+#     ring, far enough that the opened copper crosses the centreline.
+#   - the VCC pour itself is untouched by any of this.
+#
+# The middle pad is the discriminator. Two natural wrong answers both keep or
+# both delete without it:
+#   - truncating the bar at the clip instead of deleting the spoke -- the
+#     answer of an engine that applies the priority clip after building the
+#     relief. It leaves a 0.5 mm-wide stub reaching from the pad to the seam at
+#     each of the first two pads, 1.004 mm^2 of copper KiCad does not pour.
+#   - "a clip that cuts into the ring deletes the spoke" -- a ring-overlap test
+#     rather than a reach test. It gets the first and third pads right and the
+#     middle one wrong.
+# A third pad far from any clip would not discriminate at all; the (22,22) pad
+# is here only to show the rule is not "any higher-priority pour nearby deletes
+# a spoke".
+#
+# The three pads are axis-aligned on purpose: what is at stake is which SET the
+# reach test is asked about, not how a vertex is snapped, and an oblique pad
+# would put a thermal-corner snap between the reader and the answer.
