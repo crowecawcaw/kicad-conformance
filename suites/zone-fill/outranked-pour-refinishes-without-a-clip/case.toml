@@ -1,0 +1,89 @@
+concept = "The second min_thickness finishing a lower-ranked pour gets is triggered by the mere PRESENCE of a nearby pour that outranks it, not by that pour taking any copper. Two pours of different nets that do not overlap, are 0.8 mm apart and clip each other by nothing at all: the outranked one still comes back with every drawn corner rounded TWICE, while the pour that outranks its neighbour rather than being outranked by it is rounded once. Rank is the usual one: a higher priority, or an equal priority and a lexically larger uuid. The trigger also has a reach: on a board of nothing but these pairs it switches between a 0.999 mm gap and a 1.000 mm one."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Eight pours on F.Cu, four pairs, eight different nets, and nothing else on
+# the board: no pads, no vias, no tracks, no graphics, and no two pours
+# overlap. Every vertex in every answer comes from the min_thickness finishing
+# alone, so the only thing that varies across the four pairs is how many times
+# that finishing ran.
+#
+# `min_thickness` is 1 mm on all eight, so one rounding of a convex corner is an
+# arc of radius min_thickness/2 - 0.001 = 0.499 mm and sets the answer back
+# 499000 nm along BOTH of the corner's edges. That radius is large on purpose:
+# it puts the difference between one rounding and two at the micrometre rather
+# than the nanometre. The board straddles the origin so no rule can be read off
+# one quadrant.
+#
+#   pair 1  P1LOW   priority 1, uuid 00000000...   -20,-20 .. 0,-6
+#           P1HIGH  priority 1, uuid ffffffff...   -20,-5.2 .. 0,-1.2
+#           0.8 mm apart; P1HIGH wins the equal-priority tie on its uuid.
+#
+#   pair 2  P2HIGH  priority 1, uuid ffffffff...     4,-20 .. 24,-6
+#           P2LOW   priority 1, uuid 00000000...     4,-5.2 .. 24,-1.2
+#           the same 0.8 mm gap with the ranks the other way up, so the pour
+#           that is rounded twice is the LOWER one of the pair either way and
+#           not, say, the lower one on the page.
+#
+#   pair 3  P3LOW   priority 1, uuid 00000000...   -20,2 .. 0,16
+#           P3HIGH  priority 1, uuid ffffffff...   -20,17 .. 0,21
+#           exactly 1.0 mm apart -- the reach, and it is not inclusive.
+#
+#   pair 4  P4LOW   priority 1, uuid ffffffff...     4,2 .. 24,16
+#           P4HIGH  priority 3, uuid 00000000...     4,16.8 .. 24,20.8
+#           0.8 mm apart, outranked by PRIORITY while carrying the LARGER
+#           uuid, so the rule cannot be "the smaller uuid is finished twice".
+#
+# Measured against kicad-cli 10.0.5 (2026-09-04, this exact file, `pcb drc
+# --refill-zones --save-board`). Eight pours, eight single filled areas:
+#
+#   P1HIGH, P2HIGH, P3LOW, P3HIGH, P4HIGH   28 vertices each
+#   P1LOW, P4LOW                            39 vertices
+#   P2LOW                                   38 vertices
+#
+# The 28-vertex answers are one rounding: each corner is 6 chords set back
+# 499000 nm on both of its edges and symmetric about the bisector, e.g. P3LOW's
+# corner at the drawn (0, 16) runs (0, 15.501) ... (-0.499, 16).
+#
+# The 39-vertex answers are two. P1LOW's corner at the drawn (0, -6) sets back
+# 534689 nm along the vertical edge and 517030 nm along the horizontal one:
+#
+#     (0, -6.534689) ... (-0.517030, -6)
+#
+# and one rounding of a right angle by ANY radius sets back the same distance on
+# both edges, so 534689 against 517030 cannot be a single rounding of any size.
+# It is the same asymmetric arc-of-arcs that
+# `priority-clip-refinishes-the-losing-pour` measures on a pour that really is
+# clipped -- to the nanometre, at the same min_thickness -- and here nothing has
+# been clipped at all: P1HIGH's copper is 0.8 mm away and the clearance between
+# the two nets is 0.2 mm, so the arbitration subtracts an empty region.
+#
+# The natural WRONG guesses this is built to catch:
+#
+#   - "the second finishing is the clip's, so a pour that loses no copper is
+#     finished once." Then P1LOW, P2LOW and P4LOW all come back at 28 vertices
+#     with 499000 setbacks. They come back at 39, 38 and 39.
+#
+#   - "every pour on a board with more than one pour is finished twice." Then
+#     P1HIGH and P2HIGH would be too. They are 28-vertex single roundings, and
+#     P2HIGH sits 0.8 mm from a pour of another net exactly as P1LOW does; the
+#     only difference between them is which one outranks the other.
+#
+#   - "the reach is the clearance, or the opening radius, or unbounded." The
+#     clearance here is 0.2 mm and the opening radius 0.499 mm; on this board
+#     the switch is at 1.0 mm and is exclusive. Pair 3 is drawn at exactly
+#     1.0 mm and is rounded ONCE, at 28 vertices; this file with P3LOW's top
+#     edge moved to y = 16.001, a 0.999 mm gap and nothing else changed, brings
+#     it back at 37 (measured the same day, off-file). What this file does NOT
+#     claim is that 1 mm is the reach on every board: it is what a board of
+#     nothing but these pairs measures, and a crowded one has been seen to
+#     round a pour twice with its nearest outranking rival 2.18 mm away. The
+#     three pairs at 0.8 mm and the one at 1.0 mm are what is pinned here.
+#
+#   - "it is the uuid tie-break." Pair 4 is outranked on `priority` while
+#     holding the larger uuid, and is rounded twice.
+#
+# expected/ is not generated: a zone-fill case is graded by refilling this file
+# with kicad-cli and diffing, so the numbers above are the measurement the
+# runner reproduces.
