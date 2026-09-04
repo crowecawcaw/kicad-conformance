@@ -25,10 +25,16 @@ extra   = ["refill"]
 # equal priority therefore wait for each other, neither is ever filled, and
 # a pour waiting on one that is never filled is not filled either.
 #
-#   - the gap: 0.99 mm apart both empty, 1.00 mm apart both filled, at zone
+#   - the reach: 0.99 mm apart both empty, 1.00 mm apart both filled, at zone
 #     clearance 0.2 and 0.5, min_thickness 0.15 and 0.5, hatch 0.5 and 0.3
-#     -- a fixed millimetre, measured between outlines (bounding boxes 0.5
-#     apart with outlines 6 mm apart: filled);
+#     and at non-integer positions -- measured between outlines, Euclidean
+#     (squares offset diagonally by 0.6 mm, 0.85 apart: empty; by 0.8 mm,
+#     1.13 apart: filled; bounding boxes 0.5 apart with outlines 6 mm apart:
+#     filled). The millimetre is a floor: one pad anywhere on the board with
+#     `(clearance 1.6)` makes it 1.6 mm (1.5 apart empty, 1.7 filled), a pad
+#     with `(clearance 0.7)` leaves it at 1 mm -- the board's widest
+#     clearance, and the first witness (a KiCad-4 board whose pads carry
+#     clearances of 1.1 and 1.6 mm) has its pair 1.047 mm apart;
 #   - same net: filled, whatever the uuid or the gap;
 #   - different priorities: filled, the lower one clipped as usual;
 #   - the pair on two different layers, overlapping: filled;
