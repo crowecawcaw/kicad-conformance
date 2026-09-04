@@ -1,0 +1,56 @@
+concept = "A higher-priority pour of another net clips a lower pour by its copper as the min_thickness finishing leaves it -- copper thinner than min_thickness between two of the winner's clearance voids is gone before the clip, so the loser pours through the gap -- while the winner's own drawn corners still clip SHARP, at the clearance from the corner point and not from a rounded one. An implementation that clips against the winner's un-finished copper leaves the loser a sliver-shaped gap; one that clips against the winner's finished, round-cornered copper lets the loser wrap each corner too closely."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Two pours on F.Cu inside a (-15,-10)..(15,10) outline, both `min_thickness
+# 0.25`, both `connect_pads yes (clearance 0.2)`, `island_removal_mode 0`:
+#
+#     GND  priority 1   (-13,-8)..(3,8)      the winner
+#     VCC  priority 0   (-5,-9)..(13,9)      the loser, overlapping x -5..3
+#
+# and four SMD pads: two VCC 0.6 x 0.6 pads at (-4, -0.575) and (-4, 0.575),
+# a VCC 1 x 1 pad at (8, 0) so the loser's copper east of the winner is not
+# an island, and a GND 1 x 1 pad at (-10, -5) so the winner's is not either.
+#
+# The two VCC pads sit 1.15 mm apart, so the winner's clearance voids around
+# them (pad + 0.2, i.e. 1.0 x 1.0 each) leave a strip of GND copper 0.15 mm
+# tall between them -- thinner than `min_thickness`, so the winner's own
+# finishing erases it and its two voids become one.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, refilled). The loser:
+#
+#   - pours ONE area around the two pads, through where the strip was: the
+#     winner's merged void inset by the winner-to-loser clearance
+#     (max(0.2, 0.2) + max_error 0.005 + EPSILON/2 = 0.2055 mm); an
+#     implementation clipping against the winner's un-finished copper leaves
+#     two areas, with a 0.15 + 2 x 0.2055 mm gap between them, and then
+#     opens each of them again;
+#   - is cut back to x >= 3.2055 along the winner's east edge, and at the
+#     winner's corners (3, +-8) its boundary is the clearance arc about the
+#     CORNER POINT (radius 0.2055 mm), not about a corner the finishing had
+#     already rounded (radius min_thickness/2 - EPSILON = 0.124 mm, centred
+#     0.124 mm inside) -- clipping against the winner's finished copper puts
+#     the loser 2.27 um too close there (the two-rectangle probe of 2026-08-08,
+#     on `pcb-fill/src/priority.rs`).
+#
+# So the subtrahend is neither the raw copper nor the finished one: it is the
+# winner's copper with the finishing's erosion applied -- every strip thinner
+# than min_thickness gone -- and its convex corners still sharp. This board is
+# the first to hold both facts at once; the corpus witness was
+# stm32-rf-demo-pcb's +3.3V pour, missing a 0.94 mm^2 hexagon between two of
+# its own vias and a capacitor pad under a priority-6 GND plane.
+#
+# The natural WRONG guesses:
+#
+#   - **the winner's copper before its finishing.** Right at every corner and
+#     wrong wherever the winner had a sliver: the loser keeps a gap the winner
+#     no longer occupies.
+#   - **the winner's finished copper.** Right about the sliver, wrong at every
+#     convex corner by up to 2.27 um, and on a board whose winner has no
+#     sliver the two are told apart by nothing but those corners -- which is
+#     why the winner's corners at (3, +-8) lie inside the loser here.
+#
+# The perturbation moves the two small pads to (-4, +-0.8): the strip between
+# the voids becomes 0.6 mm, survives the finishing, and the loser comes back
+# as two separate areas around the pads.
