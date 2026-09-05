@@ -1,0 +1,51 @@
+concept = "The min_thickness opening of a zone fill returns a long straight run of the pour's own boundary as TWO edges, split at an interior point that carries no geometry and lies under a nanometre off the line. The split sits at a fixed FRACTION of the run rather than a fixed distance along it -- the same fraction on runs of 8.96 mm and 13.46 mm -- and rotating the identical wedge by 17 degrees removes it altogether."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Four pours, no pads, no vias, no text and no cutouts: each is a bare triangle whose
+# only feature is one sharp convex apex, opened by `min_thickness` 0.0254. Nothing on
+# the board is within millimetres of the point KiCad splits at, so the split cannot be
+# attributed to a clearance, a board edge or a neighbour.
+#
+#   zone       apex half-angle   bisector   flank length   KiCad / drawn-equivalent
+#   SPLIT           30 deg        180 deg      9    mm      13 vertices
+#   LONG            30 deg        180 deg     13.5  mm      13 vertices
+#   OBLIQUE         30 deg        197 deg      9    mm      12 vertices
+#   PLAIN           26 deg        180 deg      9    mm      12 vertices
+#
+# SPLIT is the subject. Its lower flank leaves the base corner at (24.223319, 13.510131)
+# and reaches the apex fan at (31.982450, 17.989868) -- a single straight run of
+# 8 959 473.1 nm. KiCad emits it as two edges meeting at (28.102885, 15.750000). That
+# point is 0.1830 nm off the line through its own two neighbours, so the copper it can
+# add or take is at most half of 0.1830 nm x 8 959 473 nm = 0.82 um^2. No vertex of
+# either answer is more than 1.0 nm from the other's boundary, and every vertex is within
+# 2.24 nm of a vertex of the other side: the split is invisible to both an area reading
+# (the whole zone differs by +5.3158 um^2, +0.15 ppm, and that is the eleven other
+# vertices' 1-2 nm displacements, not this point) and a deviation reading.
+#
+# LONG is the same wedge with its flanks half again as long, and it is what says the
+# split is a fraction and not a distance. Its run is 13 459 472.8 nm and the split lands
+# at t = 0.50000005 of it, against t = 0.50000008 on SPLIT's 8 959 473.1 nm run -- 2.25 mm
+# further along in absolute terms, the same place in relative terms, and the identical
+# 0.1830 nm off-line residue. A rule that splits a run at a fixed distance from either
+# end, or at a fixed distance from the apex, predicts neither.
+#
+# OBLIQUE is the SAME apex angle and the SAME flank length as SPLIT, turned 17 degrees.
+# KiCad returns 12 vertices: the split is gone. So the fraction is not a function of the
+# apex angle alone -- the position of the wedge on the integer lattice decides both where
+# the split lands and whether it happens at all. PLAIN, at 26 degrees and the original
+# orientation, is the other control and also has none.
+#
+# Read together the four say what the split IS: two carriers for one run, each rounded
+# to the nanometre at its own two ends, crossing inside the run. Their separation over
+# the run is sub-nanometre, so where they cross is set by the rounding residues, which
+# is why the fraction is stable in the run's length (both carriers' endpoints scale with
+# it) and unstable under rotation. It is NOT chatter: translating the whole pour by 1 nm
+# at a time, twelve times over, leaves the split at t = 0.500000 and at the same index of
+# the ring every time.
+#
+# The trap this case exists to close is reading a redundant vertex as noise. It carries no
+# area, so an area comparison cannot see it, and it is under a nanometre off its own
+# chord, so a deviation comparison cannot either. Only the vertex count and the directed
+# edge multiset move -- and they move on the majority of real pours.
