@@ -1,0 +1,40 @@
+concept = "For `(fill (smoothing chamfer) (radius N))` the `radius` is the SETBACK: the chamfer meets each of the corner's two edges N millimetres from the drawn corner, at every corner angle. It is not the radius of a tangent circle, so a chamfer is not the end chord of the fillet the same `(radius N)` would have produced -- the two agree only where the corner turns by exactly 90 degrees."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The board of `smoothing-fillet-divides-the-corner-turn-into-equal-facets`,
+# with `(smoothing fillet)` replaced by `(smoothing chamfer)` and nothing else
+# changed: one ZN pour on F.Cu, `(radius 1)`, `min_thickness 0.001` so the
+# morphological finishing is a no-op, oblique edges throughout, and a convex
+# pentagon whose corners turn by 100, 40, 55, 75 and 90 degrees --
+#
+#     (21.211520,  9.176154)  turn 100 deg
+#     (34.599786, 13.269358)  turn  40 deg
+#     (41.135455, 23.333405)  turn  55 deg
+#     (35.141749, 38.168346)  turn  75 deg
+#     (17.911490, 36.052737)  turn  90 deg
+#
+# -- so that the same `(radius 1)` is read at five different corner angles at
+# once.
+#
+# MEASURED, refilled: 13 vertices, 477.036244 mm^2. Ten of the thirteen are the
+# two chamfer ends of the five corners; the other three are midpoints of drawn
+# edges that survive as collinear vertices. At EVERY corner both chamfer ends
+# are 1.000000 mm from the drawn corner along the drawn edge, and the corner's
+# turn is split into two equal halves, 50/50, 20/20, 27.5/27.5, 37.5/37.5 and
+# 45/45 degrees. The drawn corner vertex itself is absent from all five.
+#
+# The wrong guesses this is built to catch:
+#   - "a chamfer is the fillet's chord", i.e. the ends are the tangent points of
+#     a circle of radius `radius`. That is `radius * tan(turn/2)` from the
+#     corner -- 1.191754, 0.363970, 0.520567, 0.767327 and 1.000000 mm at these
+#     five corners. It is right at the 90 degree corner and wrong at the other
+#     four, by as much as 0.64 mm. A rectangular pour cannot tell the two apart,
+#     which is why this outline is a pentagon.
+#   - "the chamfer's own length is `radius`". Here the chord is
+#     `2 * radius * cos(turn/2)`, from 1.29 mm at the 100 degree corner to
+#     1.88 mm at the 40 degree one; none of them is 1 mm.
+#   - "the chamfer cuts `radius` off the corner measured along the bisector".
+#     That is `radius * sin(turn/2)` deep here -- 0.766, 0.342, 0.462, 0.609
+#     and 0.707 mm -- again a different number at every corner.

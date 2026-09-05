@@ -1,0 +1,54 @@
+concept = "`(fill (smoothing ...))` is applied to every corner at which the POUR is convex and to no other. A corner where the outline turns away from the copper -- a reflex corner -- comes back as the drawn vertex, to the nanometre, at any radius. The test is the pour's convexity and not which loop the corner is on: a cutout's corners are almost all reflex in the copper and are left alone, but the one corner of a non-convex cutout at which the copper IS convex is filleted by exactly the same rule as the outer boundary's."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One ZN pour on F.Cu, `(smoothing fillet)`, `(radius 2)`, `min_thickness 0.001`
+# so the morphological finishing is a no-op, and nothing else on any copper
+# layer. The zone carries TWO `(polygon ...)` blocks: a 44 x 44 mm square and,
+# inside it, an L-shaped cutout. Both are turned by 17 degrees, so no edge is
+# axis-aligned.
+#
+#     outer   (25.393473,  6.529118) (67.470882, 19.393473)
+#             (54.606527, 61.470882) (12.529118, 48.606527)
+#
+#     cutout  (33.360669, 21.513235) (52.486765, 27.360669)
+#             (49.563048, 36.923717) (40.000000, 34.000000)
+#             (37.076283, 43.563048) (27.513235, 40.639331)
+#
+# The L has five corners at which the COPPER turns away from itself -- reflex --
+# and exactly one, (40, 34), at which the copper is convex: the inside corner of
+# the L, which pokes into the hole.
+#
+# MEASURED, refilled: one filled area, 88 vertices, 1631.654550 mm^2 (the seam
+# joining the outer boundary to the cutout is carried in the usual way, so
+# (27.513235, 40.639331) appears twice). Of the ten drawn vertices, five come
+# back EXACTLY and five do not:
+#
+#     kept   (33.360669, 21.513235) (52.486765, 27.360669) (49.563048, 36.923717)
+#            (37.076283, 43.563048) (27.513235, 40.639331)
+#     gone   all four outer corners, and (40, 34)
+#
+# (40, 34) turns by 90 degrees into the copper and is replaced by an ELEVEN
+# facet arc of 2 mm radius, steps of 8.181818 degrees, setback 2 mm on each
+# side, running
+#
+#     (39.415257, 35.912610) (39.517942, 35.646369) (39.657472, 35.397451)
+#     (39.831007, 35.170925) (40.035013, 34.971401) (40.265338, 34.802940)
+#     (40.517293, 34.668974) (40.785749, 34.572227) (41.065241, 34.514671)
+#     (41.350079, 34.497476) (41.634465, 34.520993) (41.912603, 34.584741)
+#
+# -- the same construction the outer boundary's four corners get, and the same
+# eleven that `max(2, round(90 / 2*acos(1 - 0.005/2)))` asks for.
+#
+# The wrong guesses this is built to catch:
+#   - smoothing every corner of the drawn outline. That puts a 2 mm arc at each
+#     of the five reflex corners, hundreds of micrometres from the drawn vertex
+#     KiCad keeps, and adds some fifty vertices that are not in the answer.
+#   - smoothing only the outer boundary and leaving cutouts alone entirely. That
+#     is right at five of the L's six corners and wrong at (40, 34) -- and a
+#     CONVEX cutout, which is what a cutout usually is, cannot tell the two
+#     apart at all. That is why this one is an L.
+#   - mitring a reflex corner, the way an offset does
+#     (`copper-poly-graphic-reflex-corner-is-a-mitre`). Smoothing does not touch
+#     it: the drawn vertex survives to the nanometre.

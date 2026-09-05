@@ -1,0 +1,75 @@
+concept = "The setback a `(fill (smoothing ...))` takes at a corner is capped at HALF the length of the shorter of the two edges meeting there, and the cap is applied to BOTH sides of the corner, so a clamped fillet is still a symmetric tangent arc -- of a smaller, effective radius. Everything downstream reads that effective radius, the facet count included: two pours differing only in `(radius 1.5)` against `(radius 12)` come back with byte-identical geometry at a corner where the cap binds."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The SAME outline poured twice, on F.Cu with `(radius 1.5)` and on B.Cu with
+# `(radius 12)`. Both `(smoothing fillet)`, both `min_thickness 0.001` so the
+# morphological finishing is a no-op, no pads, no tracks, nothing else on either
+# copper layer.
+#
+# The outline is a 40 x 30 mm rectangle with its far corner cut off by a 0.5 mm
+# chamfer, then turned by 17 degrees -- oblique, because at a quarter turn the
+# lattice rounding of an arc cannot be told from a rounding in board
+# coordinates. Its edges are 40.0000007, 29.4999999, 0.7071068, 39.5000003 and
+# 29.9999993 mm long:
+#
+#     (19.259480,  9.807995)
+#     (57.511671, 21.502863)
+#     (48.886705, 49.713853)   turn 45 deg, into the short edge
+#     (48.262367, 50.045820)   turn 45 deg, out of the short edge
+#     (10.488329, 38.497137)
+#
+# The two corners at the ends of the 0.707107 mm edge are the subject. An
+# unclamped fillet there would set back `radius * tan(22.5 deg)`, which is
+# 0.621320 mm at `(radius 1.5)` and 4.970557 mm at `(radius 12)` -- both far
+# more than the 0.353553 mm that edge has to give.
+#
+# MEASURED, refilled: the F.Cu pour comes back with 46 vertices and
+# 1198.369619 mm^2, the B.Cu pour with 97 and 1106.940621 mm^2 -- so the two
+# radii really are being read. Around the short edge, however, the two answers
+# are the same ten vertices to the nanometre:
+#
+#     (48.990074, 49.375748)   0.353554 mm from the corner at (48.886705, ...)
+#     (48.925704, 49.530197)
+#     (48.832440, 49.669120)
+#     (48.713865, 49.787179)
+#     (48.574539, 49.879834)   the short edge's midpoint, twice, 9 nm apart
+#     (48.574531, 49.879838)
+#     (48.419808, 49.943532)
+#     (48.255627, 49.975818)
+#     (48.088301, 49.975453)
+#     (47.924262, 49.942451)   0.353554 mm from the corner at (48.262367, ...)
+#
+# Three things to read off that.
+#
+#   - The setback is 0.353553 mm on BOTH sides of BOTH corners -- half of
+#     0.707107, the SHORT edge -- although the other edge at each corner is
+#     29.5 mm and 39.5 mm long. The cap is `min(half the previous edge, half the
+#     next edge)`, not a per-side one, so the corner keeps a true tangent arc.
+#   - Each clamped arc has FOUR facets of 11.25 degrees, on both pours. The
+#     facet rule of the sibling case
+#     `smoothing-fillet-divides-the-corner-turn-into-equal-facets` asks for
+#     `max(2, round(45 / phi))` with
+#     `phi = 2*acos(1 - max_error/R)`: the DECLARED radius gives phi = 9.3573
+#     and 5 facets at 1.5 mm, and phi = 3.3079 and 14 facets at 12 mm. The
+#     EFFECTIVE radius `setback / tan(turn/2)` = 0.853553 mm, which both pours
+#     share, gives phi = 12.4033 and 4. Both declared radii are refuted by the
+#     same ten vertices.
+#   - The two arcs meet AT the short edge's midpoint, which is where the cap
+#     puts them; the answer carries two vertices there, 9 nm apart, rather than
+#     one.
+#
+# For contrast, at the unclamped 45 degree corner at (19.259480, 9.807995) the
+# two pours' answers are nowhere near each other.
+#
+# The wrong guesses this is built to catch:
+#   - capping each side independently, which leaves the clamped corner with an
+#     asymmetric join that is not the arc of any circle tangent to both edges.
+#   - capping at the WHOLE shorter edge rather than half of it, which lets the
+#     two corners' setbacks overlap and eat the short edge twice.
+#   - keeping the DECLARED radius for the facet count after clamping the
+#     setback. That gives 14 facets on B.Cu and 5 on F.Cu, where KiCad
+#     gives 4 on both.
+#   - not capping at all: `(radius 12)` then reaches 4.97 mm along a 0.707 mm
+#     edge and the outline turns inside out.

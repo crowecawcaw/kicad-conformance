@@ -1,0 +1,79 @@
+concept = "`(fill (smoothing fillet) (radius N))` replaces each convex outline corner with the arc of a circle of radius N tangent to both edges, and facets it by a rule that is neither of the two KiCad uses elsewhere: the step is the UNROUNDED angle `2*acos(1 - max_error/N)`, the number of facets is that divided into the corner's turn and ROUNDED TO NEAREST (never fewer than two), and the turn is then divided into that many EQUAL steps. There is no whole-circle segment count to round first, no rounding up to a multiple of eight, and no short leftover facet at either end."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One ZN pour on F.Cu, no pads, no tracks, nothing else on any copper layer, and
+# 9 mm of clearance to Edge.Cuts at the nearest point. `min_thickness 0.001`
+# makes the morphological finishing a no-op, so every vertex in the answer comes
+# from the smoothing. `(smoothing fillet)`, `(radius 1)`, `(setup (max_error
+# 0.005))`.
+#
+# The outline is a convex pentagon whose five corners turn by 100, 40, 55, 75
+# and 90 degrees and whose edges, in the order the vertices are listed below,
+# are 14, 12, 16, 17.3597 and 27.0784 mm long -- long enough that the half-edge
+# clamp of
+# `smoothing-radius-is-clamped-to-half-the-shorter-edge` never binds. Every edge
+# is oblique: an axis-aligned outline is the degenerate case here, because at a
+# quarter turn the arc's own lattice rounding cannot be told from a rounding in
+# board coordinates.
+#
+#     (21.211520,  9.176154)  turn 100 deg
+#     (34.599786, 13.269358)  turn  40 deg
+#     (41.135455, 23.333405)  turn  55 deg
+#     (35.141749, 38.168346)  turn  75 deg
+#     (17.911490, 36.052737)  turn  90 deg
+#
+# MEASURED, refilled: 39 vertices, 478.520169 mm^2. Per corner --
+#
+#     turn      setback      facets   step        first/last turn
+#     100 deg   1.191754 mm    9      11.1111     5.5556
+#      40 deg   0.363970 mm    3      13.3333     6.6667
+#      55 deg   0.520567 mm    5      11.0000     5.5000
+#      75 deg   0.767327 mm    7      10.7143     5.3571
+#      90 deg   1.000000 mm    8      11.2500     5.6250
+#
+# Three things to read off that table.
+#
+#   - The SETBACK -- the distance from the drawn corner to where the arc meets
+#     the edge -- is `radius * tan(turn/2)`, not the radius. It is the radius
+#     only at the 90 degree corner. So `radius` is the radius of the tangent
+#     circle, which is what makes this case and its `chamfer` sibling
+#     `smoothing-chamfer-radius-is-the-setback-along-each-edge` disagree at four
+#     of these five corners.
+#   - The arc is INSCRIBED and its endpoints are the two tangent points: the
+#     turn at the first and last vertex of every arc is exactly HALF a step, and
+#     all the interior steps are equal. Every interior vertex is
+#     `centre + radius * (cos, sin)` rounded to the nearest nanometre, exactly,
+#     at all five corners. The two end vertices sit on the drawn edge, up to
+#     about 8 nm short of the exact tangent point -- never beyond it -- and that
+#     residue is not explained here.
+#   - The FACET COUNT is `max(2, round(turn / phi))` with
+#     `phi = 2*acos(1 - max_error/radius)`, here 11.46394 degrees. The 40 degree
+#     corner gives 40/11.46394 = 3.4892 and KiCad uses 3, so the count is not
+#     rounded UP; the 55 degree corner gives 4.7977 and KiCad uses 5, so it is
+#     not rounded DOWN either. Both corners are on this one board because
+#     either rule alone is consistent with the other four.
+#
+# `phi` is capped at 45 degrees -- eight facets to the full circle -- for a
+# `max_error` large enough to ask for a coarser step than that; at the default
+# 0.005 mm nothing on this board comes near the cap.
+#
+# The wrong guesses this is built to catch:
+#   - the rule KiCad uses when it OFFSETS a polygon (`min_thickness` finishing,
+#     graphic clearance): there a whole-circle count `N = max(8, round(pi /
+#     acos(1 - e/R)))` is fixed FIRST and the arc takes ceil(turn / (360/N)) of
+#     those steps, leaving a short facet at the end. Here N would be 31, and
+#     that rule gives FOUR facets at the 40 degree corner where KiCad uses
+#     three, and at the 55 degree one gives the right count with the wrong
+#     angles: four steps of 11.6129 and a fifth of 8.5484 rather than five of
+#     11.0000.
+#   - the rule KiCad uses when it TESSELLATES A PAD: the same count rounded up
+#     to a multiple of eight (32 here), circumscribed rather than inscribed, and
+#     placed symmetrically about the corner's bisector. That predicts 4 facets
+#     at the 40 degree corner where KiCad uses 3, and puts every vertex a
+#     radius-times-(sec(pi/N) - 1) outside the circle KiCad puts them on.
+#   - dividing the turn by a fixed step and leaving the remainder as a short
+#     facet. Every facet of every arc here is exactly turn/count.
+#   - taking `radius` as the setback. Right at the 90 degree corner, wrong at
+#     the other four by up to 0.64 mm.

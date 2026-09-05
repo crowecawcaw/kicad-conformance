@@ -1,0 +1,45 @@
+concept = "A zone's `(fill (smoothing fillet) (radius N))` is an operation on the DRAWN OUTLINE, applied before anything is poured and before any clearance is taken. The corners the pour acquires from a void -- where a clearance boundary cuts the pour's own edge -- are therefore left sharp, however large the radius. Smoothing the filled copper instead reproduces the outline's four corners exactly and rounds two corners KiCad leaves at a right angle."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One ZN pour on F.Cu whose outline is a 40 x 26 mm rectangle turned by 17
+# degrees, `(smoothing fillet)` with `(radius 2)`, `min_thickness 0.001` so the
+# morphological finishing is a no-op and every vertex in the answer comes from
+# smoothing or from the void. Zone clearance is 0.5 mm.
+#
+# A NETLESS -- therefore foreign -- filled `gr_poly` on F.Cu straddles the
+# middle of one long edge of that rectangle, so its clearance void bites a
+# notch into the side of the pour. The notch has two SHOULDERS: the points
+# where the void's boundary meets the outline's straight edge. Those two
+# shoulders are convex corners OF THE COPPER and are corners of nothing that
+# was drawn.
+#
+# Drawn outline   (18.674737, 7.720604) (56.926927, 19.415472)
+#                 (49.325263, 44.279396) (11.073073, 32.584528)
+# Drawn obstacle  (33.232490, 7.988589) (40.882928, 10.327563)
+#                 (37.959211, 19.890610) (30.308773, 17.551636)
+#
+# MEASURED, refilled: 67 vertices, 978.017372 mm^2. Against the same board with
+# the `(smoothing ...)` and `(radius ...)` lines deleted -- 20 vertices,
+# 981.493682 mm^2 -- 15 of those 20 vertices come back unchanged: the whole of
+# the notch, including both shoulders,
+#
+#     (31.579590, 11.666013)   turn +90.000 deg
+#     (40.196853, 14.300574)   turn +90.000 deg
+#
+# still a right angle in each. (The second shoulder is one nanometre lower in
+# the smoothed answer than in the unsmoothed one; the first is identical.) The
+# four DRAWN corners are absent from the smoothed answer, each replaced by an
+# eleven-facet arc of 2 mm radius.
+#
+# The wrong guesses this is built to catch:
+#   - smoothing the FILLED COPPER rather than the outline. It agrees with KiCad
+#     at all four drawn corners -- they are corners of the copper too -- and
+#     puts a 2 mm arc at each shoulder, where KiCad has a right angle. A board
+#     with no void cannot tell the two apart at all.
+#   - taking the clearance from the DRAWN outline and smoothing afterwards.
+#     Same answer as the above at the shoulders.
+#   - refusing to fill a smoothed zone. The rest of the outline is untouched by
+#     smoothing, and the notch's own geometry is the sibling case
+#     `copper-poly-graphic-clears-the-pour`.
