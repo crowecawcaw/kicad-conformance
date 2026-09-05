@@ -1,0 +1,54 @@
+concept = "A thermal spoke whose only reason to survive is a NEIGHBOURING pad's spoke bar, where that neighbour's own spoke is itself deleted, does not survive. Two same-net pads face each other across overlapping thermal gap rings with no pour copper between them, and because the pads are of different widths and offset sideways the reach is one-way: the wide pad's bar covers the narrow pad's spoke centreline, and the narrow pad's bar misses the wide pad's. Neither facing spoke comes back. The asymmetry is the point -- it separates 'a spoke is rescued by any neighbouring bar that reaches it' from 'a spoke is rescued only by a bar that is itself kept'."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# One GND pour on F.Cu, x 8..13, y 2..18, min_thickness 0.2, thermal gap 0.3,
+# bridge width 0.75, island_removal_mode 0. Two same-net SMD pads sit in it:
+#
+#     W  1.0  x 1.0   at (10.11, 6.0)   ring x 9.31..10.91, y 5.2  ..6.8
+#     N  0.4  x 0.95  at (10.4,  7.4)   ring x 9.9 ..10.9,  y 6.625..8.175
+#
+# The pour is wide, so all four east and west spokes reach copper and stay --
+# they are the controls, and they are what keeps both pads connected. The two
+# rings OVERLAP in y (6.625..6.8), so along either pad's vertical centreline
+# there is no pour copper between them at all: the only thing the two facing
+# spokes can reach is each other's bar.
+#
+# The sideways offset of 0.29 mm makes that reach one-way. A bar is no wider
+# than its pad, so the bridge width of 0.75 is the wide pad's bar and 0.4 is
+# the narrow one's:
+#
+#     W's north bar spans x 9.735..10.485  and COVERS N's centreline, 10.4
+#     N's south bar spans x 10.2 ..10.6    and MISSES W's centreline, 10.11
+#
+# with 0.085 and 0.09 mm of margin, so neither test is a tie. W's north spoke
+# therefore has nothing to reach -- no pour copper, no bar -- and N's south
+# spoke has exactly one thing to reach: the bar of a spoke that is itself gone.
+#
+# Measured against kicad-cli 10.0.5 (2026-09-04, this exact file, `pcb drc
+# --refill-zones --save-board`): ONE filled area, 108 vertices, and NEITHER
+# facing spoke is in it. The pour comes back with the two gap rings cut out of
+# it and copper joining them only around the east and west spokes; between the
+# two pads there is none. W's north spoke is deleted because nothing reaches
+# it, and N's south spoke is deleted although a bar does reach it.
+#
+# The two candidate rules this separates, both consistent with two facing pads
+# of EQUAL width, where the reach is mutual and both spokes stay:
+#
+#   (1) a spoke survives if any neighbouring pad's bar crosses its centreline
+#       near its ring, whether or not that neighbour's spoke is kept. This
+#       leaves N's south spoke as a 244 um stub of copper hanging into an empty
+#       ring -- 266947 um2 of it, 122 vertices against KiCad's 108.
+#   (2) a spoke survives only if the bar that rescues it is itself kept, so the
+#       decision is re-asked until it stops moving rather than settled in one
+#       pass. This is what KiCad does: 110 vertices, area within 1.2 um2 of the
+#       answer, every remaining difference at the nanometre.
+#
+# A third reading, that the rescue must be MUTUAL, agrees with (2) here and is
+# NOT separated by this board: the one-way reach and the rescuer's own deletion
+# coincide. Separating those two needs a board where the rescuing bar survives
+# on copper of its own while the reach stays one-way.
+#
+# Axis-aligned deliberately: what is measured is which spokes exist, not where
+# a vertex lands, so nothing here rests on a rounding an orientation could hide.
