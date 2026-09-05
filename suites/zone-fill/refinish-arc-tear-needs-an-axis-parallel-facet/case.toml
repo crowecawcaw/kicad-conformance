@@ -1,0 +1,124 @@
+concept = "The tear the second min_thickness finishing puts in a clearance void's arc is keyed to the BOARD's axes, not to the arc's own construction. Four foreign-net pads in one twice-finished pour carry the identical 56-facet arc at 3.000500 mm, turned by 0, 0, 17 and 3.214286 degrees. Where a facet is EXACTLY axis-parallel the void is torn open by 28.65 micrometres at the neighbouring facet, at four pad centres and on two boards alike. Turn the same arc 17 degrees, so its nearest facet lies 2.29 degrees off the board's axis, and the tear falls to 4.08 micrometres -- still at the vertex bounding that nearest-to-horizontal facet. Turn it 3.214286 degrees, exactly half a facet step, so that the board's horizontal direction lands on a VERTEX and is as far from any facet as it can get, and the tear disappears: what is left is a sub-3-micrometre residue somewhere else on the ring. The polygon's own octant seam turns with the pad and the tear does not follow it."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# The arrangement of `zone-fill/refinish-rewrites-a-clearance-voids-arc`: two
+# overlapping pours on F.Cu, different nets, different priorities, so the lower
+# one is clipped and finished a SECOND time. Each pour carries the same four
+# foreign-net `SIG` pads, so every measurement below has a control on the same
+# board that was finished only once.
+#
+#   GND, priority 2 (the WINNER)  -30,-36 .. -8,36    pads at x = -19
+#   VCC, priority 1 (the LOSER)   -14,-34 .. 30,34    pads at x =  16
+#
+# They overlap on -14 <= x <= -8. Nothing connects: every pad is on `SIG`, a net
+# no zone belongs to, so each is a plain clearance void. min_thickness is 1 mm
+# on both pours and the zone clearance is 1 mm on both. The nearest pad is 6 mm
+# from the overlap band and 22 mm from the loser's own drawn corners.
+#
+# The four pads, at y = 27, 9, -9 and -27 in each pour:
+#
+#   y =  27   `circle`, 4 x 4 mm, no turn
+#   y =   9   `oval`, 4.4 x 4 mm, no turn
+#   y =  -9   `oval`, 4.4 x 4 mm, turned 17 degrees
+#   y = -27   `oval`, 4.4 x 4 mm, turned 3.214286 degrees
+#
+# WHY AN OVAL. At 4 mm across and 1 mm clearance KiCad builds a round pad's
+# void as a regular 56-gon: edge normals at multiples of 360/56 = 6.428571
+# degrees, inradius 3.000500 mm, circumradius 3.005228 mm. That polygon is built
+# on the BOARD's axes and does not turn with its footprint -- so a round pad
+# cannot be used to turn the arc. An oval pad's void can: it is a stadium whose
+# two caps are halves of the SAME 56-gon at the same 3.000500 mm inradius,
+# anchored to the pad's own axis. Turn the footprint and the whole facet grid
+# turns with it. At 4.4 x 4 mm the two cap centres are only 0.2 mm apart, so the
+# void is a 56-gon with a 0.4 mm straight insert -- as close to the round pad's
+# void as a turnable shape gets. The y = 9 pad is the proof that the substitution
+# is free: its void is torn in exactly the same places, by exactly the same
+# nanometres, as the round pad's at y = 27.
+#
+# WHY 3.214286 DEGREES. It is half of 6.428571, half a facet step. At that turn
+# the board's horizontal direction points exactly at a VERTEX of the polygon, so
+# every facet is 3.214286 degrees away from axis-parallel -- the furthest any
+# facet can be. It is the opposite pole to the untuned pads, where a facet is
+# axis-parallel exactly. 17 degrees sits between them, at 2.285714 degrees.
+#
+# The board straddles the origin, because the finishing's snapping is
+# origin-relative (`zone-fill/opening-mitre-truncates-toward-the-file-origin`),
+# and the four pads are placed two above it and two below so that the reading
+# below can say which numbers depend on that and which do not.
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, `pcb drc --refill-zones
+# --save-board`). GND fills as one area of 402 vertices, VCC as one of 529.
+# Departures are measured outward from each void's own supporting 56-gon edge.
+#
+# THE WINNER IS CLEAN, ALL FOUR TIMES. Finished once, each of GND's four voids
+# lies on the polygon KiCad built it as: worst departure 2.5 nm at y = 27 and
+# y = 9, 3.4 nm at the 17-degree pad and 1.5 nm at the half-step pad. Whatever
+# the second finishing does, the first does not do it.
+#
+# THE LOSER IS TORN, AND ONLY WHERE A FACET IS AXIS-PARALLEL:
+#
+#     pad            turn        nearest facet    worst departure
+#                                to a board axis  (outward)
+#     circle @ 27    0           0.000000 deg     +28650.4 nm  at 104.4791 deg
+#     oval   @  9    0           0.000000 deg     +28650.4 nm  at 104.4791 deg
+#     oval   @ -9    17          2.285714 deg      +4076.8 nm  at -66.9896 deg
+#     oval   @ -27   3.214286    3.214286 deg      +2583.1 nm  at -118.4896 deg
+#
+# (Angles for the turned pads are in the PAD's frame. Add the pad's turn to read
+# them in the board's: -66.9896 is -83.9896 from board +X, -118.4896 is
+# -121.7039.)
+#
+# WHICH FACET TEARS. On both untuned voids the polygon has an exactly horizontal
+# facet at the top (normal 90 degrees) and another at the bottom (normal -90).
+# The tear is at the facet immediately counter-clockwise of each: the 96.4286
+# degree facet's line runs on past its own end, swallowing the 99.6429 and
+# 106.0714 degree vertices, and the antipodal tear is the same construction on
+# the -83.5714 degree facet. On the 17-degree void NO facet is horizontal; the
+# nearest are at 109.2857 and -70.7143 degrees in the pad's frame (92.2857 and
+# -87.7143 from board +X), and the two surviving tears -- +862.7 nm and
+# +4076.8 nm -- sit at the vertices bounding exactly those two. A third, at
+# +656.8 nm, sits at the vertex bounding the facet nearest board VERTICAL. On
+# the half-step void, where no facet is within 3.2 degrees of either axis, the
+# largest departures are at -118.4896 and 73.8917 degrees, next to no axis at
+# all.
+#
+# WHAT IS NOT A RULE HERE, and must not be read as one: the size of what is left
+# once the arc is turned off the board's axes. The 28650.4 nm is the same at
+# every pad centre tried -- y = 27, y = 9, y = -9, y = -27, and on the two
+# boards of `zone-fill/refinish-rewrites-a-clearance-voids-arc` and
+# `zone-fill/refinish-arc-tear-is-fixed-to-the-board-not-the-pour`, whose pad
+# centres are not even whole micrometres. The residue on a turned arc is not:
+# the 17-degree void gives 4076.8 nm below the origin and 1659.8 nm above it,
+# and the half-step void 2583.1 nm below and 237.4 nm above -- the same
+# origin-relative behaviour the whole finishing has. So the RULE this case
+# records is "a tear of tens of micrometres requires a facet on a board axis";
+# the exact nanometres of what survives a turn are a residue, and this board
+# reports them in both signs rather than pretending one of them is the number.
+#
+# THE NATURAL WRONG GUESSES this board is built against:
+#
+#   - That the tear is keyed to the polygon's OWN construction. A 56-gon has an
+#     edge normal on every octant boundary of its own frame -- KiCad rounds a
+#     round pad's facet count up to a multiple of 8, and 56 = 7 x 8 -- so on an
+#     untuned pad the octant seam, the board's cardinal and the void's flat all
+#     lie on the same 90 degree facet, and no untuned board can tell them apart.
+#     Here they are separated, and the answer is the board: the 17-degree void's
+#     tears are at the vertices at 112.5 and -67.5 degrees in the pad's frame,
+#     while the identically-constructed untuned void beside it tears at 106.0714
+#     and -73.9286. The seam turns; the tear does not follow it.
+#
+#   - That it is a property of ROUND pads, or of a closed arc. The oval at
+#     y = 9 has two 28-facet caps and two straight inserts and is torn by the
+#     same 28650.4 nm at the same 104.4791 degrees.
+#
+#   - That any oblique orientation will do to probe this. A quarter turn will
+#     not: it maps the facet grid onto itself. Nor will 45 degrees, nor any
+#     multiple of 6.428571 -- all of them put a facet back on a board axis. An
+#     implementation checked only at those angles is checked at the one family
+#     of orientations that cannot see the rule.
+#
+#   - That the second finishing merely re-runs the first and is therefore
+#     idempotent. In exact arithmetic it is, and an implementation that opens
+#     twice reproduces all four of the WINNER's voids and none of the loser's.

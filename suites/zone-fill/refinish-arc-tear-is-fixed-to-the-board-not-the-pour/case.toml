@@ -1,0 +1,101 @@
+concept = "Turn the whole of `zone-fill/refinish-rewrites-a-clearance-voids-arc` -- board outline, both pours, the clip between them, every pad and every footprint -- by 17 degrees, and the tear the second min_thickness finishing puts in a round pad's clearance void does not turn with it. The void is departed from at the SAME twenty-three angles about the pad centre, measured from the BOARD's X axis, and by the same nanometres: +28650.4 nm at 104.4791 degrees, +27835.8 at -75.6575, and twenty-one more between 48 and 1679 nm. Two things follow. A round pad's clearance polygon is built on the board's axes and does NOT turn with its footprint -- its fifty-six facet normals are at multiples of 360/56 from board +X whatever the footprint's orientation -- and the rewrite is a function of that polygon's pose in board coordinates alone: not of the pours' edge directions, not of the direction of the clip, and not of where the pad centre falls on the nanometre lattice."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# This is `zone-fill/refinish-rewrites-a-clearance-voids-arc` under one rigid
+# rotation of 17 degrees about the file origin. Nothing else differs: the same
+# two overlapping pours at the same two priorities, the same four foreign-net
+# `SIG` pads (two round, two square, 4 mm, 1 mm clearance), the same 1 mm
+# min_thickness, the same 6 mm overlap band. Every drawn coordinate is the
+# rotated image of that case's, to the nanometre:
+#
+#   GND, priority 2 (the WINNER)  round pad @(-15.142497,   1.644625)
+#                                 square pad @(-9.879806, -15.568861)
+#   VCC, priority 1 (the LOSER)   round pad @(11.634036,    9.831032)
+#                                 square pad @(7.333679,  -10.306170)
+#
+# Every footprint carries `(at ... -17)` and every pad `(at 0 0 -17)`, so the
+# square pads are congruent to their unrotated originals. The board outline is
+# four Edge.Cuts segments rather than a `gr_rect`, because a rectangle graphic
+# cannot be drawn oblique; the pours stand 4 mm inside it, as in the original.
+#
+# 17 degrees is chosen because it is not a quarter turn, not an eighth turn and
+# not a multiple of the 360/56 = 6.428571 degree facet step of the round pad's
+# clearance polygon. A quarter turn would have proved nothing: it maps the
+# integer lattice to itself and takes every axis-parallel edge to another
+# axis-parallel edge, so a rule stated in board coordinates and a rule stated in
+# the pour's own frame agree on it exactly. The rotation also moves both pad
+# centres OFF the whole-nanometre-friendly positions they had, which is what
+# separates "a function of the polygon's pose" from "a rounding accident".
+#
+# MEASURED against kicad-cli 10.0.5 (this exact file, `pcb drc --refill-zones
+# --save-board`). GND fills as one area of 186 vertices, VCC as one of 227.
+#
+# THE WINNER IS CLEAN. GND wins the arbitration and is finished once. Its round
+# pad's void is the regular 56-gon of inradius 3.000500 mm about
+# (-15.142497, 1.644625), with EDGE NORMALS AT MULTIPLES OF 6.428571 DEGREES
+# FROM THE BOARD'S +X AXIS -- not from the pad's own axis, which is 17 degrees
+# away. The largest departure of any of its vertices from its own supporting
+# edge is 2.5 nm. Its square pad's void has its four straight walls at exactly
+# 3.000500 mm from the pad centre, in the pad's turned frame.
+#
+# THE LOSER IS TORN, AT THE SAME BOARD ANGLES AS ON THE UNROTATED BOARD. VCC
+# loses the arbitration, is clipped, and is finished a second time. Its round
+# pad's void departs OUTWARD from that same 56-gon at twenty-three vertices.
+# Listed as (angle from the pad centre measured from board +X, departure from
+# the supporting edge):
+#
+#      104.4791   +28650.4 nm        -35.2394     +196.0 nm
+#      105.0495   +15281.0            29.2173     +224.7
+#      105.2913   +11653.3            60.7827     +224.7
+#      -75.6575   +27835.8            28.7308     +226.1
+#     -112.7061    +1678.9            61.2692     +226.1
+#     -112.7012    +1638.0            28.8233     +119.6
+#      163.8510     +152.1            61.1767     +119.6
+#      125.3364     +121.1            28.9222      +61.7
+#      -35.3364     +121.1            61.0778      +61.7
+#      125.2394     +196.0            29.0004      +55.7
+#                                     60.9996      +55.7
+#                                     -48.2393      +90.8
+#                                     -48.2225      +48.2
+#
+# That table is EQUAL, angle for angle and nanometre for nanometre, to the one
+# the unrotated board produces about its own pad centre (14, 6). The two boards
+# share no drawn coordinate, no pour edge direction and no pad centre.
+#
+# THE SQUARE VOID IS AGAIN THE DISCRIMINATOR. Its four straight walls come back
+# at 3.000500 mm from the turned pad centre in BOTH pours. Only its corner arcs
+# differ between the two, by under 400 nm, and mostly by acquiring extra
+# vertices on chords they already had.
+#
+# THE NATURAL WRONG GUESSES this board is built against:
+#
+#   - That the rewrite is a property of the ARBITRATION geometry -- the
+#     direction of the clip, the pours' own edges, the orientation of the band
+#     the two pours share. All three are turned 17 degrees here and the answer
+#     does not move by a nanometre.
+#
+#   - That it is an accident of where the polygon lands on the whole-nanometre
+#     grid. The pad centre moves from (14, 6) to (11.634036, 9.831032) and every
+#     one of the twenty-three departures reproduces exactly. (The tiny doubled
+#     edges the finishing leaves elsewhere on the ring -- 1 to 20 nm long, at
+#     roughly half the vertices -- DO move: the winner's ring carries them at
+#     -67.5, -73.93, -106.07, -125.36, -131.79 and -144.64 degrees on the
+#     unrotated board and at -61.07, -86.79, -93.21 and -118.93 here. So the
+#     lattice residue moves and the tear does not, and the tear is not the
+#     lattice residue.)
+#
+#   - That a round pad's clearance polygon is built in the pad's frame and
+#     rotated, the way an oval pad's is. It is not: every footprint here is
+#     turned 17 degrees and every facet normal of both round voids is still at a
+#     multiple of 6.428571 degrees from the board's +X axis. An implementation
+#     that turns the disc with the footprint puts all fifty-six vertices of both
+#     round voids in the wrong place.
+#
+#   - That an oblique board is enough to make the void's own frame oblique. It
+#     is not, and that is why this case cannot on its own say whether the tear
+#     is keyed to the board's axes or to the polygon's own octant structure --
+#     on every board where the polygon is built on the board's axes those two
+#     are the same thing. `zone-fill/refinish-arc-tear-needs-an-axis-parallel-facet`
+#     is the board that separates them, by turning the POLYGON instead.
