@@ -1,0 +1,99 @@
+concept = "The min_thickness opening leaves a copper neck alone when the two voids either side of it merge with their erosion crotches closer together than min_thickness, and it does that wherever the merge happens -- between two drawn rule areas, between a rule area and a pad's clearance void, and against a thermal relief's own outer arc in the middle of a sector. `keepout-outlives-the-min-thickness-opening` is the ONE place measured where KiCad opens such a neck out anyway, and this board is that board's merge moved off the thermal relief's spoke cross: same 0.12 x 0.10 mm copper-pour keepout, same 90 degree void apex 0.188553 mm from its facing edge, same min_thickness 0.24, same crotch separation to the nanometre -- and the neck survives. The spoke cross is the exception, not the merge."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# TWO pours, one net, both at `min_thickness 0.24`, so the opening radius is
+# r = min_thickness/2 - 0.001 = 0.119 mm throughout. The F.Cu pour (y 3..13)
+# has NO pad, NO thermal relief and NO spoke cross anywhere on the layer; the
+# B.Cu pour (y 15..25) has two 2 mm circular SMD pads on thermal relief, and
+# the keepouts on it sit OUTSIDE the relief disc, in the middle of a sector,
+# 90 degrees away from either spoke that borders it.
+#
+# Every site on this board is the same construction: a 0.12 x 0.10 mm
+# copper-pour keepout rectangle, and a second convex void whose apex faces the
+# keepout's long edge across a copper strip thinner than 2r = 0.238 mm, so the
+# erosion grows the two together and the merged hole has exactly two CROTCHES
+# -- the two vertices where the copper turns convex. `min-thickness` case
+# `opening-drops-a-crotch-arc-pair-closer-than-min-thickness` measures what
+# KiCad does with those: it cuts the neck back to an arc of radius r about
+# each crotch while they are at least `min_thickness` apart, and drops both
+# arcs whole when they are closer, leaving the neck and both voids at their
+# drawn nanometre.
+#
+# CROTCH SEPARATION here is computed geometrically -- the two points where the
+# drawn voids' outlines, each grown by r with exact circular offsets, cross.
+# Where KiCad cuts, it can also be read off KiCad's own answer, because the
+# arcs it then cuts are circles of radius exactly r about those two points;
+# the two readings are given side by side below so the geometric one can be
+# calibrated.
+#
+#   site  layer  the second void                              axis   crotch sep   KiCad
+#   ----  -----  -------------------------------------------  -----  ----------   ------
+#   f0    F.Cu   a 90 deg wedge keepout, apex 0.188553 away    0.0    0.187656     SPARED
+#   f1    F.Cu   the same wedge                                17.3   0.187656     SPARED
+#   f2    F.Cu   a 0.6 mm foreign pad's clearance void         17.3   0.187659     SPARED
+#   f3    F.Cu   the same wedge, 0.156907 away                 17.3   0.232500     SPARED
+#   f4    F.Cu   the same wedge, 0.156523 away                 17.3   0.233000     CUT
+#   b0    B.Cu   a thermal relief's outer arc, mid-sector      0.0    0.187657     SPARED
+#   b1    B.Cu   the same arc, 0.219547 away                   0.0    0.232999     CUT
+#
+# f2's second void is a foreign-net PAD and not a via on purpose. An isolated
+# via with no track on it is given the surrounding pour's net by KiCad's own
+# connectivity pass and written back that way, so its clearance void is there on
+# the first refill and gone on the second, and the board stops being a stable
+# oracle. A pad keeps the net the file gives it.
+#
+# One `filled_polygon` per pour: 149 `(xy ...)` on F.Cu, 157 on B.Cu. "SPARED"
+# means every vertex the fill returns within 0.62 mm of the site lies on one of
+# the two drawn voids to a nanometre -- the whole neck is still there and the
+# apex comes back exactly as drawn. At f0 the wedge's apex is returned as
+# (8.000000, 8.188553), the drawn value, and the keepout as its four drawn
+# corners.
+#
+# f0 IS THE POINT OF THIS BOARD. It reproduces
+# `keepout-outlives-the-min-thickness-opening` in local geometry to the
+# nanometre -- a 0.12 x 0.10 mm keepout whose facing edge is 0.188553 mm below
+# a 90 degree convex void apex, at `min_thickness` 0.24 -- with the thermal
+# relief taken away and the apex drawn as a rule area instead of arriving as a
+# thermal sector's tip. That case's crotch separation and this one's are the
+# same number. KiCad cuts there and spares here, so the difference is the spoke
+# cross, and NOT any of:
+#
+#   - the orientation. f0 is axis-aligned like that case, f1 is the same
+#     geometry at 17.3 degrees, and they answer alike.
+#   - the class of the second void. f0/f1 merge a rule area with a rule area,
+#     f2 merges one with a tessellated pad clearance polygon, b0 with a thermal
+#     relief's own gap ring. All spared.
+#   - the presence of a thermal relief. b0 IS a thermal void -- the outer arc
+#     of a 2 mm pad's 0.5 mm gap ring, radius 1.504637 mm -- and it is spared.
+#     What that case has and b0 does not is the spoke cross itself: its keepout
+#     sits between the pad centre and a sector's apex, where all four spoke
+#     bars overlap.
+#   - the neck being thin. Every site here has a neck under 2r; the spared ones
+#     and the cut ones alike.
+#
+# THE STEP IS STILL AT `min_thickness`, AND IT IS HERE TOO. f3 and f4 are the
+# same wedge and the same keepout with the wedge moved 384 nm closer: f3 is
+# spared whole, f4 loses 73.7 um of neck to two arcs of radius 0.119000 and
+# 0.119002 about (40.082406, 8.139058) and (39.853203, 8.067670), whose centres
+# are 0.240063 mm apart. The geometric reading of f4's separation is 0.233000,
+# so on this construction the geometric figure runs about 7 um under KiCad's
+# own; f3's 0.232500 is the other side of the same step. b0/b1 straddle it
+# again against the relief arc, where the offset is about 13 um: b1's arcs are
+# centred (32.123080, 21.618972) and (31.876921, 21.618972), 0.246159 apart.
+# Both straddles bracket `min_thickness` = 0.24 and neither brackets 2r =
+# 0.238.
+#
+# WHAT THE NATURAL WRONG ANSWER LOOKS LIKE. An engine that treats this as an
+# ordinary morphological opening eats the strip at f0, f1, f2, f3 and b0 as it
+# does at f4 and b1: two arcs of radius r bitten out of each neck's sides, the
+# two voids joined into one hole, and the wedge's drawn apex gone. An engine
+# that takes `keepout-outlives-the-min-thickness-opening` as the general rule --
+# "a keepout that merges with another void is opened out" -- gets f0 and b0
+# wrong the same way while getting f4 and b1 right for the wrong reason.
+#
+# expected/ is not generated here -- it needs the Dockerised conformance
+# runner; the numbers above are the local kicad-cli 10.0.5 measurement
+# (`pcb drc --refill-zones --save-board` on a COPY of this file -- it
+# rewrites its input) it should reproduce. Two refills of this board agree.

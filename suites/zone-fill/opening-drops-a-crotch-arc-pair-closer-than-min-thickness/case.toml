@@ -1,4 +1,4 @@
-concept = "Two round voids whose copper neck is thinner than min_thickness do NOT always lose it. The min_thickness opening cuts each side of such a neck back to an arc of the opening radius (min_thickness/2 - 0.001 mm) centred where the two ERODED voids cross -- but only while those two crossings are at least min_thickness apart. Bring them any closer and both arcs are dropped whole: the two voids come back at their drawn nanometre and the neck survives intact, even though a disc of the opening radius could never have travelled down it. The threshold is min_thickness itself, not twice the opening radius, and it is not a threshold on the neck: three necks of the same 0.2245 mm width on this board answer differently because the voids either side of them are different sizes. One board in this suite contradicts that threshold and is named below; read it before implementing this."
+concept = "Two round voids whose copper neck is thinner than min_thickness do NOT always lose it. The min_thickness opening cuts each side of such a neck back to an arc of the opening radius (min_thickness/2 - 0.001 mm) centred where the two ERODED voids cross -- but only while those two crossings are at least min_thickness apart. Bring them any closer and both arcs are dropped whole: the two voids come back at their drawn nanometre and the neck survives intact, even though a disc of the opening radius could never have travelled down it. The threshold is min_thickness itself, not twice the opening radius, and it is not a threshold on the neck: three necks of the same 0.2245 mm width on this board answer differently because the voids either side of them are different sizes. One board in this suite is an exception to that threshold -- a merge sitting on a thermal relief's spoke cross -- and is named below; read it, and `pinched-neck-survives-except-on-the-spoke-cross`, before implementing this."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
@@ -134,8 +134,8 @@ extra   = ["refill"]
 #     the operand is the separation itself and not the depth of the overlap or
 #     the size of the void.
 #
-# ONE BOARD IN THIS SUITE CONTRADICTS THE READING, and it is here so that
-# nobody implements the rule without meeting it first:
+# ONE BOARD IN THIS SUITE IS AN EXCEPTION TO THE READING, and it is here so
+# that nobody implements the rule without meeting it first:
 # `keepout-outlives-the-min-thickness-opening`. There a 0.12 x 0.10 mm
 # copper-pour keepout sits under a thermal relief's sector void at the spoke
 # cross, `min_thickness` 0.24, and the erosion merges the two exactly as
@@ -144,19 +144,22 @@ extra   = ["refill"]
 # spared. KiCad cuts it anyway: that case's own answer replaces the sector
 # void's tip with a chord at the keepout's edge plus twice the opening radius.
 #
-# Everything cheap that could tell the two apart was checked against these
-# fourteen pairs and the twelve keepout-octagon ones, and does not:
+# WHAT SEPARATES THAT BOARD FROM THESE FOURTEEN IS THE SPOKE CROSS, and only
+# that. `pinched-neck-survives-except-on-the-spoke-cross` carries the same merge
+# -- the same 0.12 x 0.10 keepout, the same 90 degree void apex 0.188553 mm from
+# its facing edge, the same min_thickness 0.24 and the same crotch separation --
+# with the thermal relief taken away, and KiCad SPARES it. That board also
+# spares the merge against a relief's own outer arc in the middle of a sector,
+# so it is not the presence of a thermal void either, and it straddles the
+# min_thickness step twice at those same sites. None of the cheaper
+# discriminators does the work:
 #
 #     both voids convex?          yes on all of them
 #     both voids drawn polygons?  yes -- the octagon probes are keepouts too
 #     exactly two crotches?       yes on all of them
 #     the neck's own width?       0.1886 there, cut; 0.1825 on a spared octagon
 #     the overlap's depth?        0.0494 there; 0.048-0.057 across the spared row
-#
-# So either the threshold reading above is incomplete, or the spoke cross is
-# doing something else -- which that case's own concept already half says ("This
-# is the spoke cross only"). The next probe worth building is that same merge at
-# a site with no thermal relief anywhere near it.
+#     the orientation?            axis-aligned and 17.3 degrees answer alike
 #
 # One thing this case records that is NOT a rule: which of the two holes the
 # chaining slit joins, and where it starts, differs from pair to pair (at
