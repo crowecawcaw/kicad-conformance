@@ -1,0 +1,168 @@
+concept = "Two round voids whose copper neck is thinner than min_thickness do NOT always lose it. The min_thickness opening cuts each side of such a neck back to an arc of the opening radius (min_thickness/2 - 0.001 mm) centred where the two ERODED voids cross -- but only while those two crossings are at least min_thickness apart. Bring them any closer and both arcs are dropped whole: the two voids come back at their drawn nanometre and the neck survives intact, even though a disc of the opening radius could never have travelled down it. The threshold is min_thickness itself, not twice the opening radius, and it is not a threshold on the neck: three necks of the same 0.2245 mm width on this board answer differently because the voids either side of them are different sizes. One board in this suite contradicts that threshold and is named below; read it before implementing this."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# TWO pours, one net, no pads and no tracks: a 72 x 10 mm rectangle on F.Cu at
+# `min_thickness 0.25` and another at y 18..28 on B.Cu at `min_thickness 0.4`.
+# Every void on the board is the clearance void of a foreign-net via, so each is
+# a regular polygon KiCad tessellates itself, and each pour carries several
+# INDEPENDENT via PAIRS -- one construction per pair, 6 mm or more of untouched
+# copper between them, so the fourteen crotches on this board never interact.
+#
+# Each pair is placed so that the copper corridor between its two clearance
+# voids has a chosen narrowest width (the "neck" column). The pair's axis is
+# OBLIQUE -- 17.3 degrees, and two pairs repeat at 61.7 degrees -- because the
+# construction is decided by where two offset facets cross, and at a cardinal
+# orientation that crossing lands on the lattice by symmetry rather than by the
+# rule.
+#
+# The quantity that decides the answer is NOT the neck. Erode the copper by the
+# opening radius r = min_thickness/2 - 0.001 mm; the two voids grow by r and
+# overlap, and their two grown outlines cross at two points. Call the distance
+# between those two crossings the CROTCH SEPARATION. It is directly readable off
+# KiCad's own answer whenever the opening acts, because the two arcs KiCad then
+# cuts into the neck are circles of radius exactly r about those two crossings.
+#
+# Measured against kicad-cli 10.0.5 (this exact file, `pcb drc --refill-zones
+# --save-board`). One filled_polygon per pour: 850 vertices on F.Cu, 331 on
+# B.Cu. Per pair, at the crotch:
+#
+#   pour   pair centre  via   void inradius  neck      crotch sep   KiCad
+#   ----   -----------  ----  -------------  --------  ----------   -------------------------
+#   F.Cu   ( 6,  7)     0.6   0.5005 (24)    0.200000  0.343817     CUT: two 4-vertex arcs
+#   F.Cu   (13,  7)     0.6   0.5005 (24)    0.224500  0.252488     CUT
+#   F.Cu   (20,  7)     0.6   0.5005 (24)    0.225113  0.250199     CUT
+#   F.Cu   (27,  7)     0.6   0.5005 (24)    0.225167  0.249998     UNTOUCHED
+#   F.Cu   (34,  7)     0.6   0.5005 (24)    0.225500  0.248759     UNTOUCHED
+#   F.Cu   (41,  7)     0.6   0.5005 (24)    0.240000  0.198045     UNTOUCHED
+#   F.Cu   (48,  7)     0.4   0.4005 (24)    0.224500  0.226078     UNTOUCHED
+#   F.Cu   (55,  7)     1.2   0.8005 (32)    0.224500  0.254980     CUT
+#   F.Cu   (62,  7)     0.6   0.5005 (24)    0.224500  0.252325     CUT      (axis at 61.7 deg)
+#   F.Cu   (69,  7)     0.6   0.5005 (24)    0.225500  0.248597     UNTOUCHED (axis at 61.7 deg)
+#   B.Cu   ( 8, 23)     0.6   0.5005 (24)    0.340108  0.400498     CUT: two 5-vertex arcs
+#   B.Cu   (26, 23)     0.6   0.5005 (24)    0.340189  0.400193     CUT
+#   B.Cu   (44, 23)     0.6   0.5005 (24)    0.340242  0.399997     UNTOUCHED
+#   B.Cu   (62, 23)     0.6   0.5005 (24)    0.340510  0.398997     UNTOUCHED
+#
+# "(24)" and "(32)" are the number of sides KiCad gave the clearance polygon;
+# its inradius is the via radius plus 0.2005 mm at this board's default
+# clearance. "UNTOUCHED" means every vertex the fill returns within 0.3 mm of
+# the pair's centre lies on one of the two drawn void polygons to 1 nm -- the
+# whole neck is still there, and the two voids are still two holes, chained to
+# the rest of the answer by the usual zero-width slit.
+#
+# THE STEP, TWICE. On F.Cu the last cut crotch is separated by 0.250199 mm and
+# the first spared one by 0.249998 mm; on B.Cu, 0.400193 and 0.399997. Each
+# bracket is 0.2 um wide and each contains that pour's own `min_thickness`
+# exactly. Twice the opening radius -- 0.248 and 0.398 -- is OUTSIDE both
+# brackets, and the F.Cu pair at 0.248759 and the B.Cu pair at 0.398997 are on
+# the wrong side of it while being spared. So the arcs survive when their
+# centres are at least `min_thickness` apart, and the 1 um epsilon that makes
+# the opening radius `min_thickness/2 - 0.001` does NOT appear in this test.
+#
+# WHAT THE CUT LOOKS LIKE, at the pair centred (20, 7). KiCad returns the two
+# void polygons except for a run of four vertices on each side of the neck:
+#
+#     (19.904474, 7.008745)  (19.973081, 6.995522)  (20.037946, 7.021490)  (20.078474, 7.078405)
+#     (20.095525, 6.991254)  (20.026918, 7.004476)  (19.962054, 6.978508)  (19.921526, 6.921594)
+#
+# Each run is four chords of an arc of radius 0.124000 mm -- min_thickness/2 -
+# 0.001 -- about (19.961294, 7.118959) and (20.038706, 6.881037) respectively,
+# and those two centres are 0.250199 mm apart. The runs stand up to 85.4 um off
+# the drawn void.
+#
+# WHAT SPARED LOOKS LIKE, at the pair centred (27, 7), whose neck is 54 nm
+# WIDER and whose crotch separation is 201 nm SMALLER: no such run exists. Every
+# vertex in the window is on a drawn void, and two of them --
+# (27.152569, 6.931874) and (27.119428, 6.989277) -- are the void polygon's own
+# corners that the cut answer at (20, 7) replaces. Fifty-four nanometres of neck
+# is the whole difference between the two answers, and it moves 85 um of copper.
+#
+# The natural WRONG guesses, and where each one dies:
+#
+#   - "a neck thinner than min_thickness is opened out". The pour at (41, 7) has
+#     a neck of 0.240 mm -- 10 um under `min_thickness` and 8 um under twice the
+#     opening radius -- and comes back with both voids at their drawn
+#     coordinates. So does (34, 7) at 0.2255. Thin necks are the population;
+#     they are not the criterion.
+#
+#   - "it is a true morphological opening" -- the union of every disc of radius
+#     r that fits inside the drawn copper, which is what
+#     `min-thickness-severs-neck` measures and what this construction looks like
+#     it should be. It is not, and this board is built to say so by a wide
+#     margin. Walk the neck's own centre line and ask, at each point, whether
+#     any disc of radius r containing it clears both voids by r; the answer is
+#     no over
+#
+#         (34,  7)  222.4 um of the 225.5 um neck   -- severed outright
+#         (69,  7)  220.9 um of the 225.5 um neck   -- severed outright
+#         (44, 23)  337.2 um of the 340.2 um neck   -- severed outright
+#         (62, 23)  337.5 um of the 340.5 um neck   -- severed outright
+#         (48,  7)  120.1 um of the 224.5 um neck   -- pinched to a bridge
+#         (41,  7)   87.6 um of the 240.0 um neck   -- pinched to a bridge
+#
+#     and KiCad removes NOTHING at any of the six. An implementation that is a
+#     true opening is right on the eight pairs it cuts and wrong on these six,
+#     which is why one pair cannot settle this and fourteen are here.
+#
+#   - "the threshold is a neck width". Three F.Cu pairs -- (13, 7), (48, 7) and
+#     (55, 7) -- have the SAME neck, 0.224500 mm, to the nanometre. Their voids
+#     have inradius 0.5005, 0.4005 and 0.8005 mm. KiCad cuts the first and third
+#     and spares the second. No function of the neck alone can produce that.
+#
+#   - "the threshold is twice the opening radius", i.e. the two arcs are kept
+#     exactly while they do not overlap. That is the reading the geometry
+#     suggests and it is wrong by 2 um in both pours: see THE STEP above.
+#
+#   - "it depends on the orientation". The pairs at (62, 7) and (69, 7) repeat
+#     the (13, 7) / (34, 7) straddle with the axis rotated from 17.3 to 61.7
+#     degrees. Their crotch separations, 0.252325 and 0.248597, fall either side
+#     of 0.25 in the same order and their answers follow, so the rule is not
+#     reading an axis.
+#
+# What is measured OFF this board, so the reading is not a property of a via's
+# clearance polygon. Two probe boards, same kicad-cli, `min_thickness` 0.25,
+# same 17.3 degree axis, but the voids are DRAWN copper-pour keepout octagons
+# rather than tessellated clearances:
+#
+#   - eight pairs sweeping the crotch separation 0.235 .. 0.262 put the step in
+#     the same place: cut at 0.2505, spared at 0.2495.
+#   - six pairs holding the crotch separation at 0.200 while the octagon's
+#     circumradius runs 0.20, 0.28, 0.40, 0.55, 0.70 and 1.00 mm -- a five-fold
+#     change in the shape of the overlap at one separation -- are ALL spared. So
+#     the operand is the separation itself and not the depth of the overlap or
+#     the size of the void.
+#
+# ONE BOARD IN THIS SUITE CONTRADICTS THE READING, and it is here so that
+# nobody implements the rule without meeting it first:
+# `keepout-outlives-the-min-thickness-opening`. There a 0.12 x 0.10 mm
+# copper-pour keepout sits under a thermal relief's sector void at the spoke
+# cross, `min_thickness` 0.24, and the erosion merges the two exactly as
+# above -- one hole, two crotches, both on the keepout's grown facing edge,
+# 0.197476 mm apart, which is 42 um INSIDE the separation this board says is
+# spared. KiCad cuts it anyway: that case's own answer replaces the sector
+# void's tip with a chord at the keepout's edge plus twice the opening radius.
+#
+# Everything cheap that could tell the two apart was checked against these
+# fourteen pairs and the twelve keepout-octagon ones, and does not:
+#
+#     both voids convex?          yes on all of them
+#     both voids drawn polygons?  yes -- the octagon probes are keepouts too
+#     exactly two crotches?       yes on all of them
+#     the neck's own width?       0.1886 there, cut; 0.1825 on a spared octagon
+#     the overlap's depth?        0.0494 there; 0.048-0.057 across the spared row
+#
+# So either the threshold reading above is incomplete, or the spoke cross is
+# doing something else -- which that case's own concept already half says ("This
+# is the spoke cross only"). The next probe worth building is that same merge at
+# a site with no thermal relief anywhere near it.
+#
+# One thing this case records that is NOT a rule: which of the two holes the
+# chaining slit joins, and where it starts, differs from pair to pair (at
+# (27, 7) it runs along y = 7.116571). That is KiCad's ring-chaining order, the
+# same residue every multi-void answer carries, and nothing here depends on it.
+#
+# expected/ is not generated here -- it needs the Dockerised conformance runner;
+# the numbers above are the local kicad-cli 10.0.5 measurement it should
+# reproduce.
