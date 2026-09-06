@@ -57,13 +57,20 @@ extra   = ["refill"]
 #     derived from the font size alone survives this board.
 #
 #   * `@` IS THE HARDEST CELL, TO ONE NANOMETRE. Its void is
-#     x [-16262964, -13736893], y [-11717612, -9096443]. The two min edges come
-#     from the caps at glyph points (14, 4) and (14, 24) -- the ring's top and
-#     bottom vertices, exact mirror images of each other -- where the
-#     polygonised cap's nearest vertex sits 2.7862 deg off the axis, against a
-#     half-step of 11.25 deg. That is where a box edge is a rational landing on
-#     the rounding boundary, and the two shortfalls KiCad records there are 55
-#     and 54 nm from the vertex it built: mirror geometry, asymmetric integers.
-#     An implementation that reproduces the other 94 cells can still be one
-#     nanometre out on these two, and a cap-reach rule that explains all four of
-#     this cell's edges at once has yet to be written down.
+#     x [-16262964, -13736893], y [-11717612, -9096443], and each of the four
+#     edges is won by a different cap of the ring: x_min by the one at glyph
+#     point (4, 14), the ring's left vertex; y_min by (14, 4), its top; y_max by
+#     (14, 24), its bottom; x_max by (23, 10), its right. Three of those four --
+#     every one but x_max -- have their nearest polygonised-cap vertex 2.7862
+#     deg off the axis, against a half-step of 11.25 deg, and that is where a
+#     box edge is a rational landing on the rounding boundary.
+#
+#     The y pair is the sharp instrument. The caps at (14, 4) and (14, 24) are
+#     exact mirror images -- same angle, same integer offset either way,
+#     neighbours at (10, 5)/(18, 5) mirroring (10, 23)/(18, 23) -- yet the
+#     shortfalls KiCad records from the vertices it built are 55 nm at one and
+#     54 at the other. Mirror geometry, asymmetric integers. No cap-reach rule
+#     that is a function of the cap angle alone can produce that under any
+#     monotone rounding, and none that explains all four of this cell's edges at
+#     once has yet been written down. An implementation can reproduce the other
+#     94 cells exactly and still be a nanometre out here.
