@@ -1,0 +1,144 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "board.kicad_pcb",
+    "unconnected_items": [],
+    "violations": [
+        {
+            "description": "Caution",
+            "items": [
+                {
+                    "description": "PCB text '' on F.Silkscreen",
+                    "pos": {
+                        "x": 25.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "generic_warning"
+        },
+        {
+            "description": "Check SI",
+            "items": [
+                {
+                    "description": "PCB text '' on F.Silkscreen",
+                    "pos": {
+                        "x": 25.0,
+                        "y": 5.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "generic_error"
+        },
+        {
+            "description": "Copper zones intersect (intersecting zones must have distinct priorities)",
+            "items": [
+                {
+                    "description": "Zone [N] on F.Cu, priority 3",
+                    "pos": {
+                        "x": 2.0,
+                        "y": 2.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Zone [N] on F.Cu, priority 3",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 5.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "zones_intersect"
+        },
+        {
+            "description": "Hole clearance violation (board setup constraints hole clearance 0.2500 mm; actual 0.0000 mm)",
+            "items": [
+                {
+                    "description": "NPTH pad of H1",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [N] on F.Cu, length 4.0000 mm",
+                    "pos": {
+                        "x": 10.6,
+                        "y": 8.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "hole_clearance"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [N] on F.Cu, length 4.0000 mm",
+                    "pos": {
+                        "x": 10.6,
+                        "y": 8.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Unresolved text variable",
+            "items": [
+                {
+                    "description": "PCB text '${MISSING}' on F.Silkscreen",
+                    "pos": {
+                        "x": 25.0,
+                        "y": 15.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "unresolved_variable"
+        }
+    ]
+}

@@ -1,0 +1,4 @@
+concept = "Board text directives, unresolved variables, NPTH-to-copper clearance, and equal-priority same-net zone intersections each retain their distinct DRC type."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

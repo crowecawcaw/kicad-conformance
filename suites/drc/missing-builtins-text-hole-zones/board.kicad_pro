@@ -1,0 +1,19 @@
+{
+  "board": {
+    "design_settings": {
+      "rules": {
+        "min_hole_clearance": 0.25
+      },
+      "rule_severities": {
+        "generic_error": "error",
+        "generic_warning": "warning",
+        "hole_clearance": "error",
+        "unresolved_variable": "warning",
+        "zones_intersect": "error"
+      }
+    }
+  },
+  "text_variables": {
+    "KNOWN": "resolved"
+  }
+}

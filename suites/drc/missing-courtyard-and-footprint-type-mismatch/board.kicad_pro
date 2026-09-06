@@ -1,0 +1,10 @@
+{
+  "board": {
+    "design_settings": {
+      "rule_severities": {
+        "footprint_type_mismatch": "error",
+        "missing_courtyard": "error"
+      }
+    }
+  }
+}

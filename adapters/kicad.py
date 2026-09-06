@@ -192,8 +192,11 @@ def cmd_ipcd356(cli: str, ins: list[str], out: str) -> None:
 
 
 def cmd_drc(cli: str, ins: list[str], out: str) -> None:
-    run_and_relay([cli, "pcb", "drc", "--format", "json", "--units", "mm", "--severity-all",
-                   "-o", str(Path(out) / "drc.json"), str(_scratch(ins))])
+    argv = [cli, "pcb", "drc", "--format", "json", "--units", "mm", "--severity-all"]
+    if any(Path(path).suffix == ".kicad_sch" for path in ins):
+        argv.append("--schematic-parity")
+    argv.extend(["-o", str(Path(out) / "drc.json"), str(_scratch(ins))])
+    run_and_relay(argv)
 
 
 def cmd_erc(cli: str, ins: list[str], out: str) -> None:

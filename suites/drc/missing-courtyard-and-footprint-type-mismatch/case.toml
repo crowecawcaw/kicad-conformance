@@ -1,0 +1,4 @@
+concept = "A footprint declared surface-mount but containing a through-hole pad reports both its missing courtyard and its footprint-type mismatch when those normally ignored checks are enabled."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

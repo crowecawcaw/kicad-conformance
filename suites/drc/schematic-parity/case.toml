@@ -1,0 +1,4 @@
+concept = "Schematic parity reports absent pins, footprint/value divergence, and board-to-schematic net conflicts in its dedicated section."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
