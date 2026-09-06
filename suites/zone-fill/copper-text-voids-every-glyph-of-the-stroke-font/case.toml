@@ -1,0 +1,69 @@
+concept = "Every printable ASCII character has a glyph in KiCad's stroke font, and on a copper layer every one of them is copper. Ninety-five pours, one per character 0x20..0x7E, each holding a single centred `gr_text` of that one character and each cleared by the bounding box of that glyph's stroked outline -- so the answer names the character that is wrong. The space clears nothing; `~`, `^`, `_` and `$` are ordinary glyphs here, because each is markup only immediately before a `{`."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# A 63 x 73 mm board, 95 F.Cu GND pours on a 6 x 7 mm grid straddling the origin
+# in both axes, cell n holding the character 0x20 + n at (size 2 2)
+# (thickness 0.3) with the default centre justification. Each pour is 5 x 6 mm
+# with `min_thickness 0.001`, so the morphological finish is a no-op and the
+# recorded answer is the text void and nothing else; the nearest void edge is
+# 1.1 mm inside its own pour, so no void touches a boundary and no two voids
+# meet. There is no pad of the pour's net anywhere, which keeps all 95 areas
+# (`island-removal-keeps-all-when-none-anchored`).
+#
+# ONE POUR PER GLYPH IS THE POINT. A single pour carrying all 95 texts would be
+# one graded answer: one glyph wrong and the whole board reads red, with 94
+# right ones hidden behind it, and the 95 bridged holes would put an engine's
+# hole-to-boundary slit ordering in front of the glyphs it is supposed to be
+# testing. Ninety-five pours make ninety-five independent answers, each named by
+# the cell it is drawn in.
+#
+# WHAT A SINGLE CENTRED CHARACTER READS. The void is the glyph's stroked
+# bounding box grown by clearance + max_error + epsilon/2, so the four edges are
+# the glyph's own extreme strokes; and centre justification puts the pen origin
+# at `anchor - trunc(advance/2)`, so the SAME void also reads that glyph's
+# advance. Left justification would have been the weaker probe: it places the
+# pen from the justification margin alone and the advance never enters. What
+# this case does NOT read is a glyph's interior -- a stroke that is wrong
+# without moving an extreme is invisible here, and the accumulation of advances
+# ACROSS glyphs is `copper-text-pen-walks-the-string-in-integer-nanometres`.
+#
+# WHY THE GRID CROSSES THE ORIGIN. A one-quadrant board cannot separate `floor`
+# from truncation toward zero, and the box edges are rounded from a rational.
+# Half the glyphs sit at negative coordinates and half at positive.
+#
+# ---------------------------------------------------------------------------
+# MEASURED -- kicad-cli 10.0.5, 2026-09-05, `pcb drc --refill-zones --save-board`
+# ---------------------------------------------------------------------------
+# Ninety-four of the 95 pours come back as one filled area of 11 vertices: the
+# 4 of the pour rectangle, the 4 of the void, and the 3 that bridge the void to
+# the boundary through a zero-width slit. The exception is the space at cell 0,
+# 0x20, which comes back a bare 4-vertex rectangle -- it has an advance and no
+# ink, so it clears nothing.
+#
+#   * `~` IS A GLYPH, NOT AN OVERBAR. Cell 94 clears 1663381 x 904926 nm, a box
+#     under a millimetre tall at (size 2 2): the tilde's own three rows. A
+#     model that refuses every `~` as markup returns no void for it at all.
+#     Measured beside this: `"~{A}"` clears one letter's width and 553513 nm
+#     MORE height than a bare capital, which is the overbar, and `"A~B"` clears
+#     three glyphs at exactly the plain cap height. `"^{A}"` and `"_{A}"` clear
+#     1781117 x 2314450 -- smaller than one full-size letter, and 800000 nm
+#     apart in y -- so those two are super- and subscript, and rendering them as
+#     four literal glyphs is a wrong answer rather than a gap.
+#
+#   * THE WIDEST AND NARROWEST GLYPHS DIFFER BY 3.5x IN ADVANCE (`m` at 28 glyph
+#     units against a backtick at 8), and their boxes differ accordingly. No box
+#     derived from the font size alone survives this board.
+#
+#   * `@` IS THE HARDEST CELL, TO ONE NANOMETRE. Its void is
+#     x [-16262964, -13736893], y [-11717612, -9096443]. The two min edges come
+#     from the caps at glyph points (14, 4) and (14, 24) -- the ring's top and
+#     bottom vertices, exact mirror images of each other -- where the
+#     polygonised cap's nearest vertex sits 2.7862 deg off the axis, against a
+#     half-step of 11.25 deg. That is where a box edge is a rational landing on
+#     the rounding boundary, and the two shortfalls KiCad records there are 55
+#     and 54 nm from the vertex it built: mirror geometry, asymmetric integers.
+#     An implementation that reproduces the other 94 cells can still be one
+#     nanometre out on these two, and a cap-reach rule that explains all four of
+#     this cell's edges at once has yet to be written down.
