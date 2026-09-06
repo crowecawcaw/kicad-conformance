@@ -1,0 +1,3 @@
+(version 1)
+(rule "pad-type-clearance" (constraint clearance (min 3mm))
+  (condition "A.Type == 'pad' && B.Type == 'pad' && A.Pad_Type == 'np_thru_hole' && B.Pad_Type == 'np_thru_hole'"))

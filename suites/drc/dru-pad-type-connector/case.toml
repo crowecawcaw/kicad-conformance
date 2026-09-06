@@ -1,0 +1,4 @@
+concept = "Pad_Type exposes 'Edge connector' for connect pads. Two pads at a 1.5 mm copper gap violate a selected 3 mm custom minimum, but clear the default. The wrong-type perturbation selects neither pad."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

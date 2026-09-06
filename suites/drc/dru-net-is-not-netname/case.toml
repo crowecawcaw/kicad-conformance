@@ -1,0 +1,4 @@
+concept = "Net distinguishes the two different nets, but is not their NetName string: Net != B.Net selects a 3 mm clearance at a 1.5 mm gap, while comparing Net to the actual net names does not."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

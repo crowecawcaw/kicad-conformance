@@ -1,0 +1,3 @@
+(version 1)
+(rule "different-nets" (constraint clearance (min 3mm))
+  (condition "A.Net != B.Net"))
