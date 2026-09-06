@@ -1,0 +1,63 @@
+concept = "KiCad's stroke font is not ASCII. Thirty-seven pours, one per character, drawn from the six blocks a real board reaches for -- Latin-1, Latin Extended-A/B, Greek, Cyrillic, punctuation, arrows and geometric shapes -- each cleared by the bounding box of that character's own glyph. One of the thirty-seven is a code point the font declares and this KiCad does not draw: it clears the undefined box instead, and that box is a measurement too."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Same instrument as `copper-text-voids-every-glyph-of-the-stroke-font`, which
+# covers printable ASCII exhaustively: one pour per character on a 6 x 7 mm grid
+# straddling the origin, each 5 x 6 mm with `min_thickness 0.001` so the
+# morphological finish is a no-op and the recorded answer is the text void and
+# nothing else, and each text centred at (size 2 2) (thickness 0.3) so its void
+# reads that glyph's advance as well as its four stroke extremes.
+#
+# WHY A SECOND CASE AND NOT A BIGGER FIRST ONE. The ASCII case can be
+# exhaustive because 95 pours fit on one board. This one cannot: the font
+# defines thousands of code points. So it is a SAMPLE, and the sample is chosen
+# from what boards actually carry rather than by walking the code chart --
+# `+-`, ohm, micro and the copyright sign are the four commonest non-ASCII
+# characters in a large corpus of real `.kicad_pcb`, and the Cyrillic here is
+# the head of that corpus's Russian-language tail, not an alphabet recital.
+#
+# The characters, and what each is here to catch:
+#
+#   U+00B1 U+00B5 U+00A9 U+03A9   the four commonest, by a wide margin
+#   U+2191 U+25BC U+00B0 U+00D7 U+00F7 U+00A7 U+00B6   symbols, not letters
+#   U+00BD                        a COMPOSED glyph: a fraction bar with a
+#                                 numerator and a denominator, each placed
+#                                 against an anchor on the bar rather than
+#                                 drawn. Its digits sit 13 units up and 6 down.
+#   U+00E9 U+0101 U+0107 U+017E   a base letter plus an accent, four ways
+#   U+0141 U+0111                 a letter with a stroke THROUGH it
+#   U+01F0                        base + accent where the accent is the whole
+#                                 difference and the base is a bare j
+#   U+0416 U+0424 U+0429          Cyrillic letters wider than any Latin one
+#   U+043C U+043D U+0430 U+0435 U+0438 U+043E U+0432 U+0440 U+0441
+#                                 the corpus's Cyrillic head
+#   U+03B1 U+03B2 U+03C0 U+03A3 U+03C6   Greek
+#   U+1D80                        THE CONTROL, and the sharpest of the lot --
+#                                 see below
+#
+# ---------------------------------------------------------------------------
+# MEASURED -- kicad-cli 10.0.5, 2026-09-06, `pcb drc --refill-zones --save-board`
+# ---------------------------------------------------------------------------
+#
+#   * U+1D80 IS DECLARED BY THE FONT AND NOT DRAWN BY THIS KICAD. Every code
+#     point in U+1D80..U+1DBF -- the Phonetic Extensions Supplement, 64 of them
+#     -- plots the UNDEFINED BOX: four segments from (5, 0) to (19, 21) on the
+#     21-unit grid, advance 24. Measured on all 64 through the gerber channel,
+#     which prints the skeleton in exact nanometres. So the void here is a plain
+#     rectangle of the box's size, not of the letter's, and an implementation
+#     that renders the font's own outline for these is wrong on the copper even
+#     though it is right about the font. That is why the case carries one.
+#
+#   * THE COMPOSED GLYPHS ARE WHERE A CONVERSION GOES WRONG. U+00BD's numerator
+#     and denominator are anchored to pins on the fraction bar, and the digits
+#     carry no matching pin of their own; U+01F0 and the four accented letters
+#     place an accent against an anchor on the base. Get the anchoring rule
+#     wrong and these are the glyphs that move, while every unaccented letter on
+#     the board stays exactly right and hides it.
+#
+#   * THE WIDTHS ARE NOT A LATIN RANGE. U+0416 and U+0429 are wider than any
+#     ASCII capital, and U+00B0 and U+2191 are narrower than any ASCII letter.
+#     A void box derived from the font size rather than the glyph does not
+#     survive this board any more than it survives the ASCII one.
