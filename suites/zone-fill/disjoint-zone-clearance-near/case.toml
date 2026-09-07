@@ -1,0 +1,4 @@
+concept = "Disjoint different-net pours closer than their clearance still arbitrate. The larger UUID wins equal priority; the other zone starts at 20.5055 mm, despite its drawn outline starting at 20.4 mm. The maximum of both zone clearances contributes."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]

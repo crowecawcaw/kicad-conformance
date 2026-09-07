@@ -1,0 +1,4 @@
+concept = "Disjoint different-net pours farther apart than their clearance keep their drawn boundaries."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]

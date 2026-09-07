@@ -1,0 +1,4 @@
+concept = "Higher numeric priority overrides UUID for disjoint nearby foreign pours: the left zone retreats to x=19.8945 mm while the right zone retains x=20.4 mm."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]

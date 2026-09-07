@@ -1,0 +1,13 @@
+zones 2
+zone 0 net "GND" layers "B.Cu"
+  fill 0 layer "B.Cu" points 4
+    xy 19.8945 10
+    xy 0 10
+    xy 0 0
+    xy 19.8945 0
+zone 1 net "VCC" layers "B.Cu"
+  fill 0 layer "B.Cu" points 4
+    xy 30 10
+    xy 20.4 10
+    xy 20.4 0
+    xy 30 0
