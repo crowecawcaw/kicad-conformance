@@ -1,0 +1,4 @@
+concept = "A triangular pour is not refinished by a diagonally nearby foreign bounding box when its only same-net neighbor has equal numeric priority. The same-net neighbor is geometrically disjoint but lies within the triangle bounding box. This is the equal-priority control for the otherwise identical lower- and higher-priority cases."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]

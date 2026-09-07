@@ -1,0 +1,4 @@
+concept = "A geometrically disjoint same-net neighbor of lower numeric priority lies within a triangular pour bounding box. Together with a higher-priority foreign pour inside bounding-box reach, it triggers a second opening of the triangle. Actual same-net contact and union extension are not required."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]
