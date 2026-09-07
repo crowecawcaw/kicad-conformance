@@ -1,0 +1,25 @@
+concept = "A lower-priority same-net pour does not preserve a higher-priority pour's sharp outline when an intervening foreign pour covers their entire overlap. The higher-priority pour receives no same-net outline support and its min-thickness opening rounds all four corners."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# Three F.Cu pours inside a 0..50 mm board outline:
+#
+#   own      GND priority 19, sharp 10x10 mm square at (15,15)..(25,25)
+#   support  GND priority  0, chamfer-smoothed square at (10,10)..(40,40)
+#   foreign  VCC priority 10, square at (12,12)..(28,28)
+#
+# The foreign pour outranks the support and covers the whole region where the
+# support overlaps `own`. It does not outrank `own` itself.
+#
+# THE NATURAL WRONG GUESS: same-net outline support is available whenever the
+# two drawn zone outlines overlap, without considering an intervening foreign
+# pour. That makes all four corners of `own` sharp and gives it exactly 100 mm2.
+# KiCad instead blocks the support and applies `own`'s min-thickness opening.
+# The paired case leaves a 0.01 mm strip of overlap outside the foreign pour;
+# that tiny surviving strip preserves the whole sharp outline, separating an
+# all-or-nothing support gate from local subtraction of foreign copper.
+#
+# MEASURED -- kicad-cli 10.0.5, this exact file, refilled: zone 0 is one
+# 16-vertex rounded ring with shoelace area 99.984522120362 mm2 (99.984522 mm2
+# at six decimal places). All four drawn corners are absent.

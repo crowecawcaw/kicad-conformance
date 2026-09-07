@@ -1,0 +1,21 @@
+concept = "Any surviving overlap with a lower-priority same-net pour preserves a higher-priority pour's whole sharp outline, even when an intervening foreign pour blocks all but a 0.01 mm strip of that overlap. Outline support is gated all-or-nothing rather than locally subtracted by foreign copper."
+doc     = "sexpr-pcb"
+input   = "board.kicad_pcb"
+extra   = ["refill"]
+
+# This is the paired control for
+# `same-net-outline-support-is-blocked-when-foreign-zone-covers-the-overlap`.
+# The GND pours and every setting are identical. Only the foreign VCC pour's
+# left edge moves from x=12 to x=15.01, leaving a 0.01 mm-wide strip where the
+# lower-priority GND support still overlaps the priority-19 10x10 mm `own` pour.
+#
+# THE NATURAL WRONG GUESS: subtract the foreign pour locally from the same-net
+# support geometry. On that reading the narrow surviving strip can support only
+# the nearby edge or corners, while the rest of `own` is opened and rounded.
+# KiCad treats the surviving overlap as a boolean gate: the entire `own` square
+# remains sharp, with exactly 100 mm2 of filled copper. The paired fully blocked
+# case rounds all four corners to 99.984522 mm2.
+#
+# MEASURED -- kicad-cli 10.0.5, this exact file, refilled: zone 0 is one
+# four-vertex ring at the authored corners (15,15), (25,15), (25,25), (15,25),
+# with shoelace area exactly 100 mm2.
