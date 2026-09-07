@@ -1,0 +1,38 @@
+zones 1
+zone 0 net "ZN" layers "F.Cu"
+  fill 0 layer "F.Cu" points 4
+    xy 20.001 30
+    xy 20 30
+    xy 20 29.999
+    xy 20.001 29.999
+  fill 1 layer "F.Cu" points 4
+    xy 30 30
+    xy 29.999 30
+    xy 29.999 29.999
+    xy 30 29.999
+  fill 2 layer "F.Cu" points 4
+    xy 20.001 20.001
+    xy 20 20.001
+    xy 20 20
+    xy 20.001 20
+  fill 3 layer "F.Cu" points 4
+    xy 30 20.001
+    xy 29.999 20.001
+    xy 29.999 20
+    xy 30 20
+  fill 4 layer "F.Cu" points 15
+    xy 40 40
+    xy 10 40
+    xy 10 30
+    xy 12 30
+    xy 20 30
+    xy 20 35
+    xy 35 35
+    xy 35 20
+    xy 30 20
+    xy 30 12
+    xy 12 12
+    xy 12 30
+    xy 10 30
+    xy 10 10
+    xy 40 10

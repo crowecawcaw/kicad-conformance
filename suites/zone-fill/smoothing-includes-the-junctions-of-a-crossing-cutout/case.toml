@@ -1,0 +1,4 @@
+concept = "Fillet smoothing runs on the outline after its own cutouts are subtracted. A cutout crossing the outer boundary makes two new convex copper corners which are filleted too. This differs from a clearance obstacle, whose newly created corners stay sharp. A 30 by 30 outline with radius 1 and a 10 by 10 notch has six filleted convex corners and refill area 798.682168 square millimetres. Smoothing the raw rings before cutout subtraction leaves only four filleted corners and area 799.121446."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]

@@ -1,0 +1,4 @@
+concept = "A fillet smoothing mode without a radius leaves the outline sharp: a four-vertex square. A second-layer control with radius 1 produces 36 vertices and area 899.121446 square millimetres. Omitting radius is not an implicit positive-radius fillet."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]

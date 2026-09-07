@@ -1,0 +1,4 @@
+concept = "Later polygon blocks are cutouts of the first outline, independent of winding. Overlapping cutouts subtract their union; their overlap must not become copper again. The 30 by 30 outline minus overlapping 18 by 18 and 15 by 15 cutouts leaves 451 square millimetres, apart from four tiny refill artifacts at the cutout intersection corners. A nonzero union of signed rings instead leaves 551 square millimetres."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]
