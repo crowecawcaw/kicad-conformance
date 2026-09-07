@@ -1,0 +1,4 @@
+concept = "Moving only the foreign pour 0.2 mm farther away puts its bounding box beyond the refinishing reach. The supported triangular subject keeps two filled areas."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]

@@ -1,0 +1,4 @@
+concept = "A fully contained lower-priority same-net pour makes a triangular pour eligible for bounding-box-based refinishing without enlarging its union geometry. A higher-priority foreign rectangle 0.9 mm away by bounding box triggers a second opening despite its actual outline being farther than one millimetre away."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]

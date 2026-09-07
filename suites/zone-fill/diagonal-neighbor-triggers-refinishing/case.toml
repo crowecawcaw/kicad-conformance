@@ -1,0 +1,4 @@
+concept = "A higher-priority foreign pour whose bounding box is 0.9 mm from the subject triggers refinishing even though its actual outline is farther away. Refinishing removes a narrow supported fragment after the same-net union is clipped back to the triangular subject."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]

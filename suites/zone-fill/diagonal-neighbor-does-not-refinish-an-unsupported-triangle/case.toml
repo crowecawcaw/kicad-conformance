@@ -1,0 +1,4 @@
+concept = "A triangle without a same-net outline supporter is not refinished merely because a higher-priority foreign rectangle has a nearby bounding box. The actual outlines are farther than one millimetre apart. This distinguishes the outline distance used for a lone pour from the bounding-box reach observed for same-net-supported finishing."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["refill"]
