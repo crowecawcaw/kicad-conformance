@@ -1,0 +1,4 @@
+concept = "Filled footprint polygons crossing only the endpoint sectors of a rounded Edge.Cuts arc are not reported against that arc; an adjacent straight edge still reports its crossing polygon."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
