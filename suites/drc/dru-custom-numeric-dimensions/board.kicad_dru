@@ -1,0 +1,9 @@
+(version 1)
+
+(rule "track width window"
+  (constraint track_width (min 0.4mm) (max 0.6mm))
+  (condition "A.Type == 'Track'"))
+
+(rule "hole size window"
+  (constraint hole_size (min 0.4mm) (max 0.6mm))
+  (condition "A.Type == 'Pad'"))

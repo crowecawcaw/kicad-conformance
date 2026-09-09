@@ -1,0 +1,5 @@
+Ref,Val,Package,PosX,PosY,Rot,Side
+"HS_HIGH","","TestPad",15.000000,-14.000000,0.000000,top
+"HS_LOW","","TestPad",15.000000,-5.000000,0.000000,top
+"HS_MAX","","TestPad",15.000000,-11.000000,0.000000,top
+"HS_MIN","","TestPad",15.000000,-8.000000,0.000000,top

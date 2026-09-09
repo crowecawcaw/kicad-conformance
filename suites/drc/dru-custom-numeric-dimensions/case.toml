@@ -1,0 +1,4 @@
+concept = "Named custom track-width and plated-pad hole-size rules apply inclusive minimum and maximum bounds: each has an under-bound violation, both exact-boundary controls, and an over-bound violation."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
