@@ -1,0 +1,4 @@
+concept = "A custom 1.5 mm courtyard_clearance rule reports disjoint courtyards at raw gaps of 1 mm and 1.489 mm, while the exact 1.49 mm tolerance boundary is clean."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

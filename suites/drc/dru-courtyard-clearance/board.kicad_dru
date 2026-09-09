@@ -1,0 +1,5 @@
+(version 1)
+
+(rule "component spacing"
+	(constraint courtyard_clearance (min 1.5mm))
+	(condition "A.Type == 'footprint' && B.Type == 'footprint'"))
