@@ -1,0 +1,4 @@
+concept = "A 0.1 mm pad-to-fill neck violates a 0.2 mm minimum connection while an exact 0.2 mm sibling is clean."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
