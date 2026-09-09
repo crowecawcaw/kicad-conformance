@@ -1,0 +1,4 @@
+concept = "Text token, orientation, Edge.Cuts, height, and thickness checks distinguish failing text from same-board controls."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

@@ -1,0 +1,4 @@
+concept = "Custom hole-clearance and physical-hole-clearance rules each flag a 0.4 mm drill-to-track gap while same-board 0.5 mm boundary controls are clean; the physical rule separately reaches the same-net pair."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

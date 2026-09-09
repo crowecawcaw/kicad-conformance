@@ -1,0 +1,4 @@
+concept = "A custom 2 mm edge-clearance rule flags a pad with a 1 mm copper-to-outline gap while an otherwise equal pad at the exact 2 mm gap is clean."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

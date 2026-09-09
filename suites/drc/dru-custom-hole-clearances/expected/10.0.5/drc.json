@@ -1,0 +1,191 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "board.kicad_pcb",
+    "unconnected_items": [
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 1 [PH_BAD] of PH_BAD",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 19.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [PH_BAD] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 10.8,
+                        "y": 18.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        },
+        {
+            "description": "Missing connection between items",
+            "items": [
+                {
+                    "description": "PTH pad 1 [PH_EXACT] of PH_EXACT",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 26.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [PH_EXACT] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 10.9,
+                        "y": 25.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "unconnected_items"
+        }
+    ],
+    "violations": [
+        {
+            "description": "Hole clearance violation (rule 'different-net hole clearance' clearance 0.5000 mm; actual 0.4000 mm)",
+            "items": [
+                {
+                    "description": "PTH pad 1 [HC_BAD] of HC_BAD",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 5.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [HC_OTHER] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 10.8,
+                        "y": 4.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "hole_clearance"
+        },
+        {
+            "description": "Hole clearance violation (rule 'physical same-net hole clearance' clearance 0.5000 mm; actual 0.4000 mm)",
+            "items": [
+                {
+                    "description": "PTH pad 1 [PH_BAD] of PH_BAD",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 19.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [PH_BAD] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 10.8,
+                        "y": 18.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "hole_clearance"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [HC_OTHER] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 10.8,
+                        "y": 4.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [HC_OTHER_EXACT] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 10.9,
+                        "y": 11.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [PH_BAD] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 10.8,
+                        "y": 18.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [PH_EXACT] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 10.9,
+                        "y": 25.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        }
+    ]
+}

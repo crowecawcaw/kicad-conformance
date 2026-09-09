@@ -1,0 +1,9 @@
+(version 1)
+
+(rule "custom text height"
+  (condition "A.Type == 'Text'")
+  (constraint text_height (min 1mm)))
+
+(rule "custom text thickness"
+  (condition "A.Type == 'Text'")
+  (constraint text_thickness (min 0.15mm)))

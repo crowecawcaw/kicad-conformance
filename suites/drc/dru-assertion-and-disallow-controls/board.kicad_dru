@@ -1,0 +1,13 @@
+(version 1)
+
+(rule "earlier assertion also reports"
+  (condition "A.NetName == 'ASSERT_BAD'")
+  (constraint assertion "1 == 2"))
+
+(rule "track width assertion"
+  (condition "A.NetName == 'ASSERT_*'")
+  (constraint assertion "A.Width >= 0.3mm"))
+
+(rule "ban one track"
+  (condition "A.NetName == 'BAN'")
+  (constraint disallow track))

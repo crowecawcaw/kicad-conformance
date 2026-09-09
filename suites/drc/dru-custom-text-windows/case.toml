@@ -1,0 +1,4 @@
+concept = "Custom text-height and text-thickness floors each flag their under-bound silkscreen text while exact-floor sibling controls are clean."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

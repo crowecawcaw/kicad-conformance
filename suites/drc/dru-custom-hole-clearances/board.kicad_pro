@@ -1,0 +1,10 @@
+{
+  "board": {
+    "design_settings": {
+      "rules": {
+        "min_clearance": 0.0,
+        "min_hole_clearance": 0.0
+      }
+    }
+  }
+}

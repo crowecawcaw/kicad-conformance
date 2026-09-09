@@ -1,0 +1,9 @@
+(version 1)
+
+(rule "different-net hole clearance"
+  (condition "A.NetName == 'HC_*'")
+  (constraint hole_clearance (min 0.5mm)))
+
+(rule "physical same-net hole clearance"
+  (condition "A.NetName == 'PH_*'")
+  (constraint physical_hole_clearance (min 0.5mm)))

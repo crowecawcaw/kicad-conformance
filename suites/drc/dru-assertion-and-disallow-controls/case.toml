@@ -1,0 +1,4 @@
+concept = "Custom assertion and disallow rules select their named track controls: ASSERT_BAD reports both matching assertions while ASSERT_GOOD passes its width assertion, and only the BAN track is disallowed while the same-shape ALLOW control is permitted."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

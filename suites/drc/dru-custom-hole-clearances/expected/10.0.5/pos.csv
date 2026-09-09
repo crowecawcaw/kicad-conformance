@@ -1,0 +1,5 @@
+Ref,Val,Package,PosX,PosY,Rot,Side
+"HC_BAD","","TestPad",10.000000,-5.000000,0.000000,top
+"HC_EXACT","","TestPad",10.000000,-12.000000,0.000000,top
+"PH_BAD","","TestPad",10.000000,-19.000000,0.000000,top
+"PH_EXACT","","TestPad",10.000000,-26.000000,0.000000,top
