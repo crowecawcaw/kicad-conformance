@@ -1,0 +1,4 @@
+concept = "A single stored zone fill with a 0.1 mm hourglass neck reports connection_width against a 0.2 mm board minimum."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
