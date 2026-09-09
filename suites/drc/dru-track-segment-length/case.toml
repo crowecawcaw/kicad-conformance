@@ -1,0 +1,5 @@
+concept = "A custom track_segment_length range reports 1 mm and 4 mm segments outside a 2..3 mm interval, while segments exactly at both boundaries are clean."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]
+

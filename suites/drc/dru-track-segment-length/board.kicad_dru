@@ -1,0 +1,6 @@
+(version 1)
+
+(rule "segment range"
+	(constraint track_segment_length (min 2mm) (max 3mm))
+	(condition "A.Type == 'track'"))
+
