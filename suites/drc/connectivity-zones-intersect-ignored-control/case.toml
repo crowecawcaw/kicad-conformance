@@ -1,0 +1,4 @@
+concept = "The zones_intersect witness is clean when the project sets only zones_intersect severity to ignore."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

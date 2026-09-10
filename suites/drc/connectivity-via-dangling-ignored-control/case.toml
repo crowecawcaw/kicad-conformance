@@ -1,0 +1,4 @@
+concept = "The via_dangling witness is clean when the project sets only via_dangling severity to ignore."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

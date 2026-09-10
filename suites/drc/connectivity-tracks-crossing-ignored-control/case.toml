@@ -1,0 +1,4 @@
+concept = "The tracks_crossing witness is clean when the project sets only tracks_crossing severity to ignore."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
