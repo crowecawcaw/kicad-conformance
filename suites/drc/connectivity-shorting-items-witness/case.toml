@@ -1,0 +1,4 @@
+concept = "A Net-1 track across a GND pad reports shorting_items."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

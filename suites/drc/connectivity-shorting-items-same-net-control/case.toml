@@ -1,0 +1,4 @@
+concept = "The same track/pad overlap is clean when both objects use Net-1."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

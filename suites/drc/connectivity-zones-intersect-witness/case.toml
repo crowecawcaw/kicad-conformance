@@ -1,0 +1,4 @@
+concept = "Equal-priority same-net zone outlines that overlap report zones_intersect."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

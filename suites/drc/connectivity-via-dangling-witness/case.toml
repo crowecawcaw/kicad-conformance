@@ -1,0 +1,4 @@
+concept = "An unattached net-assigned through via reports via_dangling."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

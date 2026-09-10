@@ -1,0 +1,4 @@
+concept = "The paired same-net pads are absent from unconnected_items after a direct F.Cu track joins them."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

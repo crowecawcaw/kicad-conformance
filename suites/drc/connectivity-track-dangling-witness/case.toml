@@ -1,0 +1,4 @@
+concept = "A free-ended F.Cu track reports track_dangling."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

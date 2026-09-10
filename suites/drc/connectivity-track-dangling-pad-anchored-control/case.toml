@@ -1,0 +1,4 @@
+concept = "The identical F.Cu track is clean when its free end is anchored by its net pad."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

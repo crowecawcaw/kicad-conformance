@@ -1,0 +1,4 @@
+concept = "The identical filled Net-2 zone is clean when a Net-2 pad is inside its fill."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "The same overlapping zone outlines are clean when their priorities differ."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

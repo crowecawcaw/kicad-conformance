@@ -1,0 +1,4 @@
+concept = "Two board footprints with reference R1 report duplicate_footprints against one schematic R1."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

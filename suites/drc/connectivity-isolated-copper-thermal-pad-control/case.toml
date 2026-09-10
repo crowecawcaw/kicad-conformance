@@ -1,0 +1,4 @@
+concept = "A Net-2 pad inside the thermally configured filled square is clean in KiCad's DRC report."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

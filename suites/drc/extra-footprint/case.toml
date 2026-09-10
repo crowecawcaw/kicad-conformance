@@ -1,0 +1,4 @@
+concept = "A board-only C1 reports extra_footprint while the paired R1 remains matched."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

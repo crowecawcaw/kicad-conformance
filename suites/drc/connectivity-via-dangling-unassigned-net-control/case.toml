@@ -1,0 +1,4 @@
+concept = "The same through via is clean when it has no assigned net."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

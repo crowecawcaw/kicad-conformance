@@ -1,0 +1,4 @@
+concept = "Two pad-anchored different-net F.Cu tracks crossing at an oblique-free midpoint report tracks_crossing."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

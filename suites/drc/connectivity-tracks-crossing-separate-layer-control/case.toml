@@ -1,0 +1,4 @@
+concept = "The same projected crossing is clean when the GND track is on B.Cu."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

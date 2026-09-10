@@ -1,0 +1,4 @@
+concept = "Two same-net pads without copper appear in unconnected_items."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
