@@ -1,0 +1,4 @@
+concept = "Changing only one footprint's pad construction from surface-mount to drilled through-hole triggers footprint_type_mismatch under the same declared SMD attribute."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

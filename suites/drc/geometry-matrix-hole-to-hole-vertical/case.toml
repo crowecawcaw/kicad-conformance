@@ -1,0 +1,4 @@
+concept = "Vertical drill spacing probes the custom hole-to-hole rule with the same circular drills and air gaps as the horizontal witness."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

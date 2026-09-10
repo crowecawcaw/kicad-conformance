@@ -1,0 +1,4 @@
+concept = "Vertical F.SilkS strokes at a pad opening distinguish contact from a one-nanometre overlap."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "Pads at the lower board edge distinguish horizontal copper-to-edge gaps at KiCad's built-in clearance tolerance."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

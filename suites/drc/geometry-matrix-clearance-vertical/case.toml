@@ -1,0 +1,4 @@
+concept = "Vertical SMD pad gaps distinguish the built-in copper-clearance tolerance using the same one-millimetre pad geometry as the horizontal witness."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
