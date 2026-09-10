@@ -1,0 +1,4 @@
+concept = "A project-level severity map suppresses active built-in annular, drill, microvia drill, padstack, and track-width checks while leaving their violating geometry on the board; fixed padstack-invalid and via-diameter findings remain visible."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

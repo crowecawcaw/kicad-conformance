@@ -1,0 +1,4 @@
+concept = "Built-in dimensional DRC checks compare paired through-hole pads, regular and micro vias, and tracks at their default lower limits; each family includes an exact control and a below-limit or missing-material witness."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

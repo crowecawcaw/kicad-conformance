@@ -1,0 +1,4 @@
+concept = "A far-under track width retains ordinary four-decimal formatting."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

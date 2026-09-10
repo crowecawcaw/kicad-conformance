@@ -1,0 +1,218 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "board.kicad_pcb",
+    "unconnected_items": [],
+    "violations": [
+        {
+            "description": "Annular width (rule 'first strict annular' min annular width 0.2000 mm; actual 0.1000 mm)",
+            "items": [
+                {
+                    "description": "Via [VIA] on F.Cu - B.Cu",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "annular_width"
+        },
+        {
+            "description": "Hole size out of range (rule 'first strict hole' min hole 0.6000 mm; actual 0.3500 mm)",
+            "items": [
+                {
+                    "description": "PTH pad 1 [<no net>] of LAST_HOLE",
+                    "pos": {
+                        "x": 20.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "drill_out_of_range"
+        },
+        {
+            "description": "Text height out of range (rule 'first strict text height' min height 1.2000 mm; actual 0.8000 mm)",
+            "items": [
+                {
+                    "description": "PCB text 'LAST_HEIGHT' on F.Silkscreen",
+                    "pos": {
+                        "x": 8.0,
+                        "y": 16.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "text_height"
+        },
+        {
+            "description": "Text thickness out of range (rule 'first strict text thickness' min thickness 0.2000 mm; actual 0.1000 mm)",
+            "items": [
+                {
+                    "description": "PCB text 'LAST_THICKNESS' on F.Silkscreen",
+                    "pos": {
+                        "x": 8.0,
+                        "y": 20.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "text_thickness"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [TRACK] on F.Cu, length 1.0000 mm",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 5.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [VIA] on B.Cu, length 5.0000 mm",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [VIA] on F.Cu, length 5.0000 mm",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track segment length (rule 'first strict segment' min length 3.0000 mm; actual 1.0000 mm)",
+            "items": [
+                {
+                    "description": "Track [TRACK] on F.Cu, length 1.0000 mm",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 5.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "track_segment_length"
+        },
+        {
+            "description": "Track width (rule 'first strict track width' min width 0.6000 mm; actual 0.2500 mm)",
+            "items": [
+                {
+                    "description": "Track [VIA] on B.Cu, length 5.0000 mm",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "track_width"
+        },
+        {
+            "description": "Track width (rule 'first strict track width' min width 0.6000 mm; actual 0.2500 mm)",
+            "items": [
+                {
+                    "description": "Track [VIA] on F.Cu, length 5.0000 mm",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "track_width"
+        },
+        {
+            "description": "Track width (rule 'first strict track width' min width 0.6000 mm; actual 0.3000 mm)",
+            "items": [
+                {
+                    "description": "Track [TRACK] on F.Cu, length 1.0000 mm",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 5.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "track_width"
+        },
+        {
+            "description": "Via diameter (rule 'first strict via' min diameter 0.7000 mm; actual 0.5000 mm)",
+            "items": [
+                {
+                    "description": "Via [VIA] on F.Cu - B.Cu",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "via_diameter"
+        }
+    ]
+}

@@ -1,0 +1,4 @@
+concept = "Unsupported padstack_invalid and via_diameter severity keys do not suppress their fixed findings."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

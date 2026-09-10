@@ -1,0 +1,44 @@
+(version 1)
+
+(rule "first strict annular"
+  (condition "A.Type == 'Via'")
+  (constraint annular_width (min 0.20mm)))
+(rule "later annular"
+  (condition "A.Type == 'Via'")
+  (constraint annular_width (min 0.15mm)))
+(rule "first strict via"
+  (condition "A.Type == 'Via'")
+  (constraint via_diameter (min 0.70mm)))
+(rule "later via"
+  (condition "A.Type == 'Via'")
+  (constraint via_diameter (min 0.60mm)))
+(rule "first strict hole"
+  (condition "A.Type == 'Pad'")
+  (constraint hole_size (min 0.60mm)))
+(rule "later hole"
+  (condition "A.Type == 'Pad'")
+  (constraint hole_size (min 0.40mm)))
+(rule "first strict track width"
+  (condition "A.Type == 'Track'")
+  (constraint track_width (min 0.60mm)))
+(rule "later track width"
+  (condition "A.Type == 'Track'")
+  (constraint track_width (min 0.40mm)))
+(rule "first strict segment"
+  (condition "A.Type == 'Track'")
+  (constraint track_segment_length (min 3mm)))
+(rule "later segment"
+  (condition "A.Type == 'Track'")
+  (constraint track_segment_length (min 2mm)))
+(rule "first strict text height"
+  (condition "A.Type == 'Text' && A.Text == 'LAST_HEIGHT'")
+  (constraint text_height (min 1.20mm)))
+(rule "later text height"
+  (condition "A.Type == 'Text' && A.Text == 'LAST_HEIGHT'")
+  (constraint text_height (min 1.00mm)))
+(rule "first strict text thickness"
+  (condition "A.Type == 'Text' && A.Text == 'LAST_THICKNESS'")
+  (constraint text_thickness (min 0.20mm)))
+(rule "later text thickness"
+  (condition "A.Type == 'Text' && A.Text == 'LAST_THICKNESS'")
+  (constraint text_thickness (min 0.15mm)))

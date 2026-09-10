@@ -1,0 +1,238 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
+        {
+            "description": "Track width",
+            "key": "track_width"
+        },
+        {
+            "description": "Annular width",
+            "key": "annular_width"
+        },
+        {
+            "description": "Hole size out of range",
+            "key": "drill_out_of_range"
+        },
+        {
+            "description": "Micro via hole size out of range",
+            "key": "microvia_drill_out_of_range"
+        },
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Padstack is questionable",
+            "key": "padstack"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "board.kicad_pcb",
+    "unconnected_items": [],
+    "violations": [
+        {
+            "description": "Padstack is not valid (PTH pad hole size must be larger than 0.000004 mm)",
+            "items": [
+                {
+                    "description": "PTH pad 1 [<no net>] of PADSTACK_INVALID",
+                    "pos": {
+                        "x": 14.0,
+                        "y": 14.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "padstack_invalid"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [MICRO_EXACT] on B.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 6.0,
+                        "y": 15.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [MICRO_EXACT] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 15.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [MICRO_LOW] on B.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 6.0,
+                        "y": 18.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [MICRO_LOW] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 18.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [TRACK_EXACT] on F.Cu, length 4.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 4.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [TRACK_LOW] on F.Cu, length 4.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 6.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [VIA_EXACT] on B.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 6.0,
+                        "y": 9.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [VIA_EXACT] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 9.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [VIA_LOW] on B.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 6.0,
+                        "y": 12.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [VIA_LOW] on F.Cu, length 2.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 12.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Via diameter (board setup constraints min diameter 0.5 mm; actual 0.499998 mm)",
+            "items": [
+                {
+                    "description": "Via [VIA_LOW] on F.Cu - B.Cu",
+                    "pos": {
+                        "x": 6.0,
+                        "y": 12.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "via_diameter"
+        }
+    ]
+}

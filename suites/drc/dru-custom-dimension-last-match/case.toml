@@ -1,0 +1,4 @@
+concept = "For each custom numeric dimension constraint, two matching rules have different minimums. The later, less restrictive rule supplies the reported named threshold for a violating track, via, plated-pad hole, and silkscreen text."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

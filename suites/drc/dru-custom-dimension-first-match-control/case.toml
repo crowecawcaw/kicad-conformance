@@ -1,0 +1,4 @@
+concept = "The same board as dru-custom-dimension-last-match with only each pair of matching custom constraints reversed: KiCad reports the now-later strict named rule for annular width, via diameter, hole size, track width, segment length, text height, and text thickness."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

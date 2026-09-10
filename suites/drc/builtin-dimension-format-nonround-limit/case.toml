@@ -1,0 +1,4 @@
+concept = "A non-round board minimum and round actual preserve a visible comparison."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
