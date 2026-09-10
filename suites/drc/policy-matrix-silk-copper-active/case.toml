@@ -1,0 +1,4 @@
+concept = "Identical input from silk-matrix-copper-under with only the silk_over_copper built-in enabled at the project severity layer."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

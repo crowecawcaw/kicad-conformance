@@ -1,0 +1,4 @@
+concept = "Identical input from silk-matrix-edge-under with only the silk_edge_clearance built-in enabled at the project severity layer."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "Identical input from padstack-invalid-missing-drill with only the padstack_invalid built-in enabled at the project severity layer."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

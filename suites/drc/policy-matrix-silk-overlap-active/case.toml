@@ -1,0 +1,4 @@
+concept = "Identical input from silk-matrix-overlap-near with only the silk_overlap built-in enabled at the project severity layer."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

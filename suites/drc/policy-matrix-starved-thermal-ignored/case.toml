@@ -1,0 +1,4 @@
+concept = "Identical input from zone-with-thermal-relief with only the starved_thermal built-in set to ignore at the project severity layer."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

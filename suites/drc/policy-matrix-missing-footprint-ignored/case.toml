@@ -1,0 +1,4 @@
+concept = "Identical input from missing-footprint with only the missing_footprint built-in set to ignore at the project severity layer."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

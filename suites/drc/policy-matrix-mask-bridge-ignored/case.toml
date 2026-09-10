@@ -1,0 +1,4 @@
+concept = "Identical input from silk-matrix-mask-under with only the solder_mask_bridge built-in set to ignore at the project severity layer."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

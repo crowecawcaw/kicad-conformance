@@ -1,0 +1,4 @@
+concept = "Identical input from clearance-tolerance-is-500-nanometres with only the clearance built-in set to ignore at the project severity layer."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

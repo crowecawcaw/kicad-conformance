@@ -1,0 +1,4 @@
+concept = "Identical input from via-dimensions-one-nanometre-under-minima with only the via_diameter built-in enabled at the project severity layer."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
