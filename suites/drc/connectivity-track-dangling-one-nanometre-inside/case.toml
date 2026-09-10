@@ -1,0 +1,4 @@
+concept = "Moving the track cap one nanometre inside the pad contact limit anchors the endpoint."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

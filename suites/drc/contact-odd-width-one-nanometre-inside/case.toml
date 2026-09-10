@@ -1,0 +1,4 @@
+concept = "Moving an odd-nanometre-width track endpoint one nanometre inside an odd-nanometre rectangular pad anchors it."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

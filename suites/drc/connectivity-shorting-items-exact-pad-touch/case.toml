@@ -1,0 +1,4 @@
+concept = "Exact-contact versus one-nanometre separation boundary probe for shorting-items-exact-pad-touch."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

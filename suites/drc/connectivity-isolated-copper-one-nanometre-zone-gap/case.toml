@@ -1,0 +1,4 @@
+concept = "Exact-contact versus one-nanometre separation boundary probe for isolated-copper-one-nanometre-zone-gap."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

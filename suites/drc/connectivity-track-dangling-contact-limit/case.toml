@@ -1,0 +1,4 @@
+concept = "The track cap reaches the pad contact limit and KiCad reports the free endpoint as dangling."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "An odd-nanometre-width track cap exactly tangent to an odd-nanometre rectangular pad remains dangling."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
