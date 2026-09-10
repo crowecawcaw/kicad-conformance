@@ -1,0 +1,4 @@
+concept = "Two board footprints share X1 while schematic contains R1."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

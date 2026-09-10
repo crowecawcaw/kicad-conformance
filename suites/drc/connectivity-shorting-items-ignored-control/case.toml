@@ -1,0 +1,4 @@
+concept = "The shorting_items witness is clean when the project sets only shorting_items severity to ignore."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

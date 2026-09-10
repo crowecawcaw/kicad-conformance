@@ -1,0 +1,4 @@
+concept = "Two board-only footprints share reference R1."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
