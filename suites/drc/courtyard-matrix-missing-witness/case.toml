@@ -1,0 +1,4 @@
+concept = "An SMD footprint with no F.CrtYd outline reports missing_courtyard when enabled."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

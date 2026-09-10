@@ -1,0 +1,4 @@
+concept = "Paired missing_courtyard control."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

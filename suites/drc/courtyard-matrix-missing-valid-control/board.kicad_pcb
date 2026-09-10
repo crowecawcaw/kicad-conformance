@@ -1,0 +1,11 @@
+(kicad_pcb
+ (version 20240108) (generator "pcbnew") (generator_version "10.0.5")
+ (general (thickness 1.6) (legacy_teardrops no))
+ (layers (0 "F.Cu" signal) (2 "B.Cu" signal) (37 "F.SilkS" user "F.Silkscreen") (39 "F.Mask" user) (44 "Edge.Cuts" user) (46 "B.CrtYd" user "B.Courtyard") (47 "F.CrtYd" user "F.Courtyard"))
+ (setup (pad_to_mask_clearance 0))
+ (footprint "Probe:Missing" (layer "F.Cu") (at 10 10)
+  (property "Reference" "U1" (at 0 -2 0) (layer "F.SilkS")) (property "Value" "Missing" (at 0 2 0) (layer "F.SilkS")) (attr smd)
+  (fp_rect (start -1 -1) (end 1 1) (stroke (width 0.05) (type default)) (fill none) (layer "F.CrtYd"))
+  (pad "1" smd rect (at 0 0) (size 1 1) (layers "F.Cu" "F.Mask")))
+ (gr_rect (start 0 0) (end 20 20) (stroke (width 0.1) (type default)) (fill none) (layer "Edge.Cuts"))
+)

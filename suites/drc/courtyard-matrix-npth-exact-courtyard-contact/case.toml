@@ -1,0 +1,4 @@
+concept = "NPTH hole courtyard boundary probe."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
