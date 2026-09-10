@@ -1,0 +1,4 @@
+concept = "A stored thermal with one surviving spoke reports starved_thermal, while the same pad and ring geometry with two opposing spokes is clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
