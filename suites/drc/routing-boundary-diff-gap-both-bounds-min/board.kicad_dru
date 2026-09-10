@@ -1,0 +1,2 @@
+(version 1)
+(rule "routing pair gap bounded" (constraint diff_pair_gap (min 0.8mm) (max 1.0mm)))

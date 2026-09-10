@@ -1,0 +1,4 @@
+concept = "A 0.700000 mm copper gap meets a named differential-pair maximum exactly."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

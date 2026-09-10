@@ -1,0 +1,4 @@
+concept = "Equal-length differential-pair candidates probe a named skew control."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

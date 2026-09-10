@@ -1,0 +1,4 @@
+concept = "A ten-millimetre route meets a named custom length maximum exactly at ten millimetres."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

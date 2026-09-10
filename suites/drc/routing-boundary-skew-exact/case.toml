@@ -1,0 +1,4 @@
+concept = "A ten-versus-seven millimetre differential pair meets a named three-millimetre skew maximum exactly."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

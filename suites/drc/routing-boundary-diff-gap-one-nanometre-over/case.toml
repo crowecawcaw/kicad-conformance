@@ -1,0 +1,4 @@
+concept = "The same 0.700000 mm copper gap is tested against a maximum one nanometre below it."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "A named differential-pair skew maximum probes ten and seven millimetre PAIR routes."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

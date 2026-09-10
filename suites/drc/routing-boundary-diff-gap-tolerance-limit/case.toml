@@ -1,0 +1,4 @@
+concept = "The 0.700000 mm copper gap remains clean at KiCad 10.0.5’s observed 0.699500 mm maximum tolerance limit."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

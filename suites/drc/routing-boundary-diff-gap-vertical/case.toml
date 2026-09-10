@@ -1,0 +1,4 @@
+concept = "A vertical parallel differential pair has the same 0.700000 mm copper gap as the horizontal witness."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

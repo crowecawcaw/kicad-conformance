@@ -1,0 +1,2 @@
+(version 1)
+(rule "boundary pair gap under" (constraint diff_pair_gap (max 0.699999mm)))

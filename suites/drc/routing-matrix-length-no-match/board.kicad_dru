@@ -1,0 +1,4 @@
+(version 1)
+(rule "routing length unmatched"
+ (condition "A.NetName == 'OTHER'")
+ (constraint length (max 1mm)))

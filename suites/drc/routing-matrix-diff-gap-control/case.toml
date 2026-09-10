@@ -1,0 +1,4 @@
+concept = "The same named differential-pair gap maximum has a close parallel candidate intended as a clean control."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "A named differential-pair uncoupled-length maximum probes two parallel routes held far apart for ten millimetres."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

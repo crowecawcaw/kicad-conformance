@@ -1,0 +1,4 @@
+concept = "Two matching skew maxima probe later-rule report precedence."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

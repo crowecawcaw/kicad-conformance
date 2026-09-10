@@ -1,0 +1,3 @@
+(version 1)
+(rule "routing pair gap max half" (constraint diff_pair_gap (max 0.5mm)))
+(rule "routing pair gap max quarter" (constraint diff_pair_gap (max 0.25mm)))

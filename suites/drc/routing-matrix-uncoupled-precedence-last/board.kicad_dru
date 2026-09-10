@@ -1,0 +1,3 @@
+(version 1)
+(rule "routing uncoupled max half" (constraint diff_pair_uncoupled (max 0.5mm)))
+(rule "routing uncoupled max one" (constraint diff_pair_uncoupled (max 1mm)))

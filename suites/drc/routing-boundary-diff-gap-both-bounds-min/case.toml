@@ -1,0 +1,4 @@
+concept = "When a differential-pair gap constraint has both bounds and only its minimum fails, the report names the minimum and its 0.8 mm limit."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

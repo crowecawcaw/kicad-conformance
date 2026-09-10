@@ -1,0 +1,4 @@
+concept = "A custom length constraint sums every straight segment on a two-pad net, including disconnected copper: two separate ten-millimetre segments report an actual length of twenty millimetres."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

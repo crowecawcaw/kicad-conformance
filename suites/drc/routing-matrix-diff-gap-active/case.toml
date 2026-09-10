@@ -1,0 +1,4 @@
+concept = "A named differential-pair gap maximum probes two ten-millimetre parallel PAIR_P and PAIR_N routes."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

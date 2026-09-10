@@ -1,0 +1,3 @@
+(version 1)
+(rule "routing length max fifteen"
+ (constraint length (max 15mm)))

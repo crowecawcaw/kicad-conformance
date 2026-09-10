@@ -1,0 +1,5 @@
+Ref,Val,Package,PosX,PosY,Rot,Side
+"PAIR_NA","","TestPad",5.000000,-5.700000,0.000000,top
+"PAIR_NB","","TestPad",15.000000,-5.700000,0.000000,top
+"PAIR_PA","","TestPad",5.000000,-5.000000,0.000000,top
+"PAIR_PB","","TestPad",15.000000,-5.000000,0.000000,top

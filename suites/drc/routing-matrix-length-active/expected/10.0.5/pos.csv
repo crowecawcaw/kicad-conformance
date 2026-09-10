@@ -1,0 +1,5 @@
+Ref,Val,Package,PosX,PosY,Rot,Side
+"LONGA","","TestPad",5.000000,-5.000000,0.000000,top
+"LONGB","","TestPad",15.000000,-5.000000,0.000000,top
+"SHORTA","","TestPad",5.000000,-10.000000,0.000000,top
+"SHORTB","","TestPad",12.000000,-10.000000,0.000000,top

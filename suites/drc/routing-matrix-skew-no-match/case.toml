@@ -1,0 +1,4 @@
+concept = "An unequal differential-pair-shaped route is retained while a named skew rule condition selects another net."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

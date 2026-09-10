@@ -1,0 +1,4 @@
+concept = "A straight ten-millimetre member and a bent seven-millimetre member probe skew over alternate route topology."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

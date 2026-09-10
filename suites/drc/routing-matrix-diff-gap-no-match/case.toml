@@ -1,0 +1,4 @@
+concept = "A differential-pair-shaped route is retained while a named gap rule condition selects another net."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

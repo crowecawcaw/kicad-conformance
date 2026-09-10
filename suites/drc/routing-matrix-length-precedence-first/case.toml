@@ -1,0 +1,4 @@
+concept = "Reversing only two matching custom length rules changes the reported threshold for the same route."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

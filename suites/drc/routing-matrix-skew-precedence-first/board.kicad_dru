@@ -1,0 +1,3 @@
+(version 1)
+(rule "routing skew max one" (constraint skew (max 1mm)))
+(rule "routing skew max half" (constraint skew (max 0.5mm)))

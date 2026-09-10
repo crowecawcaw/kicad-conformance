@@ -1,0 +1,4 @@
+concept = "Two matching custom length maxima report the later rule threshold for the same ten-millimetre route."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

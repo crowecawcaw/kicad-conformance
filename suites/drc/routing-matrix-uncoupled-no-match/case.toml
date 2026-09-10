@@ -1,0 +1,4 @@
+concept = "Far differential-pair-shaped geometry is retained while the named uncoupled rule condition selects another net."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

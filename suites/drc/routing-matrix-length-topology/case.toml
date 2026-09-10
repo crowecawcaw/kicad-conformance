@@ -1,0 +1,4 @@
+concept = "A bent seven-millimetre route violates a six-millimetre named length maximum, proving accumulated route geometry is measured."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

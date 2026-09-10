@@ -1,0 +1,4 @@
+concept = "The same ten-millimetre route is tested against a named custom maximum one nanometre below ten millimetres."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

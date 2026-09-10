@@ -1,0 +1,2 @@
+(version 1)
+(rule "boundary length under" (constraint length (max 9.999999mm)))
