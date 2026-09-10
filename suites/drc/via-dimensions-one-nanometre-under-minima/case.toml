@@ -1,0 +1,4 @@
+concept = "A regular 0.499998 mm via around a 0.300000 mm drill is below both the 0.500000 mm diameter and 0.100000 mm annular-width floors."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

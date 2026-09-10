@@ -1,0 +1,3 @@
+(version 1)
+(rule "courtyard earlier wide" (constraint courtyard_clearance (min 2mm)) (condition "A.Type == 'footprint' && B.Type == 'footprint'"))
+(rule "courtyard last one" (constraint courtyard_clearance (min 1mm)) (condition "A.Type == 'footprint' && B.Type == 'footprint'"))

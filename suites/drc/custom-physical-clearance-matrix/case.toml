@@ -1,0 +1,4 @@
+concept = "A last matching 1 mm physical_clearance rule checks both same-net and different-net rectangular pads: 0.5 mm gaps fail while exact 1 mm gaps are clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

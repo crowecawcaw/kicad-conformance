@@ -1,0 +1,7 @@
+(version 1)
+(rule "earlier two-millimetre hole spacing"
+  (condition "A.NetName == 'H2H_*'")
+  (constraint hole_to_hole (min 2mm)))
+(rule "one-millimetre hole spacing"
+  (condition "A.NetName == 'H2H_*'")
+  (constraint hole_to_hole (min 1mm)))

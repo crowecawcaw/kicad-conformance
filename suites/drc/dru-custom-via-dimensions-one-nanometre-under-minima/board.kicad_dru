@@ -1,0 +1,9 @@
+(version 1)
+
+(rule "custom via diameter"
+  (condition "A.Type == 'Via'")
+  (constraint via_diameter (min 0.6mm)))
+
+(rule "custom via annular width"
+  (condition "A.Type == 'Via'")
+  (constraint annular_width (min 0.15mm)))

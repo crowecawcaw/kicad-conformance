@@ -1,0 +1,4 @@
+concept = "A custom via_count maximum reports a two-via connection while an otherwise equivalent one-via connection is clean at the boundary."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

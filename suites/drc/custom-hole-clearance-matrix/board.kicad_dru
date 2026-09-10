@@ -1,0 +1,3 @@
+(version 1)
+(rule "hole earlier wide" (constraint hole_clearance (min 1mm)) (condition "A.NetName == 'HC_*'"))
+(rule "hole last one" (constraint hole_clearance (min 0.5mm)) (condition "A.NetName == 'HC_*'"))

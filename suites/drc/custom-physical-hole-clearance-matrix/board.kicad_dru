@@ -1,0 +1,3 @@
+(version 1)
+(rule "physical hole earlier wide" (constraint physical_hole_clearance (min 1mm)) (condition "A.NetName == 'PH_*'"))
+(rule "physical hole last one" (constraint physical_hole_clearance (min 0.5mm)) (condition "A.NetName == 'PH_*'"))

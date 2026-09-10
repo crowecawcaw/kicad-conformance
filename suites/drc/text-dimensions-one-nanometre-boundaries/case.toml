@@ -1,0 +1,4 @@
+concept = "Silkscreen text exactly at the 0.800000 mm height and 0.080000 mm thickness floors is clean; separate 1 nm under-floor texts report text_height and text_thickness."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

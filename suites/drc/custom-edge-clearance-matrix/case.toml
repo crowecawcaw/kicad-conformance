@@ -1,0 +1,4 @@
+concept = "A last matching 1 mm edge_clearance rule rejects rectangular and circular pads 0.5 mm from orthogonal board edges while exact 1 mm controls are clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

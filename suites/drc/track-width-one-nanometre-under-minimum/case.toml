@@ -1,0 +1,4 @@
+concept = "A connected 0.199999 mm F.Cu track is 1 nm below KiCad's 0.200000 mm default minimum and reports track_width."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

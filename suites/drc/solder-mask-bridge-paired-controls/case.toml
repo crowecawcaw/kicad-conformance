@@ -1,0 +1,4 @@
+concept = "With 0.2 mm mask expansion, a different-net SMD pad pair whose copper gap is 0.39 mm bridges its front mask apertures, while an otherwise identical 0.60 mm-gap pair does not."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "A last matching 1 mm clearance rule rejects a different-net rectangular pair at 0.5 mm, keeps an exact 1 mm pair clean, and exempts a same-net 0.5 mm pair."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

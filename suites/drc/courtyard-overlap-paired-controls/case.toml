@@ -1,0 +1,4 @@
+concept = "Two 4 mm front courtyards whose outlines overlap produce one courtyards_overlap finding, while a same-shape pair with a 1 mm air gap is silent."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

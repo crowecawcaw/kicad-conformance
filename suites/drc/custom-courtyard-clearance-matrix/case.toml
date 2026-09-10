@@ -1,0 +1,4 @@
+concept = "A last matching 1 mm courtyard_clearance rule rejects rectangular and polygonal courtyard pairs at 0.5 mm while exact 1 mm pairs are clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

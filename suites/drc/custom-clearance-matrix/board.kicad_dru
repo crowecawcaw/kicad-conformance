@@ -1,0 +1,3 @@
+(version 1)
+(rule "clearance earlier wide" (constraint clearance (min 2mm)) (condition "A.Type == 'pad' && B.Type == 'pad'"))
+(rule "clearance last one" (constraint clearance (min 1mm)) (condition "A.Type == 'pad' && B.Type == 'pad'"))

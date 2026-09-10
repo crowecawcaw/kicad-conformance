@@ -1,0 +1,4 @@
+concept = "A 0.8 mm round drill through a 1 x 1 mm circular plated pad is clean; shrinking the pad to the drill diameter reports padstack."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

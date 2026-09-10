@@ -1,0 +1,4 @@
+(version 1)
+(rule "one via exactly"
+  (condition "A.Type == 'Via'")
+  (constraint via_count (min 1) (max 1)))

@@ -1,0 +1,4 @@
+concept = "The exact Net-1 via is clean at the custom 0.600000 mm diameter and 0.150000 mm annular-width minima while a Net-2 via below both minima names both custom rules."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

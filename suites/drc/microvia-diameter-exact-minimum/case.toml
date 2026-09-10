@@ -1,0 +1,4 @@
+concept = "A microvia exactly at the 0.300000 mm diameter floor is clean; the paired perturbation makes it 1 nm smaller and reports via_diameter."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "A circular 0.8 mm plated pad with a 0.8 mm round drill reports padstack because the hole leaves no copper."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

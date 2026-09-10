@@ -1,0 +1,3 @@
+(version 1)
+(rule "edge earlier wide" (constraint edge_clearance (min 2mm)) (condition "A.Type == 'Pad'"))
+(rule "edge last one" (constraint edge_clearance (min 1mm)) (condition "A.Type == 'Pad'"))

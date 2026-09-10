@@ -1,0 +1,4 @@
+concept = "When matching custom hole-to-hole minima of 2 mm then 1 mm are ordered in the rule file, only the last 1 mm rule governs: H2H_BAD at 0.9 mm fails while the exact and 1.3 mm controls are clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

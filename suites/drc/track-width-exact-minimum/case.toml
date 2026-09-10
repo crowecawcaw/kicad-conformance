@@ -1,0 +1,4 @@
+concept = "A 0.200000 mm track at KiCad's default minimum is clean; the paired perturbation makes it 1 nm narrower and reports track_width."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

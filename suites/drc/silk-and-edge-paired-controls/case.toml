@@ -1,0 +1,4 @@
+concept = "Silk crossing an SMD pad and Edge.Cuts fires their own checks, while coincident board-level F.SilkS and B.SilkS graphics (and even the close same-side graphics) do not produce silk_overlap."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

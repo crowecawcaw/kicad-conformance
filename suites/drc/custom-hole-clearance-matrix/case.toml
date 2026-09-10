@@ -1,0 +1,4 @@
+concept = "A last matching 0.5 mm hole_clearance rule rejects different-net drilled round-pad and slotted-pad to track gaps of 0.4 mm while exact 0.5 mm controls and a same-net 0.4 mm pair are clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

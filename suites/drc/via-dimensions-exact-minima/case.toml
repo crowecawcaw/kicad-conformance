@@ -1,0 +1,4 @@
+concept = "A regular via exactly at the 0.500000 mm diameter and 0.100000 mm annular-width floors is clean; the paired perturbation makes both dimensions 1 nm too small."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
