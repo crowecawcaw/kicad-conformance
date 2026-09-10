@@ -1,0 +1,4 @@
+concept = "Two bare F.SilkS board graphics inside a named 0.2 mm custom silk-clearance minimum remain outside KiCad's silk_overlap domain."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

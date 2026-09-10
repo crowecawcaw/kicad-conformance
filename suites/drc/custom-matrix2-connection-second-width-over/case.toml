@@ -1,0 +1,4 @@
+concept = "Raising the custom floor to 0.212001 mm reports the independent 0.200000 mm pad/zone junction."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

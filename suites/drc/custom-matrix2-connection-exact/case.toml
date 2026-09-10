@@ -1,0 +1,4 @@
+concept = "A named custom connection-width rule for N is 0.100000mm; the stored pad/zone junction has measured 0.100000 mm shared connection width while EXACT is an independent 0.200000 mm control."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

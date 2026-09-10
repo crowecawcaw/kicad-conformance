@@ -1,0 +1,2 @@
+(version 1)
+(rule "board graphic silk clearance" (constraint silk_clearance (min 0.2mm)))

@@ -1,0 +1,4 @@
+concept = "Overlapping footprint Reference fields run under a named 0.2mm custom silk-clearance rule."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "Two matching custom silk-clearance rules test ordered selection at an exact 0.100000 mm footprint-silk stroke gap."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

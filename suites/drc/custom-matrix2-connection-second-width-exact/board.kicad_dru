@@ -1,0 +1,2 @@
+(version 1)
+(rule "connection second-width exact" (constraint connection_width (min 0.212000mm)) (condition "A.NetName == 'EXACT'"))

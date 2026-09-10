@@ -1,0 +1,4 @@
+concept = "Two matching custom connection-width rules distinguish later-rule selection at an exact 0.100000 mm stored pad/zone junction."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

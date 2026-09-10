@@ -1,0 +1,4 @@
+concept = "The established 0.100000 mm N pad/zone junction is checked with a custom connection-width rule whose condition matches no item, distinguishing condition scope from global custom-constraint behavior."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "Two separate footprint F.SilkS strokes have a measured outer-edge gap of 0.200001 mm under a named 0.2 mm custom silk-clearance rule."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "The same stored 0.100000 mm N pad/zone junction without a custom connection-width rule retains the inherited built-in connection_width finding, providing the activation control."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

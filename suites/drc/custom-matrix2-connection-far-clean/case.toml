@@ -1,0 +1,4 @@
+concept = "An unconditional custom 0.01mm connection-width floor tests the 0.100000 mm stored pad/zone junction beyond any near-threshold tolerance."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "An unconditional custom 0.100001 mm connection-width rule with explicit warning severity probes normal severity enablement on the stored 0.100000 mm pad/zone junction."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

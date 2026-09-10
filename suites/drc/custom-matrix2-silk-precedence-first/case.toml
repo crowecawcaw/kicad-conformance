@@ -1,0 +1,4 @@
+concept = "The byte-identical 0.100000 mm footprint-silk gap reverses only the two custom silk-clearance rule declarations, testing order-dependent selection."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

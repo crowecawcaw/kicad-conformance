@@ -1,0 +1,4 @@
+concept = "The same 0.199999 mm footprint-silk gap is clean without a custom silk-clearance rule, isolating activation of the named 0.2 mm rule."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

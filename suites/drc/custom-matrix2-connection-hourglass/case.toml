@@ -1,0 +1,4 @@
+concept = "A named custom 0.100001 mm connection-width rule is applied to a stored-zone hourglass whose measured neck is 0.100000 mm."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

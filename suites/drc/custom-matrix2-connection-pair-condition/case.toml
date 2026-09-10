@@ -1,0 +1,4 @@
+concept = "A pair-scoped custom connection rule reaches the EXACT pad/zone junction without making the unary neck pass incomplete."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

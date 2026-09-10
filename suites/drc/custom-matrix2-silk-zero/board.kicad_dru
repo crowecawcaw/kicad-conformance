@@ -1,0 +1,2 @@
+(version 1)
+(rule "matrix silk zero" (constraint silk_clearance (min 0mm)))

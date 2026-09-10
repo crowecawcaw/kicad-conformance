@@ -1,0 +1,4 @@
+concept = "An unconditional custom 0.112001mm connection-width floor brackets the effective transition for the 0.100000 mm stored pad/zone junction."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

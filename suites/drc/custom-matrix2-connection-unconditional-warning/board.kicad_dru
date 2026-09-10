@@ -1,0 +1,2 @@
+(version 1)
+(rule "unconditional warning connection" (severity warning) (constraint connection_width (min 0.100001mm)))
