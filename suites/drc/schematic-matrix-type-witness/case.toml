@@ -1,0 +1,4 @@
+concept = "With footprint_type_mismatch enabled, changing only one R1 pad from SMD to through-hole reports footprint_type_mismatch."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

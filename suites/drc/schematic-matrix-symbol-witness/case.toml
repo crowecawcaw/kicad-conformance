@@ -1,0 +1,4 @@
+concept = "Changing only R1's board footprint identifier from the schematic field reports footprint_symbol_mismatch."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

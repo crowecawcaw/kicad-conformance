@@ -1,0 +1,4 @@
+concept = "R1/R2 Reference fields have a measured 1.673809 mm origin separation, one nanometre beyond the observed silk_overlap transition."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

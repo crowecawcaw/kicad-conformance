@@ -1,0 +1,4 @@
+concept = "With footprint_type_mismatch enabled, an SMD footprint with only SMD pads is clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

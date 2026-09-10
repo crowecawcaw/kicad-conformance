@@ -1,0 +1,4 @@
+concept = "BR1/BR2 are 1 mm pads with 0.2 mm F.Mask expansion and BR2 at x=11.399999 mm, probing the expanded-aperture bridge transition around mask-edge contact."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

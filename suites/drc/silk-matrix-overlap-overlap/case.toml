@@ -1,0 +1,4 @@
+concept = "Footprint Reference fields R1 and R2 are positioned with R2 local x=-14.500000 mm to distinguish footprint-text silk overlap behavior from board graphic pairs."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

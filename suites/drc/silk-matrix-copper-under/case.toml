@@ -1,0 +1,4 @@
+concept = "One 0.15 mm F.SilkS line has a 11.074999 mm centerline ordinate above a 2 mm F.Mask pad opening, probing contact with the opening after the silk half-width."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

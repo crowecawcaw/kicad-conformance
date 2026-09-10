@@ -1,0 +1,4 @@
+concept = "Changing only R1 pad 2 from /GND to /VIN reports one net_conflict."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

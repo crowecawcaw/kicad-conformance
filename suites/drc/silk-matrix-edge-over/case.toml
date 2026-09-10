@@ -1,0 +1,4 @@
+concept = "One 0.15 mm F.SilkS line has a 0.075001 mm centerline distance from the Edge.Cuts bottom edge, probing whether silk must remain within the outline after its 0.075 mm half-width."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

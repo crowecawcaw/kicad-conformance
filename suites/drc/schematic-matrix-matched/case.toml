@@ -1,0 +1,4 @@
+concept = "A matched two-pad R1 is clean for schematic parity identity checks."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
