@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "Generic")(type "KiCad")(uri "${KIPRJMOD}/Generic.pretty")(options "")(descr "fixture-local generic library"))
+)

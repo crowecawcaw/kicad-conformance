@@ -1,0 +1,4 @@
+concept = "The generic footprint policy probes the local-library lookup finding."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

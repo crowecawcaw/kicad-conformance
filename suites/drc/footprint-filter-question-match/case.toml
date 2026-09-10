@@ -1,0 +1,4 @@
+concept = "The Generic:Allowe? footprint filter accepts Generic:Allowed."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

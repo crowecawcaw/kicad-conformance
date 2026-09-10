@@ -1,0 +1,4 @@
+concept = "The Other:* footprint filter rejects Generic:Allowed."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

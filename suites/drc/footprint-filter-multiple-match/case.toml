@@ -1,0 +1,4 @@
+concept = "Whitespace-separated filters accept when one alternative matches."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

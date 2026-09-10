@@ -1,0 +1,4 @@
+concept = "Fixture-local generic footprint comparison witness."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

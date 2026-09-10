@@ -1,0 +1,4 @@
+concept = "The fixture-local footprint finding is suppressed by its project severity."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

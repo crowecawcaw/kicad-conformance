@@ -1,0 +1,4 @@
+concept = "A fixture-local library lookup miss is distinct from a footprint comparison mismatch."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
