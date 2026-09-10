@@ -1,0 +1,4 @@
+concept = "The copper-edge witness is clean when only copper_edge_clearance severity is ignored by the project."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

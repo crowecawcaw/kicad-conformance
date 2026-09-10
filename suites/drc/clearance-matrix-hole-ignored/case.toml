@@ -1,0 +1,4 @@
+concept = "The hole-clearance witness is clean when only hole_clearance severity is ignored by the project."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

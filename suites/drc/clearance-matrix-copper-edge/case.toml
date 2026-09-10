@@ -1,0 +1,4 @@
+concept = "The built-in 0.5 mm copper-edge clearance accepts a 0.499500 mm pad-edge gap and reports the otherwise identical 0.499499 mm gap."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

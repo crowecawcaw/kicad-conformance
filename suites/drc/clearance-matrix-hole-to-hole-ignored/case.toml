@@ -1,0 +1,4 @@
+concept = "The drilled-hole spacing witness is clean when only hole_to_hole severity is ignored by the project."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

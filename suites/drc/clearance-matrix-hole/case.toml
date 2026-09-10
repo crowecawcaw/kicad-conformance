@@ -1,0 +1,4 @@
+concept = "The built-in 0.25 mm hole-to-copper clearance accepts a 0.249500 mm drilled-hole gap and reports the otherwise identical 0.249499 mm gap."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
