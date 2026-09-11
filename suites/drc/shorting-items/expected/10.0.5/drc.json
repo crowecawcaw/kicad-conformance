@@ -35,29 +35,6 @@
     "unconnected_items": [],
     "violations": [
         {
-            "description": "Items shorting two nets (nets GND and Net-1)",
-            "items": [
-                {
-                    "description": "Pad 1 [GND] of  on F.Cu",
-                    "pos": {
-                        "x": 10.0,
-                        "y": 10.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                },
-                {
-                    "description": "Track [Net-1] on F.Cu, length 10.0000 mm",
-                    "pos": {
-                        "x": 5.0,
-                        "y": 10.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "error",
-            "type": "shorting_items"
-        },
-        {
             "description": "Front solder mask aperture bridges items with different nets",
             "items": [
                 {
@@ -79,6 +56,29 @@
             ],
             "severity": "error",
             "type": "solder_mask_bridge"
+        },
+        {
+            "description": "Items shorting two nets (nets GND and Net-1)",
+            "items": [
+                {
+                    "description": "Pad 1 [GND] of  on F.Cu",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [Net-1] on F.Cu, length 10.0000 mm",
+                    "pos": {
+                        "x": 5.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "shorting_items"
         }
     ]
 }

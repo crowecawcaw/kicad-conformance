@@ -1,0 +1,4 @@
+concept = "Reflecting the attached sub-20-degree copper tip reverses polygon orientation but still reports one copper sliver."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

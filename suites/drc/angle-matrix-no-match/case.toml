@@ -1,0 +1,4 @@
+concept = "An unmatched track-angle rule leaves the otherwise violating 90 degree bend without a track-angle finding."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

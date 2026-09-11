@@ -1,0 +1,4 @@
+concept = "An isolated triangle with the same sub-20-degree tip is clean because it has no copper body from which a sliver protrudes."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

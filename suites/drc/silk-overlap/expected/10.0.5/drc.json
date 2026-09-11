@@ -35,6 +35,29 @@
     "unconnected_items": [],
     "violations": [
         {
+            "description": "Silkscreen clearance",
+            "items": [
+                {
+                    "description": "Reference field of R1",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Reference field of R2",
+                    "pos": {
+                        "x": 10.5,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "silk_overlap"
+        },
+        {
             "description": "The current configuration does not include the footprint library 'probe'",
             "items": [
                 {
@@ -63,29 +86,6 @@
             ],
             "severity": "warning",
             "type": "lib_footprint_issues"
-        },
-        {
-            "description": "Silkscreen clearance",
-            "items": [
-                {
-                    "description": "Reference field of R1",
-                    "pos": {
-                        "x": 10.0,
-                        "y": 10.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                },
-                {
-                    "description": "Reference field of R2",
-                    "pos": {
-                        "x": 10.5,
-                        "y": 10.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "warning",
-            "type": "silk_overlap"
         }
     ]
 }

@@ -1,0 +1,4 @@
+concept = "A vertical ten-millimetre separated pair probes uncoupled length across routing orientation."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

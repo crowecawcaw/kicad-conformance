@@ -1,0 +1,4 @@
+(version 1)
+(rule "UNCOUPLED_PROBE_GAP_AND_LENGTH"
+  (constraint diff_pair_gap (max 1mm))
+  (constraint diff_pair_uncoupled (max 1mm)))

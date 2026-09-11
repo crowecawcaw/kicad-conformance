@@ -1,0 +1,4 @@
+concept = "Two equal one-millimetre F.Cu pads sit at the board-edge clearance floor and one nanometre inside it: the exact 0.500000 mm control is clean and the 0.499999 mm sibling reports copper_edge_clearance."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

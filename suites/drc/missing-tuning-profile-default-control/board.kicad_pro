@@ -1,0 +1,1 @@
+{"board":{"design_settings":{"rule_severities":{"missing_tuning_profile":"error"}}},"net_settings":{"classes":[{"name":"Default","priority":2147483647,"clearance":0.2,"tuning_profile":"deliberately_missing"}]},"tuning_profiles":{"meta":{"version":0},"tuning_profiles_impedance_geometric":[]}}

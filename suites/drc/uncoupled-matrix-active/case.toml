@@ -1,0 +1,4 @@
+concept = "Explicit differential-pair gap and uncoupled-length maxima report a ten-millimetre separated pair."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

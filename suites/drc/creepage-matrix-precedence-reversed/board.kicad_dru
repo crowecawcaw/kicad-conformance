@@ -1,0 +1,5 @@
+(version 1)
+(rule "CREEPAGE_EARLY_2MM"
+  (constraint creepage (min 2mm)))
+(rule "CREEPAGE_LAST_5MM"
+  (constraint creepage (min 5mm)))

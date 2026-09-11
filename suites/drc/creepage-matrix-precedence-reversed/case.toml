@@ -1,0 +1,4 @@
+concept = "Reversing two matching creepage rules selects the later named 5 mm rule on unchanged near-pad geometry."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

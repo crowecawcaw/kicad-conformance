@@ -1,0 +1,4 @@
+concept = "A net-assigned via joined at an exact copper-envelope contact is clean; a 501 nm physical gap leaves the otherwise identical via dangling."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

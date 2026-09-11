@@ -90,6 +90,14 @@
 			(at 100 50 0)
 			(effects (font (size 1.27 1.27)) hide)
 		)
+		(property "OracleProbe" "present-only-on-symbol"
+			(at 102 52 0)
+			(effects (font (size 1.27 1.27)) hide)
+		)
+		(property "OracleMissing" "present-only-on-symbol"
+			(at 102 53 0)
+			(effects (font (size 1.27 1.27)) hide)
+		)
 		(pin "1" (uuid "pin-r1-1"))
 		(pin "2" (uuid "pin-r1-2"))
 	)

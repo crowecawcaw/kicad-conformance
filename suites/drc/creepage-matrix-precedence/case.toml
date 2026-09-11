@@ -1,0 +1,4 @@
+concept = "Two matching creepage rules select the later named 2 mm rule for the near-pad violation."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -35,21 +35,6 @@
     "unconnected_items": [],
     "violations": [
         {
-            "description": "The current configuration does not include the footprint library 'probe'",
-            "items": [
-                {
-                    "description": "Footprint <no reference designator>",
-                    "pos": {
-                        "x": 10.0,
-                        "y": 10.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "warning",
-            "type": "lib_footprint_issues"
-        },
-        {
             "description": "Silkscreen clipped by solder mask",
             "items": [
                 {
@@ -71,6 +56,21 @@
             ],
             "severity": "warning",
             "type": "silk_over_copper"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'probe'",
+            "items": [
+                {
+                    "description": "Footprint <no reference designator>",
+                    "pos": {
+                        "x": 10.0,
+                        "y": 10.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
         }
     ]
 }

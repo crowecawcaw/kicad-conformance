@@ -1,0 +1,4 @@
+concept = "The same ten-millimetre separated pair probes one nanometre below the uncoupled-length maximum."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

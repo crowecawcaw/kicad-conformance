@@ -1,0 +1,4 @@
+concept = "Via-count report anchor discriminator: via-anchor-matrix-fresh-uuids."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,4 @@
+concept = "Reversing matching uncoupled-length rules selects the later two-millimetre limit."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

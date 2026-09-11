@@ -1,0 +1,9 @@
+{
+  "board": {
+    "design_settings": {
+      "rule_severities": {
+        "copper_sliver": "ignore"
+      }
+    }
+  }
+}

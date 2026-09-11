@@ -1,0 +1,4 @@
+concept = "A B.Cu track connected to a via post-machined from the back reports the post-machined-layer error."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

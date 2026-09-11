@@ -1,0 +1,4 @@
+concept = "A board cutout between two pads probes whether creepage follows a surface detour instead of their 9 mm Euclidean copper gap."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

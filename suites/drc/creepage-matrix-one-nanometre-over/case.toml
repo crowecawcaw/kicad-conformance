@@ -1,0 +1,4 @@
+concept = "A 5.000001 mm creepage minimum probes one nanometre above the otherwise exact 5 mm air-gap boundary."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

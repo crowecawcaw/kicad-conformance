@@ -1,0 +1,4 @@
+concept = "A named 180 degree minimum track-angle rule reports both directed observations of a connected 90 degree bend while a straight route is clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

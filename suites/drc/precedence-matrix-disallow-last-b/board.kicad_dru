@@ -1,0 +1,3 @@
+(version 1)
+(rule "DISALLOW_EARLY_A" (condition "A.NetName == 'BAN'") (constraint disallow track))
+(rule "DISALLOW_LAST_B" (condition "A.NetName == 'BAN'") (constraint disallow track))

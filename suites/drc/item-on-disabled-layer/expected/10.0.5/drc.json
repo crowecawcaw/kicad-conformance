@@ -39,7 +39,7 @@
                 {
                     "description": "Pad 1 [Net-1] of  on F.Cu",
                     "pos": {
-                        "x": 5.0,
+                        "x": 15.0,
                         "y": 10.0
                     },
                     "uuid": "NORMALIZED-UUID"
@@ -62,7 +62,7 @@
                 {
                     "description": "Pad 1 [Net-1] of  on F.Cu",
                     "pos": {
-                        "x": 15.0,
+                        "x": 5.0,
                         "y": 10.0
                     },
                     "uuid": "NORMALIZED-UUID"

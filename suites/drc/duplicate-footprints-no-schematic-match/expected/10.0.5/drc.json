@@ -142,7 +142,7 @@
     ],
     "violations": [
         {
-            "description": "The current configuration does not include the footprint library 'Resistor_SMD'",
+            "description": "Footprint 'R_0603_1608Metric' does not match copy in library 'Resistor_SMD'",
             "items": [
                 {
                     "description": "Footprint X1",
@@ -154,10 +154,10 @@
                 }
             ],
             "severity": "warning",
-            "type": "lib_footprint_issues"
+            "type": "lib_footprint_mismatch"
         },
         {
-            "description": "The current configuration does not include the footprint library 'Resistor_SMD'",
+            "description": "Footprint 'R_0603_1608Metric' does not match copy in library 'Resistor_SMD'",
             "items": [
                 {
                     "description": "Footprint X1",
@@ -169,7 +169,7 @@
                 }
             ],
             "severity": "warning",
-            "type": "lib_footprint_issues"
+            "type": "lib_footprint_mismatch"
         }
     ]
 }

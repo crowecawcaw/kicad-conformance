@@ -1,4 +1,4 @@
-concept = "Recomputing a zone's fill connects a same-net through-hole pad through four diagonal thermal spokes of thermal_bridge_width, holding the pour back from the pad by thermal_gap everywhere else."
+concept = "Recomputing a zone's fill applies custom thermal gap and spoke-width rules to the four diagonal relief spokes around a same-net through-hole pad."
 doc     = "sexpr-pcb"
 input   = "board.kicad_pcb"
 extra   = ["refill"]
@@ -8,4 +8,5 @@ extra   = ["refill"]
 # sees a fill, and the only thing a perturbation of the fill parameters can move.
 #
 # `connect_pads` with no mode is the default (thermal relief); the pad is the zone's only
-# connection, so the spokes are the whole of the fill's interior detail.
+# connection, so the spokes are the whole of the fill's interior detail. The sidecar's
+# 2 mm gap and 1 mm spoke replace the zone's 0.5 mm values.

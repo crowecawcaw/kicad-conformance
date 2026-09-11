@@ -32,6 +32,21 @@
     "kicad_version": "10.0.5",
     "schematic_parity": [
         {
+            "description": "Field 'OracleProbe' differs (PCB: 'different-on-footprint', Schematic: 'present-only-on-symbol')",
+            "items": [
+                {
+                    "description": "Footprint R1",
+                    "pos": {
+                        "x": 100.0,
+                        "y": 50.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "footprint_symbol_field_mismatch"
+        },
+        {
             "description": "Missing footprint C1 (1k)",
             "items": [],
             "severity": "warning",
@@ -57,7 +72,7 @@
     "unconnected_items": [],
     "violations": [
         {
-            "description": "The current configuration does not include the footprint library 'Resistor_SMD'",
+            "description": "Footprint 'R_0805_2012Metric' does not match copy in library 'Resistor_SMD'",
             "items": [
                 {
                     "description": "Footprint R1",
@@ -69,7 +84,7 @@
                 }
             ],
             "severity": "warning",
-            "type": "lib_footprint_issues"
+            "type": "lib_footprint_mismatch"
         }
     ]
 }

@@ -1,0 +1,4 @@
+concept = "Reversing two matching track-angle rules selects the later named 180 degree rule on unchanged 90 degree bend geometry."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

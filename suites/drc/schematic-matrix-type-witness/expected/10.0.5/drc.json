@@ -38,6 +38,21 @@
     "unconnected_items": [],
     "violations": [
         {
+            "description": "Footprint 'R_0603_1608Metric' does not match copy in library 'Resistor_SMD'",
+            "items": [
+                {
+                    "description": "Footprint R1",
+                    "pos": {
+                        "x": 100.0,
+                        "y": 50.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_mismatch"
+        },
+        {
             "description": "Footprint component type doesn't match footprint pads (expected 'Through hole'; actual 'SMD')",
             "items": [
                 {
@@ -51,21 +66,6 @@
             ],
             "severity": "error",
             "type": "footprint_type_mismatch"
-        },
-        {
-            "description": "The current configuration does not include the footprint library 'Resistor_SMD'",
-            "items": [
-                {
-                    "description": "Footprint R1",
-                    "pos": {
-                        "x": 100.0,
-                        "y": 50.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "warning",
-            "type": "lib_footprint_issues"
         }
     ]
 }

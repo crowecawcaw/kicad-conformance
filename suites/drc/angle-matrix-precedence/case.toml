@@ -1,0 +1,4 @@
+concept = "Two matching track-angle rules select the later named 120 degree minimum rule for a 90 degree bend."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

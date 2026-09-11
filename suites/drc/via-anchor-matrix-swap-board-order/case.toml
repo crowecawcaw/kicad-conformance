@@ -1,0 +1,4 @@
+concept = "Via-count report anchor discriminator: via-anchor-matrix-swap-board-order."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

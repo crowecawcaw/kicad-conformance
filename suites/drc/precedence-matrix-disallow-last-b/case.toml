@@ -1,0 +1,4 @@
+concept = "Later matching disallow rule B rejects BAN track."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

@@ -1,0 +1,3 @@
+(version 1)
+(rule "UNCOUPLED_EARLY_2" (constraint diff_pair_gap (max 1mm)) (constraint diff_pair_uncoupled (max 2mm)))
+(rule "UNCOUPLED_LAST_1" (constraint diff_pair_gap (max 1mm)) (constraint diff_pair_uncoupled (max 1mm)))

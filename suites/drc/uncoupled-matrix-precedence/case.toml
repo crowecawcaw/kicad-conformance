@@ -1,0 +1,4 @@
+concept = "Two matching uncoupled-length rules select the later one-millimetre limit."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

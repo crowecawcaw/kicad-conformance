@@ -1,0 +1,6 @@
+(kicad_pcb (version 20260206) (generator "pcbnew") (generator_version "10.0")
+ (general (thickness 1.6)) (paper "A4") (layers (0 "F.Cu" signal) (2 "B.Cu" signal) (25 "Edge.Cuts" user)) (setup (pad_to_mask_clearance 0))
+ (net 0 "") (net 1 "SURFACE_A") (net 2 "SURFACE_B")
+ (footprint "Test" (layer "F.Cu") (at 5 15) (property "Reference" "SURFACE_A" (at 0 0) (layer "F.Fab") hide (effects (font (size 1 1)))) (attr smd) (pad "1" smd circle (at 0 0) (size 1 1) (layers "F.Cu" "F.Mask" "F.Paste") (net 1 "SURFACE_A")))
+ (footprint "Test" (layer "F.Cu") (at 15 15) (property "Reference" "SURFACE_B" (at 0 0) (layer "F.Fab") hide (effects (font (size 1 1)))) (attr smd) (pad "1" smd circle (at 0 0) (size 1 1) (layers "F.Cu" "F.Mask" "F.Paste") (net 2 "SURFACE_B")))
+ (gr_rect (start 0 0) (end 30 30) (stroke (width 0.1) (type default)) (fill no) (layer "Edge.Cuts")))

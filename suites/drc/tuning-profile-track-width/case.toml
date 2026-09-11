@@ -1,0 +1,4 @@
+concept = "A differential tuning profile enforces exact per-layer track widths and pair gaps with the measured half-micron gap allowance."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

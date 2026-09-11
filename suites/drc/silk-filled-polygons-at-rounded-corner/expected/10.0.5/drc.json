@@ -3,13 +3,32 @@
     "coordinate_units": "mm",
     "date": "NORMALIZED-DATE",
     "ignored_checks": [
-        { "description": "Footprint has no courtyard defined", "key": "missing_courtyard" },
-        { "description": "Track endpoint not centered on via", "key": "track_not_centered_on_via" },
-        { "description": "Tuning profile track geometries", "key": "tuning_profile_track_geometries" },
-        { "description": "Footprint doesn't match symbol's footprint filters", "key": "footprint_filters_mismatch" },
-        { "description": "Footprint component type doesn't match footprint pads", "key": "footprint_type_mismatch" }
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Tuning profile track geometries",
+            "key": "tuning_profile_track_geometries"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
     ],
-    "included_severities": [ "error", "warning", "exclusion" ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
     "kicad_version": "10.0.5",
     "schematic_parity": [],
     "source": "board.kicad_pcb",
@@ -19,18 +38,39 @@
             "description": "Silkscreen clipped by board edge",
             "items": [
                 {
-                    "description": "Segment on Edge.Cuts",
-                    "pos": { "x": 0.206074, "y": 0.689426 },
+                    "description": "Polygon of L1 on F.Silkscreen",
+                    "pos": {
+                        "x": 2.594048,
+                        "y": 0.542857
+                    },
                     "uuid": "NORMALIZED-UUID"
                 },
                 {
-                    "description": "Polygon of L1 on F.Silkscreen",
-                    "pos": { "x": 2.594048, "y": 0.542857 },
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 0.206074,
+                        "y": 0.689426
+                    },
                     "uuid": "NORMALIZED-UUID"
                 }
             ],
             "severity": "warning",
             "type": "silk_edge_clearance"
+        },
+        {
+            "description": "The current configuration does not include the footprint library 'probe'",
+            "items": [
+                {
+                    "description": "Footprint L1",
+                    "pos": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "lib_footprint_issues"
         }
     ]
 }

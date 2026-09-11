@@ -1,0 +1,4 @@
+concept = "Different-net F.Cu tracks ending exactly at, or one nanometre before, a perpendicular track remain free of shorting_items and tracks_crossing findings."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

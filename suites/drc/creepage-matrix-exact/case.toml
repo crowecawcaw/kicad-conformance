@@ -1,0 +1,4 @@
+concept = "A 5 mm creepage rule is clean for pads at the exact 5 mm air-gap boundary while a far pair remains clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

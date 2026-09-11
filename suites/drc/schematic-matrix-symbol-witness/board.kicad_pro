@@ -16,6 +16,9 @@
       },
       "diff_pair_dimensions": [],
       "drc_exclusions": [],
+      "rule_severities": {
+        "footprint_symbol_field_mismatch": "error"
+      },
       "rules": {
         "min_copper_edge_clearance": 0.0,
         "solder_mask_clearance": 0.0,

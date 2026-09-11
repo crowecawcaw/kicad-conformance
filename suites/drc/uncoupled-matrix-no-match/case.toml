@@ -1,0 +1,4 @@
+concept = "An unmatched differential-pair rule leaves the separated routes without an uncoupled-length finding."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

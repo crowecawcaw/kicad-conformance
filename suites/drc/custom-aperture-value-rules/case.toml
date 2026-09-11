@@ -1,0 +1,4 @@
+concept = "Custom mask and paste optima alter non-square pad apertures, use last matching rule, and remain below explicit pad overrides."
+doc = "sexpr-pcb"
+input = "board.kicad_pcb"
+extra = ["drc"]

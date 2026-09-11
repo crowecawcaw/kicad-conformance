@@ -1,0 +1,4 @@
+concept = "A net class selected by a net pattern reports when its named tuning profile is absent from the project."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

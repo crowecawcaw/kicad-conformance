@@ -1,0 +1,3 @@
+(version 1)
+(rule "CREEPAGE_DIRECT_5MM"
+  (constraint creepage (min 5mm)))

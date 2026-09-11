@@ -40,6 +40,7 @@
 		(at 100 50)
 		(property "Reference" "R1" (at 0 -1.5) (layer "F.SilkS") (uuid "ref-r1"))
 		(property "Value" "1k" (at 0 1.5) (layer "F.Fab") (uuid "val-r1"))
+		(property "OracleProbe" "different-on-footprint" (at 0 2.5) (layer "F.Fab"))
 		(pad "1" smd roundrect (at -0.8 0) (size 0.9 0.95) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.25) (net 1 "/VIN"))
 		(pad "2" smd roundrect (at 0.8 0) (size 0.9 0.95) (layers "F.Cu" "F.Paste" "F.Mask") (roundrect_rratio 0.25) (net 2 "/GND"))
 	)

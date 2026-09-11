@@ -1,0 +1,4 @@
+concept = "An unmatched creepage rule leaves the otherwise violating near-pad geometry without a creepage finding."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

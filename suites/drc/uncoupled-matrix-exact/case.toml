@@ -1,0 +1,4 @@
+concept = "A one-millimetre separated-pair route is clean at the uncoupled-length maximum while its gap constraint remains active."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

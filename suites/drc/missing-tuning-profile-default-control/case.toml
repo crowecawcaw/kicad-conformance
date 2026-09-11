@@ -1,0 +1,4 @@
+concept = "An absent tuning profile named only by Default does not emit missing_tuning_profile."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

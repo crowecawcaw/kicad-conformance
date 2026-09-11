@@ -1,0 +1,4 @@
+concept = "A named 5 mm creepage rule reports a 1 mm pad air gap and leaves a far 9 mm pair clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

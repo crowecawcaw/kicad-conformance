@@ -1,0 +1,4 @@
+concept = "The same 9 mm copper gap without an intervening board cutout violates the named 12 mm creepage rule."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

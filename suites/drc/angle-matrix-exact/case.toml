@@ -1,0 +1,4 @@
+concept = "The 90 degree connected bend is clean at the exact minimum track-angle boundary."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

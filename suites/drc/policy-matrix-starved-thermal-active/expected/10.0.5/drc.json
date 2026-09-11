@@ -35,82 +35,7 @@
     "unconnected_items": [],
     "violations": [
         {
-            "description": "Isolated copper fill",
-            "items": [
-                {
-                    "description": "Zone [GND] on F.Cu, priority 0",
-                    "pos": {
-                        "x": 2.0,
-                        "y": 2.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "warning",
-            "type": "isolated_copper"
-        },
-        {
-            "description": "Isolated copper fill",
-            "items": [
-                {
-                    "description": "Zone [GND] on F.Cu, priority 0",
-                    "pos": {
-                        "x": 2.0,
-                        "y": 2.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "warning",
-            "type": "isolated_copper"
-        },
-        {
-            "description": "Isolated copper fill",
-            "items": [
-                {
-                    "description": "Zone [GND] on F.Cu, priority 0",
-                    "pos": {
-                        "x": 2.0,
-                        "y": 2.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "warning",
-            "type": "isolated_copper"
-        },
-        {
-            "description": "Isolated copper fill",
-            "items": [
-                {
-                    "description": "Zone [GND] on F.Cu, priority 0",
-                    "pos": {
-                        "x": 2.0,
-                        "y": 2.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "warning",
-            "type": "isolated_copper"
-        },
-        {
-            "description": "Isolated copper fill",
-            "items": [
-                {
-                    "description": "Zone [GND] on F.Cu, priority 0",
-                    "pos": {
-                        "x": 2.0,
-                        "y": 2.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "warning",
-            "type": "isolated_copper"
-        },
-        {
-            "description": "The current configuration does not include the footprint library 'TestPoint'",
+            "description": "Footprint 'TestPad' not found in library 'TestPoint'",
             "items": [
                 {
                     "description": "Footprint <no reference designator>",
@@ -123,6 +48,81 @@
             ],
             "severity": "warning",
             "type": "lib_footprint_issues"
+        },
+        {
+            "description": "Isolated copper fill",
+            "items": [
+                {
+                    "description": "Zone [GND] on F.Cu, priority 0",
+                    "pos": {
+                        "x": 2.0,
+                        "y": 2.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "isolated_copper"
+        },
+        {
+            "description": "Isolated copper fill",
+            "items": [
+                {
+                    "description": "Zone [GND] on F.Cu, priority 0",
+                    "pos": {
+                        "x": 2.0,
+                        "y": 2.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "isolated_copper"
+        },
+        {
+            "description": "Isolated copper fill",
+            "items": [
+                {
+                    "description": "Zone [GND] on F.Cu, priority 0",
+                    "pos": {
+                        "x": 2.0,
+                        "y": 2.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "isolated_copper"
+        },
+        {
+            "description": "Isolated copper fill",
+            "items": [
+                {
+                    "description": "Zone [GND] on F.Cu, priority 0",
+                    "pos": {
+                        "x": 2.0,
+                        "y": 2.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "isolated_copper"
+        },
+        {
+            "description": "Isolated copper fill",
+            "items": [
+                {
+                    "description": "Zone [GND] on F.Cu, priority 0",
+                    "pos": {
+                        "x": 2.0,
+                        "y": 2.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "isolated_copper"
         },
         {
             "description": "Thermal relief connection to zone incomplete (layer F.Cu; zone min spoke count 2; actual 1)",

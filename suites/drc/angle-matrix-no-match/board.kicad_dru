@@ -1,0 +1,4 @@
+(version 1)
+(rule "ANGLE_NO_MATCH"
+  (condition "A.NetName == 'UNUSED_NET'")
+  (constraint track_angle (min 180)))

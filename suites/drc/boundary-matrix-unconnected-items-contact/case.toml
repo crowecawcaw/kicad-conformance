@@ -1,0 +1,4 @@
+concept = "Same-net pads joined at an exact copper contact are clean; a one-nanometre physical gap leaves the otherwise identical pair unconnected."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

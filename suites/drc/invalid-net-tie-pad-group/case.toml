@@ -1,0 +1,4 @@
+concept = "A footprint net-tie group that names absent pad 999 reports the generic footprint validity check; removing 999 is clean."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

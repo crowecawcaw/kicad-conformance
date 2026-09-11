@@ -1,0 +1,3 @@
+(version 1)
+(rule "CW_EARLY_NARROW" (condition "A.NetName == 'N'") (constraint connection_width (min 0.100000mm)))
+(rule "CW_LAST_WIDE" (condition "A.NetName == 'N'") (constraint connection_width (min 0.200000mm)))

@@ -10,21 +10,21 @@
     "width": "30.0000 mm",
     "height": "20.0000 mm",
     "area": "600.00 mm²",
-    "front_component_density": "1.47",
-    "back_component_density": "1.47",
-    "front_copper_area": "6.781 mm²",
-    "back_copper_area": "5.065 mm²",
-    "min_track_clearance": "4.8010 mm",
+    "front_component_density": "1.72",
+    "back_component_density": "1.72",
+    "front_copper_area": "7.975 mm²",
+    "back_copper_area": "5.831 mm²",
+    "min_track_clearance": "1.8025 mm",
     "min_track_width": "0.2000 mm",
     "min_drill_diameter": "0.6000 mm",
     "board_thickness": "1.6000 mm",
-    "front_footprint_area": "8.808 mm²",
-    "back_footprint_area": "8.808 mm²",
-    "front_footprint_density": "1.47",
-    "back_footprint_density": "1.47"
+    "front_footprint_area": "10.308 mm²",
+    "back_footprint_area": "10.308 mm²",
+    "front_footprint_density": "1.72",
+    "back_footprint_density": "1.72"
   },
   "pads": {
-    "through_hole": 4,
+    "through_hole": 5,
     "smd": 0,
     "connector": 0,
     "npth": 0,
@@ -39,9 +39,9 @@
   },
   "components": {
     "tht": {
-      "front": 4,
+      "front": 5,
       "back": 0,
-      "total": 4
+      "total": 5
     },
     "smd": {
       "front": 0,
@@ -54,14 +54,14 @@
       "total": 0
     },
     "total": {
-      "front": 4,
+      "front": 5,
       "back": 0,
-      "total": 4
+      "total": 5
     }
   },
   "drill_holes": [
     {
-      "count": 2,
+      "count": 3,
       "shape": "Round",
       "x_size": "0.6000 mm",
       "y_size": "0.6000 mm",

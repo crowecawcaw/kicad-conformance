@@ -1,0 +1,3 @@
+(version 1)
+(rule "CREEPAGE_SURFACE_12MM"
+  (constraint creepage (min 12mm)))

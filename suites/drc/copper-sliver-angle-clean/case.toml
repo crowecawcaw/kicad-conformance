@@ -1,0 +1,4 @@
+concept = "Widening only the attached copper tip to 20.000403 degrees is clean at the strict 20 degree boundary."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

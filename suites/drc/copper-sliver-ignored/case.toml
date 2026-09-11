@@ -1,0 +1,4 @@
+concept = "The attached sub-20-degree copper tip is clean when the project sets copper_sliver severity to ignore."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

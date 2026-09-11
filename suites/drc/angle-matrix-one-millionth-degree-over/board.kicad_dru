@@ -1,0 +1,4 @@
+(version 1)
+(rule "ANGLE_MIN_90_PLUS_1E6"
+  (condition "A.Type == 'Track'")
+  (constraint track_angle (min 90.000001)))

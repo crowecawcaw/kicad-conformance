@@ -1,0 +1,4 @@
+concept = "The same ten-millimetre separated pair is clean at the exact uncoupled-length maximum."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

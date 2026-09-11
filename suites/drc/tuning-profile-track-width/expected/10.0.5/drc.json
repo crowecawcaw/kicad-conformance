@@ -1,0 +1,403 @@
+{
+    "$schema": "https://schemas.kicad.org/drc.v1.json",
+    "coordinate_units": "mm",
+    "date": "NORMALIZED-DATE",
+    "ignored_checks": [
+        {
+            "description": "Footprint has no courtyard defined",
+            "key": "missing_courtyard"
+        },
+        {
+            "description": "Track endpoint not centered on via",
+            "key": "track_not_centered_on_via"
+        },
+        {
+            "description": "Footprint doesn't match symbol's footprint filters",
+            "key": "footprint_filters_mismatch"
+        },
+        {
+            "description": "Footprint component type doesn't match footprint pads",
+            "key": "footprint_type_mismatch"
+        }
+    ],
+    "included_severities": [
+        "error",
+        "warning",
+        "exclusion"
+    ],
+    "kicad_version": "10.0.5",
+    "schematic_parity": [],
+    "source": "board.kicad_pcb",
+    "unconnected_items": [],
+    "violations": [
+        {
+            "description": "Differential pair gap out of range (tuning profile 'measured-pair' maximum gap 0.2000 mm; actual 0.2005 mm)",
+            "items": [
+                {
+                    "description": "Track [GAP_BOUNDARY_N] on F.Cu, length 10.0000 mm",
+                    "pos": {
+                        "x": 22.700501,
+                        "y": 26.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [GAP_BOUNDARY_P] on F.Cu, length 10.0000 mm",
+                    "pos": {
+                        "x": 22.0,
+                        "y": 26.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "diff_pair_gap_out_of_range"
+        },
+        {
+            "description": "Differential pair gap out of range (tuning profile 'measured-pair' maximum gap 0.2000 mm; actual 0.3005 mm)",
+            "items": [
+                {
+                    "description": "Track [GAP_WIDE_N] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 22.800501
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [GAP_WIDE_P] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 22.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "diff_pair_gap_out_of_range"
+        },
+        {
+            "description": "Differential pair gap out of range (tuning profile 'measured-pair' minimum gap 0.2000 mm; actual 0.1000 mm)",
+            "items": [
+                {
+                    "description": "Track [GAP_NARROW_N] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 26.6
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Track [GAP_NARROW_P] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 26.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "diff_pair_gap_out_of_range"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [B_EXACT] on B.Cu, length 14.0000 mm",
+                    "pos": {
+                        "x": 22.0,
+                        "y": 4.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [B_WRONG] on B.Cu, length 14.0000 mm",
+                    "pos": {
+                        "x": 22.0,
+                        "y": 7.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [F_UNDER] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 18.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [GAP_BOUNDARY_N] on F.Cu, length 10.0000 mm",
+                    "pos": {
+                        "x": 22.700501,
+                        "y": 26.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [GAP_BOUNDARY_P] on F.Cu, length 10.0000 mm",
+                    "pos": {
+                        "x": 22.0,
+                        "y": 26.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [GAP_NARROW_N] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 26.6
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [GAP_NARROW_P] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 26.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [GAP_TOL_N] on F.Cu, length 14.0000 mm",
+                    "pos": {
+                        "x": 22.0,
+                        "y": 22.7005
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [GAP_TOL_P] on F.Cu, length 14.0000 mm",
+                    "pos": {
+                        "x": 22.0,
+                        "y": 22.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [GAP_WIDE_N] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 22.800501
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [GAP_WIDE_P] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 22.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [TUNED_BAD] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 8.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [TUNED_EXACT] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 12.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [TUNED_ONE_NM] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 15.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track has unconnected end",
+            "items": [
+                {
+                    "description": "Track [TUNED_VERTICAL] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 18.0,
+                        "y": 4.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "warning",
+            "type": "track_dangling"
+        },
+        {
+            "description": "Track width (board setup constraints min width 0.5000 mm; actual 0.4000 mm)",
+            "items": [
+                {
+                    "description": "Track [F_UNDER] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 18.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "track_width"
+        },
+        {
+            "description": "Track width (tuning profile 'measured-width' max width 0.4000 mm; actual 0.5000 mm)",
+            "items": [
+                {
+                    "description": "Track [B_WRONG] on B.Cu, length 14.0000 mm",
+                    "pos": {
+                        "x": 22.0,
+                        "y": 7.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "track_width"
+        },
+        {
+            "description": "Track width (tuning profile 'measured-width' max width 0.5 mm; actual 0.500001 mm)",
+            "items": [
+                {
+                    "description": "Track [TUNED_ONE_NM] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 15.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "track_width"
+        },
+        {
+            "description": "Track width (tuning profile 'measured-width' max width 0.5000 mm; actual 0.6000 mm)",
+            "items": [
+                {
+                    "description": "Track [TUNED_BAD] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 4.0,
+                        "y": 8.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "track_width"
+        },
+        {
+            "description": "Track width (tuning profile 'measured-width' max width 0.5000 mm; actual 0.6000 mm)",
+            "items": [
+                {
+                    "description": "Track [TUNED_VERTICAL] on F.Cu, length 12.0000 mm",
+                    "pos": {
+                        "x": 18.0,
+                        "y": 4.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "track_width"
+        }
+    ]
+}

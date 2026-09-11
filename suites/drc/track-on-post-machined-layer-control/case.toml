@@ -1,0 +1,4 @@
+concept = "A track on the unaffected opposite outer layer remains valid when a via is post-machined only from the front."
+doc     = "cli:pcb-drc"
+input   = "board.kicad_pcb"
+extra   = ["drc"]

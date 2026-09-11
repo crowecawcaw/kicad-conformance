@@ -1,0 +1,4 @@
+concept = "A filled copper polygon with an attached 19.999978 degree convex tip reports one copper sliver."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

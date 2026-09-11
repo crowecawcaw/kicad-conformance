@@ -1,4 +1,4 @@
-concept = "Changing only R1's board footprint identifier from the schematic field reports footprint_symbol_mismatch."
+concept = "R1's changed footprint identifier, missing OracleMissing field, and differing OracleProbe value report distinct schematic-parity checks."
 doc = "cli:pcb-drc"
 input = "board.kicad_pcb"
 extra = ["drc"]

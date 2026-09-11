@@ -35,29 +35,6 @@
     "unconnected_items": [],
     "violations": [
         {
-            "description": "Board has malformed outline (not a closed shape)",
-            "items": [
-                {
-                    "description": "Segment on Edge.Cuts",
-                    "pos": {
-                        "x": 0.0,
-                        "y": 0.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                },
-                {
-                    "description": "Segment on Edge.Cuts",
-                    "pos": {
-                        "x": 0.0,
-                        "y": 0.0
-                    },
-                    "uuid": "NORMALIZED-UUID"
-                }
-            ],
-            "severity": "error",
-            "type": "invalid_outline"
-        },
-        {
             "description": "Board has malformed outline (not a closed shape) (gap 19.9000 mm)",
             "items": [
                 {
@@ -73,6 +50,29 @@
                     "pos": {
                         "x": 20.0,
                         "y": 20.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                }
+            ],
+            "severity": "error",
+            "type": "invalid_outline"
+        },
+        {
+            "description": "Board has malformed outline (not a closed shape)",
+            "items": [
+                {
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 0.0,
+                        "y": 0.0
+                    },
+                    "uuid": "NORMALIZED-UUID"
+                },
+                {
+                    "description": "Segment on Edge.Cuts",
+                    "pos": {
+                        "x": 0.0,
+                        "y": 0.0
                     },
                     "uuid": "NORMALIZED-UUID"
                 }

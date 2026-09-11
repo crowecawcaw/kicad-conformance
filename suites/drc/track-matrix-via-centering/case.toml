@@ -1,0 +1,4 @@
+concept = "With track_not_centered_on_via enabled, exact horizontal and vertical endpoints at via centres are clean while horizontal, vertical, and one-nanometre offsets report the built-in check."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

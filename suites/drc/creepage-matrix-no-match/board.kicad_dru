@@ -1,0 +1,4 @@
+(version 1)
+(rule "CREEPAGE_NO_MATCH"
+  (condition "A.NetName == 'UNUSED_NET'")
+  (constraint creepage (min 5mm)))

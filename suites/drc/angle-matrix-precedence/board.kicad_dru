@@ -1,0 +1,7 @@
+(version 1)
+(rule "ANGLE_EARLY_MIN_180"
+  (condition "A.Type == 'Track'")
+  (constraint track_angle (min 180)))
+(rule "ANGLE_LAST_MIN_120"
+  (condition "A.Type == 'Track'")
+  (constraint track_angle (min 120)))

@@ -1,0 +1,4 @@
+concept = "A 90.000001 degree track-angle minimum probes one millionth of a degree above the exact 90 degree connected bend."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]

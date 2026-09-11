@@ -1,0 +1,4 @@
+(version 1)
+(rule "VIA_EARLY_THREE" (condition "A.Type == 'Via'") (constraint via_count (max 3)))
+(rule "VIA_MIDDLE_TWO" (condition "A.Type == 'Via'") (constraint via_count (max 2)))
+(rule "VIA_LAST_ONE" (condition "A.Type == 'Via'") (constraint via_count (max 1)))

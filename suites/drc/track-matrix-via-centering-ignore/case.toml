@@ -1,0 +1,4 @@
+concept = "The same off-centre via endpoints are suppressed when the project severity for track_not_centered_on_via is ignore."
+doc = "cli:pcb-drc"
+input = "board.kicad_pcb"
+extra = ["drc"]
